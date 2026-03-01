@@ -1,0 +1,5 @@
+# Android SDK location
+sdk.dir=/path/to/Android/Sdk
+
+# API keys are configured within the app's Settings screen.
+# No build-time API key configuration needed.
