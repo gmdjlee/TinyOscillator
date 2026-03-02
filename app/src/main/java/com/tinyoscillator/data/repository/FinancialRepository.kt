@@ -19,7 +19,8 @@ class FinancialRepository(
     suspend fun getFinancialData(
         ticker: String,
         name: String,
-        kisConfig: KisApiKeyConfig
+        kisConfig: KisApiKeyConfig,
+        useCache: Boolean = true
     ): Result<FinancialData> {
         try {
             if (!kisConfig.isValid()) {
@@ -28,10 +29,21 @@ class FinancialRepository(
                 )
             }
 
-            // Load existing cache (no TTL - permanent)
-            val existingCache = loadCachedData(ticker)
+            // Periodic cleanup: delete caches older than 7 days
+            financialCacheDao.deleteExpired(System.currentTimeMillis() - 7 * CACHE_TTL_MS)
 
-            // Fetch fresh data from API
+            // TTL-based cache-first: return cached data if within 24h
+            if (useCache) {
+                val cachedEntity = financialCacheDao.get(ticker)
+                if (cachedEntity != null && !isCacheExpired(cachedEntity.cachedAt)) {
+                    Log.d(TAG, "캐시에서 반환 (TTL 유효): $ticker")
+                    val data = json.decodeFromString<FinancialDataCache>(cachedEntity.data)
+                    return Result.success(data.toData())
+                }
+            }
+
+            // Cache expired or useCache=false → fetch from API
+            val existingCache = loadCachedData(ticker)
             val freshData = fetchFromApi(ticker, name, kisConfig)
 
             // Merge: existing cache + fresh API data
@@ -53,13 +65,18 @@ class FinancialRepository(
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get financial data for $ticker", e)
-            // Fallback to cache if API fails
+            // Fallback to stale cache if API fails
             val cached = loadCachedData(ticker)
             if (cached != null) {
+                Log.d(TAG, "API 실패 → stale 캐시 반환: $ticker")
                 return Result.success(cached)
             }
             return Result.failure(e)
         }
+    }
+
+    private fun isCacheExpired(cachedAt: Long): Boolean {
+        return System.currentTimeMillis() - cachedAt > CACHE_TTL_MS
     }
 
     suspend fun refreshFinancialData(
@@ -244,6 +261,7 @@ class FinancialRepository(
 
     companion object {
         private const val TAG = "FinancialRepo"
+        private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L  // 24시간
 
         private const val TR_BALANCE_SHEET = "FHKST66430100"
         private const val TR_INCOME_STATEMENT = "FHKST66430200"

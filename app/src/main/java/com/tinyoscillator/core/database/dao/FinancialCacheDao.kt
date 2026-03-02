@@ -16,4 +16,7 @@ interface FinancialCacheDao {
 
     @Query("DELETE FROM financial_cache WHERE ticker = :ticker")
     suspend fun delete(ticker: String)
+
+    @Query("DELETE FROM financial_cache WHERE cachedAt < :threshold")
+    suspend fun deleteExpired(threshold: Long)
 }

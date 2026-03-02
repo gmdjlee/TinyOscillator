@@ -31,6 +31,7 @@ class StockRepository @Inject constructor(
     private val analysisCacheDao: AnalysisCacheDao
 ) {
     private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val lastFetchTime = mutableMapOf<String, Long>()
 
     /**
      * 일별 거래 데이터 수집 (incremental cache 지원).
@@ -60,6 +61,15 @@ class StockRepository @Inject constructor(
             return@withContext loadFromCache(ticker, startDate, endDate)
         }
 
+        // 주말/공휴일 반복 호출 방지: 1시간 쿨다운
+        if (latestCachedDate != null) {
+            val lastFetch = lastFetchTime[ticker] ?: 0L
+            if (System.currentTimeMillis() - lastFetch < COOLDOWN_MS) {
+                Log.d(TAG, "쿨다운 중 → 캐시 반환: $ticker")
+                return@withContext loadFromCache(ticker, startDate, endDate)
+            }
+        }
+
         // API에서 신규 데이터 수집
         val fetchStartDate = if (latestCachedDate != null) {
             // 캐시된 최신일 + 1일부터 조회
@@ -73,6 +83,7 @@ class StockRepository @Inject constructor(
         Log.d(TAG, "캐시 최신일: ${latestCachedDate ?: "없음"} → fetch: $fetchStartDate ~ $endDate")
 
         val newData = fetchFromApi(ticker, fetchStartDate, endDate, config)
+        lastFetchTime[ticker] = System.currentTimeMillis()
 
         if (newData.isNotEmpty()) {
             // DB에 저장
@@ -307,6 +318,7 @@ class StockRepository @Inject constructor(
 
     companion object {
         private const val TAG = "StockRepository"
+        private const val COOLDOWN_MS = 60 * 60 * 1000L  // 1시간
     }
 }
 
