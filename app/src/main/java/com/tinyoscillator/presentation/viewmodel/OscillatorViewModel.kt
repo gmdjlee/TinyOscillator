@@ -8,12 +8,14 @@ import com.tinyoscillator.core.api.KiwoomApiKeyConfig
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
+import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.data.repository.StockMasterRepository
 import com.tinyoscillator.data.repository.StockRepository
 import com.tinyoscillator.domain.model.*
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.domain.usecase.SaveAnalysisHistoryUseCase
 import com.tinyoscillator.domain.usecase.SearchStocksUseCase
+import com.tinyoscillator.presentation.settings.loadKisConfig
 import com.tinyoscillator.presentation.settings.loadKiwoomConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -43,7 +45,8 @@ class OscillatorViewModel @Inject constructor(
     private val searchStocksUseCase: SearchStocksUseCase,
     private val saveAnalysisHistoryUseCase: SaveAnalysisHistoryUseCase,
     private val calcOscillator: CalcOscillatorUseCase,
-    private val analysisHistoryDao: AnalysisHistoryDao
+    private val analysisHistoryDao: AnalysisHistoryDao,
+    private val financialRepository: FinancialRepository
 ) : AndroidViewModel(application) {
 
     private val config = OscillatorConfig()
@@ -171,6 +174,19 @@ class OscillatorViewModel @Inject constructor(
                     signals = signals,
                     latestSignal = signals.lastOrNull()
                 )
+
+                // Step 6: 재무정보 비동기 수집 (오실레이터 결과와 독립)
+                launch {
+                    try {
+                        val kisConfig = loadKisConfig(getApplication())
+                        if (kisConfig.isValid()) {
+                            financialRepository.getFinancialData(ticker, stockName, kisConfig)
+                            Log.d(TAG, "재무정보 수집 완료: $ticker")
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "재무정보 수집 실패 (무시): ${e.message}")
+                    }
+                }
             } catch (e: Exception) {
                 _uiState.value = OscillatorUiState.Error(
                     "분석 실패: ${e.message ?: "알 수 없는 오류"}"

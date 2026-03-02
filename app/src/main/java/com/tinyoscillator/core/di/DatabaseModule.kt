@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
+import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import dagger.Module
 import dagger.Provides
@@ -24,7 +25,7 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "tiny_oscillator.db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides
@@ -35,4 +36,7 @@ object DatabaseModule {
 
     @Provides
     fun provideAnalysisHistoryDao(db: AppDatabase): AnalysisHistoryDao = db.analysisHistoryDao()
+
+    @Provides
+    fun provideFinancialCacheDao(db: AppDatabase): FinancialCacheDao = db.financialCacheDao()
 }

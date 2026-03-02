@@ -7,7 +7,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,6 +29,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.presentation.chart.OscillatorChart
+import com.tinyoscillator.presentation.financial.FinancialInfoContent
 import com.tinyoscillator.presentation.settings.SettingsScreen
 import com.tinyoscillator.presentation.viewmodel.OscillatorUiState
 import com.tinyoscillator.presentation.viewmodel.OscillatorViewModel
@@ -80,6 +80,11 @@ fun AppNavigation() {
     }
 }
 
+private enum class MainTab(val label: String) {
+    OSCILLATOR("오실레이터"),
+    FINANCIAL("재무정보")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OscillatorScreen(
@@ -92,6 +97,15 @@ fun OscillatorScreen(
     val stockMasterStatus by viewModel.stockMasterStatus.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var showHistory by remember { mutableStateOf(false) }
+    var selectedMainTab by remember { mutableStateOf(MainTab.OSCILLATOR) }
+
+    // Track current analyzed stock for financial tab
+    val currentTicker = remember(uiState) {
+        (uiState as? OscillatorUiState.Success)?.chartData?.ticker
+    }
+    val currentStockName = remember(uiState) {
+        (uiState as? OscillatorUiState.Success)?.chartData?.stockName
+    }
 
     Scaffold(
         topBar = {
@@ -184,157 +198,183 @@ fun OscillatorScreen(
                     .padding(horizontal = 16.dp)
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Box: LazyColumn (bottom) + autocomplete overlay (top)
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Main content
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // 상태별 UI
-                    when (val state = uiState) {
-                        is OscillatorUiState.Loading -> {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(32.dp),
-                                    contentAlignment = Alignment.Center
+            // Main Tab Row (오실레이터 / 재무정보)
+            TabRow(
+                selectedTabIndex = selectedMainTab.ordinal,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                MainTab.entries.forEach { tab ->
+                    Tab(
+                        selected = selectedMainTab == tab,
+                        onClick = { selectedMainTab = tab },
+                        text = { Text(tab.label) }
+                    )
+                }
+            }
+
+            // Tab content
+            when (selectedMainTab) {
+                MainTab.OSCILLATOR -> {
+                    // Box: LazyColumn (bottom) + autocomplete overlay (top)
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // Main content
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // 상태별 UI
+                            when (val state = uiState) {
+                                is OscillatorUiState.Loading -> {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(32.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                CircularProgressIndicator()
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(state.message)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                is OscillatorUiState.Error -> {
+                                    item {
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.errorContainer
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = state.message,
+                                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                                modifier = Modifier.padding(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                is OscillatorUiState.Success -> {
+                                    item {
+                                        OscillatorChart(chartData = state.chartData)
+                                    }
+                                }
+
+                                is OscillatorUiState.Idle -> { /* 초기 상태 */ }
+                            }
+                        }
+
+                        // Autocomplete dropdown overlay
+                        if (searchResults.isNotEmpty() && query.isNotBlank()) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .heightIn(max = 300.dp)
+                                    .zIndex(1f),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier.verticalScroll(rememberScrollState())
                                 ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        CircularProgressIndicator()
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(state.message)
+                                    searchResults.take(10).forEach { stock ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    query = stock.name
+                                                    viewModel.searchStock("") // 검색 결과 초기화
+                                                    viewModel.analyze(stock.ticker, stock.name)
+                                                }
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(stock.name, style = MaterialTheme.typography.bodyLarge)
+                                            Text(
+                                                "${stock.ticker} (${stock.market})",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        if (stock != searchResults.take(10).last()) {
+                                            HorizontalDivider()
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        is OscillatorUiState.Error -> {
-                            item {
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.errorContainer
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = state.message,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.padding(16.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        is OscillatorUiState.Success -> {
-                            item {
-                                OscillatorChart(chartData = state.chartData)
-                            }
-                        }
-
-                        is OscillatorUiState.Idle -> { /* 초기 상태 */ }
-                    }
-
-                }
-
-                // Autocomplete dropdown overlay
-                if (searchResults.isNotEmpty() && query.isNotBlank()) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .heightIn(max = 300.dp)
-                            .zIndex(1f),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.verticalScroll(rememberScrollState())
-                        ) {
-                            searchResults.take(10).forEach { stock ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            query = stock.name
-                                            viewModel.searchStock("") // 검색 결과 초기화
-                                            viewModel.analyze(stock.ticker, stock.name)
-                                        }
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(stock.name, style = MaterialTheme.typography.bodyLarge)
-                                    Text(
-                                        "${stock.ticker} (${stock.market})",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (stock != searchResults.take(10).last()) {
-                                    HorizontalDivider()
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // History dropdown overlay
-                if (showHistory && analysisHistory.isNotEmpty()) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .heightIn(max = 350.dp)
-                            .zIndex(1f),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
-                    ) {
-                        Column {
-                            Row(
+                        // History dropdown overlay
+                        if (showHistory && analysisHistory.isNotEmpty()) {
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.History,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    .padding(horizontal = 16.dp)
+                                    .heightIn(max = 350.dp)
+                                    .zIndex(1f),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
                                 )
-                                Text(
-                                    "최근 분석 기록",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            HorizontalDivider()
-                            Column(
-                                modifier = Modifier.verticalScroll(rememberScrollState())
                             ) {
-                                analysisHistory.forEach { history ->
-                                    HistoryItem(
-                                        history = history,
-                                        onClick = {
-                                            query = history.name
-                                            viewModel.searchStock("")
-                                            viewModel.analyze(history.ticker, history.name)
-                                            showHistory = false
+                                Column {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.History,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            "최근 분석 기록",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    HorizontalDivider()
+                                    Column(
+                                        modifier = Modifier.verticalScroll(rememberScrollState())
+                                    ) {
+                                        analysisHistory.forEach { history ->
+                                            HistoryItem(
+                                                history = history,
+                                                onClick = {
+                                                    query = history.name
+                                                    viewModel.searchStock("")
+                                                    viewModel.analyze(history.ticker, history.name)
+                                                    showHistory = false
+                                                }
+                                            )
                                         }
-                                    )
+                                    }
                                 }
                             }
                         }
                     }
+                }
+
+                MainTab.FINANCIAL -> {
+                    FinancialInfoContent(
+                        ticker = currentTicker,
+                        stockName = currentStockName,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }
