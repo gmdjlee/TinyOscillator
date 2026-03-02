@@ -108,12 +108,28 @@ class StockRepository(
 
         // 상장주식수 (1000주 단위 → 주)
         val sharesOutstanding = stockInfo.floatingShares
+        Log.d(TAG, "━━━ API 데이터 수집 결과 ━━━")
+        Log.d(TAG, "종목: $ticker | 상장주식수: ${sharesOutstanding}주")
 
         // 종가 맵 (날짜 → 종가)
         val closePriceMap = ohlcvData.associate { it.date to it.close }
+        Log.d(TAG, "투자자동향: ${investorTrend.size}건, 일봉: ${ohlcvData.size}건")
+
+        // 투자자 동향 원본 데이터 로그 (마지막 5일)
+        Log.d(TAG, "━━━ ka10059 원본 (마지막 5일, unit_tp=1000) ━━━")
+        investorTrend.takeLast(5).forEach { t ->
+            Log.d(TAG, "[${t.date}] foreignNet=${t.foreignNet} instNet=${t.institutionNet} marketCap=${t.marketCap}" +
+                    " → foreignWon=${t.foreignNetWon} instWon=${t.instNetWon} mcapWon=${t.marketCapWon}")
+        }
+
+        // 일봉 종가 로그 (마지막 5일)
+        Log.d(TAG, "━━━ ka10081 종가 (마지막 5일) ━━━")
+        ohlcvData.takeLast(5).forEach { o ->
+            Log.d(TAG, "[${o.date}] close=${o.close}")
+        }
 
         // 투자자 거래 데이터를 DailyTrading으로 변환
-        investorTrend
+        val result = investorTrend
             .filter { it.date >= startDate }
             .map { trend ->
                 // 시가총액 계산 우선순위:
@@ -130,12 +146,22 @@ class StockRepository(
                 DailyTrading(
                     date = trend.date,
                     marketCap = marketCap,
-                    // ka10059의 투자자 순매수 (unit_tp="1000" → 1000원 단위 → 원으로 변환)
+                    // ka10059의 투자자 순매수 (unit_tp="1000" → 천원 단위 → 원으로 변환)
                     foreignNetBuy = trend.foreignNetWon,
                     instNetBuy = trend.instNetWon
                 )
             }
             .sortedBy { it.date }
+
+        // 변환 후 DailyTrading 로그 (마지막 5일)
+        Log.d(TAG, "━━━ DailyTrading 변환 결과 (마지막 5일) ━━━")
+        result.takeLast(5).forEach { d ->
+            Log.d(TAG, "[${d.date}] marketCap=${d.marketCap}원 (${String.format("%.2f", d.marketCap / 1_0000_0000_0000.0)}조)" +
+                    " | foreignNetBuy=${d.foreignNetBuy}원 | instNetBuy=${d.instNetBuy}원")
+        }
+        Log.d(TAG, "━━━ 총 ${result.size}건 반환 ━━━")
+
+        result
     }
 
     /**
@@ -151,7 +177,7 @@ class StockRepository(
             "stk_cd" to ticker,
             "amt_qty_tp" to "1",     // 금액 기준
             "trde_tp" to "0",        // 순매수
-            "unit_tp" to "1000"      // 1000원 단위
+            "unit_tp" to "1000"      // 백만원 단위
         )
 
         val result = apiClient.call(
@@ -260,15 +286,15 @@ data class StockSearchResult(
 
 private data class InvestorTrendData(
     val date: String,
-    val foreignNet: Long,       // 1000원 단위
-    val institutionNet: Long,   // 1000원 단위
+    val foreignNet: Long,       // 천원 단위 (unit_tp="1000")
+    val institutionNet: Long,   // 천원 단위 (unit_tp="1000")
     val marketCap: Long         // 백만원 단위
 ) {
-    /** 외국인 순매수 (원) */
-    val foreignNetWon: Long get() = foreignNet * 1000
+    /** 외국인 순매수 (원): unit_tp="1000" → 백만원 단위 응답 */
+    val foreignNetWon: Long get() = foreignNet * 1_000_000
 
-    /** 기관 순매수 (원) */
-    val instNetWon: Long get() = institutionNet * 1000
+    /** 기관 순매수 (원): unit_tp="1000" → 백만원 단위 응답 */
+    val instNetWon: Long get() = institutionNet * 1_000_000
 
     /** 시가총액 (원) */
     val marketCapWon: Long get() = marketCap * 1_000_000
