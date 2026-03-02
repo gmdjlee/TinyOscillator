@@ -4,6 +4,8 @@ import android.util.Log
 import com.tinyoscillator.core.api.ApiError
 import com.tinyoscillator.core.api.KiwoomApiClient
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
+import com.tinyoscillator.core.database.dao.AnalysisCacheDao
+import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.data.dto.*
 import com.tinyoscillator.domain.model.DailyTrading
 import kotlinx.coroutines.Dispatchers
@@ -13,70 +15,31 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * 주식 데이터 Repository.
  *
  * Kiwoom REST API를 통해 투자자 거래 데이터를 수집합니다.
- * - 종목 검색: ka10099
- * - 투자자별 매매 + 시가총액: ka10059
- * - 주식 기본 정보 (상장주식수): ka10001
- * - 일봉 차트 (종가): ka10081
+ * 분석 결과를 Room DB에 캐시하여 incremental update를 지원합니다.
  */
-class StockRepository(
-    private val apiClient: KiwoomApiClient = KiwoomApiClient(),
-    private val json: Json = KiwoomApiClient.createDefaultJson()
+@Singleton
+class StockRepository @Inject constructor(
+    private val apiClient: KiwoomApiClient,
+    private val json: Json,
+    private val analysisCacheDao: AnalysisCacheDao
 ) {
     private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
 
     /**
-     * 종목 검색.
-     */
-    suspend fun searchStock(
-        query: String,
-        config: KiwoomApiKeyConfig
-    ): List<StockSearchResult> = withContext(Dispatchers.IO) {
-        if (!config.isValid()) {
-            throw ApiError.NoApiKeyError()
-        }
-
-        val body = mapOf("mrkt_tp" to "0")
-
-        val result = apiClient.call(
-            apiId = StockApiIds.STOCK_LIST,
-            url = StockApiEndpoints.STOCK_LIST,
-            body = body,
-            config = config
-        ) { responseJson ->
-            json.decodeFromString<StockListResponse>(responseJson)
-        }
-
-        val response = result.getOrThrow()
-        val items = response.stkList ?: emptyList()
-
-        items.filter { item ->
-            val name = item.stkNm ?: ""
-            val code = item.stkCd ?: ""
-            query.uppercase() in name.uppercase() ||
-                name.uppercase() in query.uppercase() ||
-                code == query
-        }.map { item ->
-            StockSearchResult(
-                ticker = item.stkCd ?: "",
-                name = item.stkNm ?: "",
-                market = item.mrktNm ?: ""
-            )
-        }
-    }
-
-    /**
-     * 일별 거래 데이터 수집.
+     * 일별 거래 데이터 수집 (incremental cache 지원).
      *
-     * Kiwoom ka10059 (투자자별 매매)를 사용하여 한 번의 API 호출로
-     * 외국인/기관 순매수와 시가총액을 동시에 조회합니다.
-     *
-     * 추가로 ka10001 (주식 기본정보)에서 상장주식수를,
-     * ka10081 (일봉)에서 종가를 조회하여 정확한 시가총액을 계산합니다.
+     * 1. DB에서 캐시된 데이터의 최신 날짜 조회
+     * 2. 캐시가 없으면 전체 기간 API 호출, 있으면 신규 날짜만 API 호출
+     * 3. 신규 데이터를 DB에 저장
+     * 4. 365일 이전 데이터 정리
+     * 5. DB에서 전체 기간 데이터 반환
      */
     suspend fun getDailyTradingData(
         ticker: String,
@@ -88,6 +51,82 @@ class StockRepository(
             throw ApiError.NoApiKeyError()
         }
 
+        val latestCachedDate = analysisCacheDao.getLatestDate(ticker)
+        val today = LocalDate.now().format(fmt)
+
+        if (latestCachedDate != null && latestCachedDate >= today) {
+            // 캐시가 오늘까지 있음 → DB에서만 반환
+            Log.d(TAG, "캐시가 최신 ($latestCachedDate >= $today) → DB에서 반환")
+            return@withContext loadFromCache(ticker, startDate, endDate)
+        }
+
+        // API에서 신규 데이터 수집
+        val fetchStartDate = if (latestCachedDate != null) {
+            // 캐시된 최신일 + 1일부터 조회
+            val nextDay = LocalDate.parse(latestCachedDate, fmt).plusDays(1)
+            nextDay.format(fmt)
+        } else {
+            startDate
+        }
+
+        Log.d(TAG, "━━━ incremental fetch ━━━")
+        Log.d(TAG, "캐시 최신일: ${latestCachedDate ?: "없음"} → fetch: $fetchStartDate ~ $endDate")
+
+        val newData = fetchFromApi(ticker, fetchStartDate, endDate, config)
+
+        if (newData.isNotEmpty()) {
+            // DB에 저장
+            val entities = newData.map { daily ->
+                AnalysisCacheEntity(
+                    ticker = ticker,
+                    date = daily.date,
+                    marketCap = daily.marketCap,
+                    foreignNet = daily.foreignNetBuy,
+                    instNet = daily.instNetBuy
+                )
+            }
+            analysisCacheDao.insertAll(entities)
+            Log.d(TAG, "캐시 저장: ${entities.size}건 (${fetchStartDate}~${endDate})")
+
+            // 365일 이전 데이터 정리
+            val cutoffDate = LocalDate.now().minusDays(365).format(fmt)
+            analysisCacheDao.deleteOlderThan(ticker, cutoffDate)
+            Log.d(TAG, "365일 정리: $cutoffDate 이전 삭제")
+        }
+
+        // DB에서 전체 기간 데이터 반환
+        loadFromCache(ticker, startDate, endDate)
+    }
+
+    /**
+     * DB 캐시에서 데이터 로드.
+     */
+    private suspend fun loadFromCache(
+        ticker: String,
+        startDate: String,
+        endDate: String
+    ): List<DailyTrading> {
+        val cached = analysisCacheDao.getByTickerDateRange(ticker, startDate, endDate)
+        Log.d(TAG, "캐시에서 로드: ${cached.size}건 ($startDate~$endDate)")
+        return cached.map { entity ->
+            DailyTrading(
+                date = entity.date,
+                marketCap = entity.marketCap,
+                foreignNetBuy = entity.foreignNet,
+                instNetBuy = entity.instNet
+            )
+        }
+    }
+
+    /**
+     * API에서 데이터 수집 (기존 로직 유지).
+     */
+    private suspend fun fetchFromApi(
+        ticker: String,
+        startDate: String,
+        endDate: String,
+        config: KiwoomApiKeyConfig
+    ): List<DailyTrading> {
         // 병렬 데이터 수집
         val (investorTrend, stockInfo, ohlcvData) = coroutineScope {
             val trendDeferred = async { fetchInvestorTrend(ticker, endDate, config) }
@@ -103,7 +142,7 @@ class StockRepository(
 
         if (investorTrend.isEmpty()) {
             Log.w(TAG, "투자자 동향 데이터가 없습니다: $ticker")
-            return@withContext emptyList()
+            return emptyList()
         }
 
         // 상장주식수 (1000주 단위 → 주)
@@ -132,21 +171,16 @@ class StockRepository(
         val result = investorTrend
             .filter { it.date >= startDate }
             .map { trend ->
-                // 시가총액 계산 우선순위:
-                // 1. 종가 × 상장주식수 (가장 정확)
-                // 2. API의 mrkt_tot_amt (백만원 단위)
                 val closePrice = closePriceMap[trend.date]
                 val marketCap = if (sharesOutstanding > 0 && closePrice != null && closePrice > 0) {
                     sharesOutstanding * closePrice.toLong()
                 } else {
-                    // ka10059의 mrkt_tot_amt는 백만원 단위 → 원으로 변환
                     trend.marketCapWon
                 }
 
                 DailyTrading(
                     date = trend.date,
                     marketCap = marketCap,
-                    // ka10059의 투자자 순매수 (unit_tp="1000" → 천원 단위 → 원으로 변환)
                     foreignNetBuy = trend.foreignNetWon,
                     instNetBuy = trend.instNetWon
                 )
@@ -161,7 +195,7 @@ class StockRepository(
         }
         Log.d(TAG, "━━━ 총 ${result.size}건 반환 ━━━")
 
-        result
+        return result
     }
 
     /**
@@ -207,7 +241,6 @@ class StockRepository(
 
     /**
      * 주식 기본 정보 조회 (ka10001).
-     * 상장주식수 확보용.
      */
     private suspend fun fetchStockInfo(
         ticker: String,
@@ -231,14 +264,13 @@ class StockRepository(
             val floStk = response.floStk.toLongSafe()
             StockInfoData(
                 name = response.stkNm ?: ticker,
-                floatingShares = if (floStk > 0) floStk * 1000 else 0L  // 1000주 단위 → 주
+                floatingShares = if (floStk > 0) floStk * 1000 else 0L
             )
         }
     }
 
     /**
      * 일봉 차트 조회 (ka10081).
-     * 종가 확보용.
      */
     private suspend fun fetchDailyOhlcv(
         ticker: String,

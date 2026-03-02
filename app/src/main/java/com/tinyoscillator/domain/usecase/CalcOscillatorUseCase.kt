@@ -1,5 +1,6 @@
 package com.tinyoscillator.domain.usecase
 
+import android.util.Log
 import com.tinyoscillator.domain.model.*
 import com.tinyoscillator.domain.model.OscillatorConfig.Companion.MARKET_CAP_DIVISOR
 
@@ -21,27 +22,30 @@ class CalcOscillatorUseCase(
 ) {
     /**
      * 전체 오실레이터 계산 파이프라인
+     * (EMA warmup 없이 표시 기간만으로 계산 — 디버깅용)
      */
     fun execute(dailyData: List<DailyTrading>, warmupCount: Int = 0): List<OscillatorRow> {
         require(dailyData.isNotEmpty()) { "일별 데이터가 비어있습니다" }
         require(warmupCount in 0 until dailyData.size) { "warmupCount가 데이터 범위를 벗어났습니다" }
 
-        // Step 2: 5일 누적 순매수 (전체 이력 기간)
+        Log.d(TAG, "━━━ 오실레이터 계산 시작 ━━━")
+        Log.d(TAG, "전체 데이터: ${dailyData.size}일, warmupCount: $warmupCount, 표시: ${dailyData.size - warmupCount}일")
+
+        // Step 2: 5일 누적 순매수
         val cumData = calc5DayRolling(dailyData)
 
-        // Step 3: 수급 비율 (전체 이력 기간)
-        val allSupplyRatios = cumData.map { (daily, f5d, i5d) ->
+        // warmup 이후 표시 데이터만 추출
+        val displayData = cumData.subList(warmupCount, cumData.size)
+
+        // Step 3: 수급 비율 (표시 기간만)
+        val supplyRatios = displayData.map { (daily, f5d, i5d) ->
             if (daily.marketCap == 0L) 0.0
             else (f5d + i5d).toDouble() / daily.marketCap.toDouble()
         }
 
-        // 표시 기간 추출 (warmupCount 이후)
-        val displayRatios = allSupplyRatios.subList(warmupCount, allSupplyRatios.size)
-        val displayCumData = cumData.subList(warmupCount, cumData.size)
-
-        // Step 4: EMA 12일, 26일 (표시 기간부터 새로 시작)
-        val ema12 = calcEma(displayRatios, config.emaFast)
-        val ema26 = calcEma(displayRatios, config.emaSlow)
+        // Step 4: EMA 12일, 26일 (표시 기간만으로 계산)
+        val ema12 = calcEma(supplyRatios, config.emaFast)
+        val ema26 = calcEma(supplyRatios, config.emaSlow)
 
         // Step 5: MACD = EMA12 - EMA26
         val macd = ema12.zip(ema26) { e12, e26 -> e12 - e26 }
@@ -49,16 +53,16 @@ class CalcOscillatorUseCase(
         // Step 6: 시그널 = EMA(MACD, 9일)
         val signal = calcEma(macd, config.emaSignal)
 
-        // Step 7: 오실레이터 = MACD - 시그널
-        return displayCumData.indices.map { i ->
-            val (daily, f5d, i5d) = displayCumData[i]
+        // Step 7: 결과 생성
+        val rows = displayData.indices.map { i ->
+            val (daily, f5d, i5d) = displayData[i]
             OscillatorRow(
                 date = daily.date,
                 marketCap = daily.marketCap,
                 marketCapTril = daily.marketCap / MARKET_CAP_DIVISOR,
                 foreign5d = f5d,
                 inst5d = i5d,
-                supplyRatio = displayRatios[i],
+                supplyRatio = supplyRatios[i],
                 ema12 = ema12[i],
                 ema26 = ema26[i],
                 macd = macd[i],
@@ -66,6 +70,20 @@ class CalcOscillatorUseCase(
                 oscillator = macd[i] - signal[i]
             )
         }
+
+        // 디버그: 마지막 5일 계산 결과 로그
+        Log.d(TAG, "━━━ 계산 결과 (마지막 5일) ━━━")
+        rows.takeLast(5).forEach { row ->
+            Log.d(TAG, "[${row.date}] 시총=${row.marketCap}원 (${String.format("%.2f", row.marketCapTril)}조)" +
+                    " | 외5d=${row.foreign5d} 기5d=${row.inst5d}" +
+                    " | 수급비율=${String.format("%.8f", row.supplyRatio)}" +
+                    " | EMA12=${String.format("%.8f", row.ema12)} EMA26=${String.format("%.8f", row.ema26)}" +
+                    " | MACD=${String.format("%.8f", row.macd)} Signal=${String.format("%.8f", row.signal)}" +
+                    " | 오실레이터=${String.format("%.8f", row.oscillator)} (차트표시: ${String.format("%.4f", row.oscillator * 100)}%)")
+        }
+        Log.d(TAG, "━━━ 오실레이터 계산 완료 ━━━")
+
+        return rows
     }
 
     /**
@@ -132,5 +150,9 @@ class CalcOscillatorUseCase(
                 crossSignal = cross
             )
         }
+    }
+
+    companion object {
+        private const val TAG = "CalcOscillator"
     }
 }
