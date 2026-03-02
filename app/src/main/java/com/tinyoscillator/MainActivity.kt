@@ -215,11 +215,9 @@ fun OscillatorScreen(
             }
 
             // Tab content
-            when (selectedMainTab) {
-                MainTab.OSCILLATOR -> {
-                    // Box: LazyColumn (bottom) + autocomplete overlay (top)
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        // Main content
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (selectedMainTab) {
+                    MainTab.OSCILLATOR -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -270,111 +268,111 @@ fun OscillatorScreen(
                                 is OscillatorUiState.Idle -> { /* 초기 상태 */ }
                             }
                         }
+                    }
 
-                        // Autocomplete dropdown overlay
-                        if (searchResults.isNotEmpty() && query.isNotBlank()) {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp)
-                                    .heightIn(max = 300.dp)
-                                    .zIndex(1f),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                                )
-                            ) {
-                                Column(
-                                    modifier = Modifier.verticalScroll(rememberScrollState())
+                    MainTab.FINANCIAL -> {
+                        FinancialInfoContent(
+                            ticker = currentTicker,
+                            stockName = currentStockName,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+
+                // Autocomplete dropdown overlay (visible on all tabs)
+                if (searchResults.isNotEmpty() && query.isNotBlank()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .heightIn(max = 300.dp)
+                            .zIndex(1f),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.verticalScroll(rememberScrollState())
+                        ) {
+                            searchResults.take(10).forEach { stock ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            query = stock.name
+                                            viewModel.searchStock("") // 검색 결과 초기화
+                                            viewModel.analyze(stock.ticker, stock.name)
+                                        }
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    searchResults.take(10).forEach { stock ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable {
-                                                    query = stock.name
-                                                    viewModel.searchStock("") // 검색 결과 초기화
-                                                    viewModel.analyze(stock.ticker, stock.name)
-                                                }
-                                                .padding(12.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(stock.name, style = MaterialTheme.typography.bodyLarge)
-                                            Text(
-                                                "${stock.ticker} (${stock.market})",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        if (stock != searchResults.take(10).last()) {
-                                            HorizontalDivider()
-                                        }
-                                    }
+                                    Text(stock.name, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "${stock.ticker} (${stock.market})",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                            }
-                        }
-
-                        // History dropdown overlay
-                        if (showHistory && analysisHistory.isNotEmpty()) {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp)
-                                    .heightIn(max = 350.dp)
-                                    .zIndex(1f),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                                )
-                            ) {
-                                Column {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.History,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Text(
-                                            "최근 분석 기록",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                                if (stock != searchResults.take(10).last()) {
                                     HorizontalDivider()
-                                    Column(
-                                        modifier = Modifier.verticalScroll(rememberScrollState())
-                                    ) {
-                                        analysisHistory.forEach { history ->
-                                            HistoryItem(
-                                                history = history,
-                                                onClick = {
-                                                    query = history.name
-                                                    viewModel.searchStock("")
-                                                    viewModel.analyze(history.ticker, history.name)
-                                                    showHistory = false
-                                                }
-                                            )
-                                        }
-                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                MainTab.FINANCIAL -> {
-                    FinancialInfoContent(
-                        ticker = currentTicker,
-                        stockName = currentStockName,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                // History dropdown overlay (visible on all tabs)
+                if (showHistory && analysisHistory.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .heightIn(max = 350.dp)
+                            .zIndex(1f),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.History,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "최근 분석 기록",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            HorizontalDivider()
+                            Column(
+                                modifier = Modifier.verticalScroll(rememberScrollState())
+                            ) {
+                                analysisHistory.forEach { history ->
+                                    HistoryItem(
+                                        history = history,
+                                        onClick = {
+                                            query = history.name
+                                            viewModel.searchStock("")
+                                            viewModel.analyze(history.ticker, history.name)
+                                            showHistory = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
