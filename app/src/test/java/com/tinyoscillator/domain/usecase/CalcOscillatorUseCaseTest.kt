@@ -164,8 +164,8 @@ class CalcOscillatorUseCaseTest {
         )
         val result = useCase.execute(data)
 
-        assertEquals("450조", 450.0, result[0].marketCapTril, 0.001)
-        assertEquals("~1.23조", 1.23456789, result[1].marketCapTril, 0.00001)
+        assertEquals("4500조", 4500.0, result[0].marketCapTril, 0.001)
+        assertEquals("~12.35조", 12.3456789, result[1].marketCapTril, 0.00001)
     }
 
     @Test
@@ -280,6 +280,49 @@ class CalcOscillatorUseCaseTest {
         val data = listOf(DailyTrading("20240101", -1000000000000, 100, 50))
         val result = useCase.execute(data)
         assertEquals(1, result.size)
+    }
+
+    @Test
+    fun `warmupCount로 결과 행을 제한한다`() {
+        val data = generateSampleData(20)
+        val warmup = 10
+        val result = useCase.execute(data, warmup)
+        assertEquals("warmup=10, 총 20일 → 10행 반환", 10, result.size)
+        assertEquals("첫 행이 11번째 날짜", data[10].date, result[0].date)
+    }
+
+    @Test
+    fun `warmupCount가 0이면 전체 결과를 반환한다`() {
+        val data = generateSampleData(10)
+        val result = useCase.execute(data, 0)
+        assertEquals(10, result.size)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `warmupCount가 데이터 크기 이상이면 예외`() {
+        val data = generateSampleData(5)
+        useCase.execute(data, 5)
+    }
+
+    @Test
+    fun `warmupCount가 데이터 크기 - 1이면 1행만 반환한다`() {
+        val data = generateSampleData(10)
+        val result = useCase.execute(data, 9)
+        assertEquals(1, result.size)
+    }
+
+    @Test
+    fun `analyzeSignals에서 첫 행은 crossSignal이 null이다`() {
+        val data = generateSampleData(5)
+        val result = useCase.execute(data)
+        val signals = useCase.analyzeSignals(result)
+        assertNull("첫 행은 이전 데이터가 없어 crossSignal null", signals[0].crossSignal)
+    }
+
+    @Test
+    fun `analyzeSignals - 빈 리스트 입력 시 빈 리스트 반환`() {
+        val signals = useCase.analyzeSignals(emptyList())
+        assertTrue(signals.isEmpty())
     }
 
     private fun generateSampleData(days: Int): List<DailyTrading> {

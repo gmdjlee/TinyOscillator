@@ -1,6 +1,5 @@
 package com.tinyoscillator.data.repository
 
-import android.util.Log
 import com.tinyoscillator.core.api.KisApiClient
 import com.tinyoscillator.core.api.KisApiKeyConfig
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
@@ -9,13 +8,17 @@ import com.tinyoscillator.data.dto.*
 import com.tinyoscillator.domain.model.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import timber.log.Timber
+import java.util.concurrent.atomic.AtomicLong
 
 class FinancialRepository(
     private val financialCacheDao: FinancialCacheDao,
     private val kisApiClient: KisApiClient,
     private val json: Json
 ) {
+    private val lastCleanupTime = AtomicLong(0L)
     suspend fun getFinancialData(
         ticker: String,
         name: String,
@@ -23,27 +26,44 @@ class FinancialRepository(
         useCache: Boolean = true
     ): Result<FinancialData> {
         try {
+            if (ticker.isBlank()) {
+                return Result.failure(IllegalArgumentException("종목코드가 비어있습니다."))
+            }
             if (!kisConfig.isValid()) {
                 return Result.failure(
                     IllegalStateException("KIS API key not configured. 설정에서 KIS API 키를 입력해주세요.")
                 )
             }
 
-            // Periodic cleanup: delete caches older than 7 days
-            financialCacheDao.deleteExpired(System.currentTimeMillis() - 7 * CACHE_TTL_MS)
+            // Periodic cleanup: delete caches older than 7 days (throttled to once per hour)
+            val now = System.currentTimeMillis()
+            val lastCleanup = lastCleanupTime.get()
+            if (now - lastCleanup > CLEANUP_INTERVAL_MS &&
+                lastCleanupTime.compareAndSet(lastCleanup, now)) {
+                financialCacheDao.deleteExpired(now - 7 * CACHE_TTL_MS)
+            }
 
             // TTL-based cache-first: return cached data if within 24h
+            var parsedCache: FinancialData? = null
             if (useCache) {
                 val cachedEntity = financialCacheDao.get(ticker)
-                if (cachedEntity != null && !isCacheExpired(cachedEntity.cachedAt)) {
-                    Log.d(TAG, "캐시에서 반환 (TTL 유효): $ticker")
-                    val data = json.decodeFromString<FinancialDataCache>(cachedEntity.data)
-                    return Result.success(data.toData())
+                if (cachedEntity != null) {
+                    try {
+                        parsedCache = json.decodeFromString<FinancialDataCache>(cachedEntity.data).toData()
+                        if (!isCacheExpired(cachedEntity.cachedAt)) {
+                            Timber.d("캐시에서 반환 (TTL 유효): %s", ticker)
+                            return Result.success(parsedCache!!)
+                        }
+                    } catch (e: Exception) {
+                        Timber.w(e, "캐시 역직렬화 실패, API에서 재조회: %s", ticker)
+                        financialCacheDao.delete(ticker)
+                        parsedCache = null
+                    }
                 }
             }
 
             // Cache expired or useCache=false → fetch from API
-            val existingCache = loadCachedData(ticker)
+            val existingCache = parsedCache ?: loadCachedData(ticker)
             val freshData = fetchFromApi(ticker, name, kisConfig)
 
             // Merge: existing cache + fresh API data
@@ -64,11 +84,11 @@ class FinancialRepository(
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to get financial data for $ticker", e)
+            Timber.w(e, "Failed to get financial data for %s", ticker)
             // Fallback to stale cache if API fails
             val cached = loadCachedData(ticker)
             if (cached != null) {
-                Log.d(TAG, "API 실패 → stale 캐시 반환: $ticker")
+                Timber.d("API 실패 → stale 캐시 반환: %s", ticker)
                 return Result.success(cached)
             }
             return Result.failure(e)
@@ -85,6 +105,9 @@ class FinancialRepository(
         kisConfig: KisApiKeyConfig
     ): Result<FinancialData> {
         try {
+            if (ticker.isBlank()) {
+                return Result.failure(IllegalArgumentException("종목코드가 비어있습니다."))
+            }
             if (!kisConfig.isValid()) {
                 return Result.failure(
                     IllegalStateException("KIS API key not configured. 설정에서 KIS API 키를 입력해주세요.")
@@ -107,7 +130,13 @@ class FinancialRepository(
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to refresh financial data for $ticker", e)
+            Timber.w(e, "Failed to refresh financial data for %s", ticker)
+            // Fallback to stale cache if API fails
+            val cached = loadCachedData(ticker)
+            if (cached != null) {
+                Timber.d("Refresh 실패 → stale 캐시 반환: %s", ticker)
+                return Result.success(cached)
+            }
             return Result.failure(e)
         }
     }
@@ -119,8 +148,11 @@ class FinancialRepository(
             val cached = financialCacheDao.get(ticker) ?: return null
             val cacheData = json.decodeFromString<FinancialDataCache>(cached.data)
             cacheData.toData()
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to parse cached data for $ticker", e)
+            Timber.w(e, "Failed to parse cached data for %s", ticker)
+            financialCacheDao.delete(ticker)
             null
         }
     }
@@ -147,30 +179,32 @@ class FinancialRepository(
             )
 
             val (balanceSheets, incomeStatements, profitRatios, stabilityRatios, growthRatios) =
-                coroutineScope {
-                    val bs = async {
-                        fetchList(TR_BALANCE_SHEET, EP_BALANCE_SHEET, queryParams, kisConfig) { mapToBalanceSheet(it) }
+                withTimeout(API_BATCH_TIMEOUT_MS) {
+                    coroutineScope {
+                        val bs = async {
+                            fetchList(TR_BALANCE_SHEET, EP_BALANCE_SHEET, queryParams, kisConfig) { mapToBalanceSheet(it) }
+                        }
+                        val is_ = async {
+                            fetchList(TR_INCOME_STATEMENT, EP_INCOME_STATEMENT, queryParams, kisConfig) { mapToIncomeStatement(it) }
+                        }
+                        val pr = async {
+                            fetchList(TR_PROFITABILITY, EP_PROFITABILITY, queryParams, kisConfig) { mapToProfitabilityRatios(it) }
+                        }
+                        val sr = async {
+                            fetchList(TR_STABILITY, EP_STABILITY, queryParams, kisConfig) { mapToStabilityRatios(it) }
+                        }
+                        val gr = async {
+                            fetchList(TR_GROWTH, EP_GROWTH, queryParams, kisConfig) { mapToGrowthRatios(it) }
+                        }
+                        FetchResults(bs.await(), is_.await(), pr.await(), sr.await(), gr.await())
                     }
-                    val is_ = async {
-                        fetchList(TR_INCOME_STATEMENT, EP_INCOME_STATEMENT, queryParams, kisConfig) { mapToIncomeStatement(it) }
-                    }
-                    val pr = async {
-                        fetchList(TR_PROFITABILITY, EP_PROFITABILITY, queryParams, kisConfig) { mapToProfitabilityRatios(it) }
-                    }
-                    val sr = async {
-                        fetchList(TR_STABILITY, EP_STABILITY, queryParams, kisConfig) { mapToStabilityRatios(it) }
-                    }
-                    val gr = async {
-                        fetchList(TR_GROWTH, EP_GROWTH, queryParams, kisConfig) { mapToGrowthRatios(it) }
-                    }
-                    FetchResults(bs.await(), is_.await(), pr.await(), sr.await(), gr.await())
                 }
 
             buildFinancialData(ticker, name, balanceSheets, incomeStatements, profitRatios, stabilityRatios, growthRatios)
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to fetch API data for $ticker", e)
+            Timber.w(e, "Failed to fetch API data for %s", ticker)
             null
         }
     }
@@ -191,20 +225,20 @@ class FinancialRepository(
             ) { responseBody ->
                 val apiResponse = json.decodeFromString<KisFinancialApiResponse>(responseBody)
                 if (apiResponse.rtCd != "0") {
-                    Log.w(TAG, "API error for $trId: ${apiResponse.msgCd} - ${apiResponse.msg1}")
+                    Timber.w("API error for %s: %s - %s", trId, apiResponse.msgCd, apiResponse.msg1)
                     return@get emptyList<T>()
                 }
                 val output = apiResponse.actualOutput ?: return@get emptyList<T>()
                 output.mapNotNull { mapper(it) }
             }
             result.getOrElse {
-                Log.w(TAG, "Failed to fetch $trId: ${it.message}")
+                Timber.w("Failed to fetch %s: %s", trId, it.message)
                 emptyList()
             }
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Exception fetching $trId: ${e.message}")
+            Timber.w("Exception fetching %s: %s", trId, e.message)
             emptyList()
         }
     }
@@ -238,16 +272,32 @@ class FinancialRepository(
     }
 
     private fun mergeData(existing: FinancialData, fresh: FinancialData): FinancialData {
-        val mergedPeriods = (existing.periods + fresh.periods).distinct().sorted()
+        // fresh overrides existing for same periods (Kotlin map + gives right-side priority)
+        val overwrittenPeriods = existing.balanceSheets.keys.intersect(fresh.balanceSheets.keys) +
+                existing.incomeStatements.keys.intersect(fresh.incomeStatements.keys)
+        if (overwrittenPeriods.isNotEmpty()) {
+            Timber.d("mergeData: %d기간 업데이트 (fresh 우선): %s", overwrittenPeriods.size, overwrittenPeriods.take(3))
+        }
+
+        val mergedBalanceSheets = existing.balanceSheets + fresh.balanceSheets
+        val mergedIncomeStatements = existing.incomeStatements + fresh.incomeStatements
+        val mergedProfitabilityRatios = existing.profitabilityRatios + fresh.profitabilityRatios
+        val mergedStabilityRatios = existing.stabilityRatios + fresh.stabilityRatios
+        val mergedGrowthRatios = existing.growthRatios + fresh.growthRatios
+
+        val mergedPeriods = (mergedBalanceSheets.keys + mergedIncomeStatements.keys +
+                mergedProfitabilityRatios.keys + mergedStabilityRatios.keys +
+                mergedGrowthRatios.keys).distinct().sorted()
+
         return FinancialData(
             ticker = fresh.ticker,
             name = fresh.name,
             periods = mergedPeriods,
-            balanceSheets = existing.balanceSheets + fresh.balanceSheets,
-            incomeStatements = existing.incomeStatements + fresh.incomeStatements,
-            profitabilityRatios = existing.profitabilityRatios + fresh.profitabilityRatios,
-            stabilityRatios = existing.stabilityRatios + fresh.stabilityRatios,
-            growthRatios = existing.growthRatios + fresh.growthRatios
+            balanceSheets = mergedBalanceSheets,
+            incomeStatements = mergedIncomeStatements,
+            profitabilityRatios = mergedProfitabilityRatios,
+            stabilityRatios = mergedStabilityRatios,
+            growthRatios = mergedGrowthRatios
         )
     }
 
@@ -260,8 +310,9 @@ class FinancialRepository(
     )
 
     companion object {
-        private const val TAG = "FinancialRepo"
         private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L  // 24시간
+        private const val CLEANUP_INTERVAL_MS = 60 * 60 * 1000L  // 1시간
+        private const val API_BATCH_TIMEOUT_MS = 120_000L  // 120초 (5 parallel API calls)
 
         private const val TR_BALANCE_SHEET = "FHKST66430100"
         private const val TR_INCOME_STATEMENT = "FHKST66430200"

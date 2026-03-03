@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,6 +37,11 @@ fun OscillatorChart(
     chartData: ChartData,
     modifier: Modifier = Modifier
 ) {
+    // Track last bound data to skip redundant bindData calls on recomposition
+    val lastBound = remember { arrayOfNulls<ChartData>(1) }
+    val isDarkTheme = isSystemInDarkTheme()
+    val chartTextColor = if (isDarkTheme) Color.WHITE else Color.DKGRAY
+
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = "${chartData.stockName} 시가총액 & 수급오실레이터",
@@ -50,11 +56,16 @@ fun OscillatorChart(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    setupChart(this)
+                    setupChart(this, chartTextColor)
                 }
             },
             update = { chart ->
-                bindData(chart, chartData)
+                chart.xAxis.textColor = chartTextColor
+                chart.legend.textColor = chartTextColor
+                if (chartData != lastBound[0]) {
+                    bindData(chart, chartData)
+                    lastBound[0] = chartData
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -63,7 +74,7 @@ fun OscillatorChart(
     }
 }
 
-private fun setupChart(chart: CombinedChart) {
+private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
     chart.apply {
         description.isEnabled = false
         setDrawGridBackground(false)
@@ -108,14 +119,16 @@ private fun setupChart(chart: CombinedChart) {
             setDrawGridLines(false)
             labelRotationAngle = -45f
             textSize = 16f
+            textColor = chartTextColor
         }
 
         legend.apply {
             isEnabled = true
-            verticalAlignment = Legend.LegendVerticalAlignment.TOP
-            horizontalAlignment = Legend.LegendHorizontalAlignment.RIGHT
-            setDrawInside(true)
+            verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+            horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
+            setDrawInside(false)
             textSize = 16f
+            textColor = chartTextColor
         }
 
         setTouchEnabled(true)
@@ -151,6 +164,7 @@ private fun bindData(chart: CombinedChart, chartData: ChartData) {
 
     // 왼쪽 Y축 범위를 데이터에 맞게 fitting
     val mcapValues = rows.map { it.marketCapTril.toFloat() }
+    if (mcapValues.isEmpty()) return
     val mcapMin = mcapValues.min()
     val mcapMax = mcapValues.max()
     val mcapPadding = (mcapMax - mcapMin) * 0.05f

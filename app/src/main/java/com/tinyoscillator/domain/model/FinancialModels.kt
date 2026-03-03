@@ -1,9 +1,7 @@
 package com.tinyoscillator.domain.model
 
-import android.util.Log
 import kotlinx.serialization.Serializable
-
-private const val TAG = "FinancialModels"
+import timber.log.Timber
 
 // ========== Domain Enums ==========
 
@@ -20,6 +18,7 @@ data class FinancialPeriod(
     val quarter: Int
 ) {
     fun toDisplayString(short: Boolean = false): String {
+        if (yearMonth.length < 6) return yearMonth
         val y = if (short) yearMonth.substring(2, 4) else yearMonth.substring(0, 4)
         val m = yearMonth.substring(4, 6)
         return "$y.$m"
@@ -27,6 +26,7 @@ data class FinancialPeriod(
 
     companion object {
         fun fromYearMonth(ym: String): FinancialPeriod {
+            if (ym.length < 6) return FinancialPeriod(ym, 0, 0)
             val year = ym.substring(0, 4).toIntOrNull() ?: 0
             val month = ym.substring(4, 6).toIntOrNull() ?: 0
             val quarter = when (month) {
@@ -407,11 +407,11 @@ private fun convertYtdToQuarterly(
                 val prev = prevYtdByYear[year]
                 if (prev != null) {
                     if (quarter - prev.first > 1) {
-                        Log.w(TAG, "Non-consecutive quarters: Q${prev.first} -> Q$quarter for year $year")
+                        Timber.w("Non-consecutive quarters: Q%d -> Q%d for year %d", prev.first, quarter, year)
                     }
                     ytdValue - prev.second
                 } else {
-                    Log.w(TAG, "Missing previous quarter for ${periods[i]} (Q$quarter). Using YTD value.")
+                    Timber.w("Missing previous quarter for %s (Q%d). Using YTD value.", periods[i], quarter)
                     ytdValue
                 }
             }

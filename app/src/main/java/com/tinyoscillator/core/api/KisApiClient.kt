@@ -1,6 +1,6 @@
 package com.tinyoscillator.core.api
 
-import android.util.Log
+import timber.log.Timber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -15,6 +15,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.URLEncoder
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -27,12 +28,16 @@ class KisApiClient(
     private val json: Json = KiwoomApiClient.createDefaultJson()
 ) {
     // 토큰 캐시
-    private val tokenCache = mutableMapOf<String, TokenInfo>()
+    private val tokenCache = ConcurrentHashMap<String, TokenInfo>()
     private val tokenMutex = Mutex()
 
     // 레이트 리밋
+    @Volatile
     private var lastCallTime = 0L
     private val rateLimitMutex = Mutex()
+
+    // 서킷 브레이커
+    private val circuitBreaker = CircuitBreaker()
 
     /**
      * KIS API GET 요청.
@@ -44,20 +49,41 @@ class KisApiClient(
         config: KisApiKeyConfig,
         parser: (String) -> T
     ): Result<T> = withContext(Dispatchers.IO) {
-        val result = getOnce(trId, url, queryParams, config, parser)
+        // Circuit breaker: skip API call if circuit is open
+        if (circuitBreaker.isOpen) {
+            Timber.w("KIS 서킷 브레이커 OPEN → 즉시 실패: %s", trId)
+            return@withContext Result.failure(ApiError.NetworkError("API 일시 중단 (연속 실패)"))
+        }
 
-        result.fold(
-            onSuccess = { Result.success(it) },
-            onFailure = { error ->
-                if (isAuthError(error)) {
-                    Log.w(TAG, "KIS 인증 오류, 토큰 갱신 후 재시도: ${error.message}")
-                    refreshToken(config)
-                    getOnce(trId, url, queryParams, config, parser)
-                } else {
-                    Result.failure(error)
-                }
+        var lastResult = getOnce(trId, url, queryParams, config, parser)
+
+        // Auth retry: refresh token on 401/403
+        lastResult.onFailure { error ->
+            if (isAuthError(error)) {
+                Timber.w("KIS 인증 오류, 토큰 갱신 후 재시도")
+                refreshToken(config)
+                lastResult = getOnce(trId, url, queryParams, config, parser)
             }
-        )
+        }
+
+        // Retry on retriable errors (network, timeout)
+        if (lastResult.isFailure && isRetriableError(lastResult.exceptionOrNull())) {
+            for (attempt in 1..MAX_RETRIES) {
+                delay(RETRY_DELAYS[attempt - 1])
+                Timber.d("KIS 재시도 %d/%d: %s", attempt, MAX_RETRIES, trId)
+                lastResult = getOnce(trId, url, queryParams, config, parser)
+                if (lastResult.isSuccess || !isRetriableError(lastResult.exceptionOrNull())) break
+            }
+        }
+
+        // Update circuit breaker state
+        if (lastResult.isSuccess) {
+            circuitBreaker.recordSuccess()
+        } else {
+            circuitBreaker.recordFailure()
+        }
+
+        lastResult
     }
 
     private suspend fun <T> getOnce(
@@ -90,9 +116,9 @@ class KisApiClient(
                 .get()
                 .build()
 
-            Log.d(TAG, "KIS API call: $trId -> $url")
+            Timber.d("KIS API call: $trId -> $url")
 
-            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).execute().use { response ->
+            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).await().use { response ->
                 Triple(response.body?.string(), response.code, response.isSuccessful)
             }
 
@@ -133,7 +159,7 @@ class KisApiClient(
         return Result.failure(lastError ?: ApiError.AuthError("KIS 토큰 발급 실패"))
     }
 
-    private fun fetchTokenOnce(config: KisApiKeyConfig): Result<TokenInfo> {
+    private suspend fun fetchTokenOnce(config: KisApiKeyConfig): Result<TokenInfo> {
         try {
             val requestBody = json.encodeToString(mapOf(
                 "grant_type" to "client_credentials",
@@ -147,7 +173,7 @@ class KisApiClient(
                 .post(requestBody.toRequestBody("application/json".toMediaType()))
                 .build()
 
-            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).execute().use { response ->
+            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).await().use { response ->
                 Triple(response.body?.string(), response.code, response.isSuccessful)
             }
 
@@ -182,19 +208,34 @@ class KisApiClient(
         tokenCache.remove(cacheKey)
     }
 
-    private suspend fun waitForRateLimit() = rateLimitMutex.withLock {
-        val now = System.currentTimeMillis()
-        val elapsed = now - lastCallTime
-        if (elapsed < 500L) {
-            delay(500L - elapsed)
+    private suspend fun waitForRateLimit() {
+        val delayMs: Long
+        rateLimitMutex.withLock {
+            val now = System.currentTimeMillis()
+            val elapsed = now - lastCallTime
+            delayMs = if (elapsed < RATE_LIMIT_MS) RATE_LIMIT_MS - elapsed else 0L
+            lastCallTime = now + delayMs  // Reserve this time slot
         }
-        lastCallTime = System.currentTimeMillis()
+        if (delayMs > 0L) delay(delayMs)
     }
 
     private fun isAuthError(error: Throwable): Boolean = when {
         error is ApiError.AuthError -> true
         error is ApiError.ApiCallError -> error.code == 401 || error.code == 403
         else -> false
+    }
+
+    private fun isRetriableError(error: Throwable?): Boolean = when (error) {
+        is ApiError.NetworkError -> true
+        is ApiError.TimeoutError -> true
+        is ApiError.ApiCallError -> error.code in listOf(429, 500, 502, 503, 504)
+        else -> false
+    }
+
+    companion object {
+        private const val MAX_RETRIES = 2
+        private const val RATE_LIMIT_MS = 500L
+        private val RETRY_DELAYS = listOf(1000L, 2000L)
     }
 
     private fun mapException(e: Exception): ApiError = when (e) {
@@ -205,7 +246,4 @@ class KisApiClient(
         else -> ApiError.ApiCallError(0, e.message ?: "알 수 없는 오류")
     }
 
-    companion object {
-        private const val TAG = "KisApiClient"
-    }
 }

@@ -1,6 +1,7 @@
 package com.tinyoscillator.presentation.settings
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,51 +15,70 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.tinyoscillator.core.api.InvestmentMode
 import com.tinyoscillator.core.api.KisApiKeyConfig
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-
-private val Context.dataStore by preferencesDataStore(name = "api_settings")
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.cancellation.CancellationException
 
 private object PrefsKeys {
-    val KIWOOM_APP_KEY = stringPreferencesKey("kiwoom_app_key")
-    val KIWOOM_SECRET_KEY = stringPreferencesKey("kiwoom_secret_key")
-    val KIWOOM_MODE = stringPreferencesKey("kiwoom_mode")
-    val KIS_APP_KEY = stringPreferencesKey("kis_app_key")
-    val KIS_APP_SECRET = stringPreferencesKey("kis_app_secret")
-    val KIS_MODE = stringPreferencesKey("kis_mode")
+    const val KIWOOM_APP_KEY = "kiwoom_app_key"
+    const val KIWOOM_SECRET_KEY = "kiwoom_secret_key"
+    const val KIWOOM_MODE = "kiwoom_mode"
+    const val KIS_APP_KEY = "kis_app_key"
+    const val KIS_APP_SECRET = "kis_app_secret"
+    const val KIS_MODE = "kis_mode"
+}
+
+@Volatile
+private var cachedEncryptedPrefs: SharedPreferences? = null
+private val prefsLock = Any()
+
+private fun getEncryptedPrefs(context: Context): SharedPreferences {
+    cachedEncryptedPrefs?.let { return it }
+    synchronized(prefsLock) {
+        cachedEncryptedPrefs?.let { return it }
+        val masterKey = MasterKey.Builder(context.applicationContext)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        return EncryptedSharedPreferences.create(
+            context.applicationContext,
+            "api_settings_encrypted",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        ).also { cachedEncryptedPrefs = it }
+    }
 }
 
 /**
- * DataStore에서 Kiwoom API 키 설정을 로드합니다.
+ * EncryptedSharedPreferences에서 Kiwoom API 키 설정을 로드합니다.
  */
-suspend fun loadKiwoomConfig(context: Context): KiwoomApiKeyConfig {
-    val prefs = context.dataStore.data.first()
-    return KiwoomApiKeyConfig(
-        appKey = prefs[PrefsKeys.KIWOOM_APP_KEY] ?: "",
-        secretKey = prefs[PrefsKeys.KIWOOM_SECRET_KEY] ?: "",
+suspend fun loadKiwoomConfig(context: Context): KiwoomApiKeyConfig = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    KiwoomApiKeyConfig(
+        appKey = prefs.getString(PrefsKeys.KIWOOM_APP_KEY, "") ?: "",
+        secretKey = prefs.getString(PrefsKeys.KIWOOM_SECRET_KEY, "") ?: "",
         investmentMode = InvestmentMode.entries.find {
-            it.name == (prefs[PrefsKeys.KIWOOM_MODE] ?: "MOCK")
+            it.name == prefs.getString(PrefsKeys.KIWOOM_MODE, "MOCK")
         } ?: InvestmentMode.MOCK
     )
 }
 
 /**
- * DataStore에서 KIS API 키 설정을 로드합니다.
+ * EncryptedSharedPreferences에서 KIS API 키 설정을 로드합니다.
  */
-suspend fun loadKisConfig(context: Context): KisApiKeyConfig {
-    val prefs = context.dataStore.data.first()
-    return KisApiKeyConfig(
-        appKey = prefs[PrefsKeys.KIS_APP_KEY] ?: "",
-        appSecret = prefs[PrefsKeys.KIS_APP_SECRET] ?: "",
+suspend fun loadKisConfig(context: Context): KisApiKeyConfig = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    KisApiKeyConfig(
+        appKey = prefs.getString(PrefsKeys.KIS_APP_KEY, "") ?: "",
+        appSecret = prefs.getString(PrefsKeys.KIS_APP_SECRET, "") ?: "",
         investmentMode = InvestmentMode.entries.find {
-            it.name == (prefs[PrefsKeys.KIS_MODE] ?: "MOCK")
+            it.name == prefs.getString(PrefsKeys.KIS_MODE, "MOCK")
         } ?: InvestmentMode.MOCK
     )
 }
@@ -81,15 +101,21 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     // 초기 로드
     LaunchedEffect(Unit) {
-        val kiwoomConfig = loadKiwoomConfig(context)
-        kiwoomAppKey = kiwoomConfig.appKey
-        kiwoomSecretKey = kiwoomConfig.secretKey
-        kiwoomMode = kiwoomConfig.investmentMode
+        try {
+            val kiwoomConfig = loadKiwoomConfig(context)
+            kiwoomAppKey = kiwoomConfig.appKey
+            kiwoomSecretKey = kiwoomConfig.secretKey
+            kiwoomMode = kiwoomConfig.investmentMode
 
-        val kisConfig = loadKisConfig(context)
-        kisAppKey = kisConfig.appKey
-        kisAppSecret = kisConfig.appSecret
-        kisMode = kisConfig.investmentMode
+            val kisConfig = loadKisConfig(context)
+            kisAppKey = kisConfig.appKey
+            kisAppSecret = kisConfig.appSecret
+            kisMode = kisConfig.investmentMode
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            saveMessage = "설정 로드 실패. 다시 입력해주세요."
+        }
     }
 
     Scaffold(
@@ -180,15 +206,23 @@ fun SettingsScreen(onBack: () -> Unit) {
             Button(
                 onClick = {
                     scope.launch {
-                        context.dataStore.edit { prefs ->
-                            prefs[PrefsKeys.KIWOOM_APP_KEY] = kiwoomAppKey
-                            prefs[PrefsKeys.KIWOOM_SECRET_KEY] = kiwoomSecretKey
-                            prefs[PrefsKeys.KIWOOM_MODE] = kiwoomMode.name
-                            prefs[PrefsKeys.KIS_APP_KEY] = kisAppKey
-                            prefs[PrefsKeys.KIS_APP_SECRET] = kisAppSecret
-                            prefs[PrefsKeys.KIS_MODE] = kisMode.name
+                        try {
+                            withContext(Dispatchers.IO) {
+                                getEncryptedPrefs(context).edit()
+                                    .putString(PrefsKeys.KIWOOM_APP_KEY, kiwoomAppKey)
+                                    .putString(PrefsKeys.KIWOOM_SECRET_KEY, kiwoomSecretKey)
+                                    .putString(PrefsKeys.KIWOOM_MODE, kiwoomMode.name)
+                                    .putString(PrefsKeys.KIS_APP_KEY, kisAppKey)
+                                    .putString(PrefsKeys.KIS_APP_SECRET, kisAppSecret)
+                                    .putString(PrefsKeys.KIS_MODE, kisMode.name)
+                                    .apply()
+                            }
+                            saveMessage = "저장되었습니다"
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            saveMessage = "저장 실패. 다시 시도해주세요."
                         }
-                        saveMessage = "저장되었습니다"
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

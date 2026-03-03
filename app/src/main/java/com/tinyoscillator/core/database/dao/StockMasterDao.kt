@@ -13,8 +13,8 @@ interface StockMasterDao {
     @Query(
         """
         SELECT * FROM stock_master
-        WHERE name LIKE '%' || :query || '%'
-           OR ticker LIKE '%' || :query || '%'
+        WHERE name LIKE :query || '%'
+           OR ticker LIKE :query || '%'
         ORDER BY ticker ASC
         LIMIT 20
         """

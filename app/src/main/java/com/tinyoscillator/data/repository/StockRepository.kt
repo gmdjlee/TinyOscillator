@@ -1,6 +1,5 @@
 package com.tinyoscillator.data.repository
 
-import android.util.Log
 import com.tinyoscillator.core.api.ApiError
 import com.tinyoscillator.core.api.KiwoomApiClient
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
@@ -12,9 +11,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,7 +33,7 @@ class StockRepository @Inject constructor(
     private val analysisCacheDao: AnalysisCacheDao
 ) {
     private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
-    private val lastFetchTime = mutableMapOf<String, Long>()
+    private val lastFetchTime = ConcurrentHashMap<String, Long>()
 
     /**
      * 일별 거래 데이터 수집 (incremental cache 지원).
@@ -57,7 +59,7 @@ class StockRepository @Inject constructor(
 
         if (latestCachedDate != null && latestCachedDate >= today) {
             // 캐시가 오늘까지 있음 → DB에서만 반환
-            Log.d(TAG, "캐시가 최신 ($latestCachedDate >= $today) → DB에서 반환")
+            Timber.d("캐시가 최신 ($latestCachedDate >= $today) → DB에서 반환")
             return@withContext loadFromCache(ticker, startDate, endDate)
         }
 
@@ -65,7 +67,7 @@ class StockRepository @Inject constructor(
         if (latestCachedDate != null) {
             val lastFetch = lastFetchTime[ticker] ?: 0L
             if (System.currentTimeMillis() - lastFetch < COOLDOWN_MS) {
-                Log.d(TAG, "쿨다운 중 → 캐시 반환: $ticker")
+                Timber.d("쿨다운 중 → 캐시 반환: $ticker")
                 return@withContext loadFromCache(ticker, startDate, endDate)
             }
         }
@@ -79,14 +81,26 @@ class StockRepository @Inject constructor(
             startDate
         }
 
-        Log.d(TAG, "━━━ incremental fetch ━━━")
-        Log.d(TAG, "캐시 최신일: ${latestCachedDate ?: "없음"} → fetch: $fetchStartDate ~ $endDate")
+        Timber.d("━━━ incremental fetch ━━━")
+        Timber.d("캐시 최신일: ${latestCachedDate ?: "없음"} → fetch: $fetchStartDate ~ $endDate")
 
-        val newData = fetchFromApi(ticker, fetchStartDate, endDate, config)
+        val newData = try {
+            fetchFromApi(ticker, fetchStartDate, endDate, config)
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w("API 호출 실패, 캐시 반환: ${e.message}")
+            return@withContext loadFromCache(ticker, startDate, endDate)
+        }
         lastFetchTime[ticker] = System.currentTimeMillis()
+        // Evict old entries to prevent unbounded growth
+        if (lastFetchTime.size > MAX_COOLDOWN_ENTRIES) {
+            val oldest = lastFetchTime.entries.minByOrNull { it.value }?.key
+            oldest?.let { lastFetchTime.remove(it) }
+        }
 
         if (newData.isNotEmpty()) {
-            // DB에 저장
+            // DB에 저장 + 365일 이전 정리 (atomic transaction)
             val entities = newData.map { daily ->
                 AnalysisCacheEntity(
                     ticker = ticker,
@@ -96,13 +110,9 @@ class StockRepository @Inject constructor(
                     instNet = daily.instNetBuy
                 )
             }
-            analysisCacheDao.insertAll(entities)
-            Log.d(TAG, "캐시 저장: ${entities.size}건 (${fetchStartDate}~${endDate})")
-
-            // 365일 이전 데이터 정리
             val cutoffDate = LocalDate.now().minusDays(365).format(fmt)
-            analysisCacheDao.deleteOlderThan(ticker, cutoffDate)
-            Log.d(TAG, "365일 정리: $cutoffDate 이전 삭제")
+            analysisCacheDao.insertAndCleanup(entities, ticker, cutoffDate)
+            Timber.d("캐시 저장: ${entities.size}건, 365일 정리: $cutoffDate 이전 삭제")
         }
 
         // DB에서 전체 기간 데이터 반환
@@ -118,7 +128,7 @@ class StockRepository @Inject constructor(
         endDate: String
     ): List<DailyTrading> {
         val cached = analysisCacheDao.getByTickerDateRange(ticker, startDate, endDate)
-        Log.d(TAG, "캐시에서 로드: ${cached.size}건 ($startDate~$endDate)")
+        Timber.d("캐시에서 로드: ${cached.size}건 ($startDate~$endDate)")
         return cached.map { entity ->
             DailyTrading(
                 date = entity.date,
@@ -138,44 +148,43 @@ class StockRepository @Inject constructor(
         endDate: String,
         config: KiwoomApiKeyConfig
     ): List<DailyTrading> {
-        // 병렬 데이터 수집
-        val (investorTrend, stockInfo, ohlcvData) = coroutineScope {
-            val trendDeferred = async { fetchInvestorTrend(ticker, endDate, config) }
-            val infoDeferred = async { fetchStockInfo(ticker, config) }
-            val ohlcvDeferred = async { fetchDailyOhlcv(ticker, endDate, config) }
+        // 병렬 데이터 수집 (90초 타임아웃)
+        val (investorTrend, stockInfo, ohlcvData) = withTimeout(API_BATCH_TIMEOUT_MS) {
+            coroutineScope {
+                val trendDeferred = async { fetchInvestorTrend(ticker, endDate, config) }
+                val infoDeferred = async { fetchStockInfo(ticker, config) }
+                val ohlcvDeferred = async { fetchDailyOhlcv(ticker, endDate, config) }
 
-            Triple(
-                trendDeferred.await(),
-                infoDeferred.await(),
-                ohlcvDeferred.await()
-            )
+                Triple(
+                    trendDeferred.await(),
+                    infoDeferred.await(),
+                    ohlcvDeferred.await()
+                )
+            }
         }
 
         if (investorTrend.isEmpty()) {
-            Log.w(TAG, "투자자 동향 데이터가 없습니다: $ticker")
+            Timber.w("투자자 동향 데이터가 없습니다: $ticker")
             return emptyList()
         }
 
         // 상장주식수 (1000주 단위 → 주)
         val sharesOutstanding = stockInfo.floatingShares
-        Log.d(TAG, "━━━ API 데이터 수집 결과 ━━━")
-        Log.d(TAG, "종목: $ticker | 상장주식수: ${sharesOutstanding}주")
 
         // 종가 맵 (날짜 → 종가)
         val closePriceMap = ohlcvData.associate { it.date to it.close }
-        Log.d(TAG, "투자자동향: ${investorTrend.size}건, 일봉: ${ohlcvData.size}건")
 
-        // 투자자 동향 원본 데이터 로그 (마지막 5일)
-        Log.d(TAG, "━━━ ka10059 원본 (마지막 5일, unit_tp=1000) ━━━")
+        Timber.d("━━━ API 데이터 수집 결과 ━━━")
+        Timber.d("종목: $ticker | 상장주식수: ${sharesOutstanding}주")
+        Timber.d("투자자동향: ${investorTrend.size}건, 일봉: ${ohlcvData.size}건")
+        Timber.d("━━━ ka10059 원본 (마지막 5일, unit_tp=1000) ━━━")
         investorTrend.takeLast(5).forEach { t ->
-            Log.d(TAG, "[${t.date}] foreignNet=${t.foreignNet} instNet=${t.institutionNet} marketCap=${t.marketCap}" +
+            Timber.d("[${t.date}] foreignNet=${t.foreignNet} instNet=${t.institutionNet} marketCap=${t.marketCap}" +
                     " → foreignWon=${t.foreignNetWon} instWon=${t.instNetWon} mcapWon=${t.marketCapWon}")
         }
-
-        // 일봉 종가 로그 (마지막 5일)
-        Log.d(TAG, "━━━ ka10081 종가 (마지막 5일) ━━━")
+        Timber.d("━━━ ka10081 종가 (마지막 5일) ━━━")
         ohlcvData.takeLast(5).forEach { o ->
-            Log.d(TAG, "[${o.date}] close=${o.close}")
+            Timber.d("[${o.date}] close=${o.close}")
         }
 
         // 투자자 거래 데이터를 DailyTrading으로 변환
@@ -198,13 +207,12 @@ class StockRepository @Inject constructor(
             }
             .sortedBy { it.date }
 
-        // 변환 후 DailyTrading 로그 (마지막 5일)
-        Log.d(TAG, "━━━ DailyTrading 변환 결과 (마지막 5일) ━━━")
+        Timber.d("━━━ DailyTrading 변환 결과 (마지막 5일) ━━━")
         result.takeLast(5).forEach { d ->
-            Log.d(TAG, "[${d.date}] marketCap=${d.marketCap}원 (${String.format("%.2f", d.marketCap / 1_0000_0000_0000.0)}조)" +
+            Timber.d("[${d.date}] marketCap=${d.marketCap}원 (${String.format("%.2f", d.marketCap / 1_0000_0000_0000.0)}조)" +
                     " | foreignNetBuy=${d.foreignNetBuy}원 | instNetBuy=${d.instNetBuy}원")
         }
-        Log.d(TAG, "━━━ 총 ${result.size}건 반환 ━━━")
+        Timber.d("━━━ 총 ${result.size}건 반환 ━━━")
 
         return result
     }
@@ -235,7 +243,7 @@ class StockRepository @Inject constructor(
         }
 
         val response = result.getOrElse { error ->
-            Log.e(TAG, "투자자 동향 조회 실패: ${error.message}")
+            Timber.w("투자자 동향 조회 실패: ${error.message}")
             return emptyList()
         }
 
@@ -269,7 +277,7 @@ class StockRepository @Inject constructor(
         }
 
         return result.getOrElse {
-            Log.w(TAG, "주식 정보 조회 실패: ${it.message}")
+            Timber.w("주식 정보 조회 실패: ${it.message}")
             return StockInfoData()
         }.let { response ->
             val floStk = response.floStk.toLongSafe()
@@ -304,7 +312,7 @@ class StockRepository @Inject constructor(
         }
 
         return result.getOrElse {
-            Log.w(TAG, "일봉 차트 조회 실패: ${it.message}")
+            Timber.w("일봉 차트 조회 실패: ${it.message}")
             return emptyList()
         }.data?.mapNotNull { item ->
             val date = item.date ?: return@mapNotNull null
@@ -317,8 +325,9 @@ class StockRepository @Inject constructor(
         this?.removePrefix("+")?.replace(",", "")?.trim()?.toLongOrNull() ?: 0L
 
     companion object {
-        private const val TAG = "StockRepository"
         private const val COOLDOWN_MS = 60 * 60 * 1000L  // 1시간
+        private const val MAX_COOLDOWN_ENTRIES = 50
+        private const val API_BATCH_TIMEOUT_MS = 90_000L  // 90초 (OkHttp 30초 × 3 호출)
     }
 }
 

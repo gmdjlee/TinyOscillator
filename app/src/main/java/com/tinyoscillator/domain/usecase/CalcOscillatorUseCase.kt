@@ -1,8 +1,8 @@
 package com.tinyoscillator.domain.usecase
 
-import android.util.Log
 import com.tinyoscillator.domain.model.*
 import com.tinyoscillator.domain.model.OscillatorConfig.Companion.MARKET_CAP_DIVISOR
+import timber.log.Timber
 
 /**
  * 수급 오실레이터 계산 UseCase
@@ -26,10 +26,10 @@ class CalcOscillatorUseCase(
      */
     fun execute(dailyData: List<DailyTrading>, warmupCount: Int = 0): List<OscillatorRow> {
         require(dailyData.isNotEmpty()) { "일별 데이터가 비어있습니다" }
-        require(warmupCount in 0 until dailyData.size) { "warmupCount가 데이터 범위를 벗어났습니다" }
+        require(warmupCount in 0..< dailyData.size) { "warmupCount가 데이터 범위를 벗어났습니다: warmupCount=$warmupCount, dataSize=${dailyData.size}" }
 
-        Log.d(TAG, "━━━ 오실레이터 계산 시작 ━━━")
-        Log.d(TAG, "전체 데이터: ${dailyData.size}일, warmupCount: $warmupCount, 표시: ${dailyData.size - warmupCount}일")
+        Timber.d("━━━ 오실레이터 계산 시작 ━━━")
+        Timber.d("전체 데이터: %d일, warmupCount: %d, 표시: %d일", dailyData.size, warmupCount, dailyData.size - warmupCount)
 
         // Step 2: 5일 누적 순매수
         val cumData = calc5DayRolling(dailyData)
@@ -71,17 +71,16 @@ class CalcOscillatorUseCase(
             )
         }
 
-        // 디버그: 마지막 5일 계산 결과 로그
-        Log.d(TAG, "━━━ 계산 결과 (마지막 5일) ━━━")
+        Timber.d("━━━ 계산 결과 (마지막 5일) ━━━")
         rows.takeLast(5).forEach { row ->
-            Log.d(TAG, "[${row.date}] 시총=${row.marketCap}원 (${String.format("%.2f", row.marketCapTril)}조)" +
+            Timber.d("[${row.date}] 시총=${row.marketCap}원 (${String.format("%.2f", row.marketCapTril)}조)" +
                     " | 외5d=${row.foreign5d} 기5d=${row.inst5d}" +
                     " | 수급비율=${String.format("%.8f", row.supplyRatio)}" +
                     " | EMA12=${String.format("%.8f", row.ema12)} EMA26=${String.format("%.8f", row.ema26)}" +
                     " | MACD=${String.format("%.8f", row.macd)} Signal=${String.format("%.8f", row.signal)}" +
                     " | 오실레이터=${String.format("%.8f", row.oscillator)} (차트표시: ${String.format("%.4f", row.oscillator * 100)}%)")
         }
-        Log.d(TAG, "━━━ 오실레이터 계산 완료 ━━━")
+        Timber.d("━━━ 오실레이터 계산 완료 ━━━")
 
         return rows
     }
@@ -92,13 +91,21 @@ class CalcOscillatorUseCase(
     private fun calc5DayRolling(
         data: List<DailyTrading>
     ): List<Triple<DailyTrading, Long, Long>> {
+        if (data.isEmpty()) return emptyList()
         val window = config.rollingWindow
-        return data.indices.map { i ->
-            val startIdx = maxOf(0, i - window + 1)
-            val foreignSum = (startIdx..i).sumOf { data[it].foreignNetBuy }
-            val instSum = (startIdx..i).sumOf { data[it].instNetBuy }
-            Triple(data[i], foreignSum, instSum)
+        val result = ArrayList<Triple<DailyTrading, Long, Long>>(data.size)
+        var foreignSum = 0L
+        var instSum = 0L
+        for (i in data.indices) {
+            foreignSum += data[i].foreignNetBuy
+            instSum += data[i].instNetBuy
+            if (i >= window) {
+                foreignSum -= data[i - window].foreignNetBuy
+                instSum -= data[i - window].instNetBuy
+            }
+            result.add(Triple(data[i], foreignSum, instSum))
         }
+        return result
     }
 
     /**
@@ -110,7 +117,7 @@ class CalcOscillatorUseCase(
         if (values.isEmpty()) return emptyList()
 
         val alpha = 2.0 / (period + 1)
-        val result = mutableListOf<Double>()
+        val result = ArrayList<Double>(values.size)
         result.add(values[0])
 
         for (i in 1 until values.size) {
@@ -152,7 +159,4 @@ class CalcOscillatorUseCase(
         }
     }
 
-    companion object {
-        private const val TAG = "CalcOscillator"
-    }
 }

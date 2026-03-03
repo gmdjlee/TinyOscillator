@@ -10,6 +10,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
+import okhttp3.OkHttpClient
 import javax.inject.Singleton
 
 @Module
@@ -18,17 +19,24 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideKiwoomApiClient(): KiwoomApiClient = KiwoomApiClient()
+    fun provideOkHttpClient(): OkHttpClient = KiwoomApiClient.createDefaultClient()
 
     @Provides
     @Singleton
-    fun provideKisApiClient(): KisApiClient = KisApiClient()
+    fun provideKiwoomApiClient(httpClient: OkHttpClient): KiwoomApiClient =
+        KiwoomApiClient(httpClient = httpClient)
+
+    @Provides
+    @Singleton
+    fun provideKisApiClient(httpClient: OkHttpClient): KisApiClient =
+        KisApiClient(httpClient = httpClient)
 
     @Provides
     @Singleton
     fun provideJson(): Json = KiwoomApiClient.createDefaultJson()
 
     @Provides
+    @Singleton
     fun provideCalcOscillatorUseCase(): CalcOscillatorUseCase = CalcOscillatorUseCase()
 
     @Provides

@@ -3,6 +3,7 @@ package com.tinyoscillator.presentation.financial
 import android.content.Context
 import android.graphics.Color as AndroidColor
 import android.widget.TextView
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -82,6 +83,9 @@ fun ProfitabilityContent(
         return
     }
 
+    val isDarkTheme = isSystemInDarkTheme()
+    val chartTextColor = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.DKGRAY
+
     val totalQuarters = summary.periods.size
     var selectedQuarterCount by remember(totalQuarters) { mutableIntStateOf(totalQuarters) }
     val trimmedSummary = remember(summary, selectedQuarterCount) {
@@ -143,11 +147,12 @@ fun ProfitabilityContent(
                         .height(280.dp),
                     factory = { context ->
                         BarChart(context).apply {
-                            setupCommonChartProperties(this)
+                            setupCommonChartProperties(this, chartTextColor)
                         }
                     },
                     update = { chart ->
-                        updateIncomeBarChart(chart, trimmedSummary)
+                        chart.legend.textColor = chartTextColor
+                        updateIncomeBarChart(chart, trimmedSummary, chartTextColor)
                     }
                 )
             }
@@ -162,11 +167,12 @@ fun ProfitabilityContent(
                         .height(250.dp),
                     factory = { context ->
                         LineChart(context).apply {
-                            setupCommonChartProperties(this)
+                            setupCommonChartProperties(this, chartTextColor)
                         }
                     },
                     update = { chart ->
-                        updateGrowthLineChart(chart, trimmedSummary)
+                        chart.legend.textColor = chartTextColor
+                        updateGrowthLineChart(chart, trimmedSummary, chartTextColor)
                     }
                 )
             }
@@ -181,11 +187,12 @@ fun ProfitabilityContent(
                         .height(250.dp),
                     factory = { context ->
                         LineChart(context).apply {
-                            setupCommonChartProperties(this)
+                            setupCommonChartProperties(this, chartTextColor)
                         }
                     },
                     update = { chart ->
-                        updateAssetGrowthChart(chart, trimmedSummary)
+                        chart.legend.textColor = chartTextColor
+                        updateAssetGrowthChart(chart, trimmedSummary, chartTextColor)
                     }
                 )
             }
@@ -200,6 +207,9 @@ fun StabilityContent(
     summary: FinancialSummary,
     modifier: Modifier = Modifier
 ) {
+    val isDarkTheme = isSystemInDarkTheme()
+    val chartTextColor = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.DKGRAY
+
     if (!summary.hasStabilityData) {
         Box(
             modifier = modifier.fillMaxSize(),
@@ -281,11 +291,13 @@ fun StabilityContent(
                     LineChart(context).apply {
                         description.isEnabled = false
                         legend.isEnabled = true
+                        legend.textColor = chartTextColor
                         setExtraOffsets(8f, 8f, 8f, 8f)
                     }
                 },
                 update = { chart ->
-                    updateCombinedStabilityChart(chart, trimmedSummary)
+                    chart.legend.textColor = chartTextColor
+                    updateCombinedStabilityChart(chart, trimmedSummary, chartTextColor)
                 }
             )
         }
@@ -296,7 +308,8 @@ fun StabilityContent(
                 title = "부채비율",
                 data = trimmedSummary.debtRatios,
                 labels = trimmedSummary.displayPeriods,
-                colorHex = "#F44336"
+                colorHex = "#F44336",
+                chartTextColor = chartTextColor
             )
         }
 
@@ -305,7 +318,8 @@ fun StabilityContent(
                 title = "유동비율",
                 data = trimmedSummary.currentRatios,
                 labels = trimmedSummary.displayPeriods,
-                colorHex = "#4CAF50"
+                colorHex = "#4CAF50",
+                chartTextColor = chartTextColor
             )
         }
 
@@ -314,7 +328,8 @@ fun StabilityContent(
                 title = "차입금 의존도",
                 data = trimmedSummary.borrowingDependencies,
                 labels = trimmedSummary.displayPeriods,
-                colorHex = "#FF9800"
+                colorHex = "#FF9800",
+                chartTextColor = chartTextColor
             )
         }
     }
@@ -461,7 +476,8 @@ private fun IndividualRatioChart(
     title: String,
     data: List<Double>,
     labels: List<String>,
-    colorHex: String
+    colorHex: String,
+    chartTextColor: Int
 ) {
     ChartCard(title = title) {
         AndroidView(
@@ -496,9 +512,11 @@ private fun IndividualRatioChart(
                     valueFormatter = IndexAxisValueFormatter(labels)
                     granularity = 1f
                     setDrawGridLines(false)
+                    textColor = chartTextColor
                 }
                 chart.axisLeft.apply {
                     setDrawGridLines(true)
+                    textColor = chartTextColor
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String = "%.0f%%".format(value)
                     }
@@ -518,16 +536,17 @@ private fun IndividualRatioChart(
 
 // ========== Chart Update Functions ==========
 
-private fun setupCommonChartProperties(chart: com.github.mikephil.charting.charts.Chart<*>) {
+private fun setupCommonChartProperties(chart: com.github.mikephil.charting.charts.Chart<*>, chartTextColor: Int) {
     chart.description.isEnabled = false
     chart.legend.isEnabled = true
+    chart.legend.textColor = chartTextColor
     chart.setExtraOffsets(8f, 8f, 8f, 8f)
     if (chart is BarChart) {
         chart.setFitBars(true)
     }
 }
 
-private fun updateIncomeBarChart(chart: BarChart, summary: FinancialSummary) {
+private fun updateIncomeBarChart(chart: BarChart, summary: FinancialSummary, chartTextColor: Int) {
     // 첫 번째(가장 오래된) 분기 제외 — YTD→분기 변환 시 불완전할 수 있음
     val revenues = summary.revenues.drop(1)
     val operatingProfits = summary.operatingProfits.drop(1)
@@ -569,10 +588,12 @@ private fun updateIncomeBarChart(chart: BarChart, summary: FinancialSummary) {
         setCenterAxisLabels(true)
         axisMinimum = 0f
         axisMaximum = labels.size.toFloat()
+        textColor = chartTextColor
     }
 
     chart.axisLeft.apply {
         setDrawGridLines(true)
+        textColor = chartTextColor
         valueFormatter = object : ValueFormatter() {
             override fun getFormattedValue(value: Float): String {
                 return formatNumber(value.toLong())
@@ -590,7 +611,7 @@ private fun updateIncomeBarChart(chart: BarChart, summary: FinancialSummary) {
     chart.invalidate()
 }
 
-private fun updateGrowthLineChart(chart: LineChart, summary: FinancialSummary) {
+private fun updateGrowthLineChart(chart: LineChart, summary: FinancialSummary, chartTextColor: Int) {
     val dataSets = mutableListOf<LineDataSet>()
 
     val revenueGrowth = summary.revenueGrowthRates.mapIndexed { i, v -> Entry(i.toFloat(), v.toFloat()) }
@@ -603,9 +624,10 @@ private fun updateGrowthLineChart(chart: LineChart, summary: FinancialSummary) {
     dataSets.add(createLineDataSet(netIncomeGrowth, "순이익 증가율", "#FF9800"))
 
     chart.data = LineData(dataSets.toList())
-    setupLineChartXAxis(chart, summary.displayPeriods)
+    setupLineChartXAxis(chart, summary.displayPeriods, chartTextColor)
     chart.axisLeft.apply {
         setDrawGridLines(true)
+        textColor = chartTextColor
         valueFormatter = object : ValueFormatter() {
             override fun getFormattedValue(value: Float): String = "%.1f%%".format(value)
         }
@@ -620,7 +642,7 @@ private fun updateGrowthLineChart(chart: LineChart, summary: FinancialSummary) {
     chart.invalidate()
 }
 
-private fun updateAssetGrowthChart(chart: LineChart, summary: FinancialSummary) {
+private fun updateAssetGrowthChart(chart: LineChart, summary: FinancialSummary, chartTextColor: Int) {
     val dataSets = mutableListOf<LineDataSet>()
 
     val equityGrowth = summary.equityGrowthRates.mapIndexed { i, v -> Entry(i.toFloat(), v.toFloat()) }
@@ -630,9 +652,10 @@ private fun updateAssetGrowthChart(chart: LineChart, summary: FinancialSummary) 
     dataSets.add(createLineDataSet(totalAssetsGrowth, "총자산 증가율", "#00BCD4"))
 
     chart.data = LineData(dataSets.toList())
-    setupLineChartXAxis(chart, summary.displayPeriods)
+    setupLineChartXAxis(chart, summary.displayPeriods, chartTextColor)
     chart.axisLeft.apply {
         setDrawGridLines(true)
+        textColor = chartTextColor
         valueFormatter = object : ValueFormatter() {
             override fun getFormattedValue(value: Float): String = "%.1f%%".format(value)
         }
@@ -647,7 +670,7 @@ private fun updateAssetGrowthChart(chart: LineChart, summary: FinancialSummary) 
     chart.invalidate()
 }
 
-private fun updateCombinedStabilityChart(chart: LineChart, summary: FinancialSummary) {
+private fun updateCombinedStabilityChart(chart: LineChart, summary: FinancialSummary, chartTextColor: Int) {
     val dataSets = mutableListOf<LineDataSet>()
 
     val debtEntries = summary.debtRatios.mapIndexed { i, v -> Entry(i.toFloat(), v.toFloat()) }
@@ -680,9 +703,11 @@ private fun updateCombinedStabilityChart(chart: LineChart, summary: FinancialSum
         valueFormatter = IndexAxisValueFormatter(summary.displayPeriods)
         granularity = 1f
         setDrawGridLines(false)
+        textColor = chartTextColor
     }
     chart.axisLeft.apply {
         setDrawGridLines(true)
+        textColor = chartTextColor
         valueFormatter = object : ValueFormatter() {
             override fun getFormattedValue(value: Float): String = "%.0f%%".format(value)
         }
@@ -711,12 +736,13 @@ private fun createLineDataSet(entries: List<Entry>, label: String, colorHex: Str
     }
 }
 
-private fun setupLineChartXAxis(chart: LineChart, labels: List<String>) {
+private fun setupLineChartXAxis(chart: LineChart, labels: List<String>, chartTextColor: Int) {
     chart.xAxis.apply {
         position = XAxis.XAxisPosition.BOTTOM
         valueFormatter = IndexAxisValueFormatter(labels)
         granularity = 1f
         setDrawGridLines(false)
+        textColor = chartTextColor
     }
 }
 

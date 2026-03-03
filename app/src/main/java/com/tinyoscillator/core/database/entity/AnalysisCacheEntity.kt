@@ -2,12 +2,10 @@ package com.tinyoscillator.core.database.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.Index
 
 @Entity(
     tableName = "analysis_cache",
-    primaryKeys = ["ticker", "date"],
-    indices = [Index(value = ["ticker", "date"])]
+    primaryKeys = ["ticker", "date"]
 )
 data class AnalysisCacheEntity(
     @ColumnInfo(name = "ticker")

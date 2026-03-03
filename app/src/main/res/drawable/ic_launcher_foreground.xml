@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+    PC와 'M' 로고를 중앙 72dp x 72dp (좌표 18,18 ~ 90,90) 안전 영역 내에 배치합니다.
+    -->
+    <group
+        android:translateX="18"
+        android:translateY="18">
+
+        <!-- PC (SVG 디자인 기반) -->
+        <group>
+            <!-- 1. PC 본체 (베이지색) -->
+            <path
+                android:fillColor="#D4C8B4"
+                android:pathData="M 3, 50 h 66 v 13 rx 3 h -66 z" />
+
+            <!-- 2. 모니터 베젤 (베이지색) -->
+            <path
+                android:fillColor="#D4C8B4"
+                android:pathData="M 8, 10 h 56 v 40 rx 5 h -56 z" />
+
+            <!-- 3. 모니터 스크린 (어두운색) -->
+            <path
+                android:fillColor="#222222"
+                android:pathData="M 13, 14 h 46 v 32 rx 3 h -46 z" />
+
+            <!-- 4. 플로피 드라이브 슬롯 (어두운 회색) -->
+            <path
+                android:fillColor="#5A5A5A"
+                android:pathData="M 45, 53 h 20 v 5 h -20 z" />
+
+            <!-- 5. 터미널 신호 (녹색) -->
+            <path
+                android:strokeColor="#00FF00"
+                android:strokeWidth="1.5"
+                android:pathData="M 18 25 H 48 M 18 30 H 55 M 18 35 H 40" />
+
+            <!-- 6. 터미널 커서 (녹색) -->
+            <path
+                android:fillColor="#00FF00"
+                android:pathData="M 20, 19 h 4 v 4 h -4 z" />
+        </group>
+
+        <!-- M 로고 (민트색) -->
+        <path
+            android:fillColor="#63D8B1"
+            android:pathData="
+                M 16 58
+                L 16 14
+                H 24
+                L 36 38.4
+                L 48 14
+                H 56
+                L 56 58
+                H 49
+                L 49 27.8
+                L 38 58
+                H 34
+                L 23 27.8
+                L 23 58
+                H 16 Z" />
+    </group>
+</vector>

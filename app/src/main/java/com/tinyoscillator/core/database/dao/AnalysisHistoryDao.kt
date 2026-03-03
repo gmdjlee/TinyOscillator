@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -32,4 +33,14 @@ interface AnalysisHistoryDao {
         """
     )
     suspend fun deleteOldest(excess: Int)
+
+    @Transaction
+    suspend fun saveWithFifo(ticker: String, name: String, maxHistory: Int) {
+        deleteByTicker(ticker)
+        insert(AnalysisHistoryEntity(ticker = ticker, name = name, lastAnalyzedAt = System.currentTimeMillis()))
+        val count = getCount()
+        if (count > maxHistory) {
+            deleteOldest(count - maxHistory)
+        }
+    }
 }

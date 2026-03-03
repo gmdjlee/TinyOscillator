@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- Kiwoom API: certificate pinning with system CAs only -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">kiwoom.com</domain>
+        <pin-set expiration="2027-01-01">
+            <!-- Sectigo RSA Extended Validation Secure Server CA (intermediate) -->
+            <pin digest="SHA-256">hEJ5FNYP7ZpNILySZtJgiP6UtW3ClYUTRFxXGqWSWQ0=</pin>
+            <!-- USERTrust RSA Certification Authority (root backup) -->
+            <pin digest="SHA-256">x4QzPSC810K5/cMjb05Qm4k3Bw5zBn4lTdO/nEW/Td4=</pin>
+        </pin-set>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+    <!-- KIS API: certificate pinning with system CAs only -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">koreainvestment.com</domain>
+        <pin-set expiration="2027-01-01">
+            <!-- Sectigo RSA Organization Validation Secure Server CA (intermediate) -->
+            <pin digest="SHA-256">RkhWTcfJAQN/YxOR12VkPo+PhmIoSfWd/JVkg44einY=</pin>
+            <!-- USERTrust RSA Certification Authority (root backup) -->
+            <pin digest="SHA-256">x4QzPSC810K5/cMjb05Qm4k3Bw5zBn4lTdO/nEW/Td4=</pin>
+        </pin-set>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

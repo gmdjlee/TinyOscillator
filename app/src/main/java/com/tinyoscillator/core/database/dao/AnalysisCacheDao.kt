@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 
 @Dao
@@ -36,4 +37,11 @@ interface AnalysisCacheDao {
 
     @Query("DELETE FROM analysis_cache WHERE ticker = :ticker")
     suspend fun deleteByTicker(ticker: String)
+
+    /** Atomically insert new entries and clean up old ones. */
+    @Transaction
+    suspend fun insertAndCleanup(entries: List<AnalysisCacheEntity>, ticker: String, cutoffDate: String) {
+        insertAll(entries)
+        deleteOlderThan(ticker, cutoffDate)
+    }
 }

@@ -19,7 +19,7 @@ import com.tinyoscillator.core.database.entity.StockMasterEntity
         FinancialCacheEntity::class
     ],
     version = 2,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun stockMasterDao(): StockMasterDao

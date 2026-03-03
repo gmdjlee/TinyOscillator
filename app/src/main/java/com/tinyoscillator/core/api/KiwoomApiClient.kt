@@ -1,6 +1,6 @@
 package com.tinyoscillator.core.api
 
-import android.util.Log
+import timber.log.Timber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -14,6 +14,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import okhttp3.CertificatePinner
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -27,12 +29,16 @@ class KiwoomApiClient(
     private val json: Json = createDefaultJson()
 ) {
     // 토큰 캐시 (baseUrl + appKey 조합)
-    private val tokenCache = mutableMapOf<String, TokenInfo>()
+    private val tokenCache = ConcurrentHashMap<String, TokenInfo>()
     private val tokenMutex = Mutex()
 
     // 레이트 리밋 (500ms 간격)
+    @Volatile
     private var lastCallTime = 0L
     private val rateLimitMutex = Mutex()
+
+    // 서킷 브레이커: 연속 3회 실패 시 5분간 즉시 실패 반환
+    private val circuitBreaker = CircuitBreaker()
 
     /**
      * Kiwoom API 호출.
@@ -45,21 +51,41 @@ class KiwoomApiClient(
         config: KiwoomApiKeyConfig,
         parser: (String) -> T
     ): Result<T> = withContext(Dispatchers.IO) {
-        val baseUrl = config.getBaseUrl()
-        val result = callOnce(apiId, url, body, config, parser)
+        // Circuit breaker: skip API call if circuit is open
+        if (circuitBreaker.isOpen) {
+            Timber.w("서킷 브레이커 OPEN → 즉시 실패: %s", apiId)
+            return@withContext Result.failure(ApiError.NetworkError("API 일시 중단 (연속 실패)"))
+        }
 
-        result.fold(
-            onSuccess = { Result.success(it) },
-            onFailure = { error ->
-                if (isAuthError(error)) {
-                    Log.w(TAG, "인증 오류, 토큰 갱신 후 재시도: ${error.message}")
-                    refreshToken(config)
-                    callOnce(apiId, url, body, config, parser)
-                } else {
-                    Result.failure(error)
-                }
+        var lastResult = callOnce(apiId, url, body, config, parser)
+
+        // Auth retry: refresh token on 401/403
+        lastResult.onFailure { error ->
+            if (isAuthError(error)) {
+                Timber.w("인증 오류, 토큰 갱신 후 재시도")
+                refreshToken(config)
+                lastResult = callOnce(apiId, url, body, config, parser)
             }
-        )
+        }
+
+        // Retry on retriable errors (network, timeout)
+        if (lastResult.isFailure && isRetriableError(lastResult.exceptionOrNull())) {
+            for (attempt in 1..MAX_RETRIES) {
+                delay(RETRY_DELAYS[attempt - 1])
+                Timber.d("재시도 %d/%d: %s", attempt, MAX_RETRIES, apiId)
+                lastResult = callOnce(apiId, url, body, config, parser)
+                if (lastResult.isSuccess || !isRetriableError(lastResult.exceptionOrNull())) break
+            }
+        }
+
+        // Update circuit breaker state
+        if (lastResult.isSuccess) {
+            circuitBreaker.recordSuccess()
+        } else {
+            circuitBreaker.recordFailure()
+        }
+
+        lastResult
     }
 
     private suspend fun <T> callOnce(
@@ -84,9 +110,9 @@ class KiwoomApiClient(
                 .post(requestBodyJson.toRequestBody("application/json".toMediaType()))
                 .build()
 
-            Log.d(TAG, "API call: $apiId -> $url")
+            Timber.d("API call: $apiId -> $url")
 
-            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).execute().use { response ->
+            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).await().use { response ->
                 Triple(response.body?.string(), response.code, response.isSuccessful)
             }
 
@@ -135,7 +161,7 @@ class KiwoomApiClient(
         return Result.failure(lastError ?: ApiError.AuthError("토큰 발급 실패"))
     }
 
-    private fun fetchTokenOnce(config: KiwoomApiKeyConfig): Result<TokenInfo> {
+    private suspend fun fetchTokenOnce(config: KiwoomApiKeyConfig): Result<TokenInfo> {
         try {
             val requestBody = json.encodeToString(mapOf(
                 "grant_type" to "client_credentials",
@@ -150,7 +176,7 @@ class KiwoomApiClient(
                 .post(requestBody.toRequestBody("application/json".toMediaType()))
                 .build()
 
-            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).execute().use { response ->
+            val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).await().use { response ->
                 Triple(response.body?.string(), response.code, response.isSuccessful)
             }
 
@@ -183,18 +209,27 @@ class KiwoomApiClient(
         tokenCache.remove(cacheKey)
     }
 
-    private suspend fun waitForRateLimit() = rateLimitMutex.withLock {
-        val now = System.currentTimeMillis()
-        val elapsed = now - lastCallTime
-        if (elapsed < 500L) {
-            delay(500L - elapsed)
+    private suspend fun waitForRateLimit() {
+        val delayMs: Long
+        rateLimitMutex.withLock {
+            val now = System.currentTimeMillis()
+            val elapsed = now - lastCallTime
+            delayMs = if (elapsed < RATE_LIMIT_MS) RATE_LIMIT_MS - elapsed else 0L
+            lastCallTime = now + delayMs  // Reserve this time slot
         }
-        lastCallTime = System.currentTimeMillis()
+        if (delayMs > 0L) delay(delayMs)
     }
 
     private fun isAuthError(error: Throwable): Boolean = when {
         error is ApiError.AuthError -> true
         error is ApiError.ApiCallError -> error.code == 401 || error.code == 403
+        else -> false
+    }
+
+    private fun isRetriableError(error: Throwable?): Boolean = when (error) {
+        is ApiError.NetworkError -> true
+        is ApiError.TimeoutError -> true
+        is ApiError.ApiCallError -> error.code in listOf(429, 500, 502, 503, 504)
         else -> false
     }
 
@@ -206,21 +241,67 @@ class KiwoomApiClient(
         else -> ApiError.ApiCallError(0, e.message ?: "알 수 없는 오류")
     }
 
-    private fun normalizeJsonNumbers(json: String): String {
-        var result = QUOTED_PLUS_REGEX.replace(json) { "\"${it.groupValues[1]}\"" }
-        result = UNQUOTED_PLUS_REGEX.replace(result) { "${it.groupValues[1]}${it.groupValues[2]}" }
-        return result
+    /**
+     * Remove leading '+' from numeric values in JSON responses.
+     * Single-pass character scanner (no regex allocation per call).
+     *
+     * Handles: "+1234" → "1234" and : +1234 → : 1234
+     */
+    private fun normalizeJsonNumbers(jsonStr: String): String {
+        val len = jsonStr.length
+        if (len == 0) return jsonStr
+
+        val sb = StringBuilder(len)
+        var i = 0
+        while (i < len) {
+            val c = jsonStr[i]
+            if (c == '+' && i + 1 < len && jsonStr[i + 1].isDigit()) {
+                // Check context: is '+' inside quotes or after separator?
+                if (i > 0) {
+                    val prev = jsonStr[i - 1]
+                    if (prev == '"' || prev == ':' || prev == ',' || prev == ' ') {
+                        // Skip the '+', digit will be appended next iteration
+                        i++
+                        continue
+                    }
+                }
+            }
+            sb.append(c)
+            i++
+        }
+        return sb.toString()
     }
 
     companion object {
-        private const val TAG = "KiwoomApiClient"
-        private val QUOTED_PLUS_REGEX = Regex("\"\\+(\\d+)\"")
-        private val UNQUOTED_PLUS_REGEX = Regex("([,:])\\s*\\+(\\d+)")
+        private const val MAX_RETRIES = 2
+        private const val RATE_LIMIT_MS = 500L
+        private val RETRY_DELAYS = listOf(1000L, 2000L)
 
-        fun createDefaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+        fun createDefaultClient(enablePinning: Boolean = !com.tinyoscillator.BuildConfig.DEBUG): OkHttpClient {
+            val builder = OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+
+            if (enablePinning) {
+                builder.certificatePinner(createCertificatePinner())
+            }
+
+            return builder.build()
+        }
+
+        /** Pin intermediate CA certificates for KIS/Kiwoom APIs. */
+        fun createCertificatePinner(): CertificatePinner = CertificatePinner.Builder()
+            // Kiwoom API - Sectigo RSA EV Secure Server CA (intermediate) + USERTrust RSA (root backup)
+            .add("*.kiwoom.com",
+                "sha256/hEJ5FNYP7ZpNILySZtJgiP6UtW3ClYUTRFxXGqWSWQ0=",
+                "sha256/x4QzPSC810K5/cMjb05Qm4k3Bw5zBn4lTdO/nEW/Td4="
+            )
+            // KIS API - Sectigo RSA OV Secure Server CA (intermediate) + USERTrust RSA (root backup)
+            .add("*.koreainvestment.com",
+                "sha256/RkhWTcfJAQN/YxOR12VkPo+PhmIoSfWd/JVkg44einY=",
+                "sha256/x4QzPSC810K5/cMjb05Qm4k3Bw5zBn4lTdO/nEW/Td4="
+            )
             .build()
 
         fun createDefaultJson(): Json = Json {
