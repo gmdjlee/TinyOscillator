@@ -47,6 +47,29 @@ sealed class ApiError(override val message: String) : Exception(message) {
     class NoApiKeyError(
         msg: String = "API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요."
     ) : ApiError(msg)
+
+    companion object {
+        fun mapException(e: Exception): ApiError = when (e) {
+            is java.net.UnknownHostException -> NetworkError("네트워크 연결을 확인해주세요")
+            is java.net.SocketTimeoutException -> TimeoutError("요청 시간이 초과되었습니다")
+            is kotlinx.serialization.SerializationException -> ParseError("응답 파싱 오류: ${e.message}")
+            is ApiError -> e
+            else -> ApiCallError(0, e.message ?: "알 수 없는 오류")
+        }
+
+        fun isAuthError(error: Throwable): Boolean = when {
+            error is AuthError -> true
+            error is ApiCallError -> error.code == 401 || error.code == 403
+            else -> false
+        }
+
+        fun isRetriableError(error: Throwable?): Boolean = when (error) {
+            is NetworkError -> true
+            is TimeoutError -> true
+            is ApiCallError -> error.code in listOf(429, 500, 502, 503, 504)
+            else -> false
+        }
+    }
 }
 
 /**

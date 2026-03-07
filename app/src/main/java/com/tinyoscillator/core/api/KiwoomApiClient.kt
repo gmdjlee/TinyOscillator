@@ -61,7 +61,7 @@ class KiwoomApiClient(
 
         // Auth retry: refresh token on 401/403
         lastResult.onFailure { error ->
-            if (isAuthError(error)) {
+            if (ApiError.isAuthError(error)) {
                 Timber.w("인증 오류, 토큰 갱신 후 재시도")
                 refreshToken(config)
                 lastResult = callOnce(apiId, url, body, config, parser)
@@ -69,12 +69,12 @@ class KiwoomApiClient(
         }
 
         // Retry on retriable errors (network, timeout)
-        if (lastResult.isFailure && isRetriableError(lastResult.exceptionOrNull())) {
+        if (lastResult.isFailure && ApiError.isRetriableError(lastResult.exceptionOrNull())) {
             for (attempt in 1..MAX_RETRIES) {
                 delay(RETRY_DELAYS[attempt - 1])
                 Timber.d("재시도 %d/%d: %s", attempt, MAX_RETRIES, apiId)
                 lastResult = callOnce(apiId, url, body, config, parser)
-                if (lastResult.isSuccess || !isRetriableError(lastResult.exceptionOrNull())) break
+                if (lastResult.isSuccess || !ApiError.isRetriableError(lastResult.exceptionOrNull())) break
             }
         }
 
@@ -132,7 +132,7 @@ class KiwoomApiClient(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            return Result.failure(mapException(e))
+            return Result.failure(ApiError.mapException(e))
         }
     }
 
@@ -200,7 +200,7 @@ class KiwoomApiClient(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            return Result.failure(mapException(e))
+            return Result.failure(ApiError.mapException(e))
         }
     }
 
@@ -218,27 +218,6 @@ class KiwoomApiClient(
             lastCallTime = now + delayMs  // Reserve this time slot
         }
         if (delayMs > 0L) delay(delayMs)
-    }
-
-    private fun isAuthError(error: Throwable): Boolean = when {
-        error is ApiError.AuthError -> true
-        error is ApiError.ApiCallError -> error.code == 401 || error.code == 403
-        else -> false
-    }
-
-    private fun isRetriableError(error: Throwable?): Boolean = when (error) {
-        is ApiError.NetworkError -> true
-        is ApiError.TimeoutError -> true
-        is ApiError.ApiCallError -> error.code in listOf(429, 500, 502, 503, 504)
-        else -> false
-    }
-
-    private fun mapException(e: Exception): ApiError = when (e) {
-        is java.net.UnknownHostException -> ApiError.NetworkError("네트워크 연결을 확인해주세요")
-        is java.net.SocketTimeoutException -> ApiError.TimeoutError("요청 시간이 초과되었습니다")
-        is kotlinx.serialization.SerializationException -> ApiError.ParseError("응답 파싱 오류: ${e.message}")
-        is ApiError -> e
-        else -> ApiError.ApiCallError(0, e.message ?: "알 수 없는 오류")
     }
 
     /**

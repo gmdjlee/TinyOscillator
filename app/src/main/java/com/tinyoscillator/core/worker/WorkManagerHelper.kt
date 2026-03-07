@@ -8,7 +8,15 @@ import java.util.concurrent.TimeUnit
 
 object WorkManagerHelper {
 
-    fun scheduleEtfUpdate(context: Context, hour: Int = 0, minute: Int = 30) {
+    // ===== Generic scheduling helpers =====
+
+    private inline fun <reified W : ListenableWorker> scheduleDailyWorker(
+        context: Context,
+        workName: String,
+        label: String,
+        hour: Int,
+        minute: Int
+    ) {
         val now = Calendar.getInstance()
         val target = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)
@@ -23,7 +31,7 @@ object WorkManagerHelper {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<EtfUpdateWorker>(
+        val request = PeriodicWorkRequestBuilder<W>(
             24, TimeUnit.HOURS
         )
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
@@ -33,139 +41,67 @@ object WorkManagerHelper {
 
         WorkManager.getInstance(context)
             .enqueueUniquePeriodicWork(
-                EtfUpdateWorker.WORK_NAME,
+                workName,
                 ExistingPeriodicWorkPolicy.UPDATE,
                 request
             )
 
-        Timber.d("ETF 일일 업데이트 스케줄 등록: %02d:%02d (초기 딜레이: %d분)", hour, minute, initialDelay / 60000)
+        Timber.d("$label 일일 업데이트 스케줄 등록: %02d:%02d (초기 딜레이: %d분)", hour, minute, initialDelay / 60000)
     }
 
-    fun cancelEtfUpdate(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(EtfUpdateWorker.WORK_NAME)
-        Timber.d("ETF 일일 업데이트 스케줄 취소")
+    private fun cancelWorker(context: Context, workName: String, label: String) {
+        WorkManager.getInstance(context).cancelUniqueWork(workName)
+        Timber.d("$label 일일 업데이트 스케줄 취소")
     }
 
-    fun runEtfUpdateNow(context: Context) {
+    private inline fun <reified W : ListenableWorker> runWorkerNow(
+        context: Context,
+        label: String
+    ) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val request = OneTimeWorkRequestBuilder<EtfUpdateWorker>()
+        val request = OneTimeWorkRequestBuilder<W>()
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
 
         WorkManager.getInstance(context).enqueue(request)
-        Timber.d("ETF 즉시 업데이트 요청")
+        Timber.d("$label 즉시 업데이트 요청")
     }
 
-    // ===== 시장지표(과매수/과매도) 스케줄링 =====
+    // ===== ETF =====
 
-    fun scheduleOscillatorUpdate(context: Context, hour: Int = 1, minute: Int = 0) {
-        val now = Calendar.getInstance()
-        val target = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            if (before(now)) add(Calendar.DAY_OF_YEAR, 1)
-        }
+    fun scheduleEtfUpdate(context: Context, hour: Int = 0, minute: Int = 30) =
+        scheduleDailyWorker<EtfUpdateWorker>(context, EtfUpdateWorker.WORK_NAME, "ETF", hour, minute)
 
-        val initialDelay = target.timeInMillis - now.timeInMillis
+    fun cancelEtfUpdate(context: Context) =
+        cancelWorker(context, EtfUpdateWorker.WORK_NAME, "ETF")
 
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
+    fun runEtfUpdateNow(context: Context) =
+        runWorkerNow<EtfUpdateWorker>(context, "ETF")
 
-        val request = PeriodicWorkRequestBuilder<MarketOscillatorUpdateWorker>(
-            24, TimeUnit.HOURS
-        )
-            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
-            .setConstraints(constraints)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .build()
+    // ===== 시장지표(과매수/과매도) =====
 
-        WorkManager.getInstance(context)
-            .enqueueUniquePeriodicWork(
-                MarketOscillatorUpdateWorker.WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
-                request
-            )
+    fun scheduleOscillatorUpdate(context: Context, hour: Int = 1, minute: Int = 0) =
+        scheduleDailyWorker<MarketOscillatorUpdateWorker>(context, MarketOscillatorUpdateWorker.WORK_NAME, "시장지표", hour, minute)
 
-        Timber.d("시장지표 일일 업데이트 스케줄 등록: %02d:%02d (초기 딜레이: %d분)", hour, minute, initialDelay / 60000)
-    }
+    fun cancelOscillatorUpdate(context: Context) =
+        cancelWorker(context, MarketOscillatorUpdateWorker.WORK_NAME, "시장지표")
 
-    fun cancelOscillatorUpdate(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(MarketOscillatorUpdateWorker.WORK_NAME)
-        Timber.d("시장지표 일일 업데이트 스케줄 취소")
-    }
+    fun runOscillatorUpdateNow(context: Context) =
+        runWorkerNow<MarketOscillatorUpdateWorker>(context, "시장지표")
 
-    fun runOscillatorUpdateNow(context: Context) {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
+    // ===== 자금 동향(deposit) =====
 
-        val request = OneTimeWorkRequestBuilder<MarketOscillatorUpdateWorker>()
-            .setConstraints(constraints)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .build()
+    fun scheduleDepositUpdate(context: Context, hour: Int = 2, minute: Int = 0) =
+        scheduleDailyWorker<MarketDepositUpdateWorker>(context, MarketDepositUpdateWorker.WORK_NAME, "자금 동향", hour, minute)
 
-        WorkManager.getInstance(context).enqueue(request)
-        Timber.d("시장지표 즉시 업데이트 요청")
-    }
+    fun cancelDepositUpdate(context: Context) =
+        cancelWorker(context, MarketDepositUpdateWorker.WORK_NAME, "자금 동향")
 
-    // ===== 자금 동향(deposit) 스케줄링 =====
-
-    fun scheduleDepositUpdate(context: Context, hour: Int = 2, minute: Int = 0) {
-        val now = Calendar.getInstance()
-        val target = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            if (before(now)) add(Calendar.DAY_OF_YEAR, 1)
-        }
-
-        val initialDelay = target.timeInMillis - now.timeInMillis
-
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val request = PeriodicWorkRequestBuilder<MarketDepositUpdateWorker>(
-            24, TimeUnit.HOURS
-        )
-            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
-            .setConstraints(constraints)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .build()
-
-        WorkManager.getInstance(context)
-            .enqueueUniquePeriodicWork(
-                MarketDepositUpdateWorker.WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
-                request
-            )
-
-        Timber.d("자금 동향 일일 업데이트 스케줄 등록: %02d:%02d (초기 딜레이: %d분)", hour, minute, initialDelay / 60000)
-    }
-
-    fun cancelDepositUpdate(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(MarketDepositUpdateWorker.WORK_NAME)
-        Timber.d("자금 동향 일일 업데이트 스케줄 취소")
-    }
-
-    fun runDepositUpdateNow(context: Context) {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val request = OneTimeWorkRequestBuilder<MarketDepositUpdateWorker>()
-            .setConstraints(constraints)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .build()
-
-        WorkManager.getInstance(context).enqueue(request)
-        Timber.d("자금 동향 즉시 업데이트 요청")
-    }
+    fun runDepositUpdateNow(context: Context) =
+        runWorkerNow<MarketDepositUpdateWorker>(context, "자금 동향")
 
 }

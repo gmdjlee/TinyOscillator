@@ -96,7 +96,7 @@ object BackupManager {
     private const val SALT_SIZE = 16
     private const val IV_SIZE = 12
     private const val GCM_TAG_BITS = 128
-    private const val PBKDF2_ITERATIONS = 10000
+    private const val PBKDF2_ITERATIONS = 210000
     private const val KEY_BITS = 256
 
     fun encrypt(plainText: String, password: String): ByteArray {

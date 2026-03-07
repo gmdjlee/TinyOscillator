@@ -12,3 +12,5 @@ local.properties
 *.aab
 /app/release/
 /app/build/
+hs_err_pid*
+nul

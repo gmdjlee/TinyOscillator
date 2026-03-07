@@ -96,18 +96,7 @@ class MarketIndicatorRepository(
                 return@withContext Result.failure(Exception("데이터를 가져오지 못했습니다"))
             }
 
-            // Entity 리스트 생성 (yyyyMMdd → yyyy-MM-dd 변환)
-            val dataList = result.dates.indices.map { i ->
-                val krxDate = result.dates[i]
-                val isoDate = "${krxDate.substring(0, 4)}-${krxDate.substring(4, 6)}-${krxDate.substring(6)}"
-                MarketOscillatorEntity(
-                    id = "$market-$isoDate",
-                    market = market,
-                    date = isoDate,
-                    indexValue = result.indexValues[i],
-                    oscillator = result.oscillator[i]
-                )
-            }
+            val dataList = toEntities(market, result)
 
             onProgress?.invoke("$market 데이터베이스 저장 중...", 90)
             oscillatorDao.insertAll(dataList)
@@ -145,17 +134,7 @@ class MarketIndicatorRepository(
                 return@withContext Result.failure(Exception("데이터를 가져오지 못했습니다"))
             }
 
-            val dataList = result.dates.indices.map { i ->
-                val krxDate = result.dates[i]
-                val isoDate = "${krxDate.substring(0, 4)}-${krxDate.substring(4, 6)}-${krxDate.substring(6)}"
-                MarketOscillatorEntity(
-                    id = "$market-$isoDate",
-                    market = market,
-                    date = isoDate,
-                    indexValue = result.indexValues[i],
-                    oscillator = result.oscillator[i]
-                )
-            }
+            val dataList = toEntities(market, result)
 
             oscillatorDao.insertAll(dataList)
             oscillatorDao.deleteOldData(market, DEFAULT_KEEP_DAYS)
@@ -296,6 +275,19 @@ class MarketIndicatorRepository(
             creditChanges = sorted.map { it.creditChange }
         )
     }
+
+    private fun toEntities(market: String, result: MarketOscillatorCalculator.OscillatorResult): List<MarketOscillatorEntity> =
+        result.dates.indices.map { i ->
+            val krxDate = result.dates[i]
+            val isoDate = "${krxDate.substring(0, 4)}-${krxDate.substring(4, 6)}-${krxDate.substring(6)}"
+            MarketOscillatorEntity(
+                id = "$market-$isoDate",
+                market = market,
+                date = isoDate,
+                indexValue = result.indexValues[i],
+                oscillator = result.oscillator[i]
+            )
+        }
 
     // ===== Entity ↔ Domain Mappers =====
 

@@ -1050,6 +1050,82 @@ private fun EtfTab(
 }
 
 @Composable
+private fun ScheduleSection(
+    title: String,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    hour: Int,
+    onHourChange: (Int) -> Unit,
+    minute: Int,
+    onMinuteChange: (Int) -> Unit,
+    manualButtonText: String,
+    onManualCollect: () -> Unit,
+    message: String?
+) {
+    Text(title, style = MaterialTheme.typography.titleMedium)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text("자동 업데이트 활성화", style = MaterialTheme.typography.bodyMedium)
+        Switch(checked = enabled, onCheckedChange = onEnabledChange)
+    }
+
+    if (enabled) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = "%02d".format(hour),
+                onValueChange = { v ->
+                    v.filter { it.isDigit() }.take(2).toIntOrNull()?.let {
+                        if (it in 0..23) onHourChange(it)
+                    }
+                },
+                label = { Text("시") },
+                singleLine = true,
+                modifier = Modifier.width(80.dp)
+            )
+            Text(":", style = MaterialTheme.typography.titleLarge)
+            OutlinedTextField(
+                value = "%02d".format(minute),
+                onValueChange = { v ->
+                    v.filter { it.isDigit() }.take(2).toIntOrNull()?.let {
+                        if (it in 0..59) onMinuteChange(it)
+                    }
+                },
+                label = { Text("분") },
+                singleLine = true,
+                modifier = Modifier.width(80.dp)
+            )
+            Text(
+                "매일 자동 업데이트",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+
+    OutlinedButton(
+        onClick = onManualCollect,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(manualButtonText)
+    }
+
+    message?.let { msg ->
+        Text(
+            text = msg,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+@Composable
 private fun ScheduleTab(
     etfScheduleEnabled: Boolean,
     onEtfScheduleEnabledChange: (Boolean) -> Unit,
@@ -1085,207 +1161,48 @@ private fun ScheduleTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // === ETF 자동 업데이트 ===
-        Text("ETF 자동 업데이트", style = MaterialTheme.typography.titleMedium)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("자동 업데이트 활성화", style = MaterialTheme.typography.bodyMedium)
-            Switch(
-                checked = etfScheduleEnabled,
-                onCheckedChange = onEtfScheduleEnabledChange
-            )
-        }
-
-        if (etfScheduleEnabled) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = "%02d".format(scheduleHour),
-                    onValueChange = { v ->
-                        v.filter { it.isDigit() }.take(2).toIntOrNull()?.let {
-                            if (it in 0..23) onScheduleHourChange(it)
-                        }
-                    },
-                    label = { Text("시") },
-                    singleLine = true,
-                    modifier = Modifier.width(80.dp)
-                )
-                Text(":", style = MaterialTheme.typography.titleLarge)
-                OutlinedTextField(
-                    value = "%02d".format(scheduleMinute),
-                    onValueChange = { v ->
-                        v.filter { it.isDigit() }.take(2).toIntOrNull()?.let {
-                            if (it in 0..59) onScheduleMinuteChange(it)
-                        }
-                    },
-                    label = { Text("분") },
-                    singleLine = true,
-                    modifier = Modifier.width(80.dp)
-                )
-                Text(
-                    "매일 자동 업데이트",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        OutlinedButton(
-            onClick = onManualCollect,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("지금 ETF 데이터 수집")
-        }
-
-        manualCollectMessage?.let { msg ->
-            Text(
-                text = msg,
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
+        ScheduleSection(
+            title = "ETF 자동 업데이트",
+            enabled = etfScheduleEnabled,
+            onEnabledChange = onEtfScheduleEnabledChange,
+            hour = scheduleHour,
+            onHourChange = onScheduleHourChange,
+            minute = scheduleMinute,
+            onMinuteChange = onScheduleMinuteChange,
+            manualButtonText = "지금 ETF 데이터 수집",
+            onManualCollect = onManualCollect,
+            message = manualCollectMessage
+        )
 
         HorizontalDivider()
 
-        // === 과매수/과매도 자동 업데이트 ===
-        Text("과매수/과매도 자동 업데이트", style = MaterialTheme.typography.titleMedium)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("자동 업데이트 활성화", style = MaterialTheme.typography.bodyMedium)
-            Switch(
-                checked = oscScheduleEnabled,
-                onCheckedChange = onOscScheduleEnabledChange
-            )
-        }
-
-        if (oscScheduleEnabled) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = "%02d".format(oscScheduleHour),
-                    onValueChange = { v ->
-                        v.filter { it.isDigit() }.take(2).toIntOrNull()?.let {
-                            if (it in 0..23) onOscScheduleHourChange(it)
-                        }
-                    },
-                    label = { Text("시") },
-                    singleLine = true,
-                    modifier = Modifier.width(80.dp)
-                )
-                Text(":", style = MaterialTheme.typography.titleLarge)
-                OutlinedTextField(
-                    value = "%02d".format(oscScheduleMinute),
-                    onValueChange = { v ->
-                        v.filter { it.isDigit() }.take(2).toIntOrNull()?.let {
-                            if (it in 0..59) onOscScheduleMinuteChange(it)
-                        }
-                    },
-                    label = { Text("분") },
-                    singleLine = true,
-                    modifier = Modifier.width(80.dp)
-                )
-                Text(
-                    "매일 자동 업데이트",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        OutlinedButton(
-            onClick = onOscManualCollect,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("지금 과매수/과매도 업데이트")
-        }
-
-        oscManualMessage?.let { msg ->
-            Text(
-                text = msg,
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
+        ScheduleSection(
+            title = "과매수/과매도 자동 업데이트",
+            enabled = oscScheduleEnabled,
+            onEnabledChange = onOscScheduleEnabledChange,
+            hour = oscScheduleHour,
+            onHourChange = onOscScheduleHourChange,
+            minute = oscScheduleMinute,
+            onMinuteChange = onOscScheduleMinuteChange,
+            manualButtonText = "지금 과매수/과매도 업데이트",
+            onManualCollect = onOscManualCollect,
+            message = oscManualMessage
+        )
 
         HorizontalDivider()
 
-        // === 자금 동향 자동 업데이트 ===
-        Text("자금 동향 자동 업데이트", style = MaterialTheme.typography.titleMedium)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("자동 업데이트 활성화", style = MaterialTheme.typography.bodyMedium)
-            Switch(
-                checked = depositScheduleEnabled,
-                onCheckedChange = onDepositScheduleEnabledChange
-            )
-        }
-
-        if (depositScheduleEnabled) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = "%02d".format(depositScheduleHour),
-                    onValueChange = { v ->
-                        v.filter { it.isDigit() }.take(2).toIntOrNull()?.let {
-                            if (it in 0..23) onDepositScheduleHourChange(it)
-                        }
-                    },
-                    label = { Text("시") },
-                    singleLine = true,
-                    modifier = Modifier.width(80.dp)
-                )
-                Text(":", style = MaterialTheme.typography.titleLarge)
-                OutlinedTextField(
-                    value = "%02d".format(depositScheduleMinute),
-                    onValueChange = { v ->
-                        v.filter { it.isDigit() }.take(2).toIntOrNull()?.let {
-                            if (it in 0..59) onDepositScheduleMinuteChange(it)
-                        }
-                    },
-                    label = { Text("분") },
-                    singleLine = true,
-                    modifier = Modifier.width(80.dp)
-                )
-                Text(
-                    "매일 자동 업데이트",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        OutlinedButton(
-            onClick = onDepositManualCollect,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("지금 자금 동향 업데이트")
-        }
-
-        depositManualMessage?.let { msg ->
-            Text(
-                text = msg,
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
+        ScheduleSection(
+            title = "자금 동향 자동 업데이트",
+            enabled = depositScheduleEnabled,
+            onEnabledChange = onDepositScheduleEnabledChange,
+            hour = depositScheduleHour,
+            onHourChange = onDepositScheduleHourChange,
+            minute = depositScheduleMinute,
+            onMinuteChange = onDepositScheduleMinuteChange,
+            manualButtonText = "지금 자금 동향 업데이트",
+            onManualCollect = onDepositManualCollect,
+            message = depositManualMessage
+        )
 
         HorizontalDivider()
 

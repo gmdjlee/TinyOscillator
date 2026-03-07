@@ -433,12 +433,6 @@ class StockRepository @Inject constructor(
     }
 }
 
-data class StockSearchResult(
-    val ticker: String,
-    val name: String,
-    val market: String
-)
-
 private data class InvestorTrendData(
     val date: String,
     val foreignNet: Long,       // 천원 단위 (unit_tp="1000")

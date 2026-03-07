@@ -1,0 +1,309 @@
+package com.tinyoscillator.presentation.market
+
+import android.content.Context
+import com.tinyoscillator.data.repository.MarketIndicatorRepository
+import com.tinyoscillator.domain.model.MarketOscillator
+import com.tinyoscillator.domain.model.MarketOscillatorState
+import com.tinyoscillator.presentation.settings.KrxCredentials
+import io.mockk.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.*
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class MarketOscillatorViewModelTest {
+
+    private lateinit var repository: MarketIndicatorRepository
+    private lateinit var context: Context
+    private lateinit var viewModel: MarketOscillatorViewModel
+    private val testDispatcher = StandardTestDispatcher()
+
+    private val blankCredentials = KrxCredentials(id = "", password = "")
+    private val validCredentials = KrxCredentials(id = "testId", password = "testPw")
+
+    private val sampleOscillator = MarketOscillator(
+        id = "KOSPI-2026-03-05",
+        market = "KOSPI",
+        date = "2026-03-05",
+        indexValue = 2500.0,
+        oscillator = 30.0,
+        lastUpdated = System.currentTimeMillis()
+    )
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+
+        context = mockk(relaxed = true)
+        repository = mockk(relaxed = true)
+
+        // Mock static settings functions
+        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
+        coEvery { com.tinyoscillator.presentation.settings.loadKrxCredentials(any()) } returns validCredentials
+
+        // Default repository mocks
+        coEvery { repository.getDataCount("KOSPI") } returns 0
+        coEvery { repository.getDataCount("KOSDAQ") } returns 0
+        coEvery { repository.getLatestData(any()) } returns null
+        every { repository.getDataByDateRange(any(), any(), any()) } returns flowOf(emptyList())
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+        unmockkAll()
+    }
+
+    private fun createViewModel(): MarketOscillatorViewModel {
+        return MarketOscillatorViewModel(repository, context)
+    }
+
+    // ==========================================================
+    // 초기 상태 테스트
+    // ==========================================================
+
+    @Test
+    fun `초기 state는 Loading이다`() = runTest {
+        viewModel = createViewModel()
+        // 즉시 확인 (advanceUntilIdle 전)
+        assertEquals(MarketOscillatorState.Loading, viewModel.state.value)
+    }
+
+    @Test
+    fun `init 완료 후 데이터 없으면 Idle(hasData=false)가 된다`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue("Expected Idle but got $state", state is MarketOscillatorState.Idle)
+        assertFalse((state as MarketOscillatorState.Idle).hasData)
+        assertNull(state.latestDate)
+    }
+
+    @Test
+    fun `init 완료 후 데이터 있으면 Idle(hasData=true)가 된다`() = runTest {
+        coEvery { repository.getDataCount("KOSPI") } returns 10
+        coEvery { repository.getLatestData("KOSPI") } returns sampleOscillator
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue("Expected Idle but got $state", state is MarketOscillatorState.Idle)
+        assertTrue((state as MarketOscillatorState.Idle).hasData)
+        assertEquals("2026-03-05", state.latestDate)
+    }
+
+    // ==========================================================
+    // checkCredentials 테스트
+    // ==========================================================
+
+    @Test
+    fun `인증정보가 비어있으면 needsCredentials가 true가 된다`() = runTest {
+        coEvery { com.tinyoscillator.presentation.settings.loadKrxCredentials(any()) } returns blankCredentials
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.needsCredentials.value)
+    }
+
+    @Test
+    fun `인증정보가 있으면 needsCredentials는 false이다`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.needsCredentials.value)
+    }
+
+    // ==========================================================
+    // initialize 테스트
+    // ==========================================================
+
+    @Test
+    fun `initialize 성공 시 Success 상태가 된다`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { repository.initializeMarketData("KOSPI", any(), any(), any(), any()) } returns Result.success(20)
+        coEvery { repository.initializeMarketData("KOSDAQ", any(), any(), any(), any()) } returns Result.success(20)
+        coEvery { repository.getDataCount("KOSPI") } returns 20
+        coEvery { repository.getDataCount("KOSDAQ") } returns 20
+        coEvery { repository.getLatestData("KOSPI") } returns sampleOscillator
+
+        viewModel.initialize(days = 30)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        // initialize 성공 후 checkData()가 호출되므로 최종 상태는 Idle
+        // 하지만 Success 메시지가 먼저 설정됨
+        assertTrue(
+            "Expected Idle (after checkData) but got $state",
+            state is MarketOscillatorState.Idle
+        )
+    }
+
+    @Test
+    fun `initialize 실패 시 Error 상태가 된다`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery {
+            repository.initializeMarketData("KOSPI", any(), any(), any(), any())
+        } returns Result.failure(RuntimeException("KRX 로그인 실패"))
+        coEvery {
+            repository.initializeMarketData("KOSDAQ", any(), any(), any(), any())
+        } returns Result.success(10)
+
+        viewModel.initialize(days = 30)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue("Expected Error but got $state", state is MarketOscillatorState.Error)
+        assertTrue((state as MarketOscillatorState.Error).message.contains("수집 실패"))
+    }
+
+    @Test
+    fun `initialize 시 인증정보 없으면 needsCredentials가 true가 된다`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { com.tinyoscillator.presentation.settings.loadKrxCredentials(any()) } returns blankCredentials
+
+        viewModel.initialize()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.needsCredentials.value)
+    }
+
+    // ==========================================================
+    // update 테스트
+    // ==========================================================
+
+    @Test
+    fun `update 성공 시 checkData가 호출되어 Idle 상태가 된다`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { repository.updateMarketData("KOSPI", any(), any()) } returns Result.success(15)
+        coEvery { repository.updateMarketData("KOSDAQ", any(), any()) } returns Result.success(15)
+        coEvery { repository.getDataCount("KOSPI") } returns 15
+        coEvery { repository.getDataCount("KOSDAQ") } returns 15
+        coEvery { repository.getLatestData("KOSPI") } returns sampleOscillator
+
+        viewModel.update()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue(
+            "Expected Idle (after checkData) but got $state",
+            state is MarketOscillatorState.Idle
+        )
+    }
+
+    @Test
+    fun `update 실패 시 Error 상태가 된다`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery {
+            repository.updateMarketData("KOSPI", any(), any())
+        } returns Result.failure(RuntimeException("네트워크 오류"))
+        coEvery {
+            repository.updateMarketData("KOSDAQ", any(), any())
+        } returns Result.success(10)
+
+        viewModel.update()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue("Expected Error but got $state", state is MarketOscillatorState.Error)
+        assertTrue((state as MarketOscillatorState.Error).message.contains("업데이트 실패"))
+    }
+
+    @Test
+    fun `update 시 인증정보 없으면 needsCredentials가 true가 된다`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { com.tinyoscillator.presentation.settings.loadKrxCredentials(any()) } returns blankCredentials
+
+        viewModel.update()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.needsCredentials.value)
+    }
+
+    // ==========================================================
+    // clearMessage 테스트
+    // ==========================================================
+
+    @Test
+    fun `clearMessage 호출 시 Success 상태에서 Idle로 전환된다`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { repository.updateMarketData("KOSPI", any(), any()) } returns Result.success(10)
+        coEvery { repository.updateMarketData("KOSDAQ", any(), any()) } returns Result.success(10)
+
+        viewModel.update()
+        advanceUntilIdle()
+
+        // clearMessage는 Success/Error 상태에서 checkData()를 호출
+        // update 성공 후 이미 checkData()가 호출되어 Idle이므로,
+        // Error 상태에서 테스트
+        coEvery {
+            repository.updateMarketData("KOSPI", any(), any())
+        } returns Result.failure(RuntimeException("오류"))
+
+        viewModel.update()
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value is MarketOscillatorState.Error)
+
+        viewModel.clearMessage()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue("Expected Idle after clearMessage but got $state", state is MarketOscillatorState.Idle)
+    }
+
+    // ==========================================================
+    // 시장 선택 및 날짜 범위 테스트
+    // ==========================================================
+
+    @Test
+    fun `초기 선택 시장은 KOSPI이다`() = runTest {
+        viewModel = createViewModel()
+        assertEquals("KOSPI", viewModel.selectedMarket.value)
+    }
+
+    @Test
+    fun `onSelectedMarketChanged 호출 시 시장이 변경된다`() = runTest {
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { repository.getLatestData("KOSDAQ") } returns null
+
+        viewModel.onSelectedMarketChanged("KOSDAQ")
+        advanceUntilIdle()
+
+        assertEquals("KOSDAQ", viewModel.selectedMarket.value)
+    }
+
+    @Test
+    fun `onCredentialsSaved 호출 시 needsCredentials가 false가 된다`() = runTest {
+        coEvery { com.tinyoscillator.presentation.settings.loadKrxCredentials(any()) } returns blankCredentials
+        viewModel = createViewModel()
+        advanceUntilIdle()
+        assertTrue(viewModel.needsCredentials.value)
+
+        viewModel.onCredentialsSaved()
+
+        assertFalse(viewModel.needsCredentials.value)
+    }
+}

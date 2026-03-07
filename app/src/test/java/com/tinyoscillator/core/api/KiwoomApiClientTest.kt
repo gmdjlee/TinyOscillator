@@ -11,46 +11,26 @@ import java.lang.reflect.Method
 /**
  * KiwoomApiClient 유닛 테스트.
  *
- * normalizeJsonNumbers와 mapException, isAuthError는 private 메서드이므로
- * reflection을 사용하여 테스트합니다.
+ * normalizeJsonNumbers는 private 메서드이므로 reflection을 사용.
+ * mapException, isAuthError는 ApiError.Companion으로 이동되어 직접 호출.
  */
 class KiwoomApiClientTest {
 
     private lateinit var client: KiwoomApiClient
     private lateinit var normalizeMethod: Method
-    private lateinit var mapExceptionMethod: Method
-    private lateinit var isAuthErrorMethod: Method
 
     @Before
     fun setup() {
-        // OkHttpClient를 직접 주입하여 실제 네트워크 호출을 방지
         val httpClient = mockk<OkHttpClient>(relaxed = true)
         client = KiwoomApiClient(httpClient = httpClient)
 
-        // private 메서드 reflection
         normalizeMethod = KiwoomApiClient::class.java.getDeclaredMethod(
             "normalizeJsonNumbers", String::class.java
-        ).apply { isAccessible = true }
-
-        mapExceptionMethod = KiwoomApiClient::class.java.getDeclaredMethod(
-            "mapException", Exception::class.java
-        ).apply { isAccessible = true }
-
-        isAuthErrorMethod = KiwoomApiClient::class.java.getDeclaredMethod(
-            "isAuthError", Throwable::class.java
         ).apply { isAccessible = true }
     }
 
     private fun normalizeJsonNumbers(json: String): String {
         return normalizeMethod.invoke(client, json) as String
-    }
-
-    private fun mapException(e: Exception): ApiError {
-        return mapExceptionMethod.invoke(client, e) as ApiError
-    }
-
-    private fun isAuthError(error: Throwable): Boolean {
-        return isAuthErrorMethod.invoke(client, error) as Boolean
     }
 
     // ==========================================================
@@ -75,7 +55,6 @@ class KiwoomApiClientTest {
 
     @Test
     fun `normalizeJsonNumbers - 따옴표 없는 +숫자를 콜론 또는 콤마 뒤에서 변환한다`() {
-        // UNQUOTED_PLUS_REGEX는 : 또는 , 뒤의 +숫자만 변환
         val input = """{"value":+1234,"second":+5678}"""
         val expected = """{"value":1234,"second":5678}"""
 
@@ -102,13 +81,13 @@ class KiwoomApiClientTest {
     }
 
     // ==========================================================
-    // mapException 테스트
+    // ApiError.mapException 테스트
     // ==========================================================
 
     @Test
     fun `mapException - UnknownHostException은 NetworkError로 변환한다`() {
         val e = java.net.UnknownHostException("host not found")
-        val result = mapException(e)
+        val result = ApiError.mapException(e)
 
         assertTrue(result is ApiError.NetworkError)
         assertTrue(result.message.contains("네트워크"))
@@ -117,7 +96,7 @@ class KiwoomApiClientTest {
     @Test
     fun `mapException - SocketTimeoutException은 TimeoutError로 변환한다`() {
         val e = java.net.SocketTimeoutException("read timed out")
-        val result = mapException(e)
+        val result = ApiError.mapException(e)
 
         assertTrue(result is ApiError.TimeoutError)
         assertTrue(result.message.contains("시간"))
@@ -126,7 +105,7 @@ class KiwoomApiClientTest {
     @Test
     fun `mapException - SerializationException은 ParseError로 변환한다`() {
         val e = kotlinx.serialization.SerializationException("failed to parse")
-        val result = mapException(e)
+        val result = ApiError.mapException(e)
 
         assertTrue(result is ApiError.ParseError)
         assertTrue(result.message.contains("파싱"))
@@ -135,7 +114,7 @@ class KiwoomApiClientTest {
     @Test
     fun `mapException - ApiError는 그대로 반환한다`() {
         val e = ApiError.AuthError("인증 실패")
-        val result = mapException(e)
+        val result = ApiError.mapException(e)
 
         assertTrue(result is ApiError.AuthError)
         assertEquals("인증 실패", result.message)
@@ -144,44 +123,44 @@ class KiwoomApiClientTest {
     @Test
     fun `mapException - 기타 Exception은 ApiCallError로 변환한다`() {
         val e = RuntimeException("unexpected error")
-        val result = mapException(e)
+        val result = ApiError.mapException(e)
 
         assertTrue(result is ApiError.ApiCallError)
         assertTrue(result.message.contains("unexpected error"))
     }
 
     // ==========================================================
-    // isAuthError 테스트
+    // ApiError.isAuthError 테스트
     // ==========================================================
 
     @Test
     fun `isAuthError - AuthError는 true를 반환한다`() {
-        assertTrue(isAuthError(ApiError.AuthError("인증 오류")))
+        assertTrue(ApiError.isAuthError(ApiError.AuthError("인증 오류")))
     }
 
     @Test
     fun `isAuthError - ApiCallError 401은 true를 반환한다`() {
-        assertTrue(isAuthError(ApiError.ApiCallError(401, "Unauthorized")))
+        assertTrue(ApiError.isAuthError(ApiError.ApiCallError(401, "Unauthorized")))
     }
 
     @Test
     fun `isAuthError - ApiCallError 403은 true를 반환한다`() {
-        assertTrue(isAuthError(ApiError.ApiCallError(403, "Forbidden")))
+        assertTrue(ApiError.isAuthError(ApiError.ApiCallError(403, "Forbidden")))
     }
 
     @Test
     fun `isAuthError - ApiCallError 500은 false를 반환한다`() {
-        assertFalse(isAuthError(ApiError.ApiCallError(500, "Server Error")))
+        assertFalse(ApiError.isAuthError(ApiError.ApiCallError(500, "Server Error")))
     }
 
     @Test
     fun `isAuthError - NetworkError는 false를 반환한다`() {
-        assertFalse(isAuthError(ApiError.NetworkError("네트워크 오류")))
+        assertFalse(ApiError.isAuthError(ApiError.NetworkError("네트워크 오류")))
     }
 
     @Test
     fun `isAuthError - 일반 Exception은 false를 반환한다`() {
-        assertFalse(isAuthError(RuntimeException("some error")))
+        assertFalse(ApiError.isAuthError(RuntimeException("some error")))
     }
 
     // ==========================================================

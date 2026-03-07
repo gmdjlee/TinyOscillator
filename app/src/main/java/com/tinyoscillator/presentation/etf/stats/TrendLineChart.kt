@@ -5,6 +5,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -23,6 +24,7 @@ fun TrendLineChart(
     color: Int,
     modifier: Modifier = Modifier
 ) {
+    val lastBound = remember { arrayOfNulls<Any>(1) }
     val isDarkTheme = isSystemInDarkTheme()
 
     AndroidView(
@@ -75,20 +77,24 @@ fun TrendLineChart(
             }
             chart.axisLeft.textColor = textColor
 
-            val dataSet = LineDataSet(entries, label).apply {
-                this.color = color
-                setCircleColor(color)
-                lineWidth = 2f
-                circleRadius = 3f
-                setDrawValues(false)
-                setDrawFilled(true)
-                fillColor = color
-                fillAlpha = 30
-                mode = LineDataSet.Mode.CUBIC_BEZIER
-            }
+            val boundKey = Triple(entries, labels, label)
+            if (boundKey != lastBound[0]) {
+                val dataSet = LineDataSet(entries, label).apply {
+                    this.color = color
+                    setCircleColor(color)
+                    lineWidth = 2f
+                    circleRadius = 3f
+                    setDrawValues(false)
+                    setDrawFilled(true)
+                    fillColor = color
+                    fillAlpha = 30
+                    mode = LineDataSet.Mode.CUBIC_BEZIER
+                }
 
-            chart.data = LineData(dataSet)
-            chart.invalidate()
+                chart.data = LineData(dataSet)
+                chart.invalidate()
+                lastBound[0] = boundKey
+            }
         },
         modifier = modifier
             .fillMaxWidth()
