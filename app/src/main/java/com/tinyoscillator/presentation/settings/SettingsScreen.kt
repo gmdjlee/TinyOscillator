@@ -683,35 +683,81 @@ private fun EtfTab(
 
         Text("데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
 
-        val periodOptions = listOf(7 to "1주", 14 to "2주", 21 to "3주", 30 to "1개월", 60 to "2개월", 90 to "3개월")
-        var expanded by remember { mutableStateOf(false) }
-        val selectedLabel = periodOptions.find { it.first == etfCollectionDays }?.second ?: "${etfCollectionDays}일"
+        var isWeekUnit by remember { mutableStateOf(etfCollectionDays % 7 == 0 && etfCollectionDays / 7 <= 4) }
+        var periodValue by remember {
+            mutableStateOf(
+                if (etfCollectionDays % 7 == 0 && etfCollectionDays / 7 <= 4)
+                    (etfCollectionDays / 7).toString()
+                else
+                    (etfCollectionDays / 30).coerceAtLeast(1).toString()
+            )
+        }
+        val unitOptions = listOf("주" to true, "월" to false)
+        var unitExpanded by remember { mutableStateOf(false) }
 
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = it }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedTextField(
-                value = selectedLabel,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("초기 수집 기간") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth()
-            )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                periodOptions.forEach { (days, label) ->
-                    DropdownMenuItem(
-                        text = { Text(label) },
-                        onClick = {
+                value = periodValue,
+                onValueChange = { v ->
+                    val filtered = v.filter { it.isDigit() }.take(2)
+                    periodValue = filtered
+                    filtered.toIntOrNull()?.let { num ->
+                        if (num > 0) {
+                            val days = if (isWeekUnit) num * 7 else num * 30
                             onEtfCollectionDaysChange(days)
-                            expanded = false
                         }
-                    )
+                    }
+                },
+                label = { Text("기간") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                    imeAction = ImeAction.Done
+                ),
+                modifier = Modifier.weight(1f)
+            )
+
+            ExposedDropdownMenuBox(
+                expanded = unitExpanded,
+                onExpandedChange = { unitExpanded = it },
+                modifier = Modifier.weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = if (isWeekUnit) "주" else "월",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("단위") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = unitExpanded,
+                    onDismissRequest = { unitExpanded = false }
+                ) {
+                    unitOptions.forEach { (label, isWeek) ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                isWeekUnit = isWeek
+                                unitExpanded = false
+                                periodValue.toIntOrNull()?.let { num ->
+                                    if (num > 0) onEtfCollectionDaysChange(if (isWeek) num * 7 else num * 30)
+                                }
+                            }
+                        )
+                    }
                 }
+            }
+
+            Button(
+                onClick = onSave,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("저장")
             }
         }
 
@@ -720,12 +766,6 @@ private fun EtfTab(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
-        HorizontalDivider()
-
-        Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
-            Text("저장")
-        }
 
         saveMessage?.let { msg ->
             Text(
