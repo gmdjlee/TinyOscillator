@@ -56,6 +56,11 @@ private object PrefsKeys {
     const val OSCILLATOR_SCHEDULE_MINUTE = "oscillator_schedule_minute"
     const val OSCILLATOR_SCHEDULE_ENABLED = "oscillator_schedule_enabled"
     const val ETF_COLLECTION_DAYS = "etf_collection_days"
+    const val MARKET_OSCILLATOR_COLLECTION_DAYS = "market_oscillator_collection_days"
+    const val MARKET_DEPOSIT_COLLECTION_DAYS = "market_deposit_collection_days"
+    const val DEPOSIT_SCHEDULE_HOUR = "deposit_schedule_hour"
+    const val DEPOSIT_SCHEDULE_MINUTE = "deposit_schedule_minute"
+    const val DEPOSIT_SCHEDULE_ENABLED = "deposit_schedule_enabled"
 }
 
 data class KrxCredentials(val id: String, val password: String)
@@ -69,7 +74,12 @@ data class EtfScheduleTime(val hour: Int = 0, val minute: Int = 30, val enabled:
 
 data class OscillatorScheduleTime(val hour: Int = 1, val minute: Int = 0, val enabled: Boolean = false)
 
+data class DepositScheduleTime(val hour: Int = 2, val minute: Int = 0, val enabled: Boolean = false)
+
 data class EtfCollectionPeriod(val daysBack: Int = 14)
+
+data class MarketOscillatorCollectionPeriod(val daysBack: Int = 30)
+data class MarketDepositCollectionPeriod(val daysBack: Int = 365)
 
 suspend fun loadKrxCredentials(context: Context): KrxCredentials = withContext(Dispatchers.IO) {
     val prefs = getEncryptedPrefs(context)
@@ -151,6 +161,23 @@ suspend fun saveOscillatorScheduleTime(context: Context, schedule: OscillatorSch
         .apply()
 }
 
+suspend fun loadDepositScheduleTime(context: Context): DepositScheduleTime = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    DepositScheduleTime(
+        hour = prefs.getInt(PrefsKeys.DEPOSIT_SCHEDULE_HOUR, 2),
+        minute = prefs.getInt(PrefsKeys.DEPOSIT_SCHEDULE_MINUTE, 0),
+        enabled = prefs.getBoolean(PrefsKeys.DEPOSIT_SCHEDULE_ENABLED, false)
+    )
+}
+
+suspend fun saveDepositScheduleTime(context: Context, schedule: DepositScheduleTime) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putInt(PrefsKeys.DEPOSIT_SCHEDULE_HOUR, schedule.hour)
+        .putInt(PrefsKeys.DEPOSIT_SCHEDULE_MINUTE, schedule.minute)
+        .putBoolean(PrefsKeys.DEPOSIT_SCHEDULE_ENABLED, schedule.enabled)
+        .apply()
+}
+
 suspend fun loadEtfCollectionPeriod(context: Context): EtfCollectionPeriod = withContext(Dispatchers.IO) {
     val prefs = getEncryptedPrefs(context)
     EtfCollectionPeriod(
@@ -161,6 +188,32 @@ suspend fun loadEtfCollectionPeriod(context: Context): EtfCollectionPeriod = wit
 suspend fun saveEtfCollectionPeriod(context: Context, period: EtfCollectionPeriod) = withContext(Dispatchers.IO) {
     getEncryptedPrefs(context).edit()
         .putInt(PrefsKeys.ETF_COLLECTION_DAYS, period.daysBack)
+        .apply()
+}
+
+suspend fun loadMarketOscillatorCollectionPeriod(context: Context): MarketOscillatorCollectionPeriod = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    MarketOscillatorCollectionPeriod(
+        daysBack = prefs.getInt(PrefsKeys.MARKET_OSCILLATOR_COLLECTION_DAYS, 30)
+    )
+}
+
+suspend fun saveMarketOscillatorCollectionPeriod(context: Context, period: MarketOscillatorCollectionPeriod) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putInt(PrefsKeys.MARKET_OSCILLATOR_COLLECTION_DAYS, period.daysBack)
+        .apply()
+}
+
+suspend fun loadMarketDepositCollectionPeriod(context: Context): MarketDepositCollectionPeriod = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    MarketDepositCollectionPeriod(
+        daysBack = prefs.getInt(PrefsKeys.MARKET_DEPOSIT_COLLECTION_DAYS, 365)
+    )
+}
+
+suspend fun saveMarketDepositCollectionPeriod(context: Context, period: MarketDepositCollectionPeriod) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putInt(PrefsKeys.MARKET_DEPOSIT_COLLECTION_DAYS, period.daysBack)
         .apply()
 }
 
@@ -219,7 +272,7 @@ interface SettingsEntryPoint {
     fun appDatabase(): AppDatabase
 }
 
-private val TAB_TITLES = listOf("API", "ETF", "Schedule", "Backup")
+private val TAB_TITLES = listOf("API", "ETF", "시장지표", "Schedule", "Backup")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -255,6 +308,13 @@ fun SettingsScreen(onBack: () -> Unit) {
     var oscScheduleHour by remember { mutableIntStateOf(1) }
     var oscScheduleMinute by remember { mutableIntStateOf(0) }
     var oscManualMessage by remember { mutableStateOf<String?>(null) }
+    var depositScheduleEnabled by remember { mutableStateOf(false) }
+    var depositScheduleHour by remember { mutableIntStateOf(2) }
+    var depositScheduleMinute by remember { mutableIntStateOf(0) }
+    var depositManualMessage by remember { mutableStateOf<String?>(null) }
+
+    var marketOscCollectionDays by remember { mutableIntStateOf(30) }
+    var marketDepositCollectionDays by remember { mutableIntStateOf(365) }
 
     var saveMessage by remember { mutableStateOf<String?>(null) }
 
@@ -290,6 +350,17 @@ fun SettingsScreen(onBack: () -> Unit) {
             oscScheduleEnabled = oscSchedule.enabled
             oscScheduleHour = oscSchedule.hour
             oscScheduleMinute = oscSchedule.minute
+
+            val depositSchedule = loadDepositScheduleTime(context)
+            depositScheduleEnabled = depositSchedule.enabled
+            depositScheduleHour = depositSchedule.hour
+            depositScheduleMinute = depositSchedule.minute
+
+            val oscPeriod = loadMarketOscillatorCollectionPeriod(context)
+            marketOscCollectionDays = oscPeriod.daysBack
+
+            val depositPeriod = loadMarketDepositCollectionPeriod(context)
+            marketDepositCollectionDays = depositPeriod.daysBack
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -384,7 +455,19 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     }
                 )
-                2 -> ScheduleTab(
+                2 -> MarketIndicatorTab(
+                    marketOscCollectionDays = marketOscCollectionDays,
+                    onMarketOscCollectionDaysChange = { marketOscCollectionDays = it },
+                    marketDepositCollectionDays = marketDepositCollectionDays,
+                    onMarketDepositCollectionDaysChange = { marketDepositCollectionDays = it },
+                    saveMessage = saveMessage,
+                    onSave = { oscDays, depositDays ->
+                        scope.launch {
+                            saveMessage = saveMarketIndicatorSettings(context, oscDays, depositDays)
+                        }
+                    }
+                )
+                3 -> ScheduleTab(
                     etfScheduleEnabled = etfScheduleEnabled,
                     onEtfScheduleEnabledChange = { etfScheduleEnabled = it },
                     scheduleHour = scheduleHour,
@@ -405,19 +488,31 @@ fun SettingsScreen(onBack: () -> Unit) {
                     oscManualMessage = oscManualMessage,
                     onOscManualCollect = {
                         WorkManagerHelper.runOscillatorUpdateNow(context)
-                        oscManualMessage = "시장지표 업데이트를 시작합니다."
+                        oscManualMessage = "과매수/과매도 업데이트를 시작합니다."
+                    },
+                    depositScheduleEnabled = depositScheduleEnabled,
+                    onDepositScheduleEnabledChange = { depositScheduleEnabled = it },
+                    depositScheduleHour = depositScheduleHour,
+                    onDepositScheduleHourChange = { depositScheduleHour = it },
+                    depositScheduleMinute = depositScheduleMinute,
+                    onDepositScheduleMinuteChange = { depositScheduleMinute = it },
+                    depositManualMessage = depositManualMessage,
+                    onDepositManualCollect = {
+                        WorkManagerHelper.runDepositUpdateNow(context)
+                        depositManualMessage = "자금 동향 업데이트를 시작합니다."
                     },
                     saveMessage = saveMessage,
                     onSave = {
                         scope.launch {
                             saveMessage = saveScheduleSettings(
                                 context, etfScheduleEnabled, scheduleHour, scheduleMinute,
-                                oscScheduleEnabled, oscScheduleHour, oscScheduleMinute
+                                oscScheduleEnabled, oscScheduleHour, oscScheduleMinute,
+                                depositScheduleEnabled, depositScheduleHour, depositScheduleMinute
                             )
                         }
                     }
                 )
-                3 -> {
+                4 -> {
                     val entryPoint = remember {
                         EntryPointAccessors.fromApplication(context.applicationContext, SettingsEntryPoint::class.java)
                     }
@@ -476,11 +571,13 @@ private suspend fun saveEtfSettings(
 private suspend fun saveScheduleSettings(
     context: Context,
     etfScheduleEnabled: Boolean, scheduleHour: Int, scheduleMinute: Int,
-    oscScheduleEnabled: Boolean, oscScheduleHour: Int, oscScheduleMinute: Int
+    oscScheduleEnabled: Boolean, oscScheduleHour: Int, oscScheduleMinute: Int,
+    depositScheduleEnabled: Boolean, depositScheduleHour: Int, depositScheduleMinute: Int
 ): String {
     return try {
         saveEtfScheduleTime(context, EtfScheduleTime(scheduleHour, scheduleMinute, etfScheduleEnabled))
         saveOscillatorScheduleTime(context, OscillatorScheduleTime(oscScheduleHour, oscScheduleMinute, oscScheduleEnabled))
+        saveDepositScheduleTime(context, DepositScheduleTime(depositScheduleHour, depositScheduleMinute, depositScheduleEnabled))
         if (etfScheduleEnabled) {
             WorkManagerHelper.scheduleEtfUpdate(context, scheduleHour, scheduleMinute)
         } else {
@@ -491,11 +588,183 @@ private suspend fun saveScheduleSettings(
         } else {
             WorkManagerHelper.cancelOscillatorUpdate(context)
         }
+        if (depositScheduleEnabled) {
+            WorkManagerHelper.scheduleDepositUpdate(context, depositScheduleHour, depositScheduleMinute)
+        } else {
+            WorkManagerHelper.cancelDepositUpdate(context)
+        }
         "저장되었습니다"
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {
         "저장 실패. 다시 시도해주세요."
+    }
+}
+
+private suspend fun saveMarketIndicatorSettings(
+    context: Context,
+    oscDays: Int,
+    depositDays: Int
+): String {
+    return try {
+        saveMarketOscillatorCollectionPeriod(context, MarketOscillatorCollectionPeriod(oscDays))
+        saveMarketDepositCollectionPeriod(context, MarketDepositCollectionPeriod(depositDays))
+        "저장되었습니다"
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        "저장 실패. 다시 시도해주세요."
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MarketIndicatorTab(
+    marketOscCollectionDays: Int,
+    onMarketOscCollectionDaysChange: (Int) -> Unit,
+    marketDepositCollectionDays: Int,
+    onMarketDepositCollectionDaysChange: (Int) -> Unit,
+    saveMessage: String?,
+    onSave: (oscDays: Int, depositDays: Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // === 과매수/과매도 수집 기간 ===
+        Text("과매수/과매도 데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
+
+        CollectionPeriodRow(
+            daysBack = marketOscCollectionDays,
+            onDaysBackChange = onMarketOscCollectionDaysChange,
+            onSave = { onSave(marketOscCollectionDays, marketDepositCollectionDays) }
+        )
+
+        Text(
+            "초기 수집 또는 전체 새로고침 시 수집할 기간입니다.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        HorizontalDivider()
+
+        // === 자금 동향 수집 기간 ===
+        Text("자금 동향 데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
+
+        CollectionPeriodRow(
+            daysBack = marketDepositCollectionDays,
+            onDaysBackChange = onMarketDepositCollectionDaysChange,
+            onSave = { onSave(marketOscCollectionDays, marketDepositCollectionDays) }
+        )
+
+        Text(
+            "초기 수집 또는 전체 새로고침 시 수집할 기간입니다.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        saveMessage?.let { msg ->
+            Text(
+                text = msg,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CollectionPeriodRow(
+    daysBack: Int,
+    onDaysBackChange: (Int) -> Unit,
+    onSave: () -> Unit
+) {
+    val unitOptions = listOf("주" to 7, "월" to 30, "년" to 365)
+
+    val initialUnit = when {
+        daysBack % 365 == 0 -> 365
+        daysBack % 30 == 0 -> 30
+        daysBack % 7 == 0 -> 7
+        else -> 30
+    }
+    val initialValue = when (initialUnit) {
+        365 -> daysBack / 365
+        30 -> daysBack / 30
+        7 -> daysBack / 7
+        else -> daysBack / 30
+    }.coerceAtLeast(1)
+
+    var selectedUnitMultiplier by remember(daysBack) { mutableIntStateOf(initialUnit) }
+    var periodValue by remember(daysBack) { mutableStateOf(initialValue.toString()) }
+    var unitExpanded by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = periodValue,
+            onValueChange = { v ->
+                val filtered = v.filter { it.isDigit() }.take(3)
+                periodValue = filtered
+                filtered.toIntOrNull()?.let { num ->
+                    if (num > 0) onDaysBackChange(num * selectedUnitMultiplier)
+                }
+            },
+            label = { Text("기간") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                imeAction = ImeAction.Done
+            ),
+            modifier = Modifier.weight(1f)
+        )
+
+        ExposedDropdownMenuBox(
+            expanded = unitExpanded,
+            onExpandedChange = { unitExpanded = it },
+            modifier = Modifier.weight(1f)
+        ) {
+            OutlinedTextField(
+                value = unitOptions.first { it.second == selectedUnitMultiplier }.first,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("단위") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = unitExpanded,
+                onDismissRequest = { unitExpanded = false }
+            ) {
+                unitOptions.forEach { (label, multiplier) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            selectedUnitMultiplier = multiplier
+                            unitExpanded = false
+                            periodValue.toIntOrNull()?.let { num ->
+                                if (num > 0) onDaysBackChange(num * multiplier)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        Button(
+            onClick = onSave,
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("저장")
+        }
     }
 }
 
@@ -798,6 +1067,14 @@ private fun ScheduleTab(
     onOscScheduleMinuteChange: (Int) -> Unit,
     oscManualMessage: String?,
     onOscManualCollect: () -> Unit,
+    depositScheduleEnabled: Boolean,
+    onDepositScheduleEnabledChange: (Boolean) -> Unit,
+    depositScheduleHour: Int,
+    onDepositScheduleHourChange: (Int) -> Unit,
+    depositScheduleMinute: Int,
+    onDepositScheduleMinuteChange: (Int) -> Unit,
+    depositManualMessage: String?,
+    onDepositManualCollect: () -> Unit,
     saveMessage: String?,
     onSave: () -> Unit
 ) {
@@ -876,8 +1153,8 @@ private fun ScheduleTab(
 
         HorizontalDivider()
 
-        // === 시장지표 자동 업데이트 ===
-        Text("시장지표 자동 업데이트", style = MaterialTheme.typography.titleMedium)
+        // === 과매수/과매도 자동 업데이트 ===
+        Text("과매수/과매도 자동 업데이트", style = MaterialTheme.typography.titleMedium)
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -931,10 +1208,78 @@ private fun ScheduleTab(
             onClick = onOscManualCollect,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("지금 시장지표 업데이트")
+            Text("지금 과매수/과매도 업데이트")
         }
 
         oscManualMessage?.let { msg ->
+            Text(
+                text = msg,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        HorizontalDivider()
+
+        // === 자금 동향 자동 업데이트 ===
+        Text("자금 동향 자동 업데이트", style = MaterialTheme.typography.titleMedium)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("자동 업데이트 활성화", style = MaterialTheme.typography.bodyMedium)
+            Switch(
+                checked = depositScheduleEnabled,
+                onCheckedChange = onDepositScheduleEnabledChange
+            )
+        }
+
+        if (depositScheduleEnabled) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = "%02d".format(depositScheduleHour),
+                    onValueChange = { v ->
+                        v.filter { it.isDigit() }.take(2).toIntOrNull()?.let {
+                            if (it in 0..23) onDepositScheduleHourChange(it)
+                        }
+                    },
+                    label = { Text("시") },
+                    singleLine = true,
+                    modifier = Modifier.width(80.dp)
+                )
+                Text(":", style = MaterialTheme.typography.titleLarge)
+                OutlinedTextField(
+                    value = "%02d".format(depositScheduleMinute),
+                    onValueChange = { v ->
+                        v.filter { it.isDigit() }.take(2).toIntOrNull()?.let {
+                            if (it in 0..59) onDepositScheduleMinuteChange(it)
+                        }
+                    },
+                    label = { Text("분") },
+                    singleLine = true,
+                    modifier = Modifier.width(80.dp)
+                )
+                Text(
+                    "매일 자동 업데이트",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        OutlinedButton(
+            onClick = onDepositManualCollect,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("지금 자금 동향 업데이트")
+        }
+
+        depositManualMessage?.let { msg ->
             Text(
                 text = msg,
                 color = MaterialTheme.colorScheme.primary,
