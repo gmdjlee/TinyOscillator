@@ -235,17 +235,6 @@ fun MarketOscillatorTab(
             }
         }
 
-        // Update button
-        val currentState = state
-        if (currentState is MarketOscillatorState.Idle && currentState.hasData) {
-            Button(
-                onClick = { viewModel.update() },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("데이터 업데이트 (최근 30일)")
-            }
-        }
-
         // Data Table
         if (marketData.isNotEmpty()) {
             DataTable(marketData, overboughtThreshold, oversoldThreshold)
