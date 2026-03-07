@@ -87,7 +87,7 @@ suspend fun saveKrxCredentials(context: Context, creds: KrxCredentials) = withCo
 }
 
 private val DEFAULT_INCLUDE_KEYWORDS = listOf(
-    "액티브", "반도체", "바이오", "혁신기술", "배당성장", "신재생",
+    "반도체", "바이오", "혁신기술", "배당성장", "신재생",
     "2차전지", "AI", "조선", "테크", "수출", "로봇",
     "컬처", "밸류업", "친환경", "소비", "이노베이션",
     "메모리", "비메모리", "인공지능", "전기차", "배터리",
@@ -464,7 +464,8 @@ private suspend fun saveEtfSettings(
     return try {
         saveEtfKeywordFilter(context, EtfKeywordFilter(includeKeywords, excludeKeywords))
         saveEtfCollectionPeriod(context, EtfCollectionPeriod(collectionDays))
-        "저장되었습니다"
+        WorkManagerHelper.runEtfUpdateNow(context)
+        "저장되었습니다. 새 키워드 데이터를 수집합니다."
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {

@@ -8,6 +8,7 @@ import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.domain.model.EtfDataProgress
 import com.tinyoscillator.domain.model.EtfUiState
 import com.tinyoscillator.presentation.settings.KrxCredentials
+import com.tinyoscillator.presentation.settings.EtfKeywordFilter
 import com.tinyoscillator.presentation.settings.loadEtfCollectionPeriod
 import com.tinyoscillator.presentation.settings.loadEtfKeywordFilter
 import com.tinyoscillator.presentation.settings.loadKrxCredentials
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -30,14 +32,29 @@ class EtfViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<EtfUiState>(EtfUiState.Idle)
     val uiState: StateFlow<EtfUiState> = _uiState.asStateFlow()
 
-    val etfList: StateFlow<List<EtfEntity>> = etfRepository.getAllEtfs()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _excludeKeywords = MutableStateFlow<List<String>>(emptyList())
+
+    val etfList: StateFlow<List<EtfEntity>> = combine(
+        etfRepository.getAllEtfs(),
+        _excludeKeywords
+    ) { etfs, excludeKws ->
+        if (excludeKws.isEmpty()) etfs
+        else etfs.filter { etf -> excludeKws.none { kw -> etf.name.contains(kw) } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _needsCredentials = MutableStateFlow(false)
     val needsCredentials: StateFlow<Boolean> = _needsCredentials.asStateFlow()
 
     init {
+        loadExcludeKeywords()
         checkCredentials()
+    }
+
+    private fun loadExcludeKeywords() {
+        viewModelScope.launch {
+            val keywords = loadEtfKeywordFilter(context)
+            _excludeKeywords.value = keywords.excludeKeywords
+        }
     }
 
     private fun checkCredentials() {
