@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
+import com.tinyoscillator.presentation.settings.loadKrxCredentials
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.delay
@@ -20,7 +21,13 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.d("시장지표 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
-        val kospiResult = repository.updateMarketData("KOSPI")
+        val creds = loadKrxCredentials(applicationContext)
+        if (creds.id.isBlank() || creds.password.isBlank()) {
+            Timber.w("KRX 자격증명 미설정, 시장지표 업데이트 건너뜀")
+            return Result.failure()
+        }
+
+        val kospiResult = repository.updateMarketData("KOSPI", creds.id, creds.password)
         if (kospiResult.isFailure) {
             Timber.e("KOSPI 업데이트 실패: ${kospiResult.exceptionOrNull()?.message}")
             return if (runAttemptCount < 3) Result.retry() else Result.failure()
@@ -28,7 +35,7 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
 
         delay(KRX_RATE_LIMIT_MS)
 
-        val kosdaqResult = repository.updateMarketData("KOSDAQ")
+        val kosdaqResult = repository.updateMarketData("KOSDAQ", creds.id, creds.password)
         if (kosdaqResult.isFailure) {
             Timber.e("KOSDAQ 업데이트 실패: ${kosdaqResult.exceptionOrNull()?.message}")
             return if (runAttemptCount < 3) Result.retry() else Result.failure()

@@ -16,6 +16,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,6 +25,9 @@ import com.tinyoscillator.domain.model.DateRangeOption
 import com.tinyoscillator.domain.model.MarketOscillator
 import com.tinyoscillator.domain.model.MarketOscillatorState
 import com.tinyoscillator.domain.model.OscillatorRangeOption
+import com.tinyoscillator.presentation.settings.KrxCredentials
+import com.tinyoscillator.presentation.settings.saveKrxCredentials
+import kotlinx.coroutines.launch
 
 @Composable
 fun MarketOscillatorTab(
@@ -34,9 +39,17 @@ fun MarketOscillatorTab(
     val marketData by viewModel.marketData.collectAsState()
     val overboughtThreshold by viewModel.overboughtThreshold.collectAsState()
     val oversoldThreshold by viewModel.oversoldThreshold.collectAsState()
+    val needsCredentials by viewModel.needsCredentials.collectAsState()
 
     var showInitDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+
+    if (needsCredentials) {
+        MarketKrxCredentialDialog(
+            onDismiss = { /* can't dismiss without credentials */ },
+            onSave = { viewModel.onCredentialsSaved() }
+        )
+    }
 
     if (showInitDialog) {
         InitializeDialog(
@@ -500,6 +513,65 @@ private fun InitializeDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("나중에") }
+        }
+    )
+}
+
+@Composable
+private fun MarketKrxCredentialDialog(
+    onDismiss: () -> Unit,
+    onSave: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var id by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("KRX 로그인 정보") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "시장 과매수/과매도 데이터 수집을 위해 KRX 데이터시스템 계정이 필요합니다.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                OutlinedTextField(
+                    value = id,
+                    onValueChange = { id = it },
+                    label = { Text("KRX ID") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("비밀번호") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (id.isNotBlank() && password.isNotBlank()) {
+                        scope.launch {
+                            saveKrxCredentials(context, KrxCredentials(id, password))
+                            onSave()
+                        }
+                    }
+                },
+                enabled = id.isNotBlank() && password.isNotBlank()
+            ) {
+                Text("저장")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("나중에")
+            }
         }
     )
 }

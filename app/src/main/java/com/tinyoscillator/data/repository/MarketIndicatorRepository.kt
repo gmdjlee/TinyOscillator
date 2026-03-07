@@ -4,6 +4,7 @@ import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.entity.MarketDepositEntity
 import com.tinyoscillator.core.database.entity.MarketOscillatorEntity
+import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.scraper.NaverFinanceScraper
 import com.tinyoscillator.domain.model.MarketDeposit
 import com.tinyoscillator.domain.model.MarketDepositChartData
@@ -29,7 +30,8 @@ class MarketIndicatorRepository(
     private val oscillatorDao: MarketOscillatorDao,
     private val depositDao: MarketDepositDao,
     private val calculator: MarketOscillatorCalculator,
-    private val scraper: NaverFinanceScraper
+    private val scraper: NaverFinanceScraper,
+    private val krxApiClient: KrxApiClient
 ) {
 
     companion object {
@@ -65,11 +67,17 @@ class MarketIndicatorRepository(
     suspend fun initializeMarketData(
         market: String,
         days: Int,
+        krxId: String,
+        krxPassword: String,
         onProgress: ((String, Int) -> Unit)? = null
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             Timber.d("Initializing $market data for $days days")
             onProgress?.invoke("$market 데이터 수집 준비 중...", 0)
+
+            if (!krxApiClient.login(krxId, krxPassword)) {
+                return@withContext Result.failure(Exception("KRX 로그인 실패"))
+            }
 
             val endDate = LocalDate.now()
             val startDate = endDate.minusDays(days.toLong())
@@ -118,8 +126,16 @@ class MarketIndicatorRepository(
     /**
      * 데이터 업데이트 (최근 30일)
      */
-    suspend fun updateMarketData(market: String): Result<Int> = withContext(Dispatchers.IO) {
+    suspend fun updateMarketData(
+        market: String,
+        krxId: String,
+        krxPassword: String
+    ): Result<Int> = withContext(Dispatchers.IO) {
         try {
+            if (!krxApiClient.login(krxId, krxPassword)) {
+                return@withContext Result.failure(Exception("KRX 로그인 실패"))
+            }
+
             val endDate = LocalDate.now()
             val startDate = endDate.minusDays(30)
             val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
