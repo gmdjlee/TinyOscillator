@@ -1,48 +1,59 @@
 Read TASK.md and PROGRESS.md.
-Reference: D:\android_2025\MarketMonitor_rev2\ (source code for stock name/code DB approach)
 
-Mission: Implement 5 features for stock data management and search UX.
-1. Pre-populate stock name/code DB from StockApp reference.
-2. Autocomplete in stock search text field.
-3. Incremental analysis: first analysis saves to DB, subsequent updates only new data.
-4. DB retention: max 365 days of analysis data per stock.
-5. Analysis history: store last 30 analyzed stocks for quick access.
+Reference projects:
+- D:\android_2025\MarketMonitor_rev2\ (ETF menu feature, scheduling logic)
+- D:\android_2025\kotlin_krx\ (latest kotlin_krx for data collection)
 
-Follow MVVM + Clean Architecture + Feature module pattern.
+Mission: Update app with ETF Analysis main menu and related features. 10 requirements:
+1. Rename Top AppBar title from '수급 오실레이터' to '종목분석'
+2. Add new main menu '🖥 ETF분석'
+3. ETF분석: adapt MarketMonitor_rev2 ETF menu to current project patterns
+4. ETF분석: collect only Active ETFs, filter display by include/exclude keywords
+5. Store Active ETF data including constituent stocks in Room DB
+6. Use latest kotlin_krx from D:\android_2025\kotlin_krx for data collection
+7. Settings: add KRX ID/PASSWORD input and secure save
+8. Settings: add ETF keyword include/exclude filter configuration
+9. First launch: prompt KRX ID/PASSWORD, then collect default 2 weeks of data
+10. Schedule data updates at configured times (same as MarketMonitor_rev2 approach)
+
+Architecture: Follow existing app patterns exactly. MVVM + Clean Architecture + Feature modules.
+
+IMPORTANT: Create PLAN.md first. Do NOT implement anything until user confirms each phase.
 
 Agent Team (3 members): Spawn 3 teammates.
-1. Integrator (Sonnet): Use feature-extractor to scan StockApp stock list approach. Use source-migrator and kotlin-implementer to build DB schema, autocomplete, incremental update, history. Implement in Clean Architecture layers.
-2. QA-Engineer (Sonnet): Use qa-verifier. Test DB operations, autocomplete UX, incremental update logic, 365-day retention, 30-item history limit, build verification.
-3. Architect-Reviewer (Opus): Approve Room DB schema design (3 tables: stock_list, analysis_data, analysis_history). Approve data retention and cleanup strategy.
+1. Integrator (Sonnet): Use feature-extractor to analyze MarketMonitor_rev2 ETF feature and kotlin_krx APIs. Use source-migrator and kotlin-implementer to build in current project. Handles implementation of all features.
+2. QA-Engineer (Sonnet): Use qa-verifier. Verify build after each phase, test ETF data collection, DB operations, scheduling, keyword filtering, settings persistence.
+3. Architect-Reviewer (Opus): Design overall plan. Approve DB schema (ETF master, ETF daily data, constituent stocks). Approve scheduling strategy. Review each phase before user confirmation.
 
 Use Subagents:
-- feature-extractor (haiku): Scan StockApp for stock list DB structure.
-- source-migrator (sonnet): Adapt StockApp patterns to current project.
-- kotlin-implementer (sonnet): Implement in Clean Architecture.
+- feature-extractor (haiku): Scan MarketMonitor_rev2 ETF feature and kotlin_krx APIs.
+- source-migrator (sonnet): Adapt MarketMonitor_rev2 code to current project.
+- kotlin-implementer (sonnet): Implement in Clean Architecture layers.
 - qa-verifier (sonnet): Test and verify.
 
 Rules:
-- DB schema plan requires Architect approval before implementation.
-- Autocomplete must be responsive: filter locally from pre-populated DB, no network call.
-- Incremental update: compare last saved date, fetch only newer data from API.
-- 365-day cleanup: run on each analysis, delete records older than 365 days for that stock.
-- History: FIFO when exceeding 30 items, oldest entry removed.
+- PLAN FIRST: Generate PLAN.md with phased approach. Wait for user confirmation before each phase.
+- Match existing app code patterns exactly. Study current code style before writing new code.
+- KRX credentials: use EncryptedSharedPreferences. Never store in plain text or logs.
+- kotlin_krx: use the version from D:\android_2025\kotlin_krx, not any other source.
+- Scheduling: replicate MarketMonitor_rev2 approach (WorkManager or AlarmManager pattern).
 - After every code change: run gradlew assembleDebug.
 - Log all changes to PROGRESS.md.
-- Use only Kiwoom API and KIS API.
 
 Workflow:
-1. Lead reads TASK.md, picks next task.
-2. DB schema tasks: Architect approves before implementation.
-3. Implement, QA verifies each feature independently.
-4. Lead marks task done after verification.
+1. Phase 1 (Analysis): Scan both reference projects, create PLAN.md with detailed phases.
+2. STOP and present PLAN.md to user. Wait for confirmation.
+3. For each subsequent phase: implement, verify build, present results, wait for user confirmation.
+4. Mark tasks done only after user confirms each phase.
 
 Completion (ALL must be met):
 - Every task in TASK.md is checked done.
-- Stock list DB pre-populated and autocomplete works.
-- Incremental update saves new data only.
-- Old data beyond 365 days auto-cleaned.
-- History stores max 30 stocks with quick access UI.
+- AppBar title changed to '종목분석'.
+- ETF분석 main menu functional with Active ETF filtering.
+- DB stores ETF data and constituents.
+- Settings has KRX ID/PW and keyword filters.
+- First launch flow: KRX login then 2-week collection.
+- Scheduled updates working.
 - gradlew assembleDebug passes.
 - gradlew test passes.
 - IMPLEMENTATION_REPORT.md generated.

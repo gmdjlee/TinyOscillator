@@ -8,6 +8,8 @@ import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.domain.model.AmountRankingRow
 import com.tinyoscillator.domain.model.CashDepositRow
+import com.tinyoscillator.domain.model.HoldingTimeSeries
+import com.tinyoscillator.domain.model.StockAggregatedTimePoint
 import com.tinyoscillator.domain.model.StockInEtfRow
 import com.tinyoscillator.domain.model.StockSearchResult
 import kotlinx.coroutines.flow.Flow
@@ -142,4 +144,46 @@ interface EtfDao {
         LIMIT 20
     """)
     suspend fun searchStocksInHoldingsExcluding(date: String, query: String, excludedTickers: List<String>): List<StockSearchResult>
+
+    // Stock trend queries
+    @Query("""
+        SELECT date, weight, amount
+        FROM etf_holdings
+        WHERE etf_ticker = :etfTicker AND stock_ticker = :stockTicker
+        ORDER BY date ASC
+    """)
+    suspend fun getStockTrendInEtf(etfTicker: String, stockTicker: String): List<HoldingTimeSeries>
+
+    @Query("""
+        SELECT date,
+               SUM(amount) AS totalAmount,
+               COUNT(DISTINCT etf_ticker) AS etfCount,
+               MAX(weight) AS maxWeight,
+               AVG(weight) AS avgWeight
+        FROM etf_holdings
+        WHERE stock_ticker = :stockTicker
+        GROUP BY date
+        ORDER BY date ASC
+    """)
+    suspend fun getStockAggregatedTrend(stockTicker: String): List<StockAggregatedTimePoint>
+
+    @Query("""
+        SELECT date,
+               SUM(amount) AS totalAmount,
+               COUNT(DISTINCT etf_ticker) AS etfCount,
+               MAX(weight) AS maxWeight,
+               AVG(weight) AS avgWeight
+        FROM etf_holdings
+        WHERE stock_ticker = :stockTicker AND etf_ticker NOT IN (:excludedTickers)
+        GROUP BY date
+        ORDER BY date ASC
+    """)
+    suspend fun getStockAggregatedTrendExcluding(stockTicker: String, excludedTickers: List<String>): List<StockAggregatedTimePoint>
+
+    @Query("""
+        SELECT DISTINCT stock_name FROM etf_holdings
+        WHERE stock_ticker = :stockTicker
+        LIMIT 1
+    """)
+    suspend fun getStockName(stockTicker: String): String?
 }

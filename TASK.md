@@ -1,33 +1,53 @@
-# TASK.md — Stock DB, Search, History Features
+# TASK.md — ETF Analysis Feature
 
-## Phase 1: Analysis and DB Design (iterations 1-3)
-- [ ] D-001 Scan StockApp: how stock name/code list is stored and populated
-- [ ] D-002 Design Room DB schema. Architect approves before proceeding:
-    - stock_master: ticker, name, market (pre-populated, searchable)
-    - stock_analysis: ticker, date, ohlcv, indicators (max 365 days per stock)
-    - analysis_history: ticker, name, last_analyzed_at (max 30 entries, FIFO)
-- [ ] D-003 Design incremental update strategy: compare DB last date vs API, fetch delta only
+## Phase 0: Analysis and Plan (iterations 1-3) — MUST COMPLETE BEFORE ANY IMPLEMENTATION
+- [ ] E-001 Scan MarketMonitor_rev2: ETF menu structure, data models, scheduling, UI components
+- [ ] E-002 Scan kotlin_krx latest: Active ETF APIs, constituent stock APIs, available functions
+- [ ] E-003 Study current app patterns: navigation, code style, DI setup, existing settings structure
+- [ ] E-004 Generate PLAN.md with phases, DB schema, API mapping, schedule strategy. Architect approves.
+- [ ] E-005 STOP: Present PLAN.md to user. Wait for confirmation before proceeding.
 
-## Phase 2: Stock Master DB (iterations 4-5)
-- [ ] D-004 Create Room Entity, DAO, migration for stock_master table
-- [ ] D-005 Implement pre-population: load stock list from StockApp approach (asset file or initial API call)
-- [ ] D-006 Create Repository and UseCase: SearchStocks(query) returns filtered list
+## Phase 1: Quick Wins (iterations 4)
+- [ ] E-006 Rename AppBar title: '수급 오실레이터' to '종목분석'
+- [ ] E-007 Add '🖥 ETF분석' to main menu navigation (placeholder screen)
+- [ ] E-008 Build verification after Phase 1
 
-## Phase 3: Autocomplete Search (iterations 6-7)
-- [ ] D-007 Create autocomplete ViewModel: debounce input, query stock_master locally
-- [ ] D-008 Create autocomplete UI: text field with dropdown suggestions (name + code)
+## Phase 2: Settings (iterations 5-6)
+- [ ] E-009 Settings: KRX ID/PASSWORD input with EncryptedSharedPreferences storage
+- [ ] E-010 Settings: ETF keyword include/exclude filter configuration (add/remove keywords, persist)
+- [ ] E-011 Build verification. STOP: Present to user for confirmation.
 
-## Phase 4: Incremental Analysis Storage (iterations 8-10)
-- [ ] D-009 Create stock_analysis Entity, DAO: insert, query by date range, delete older than 365 days
-- [ ] D-010 Implement incremental update logic in Repository: check last saved date, fetch only new data
-- [ ] D-011 Add 365-day retention cleanup: triggered on each analysis save
+## Phase 3: Data Layer (iterations 7-9)
+- [ ] E-012 Room DB schema: active_etf (ticker, name, type, keywords), etf_daily_data (ohlcv, nav, etc.), etf_constituents (etf_ticker, stock_ticker, weight)
+- [ ] E-013 kotlin_krx integration: Repository impl for fetching Active ETF list, daily data, constituents
+- [ ] E-014 Keyword filter logic: filter ETF list by include/exclude keywords from settings
+- [ ] E-015 Build verification. STOP: Present to user for confirmation.
 
-## Phase 5: Analysis History (iterations 11-13)
-- [ ] D-012 Create analysis_history Entity, DAO: insert/update, query ordered by recency, limit 30
-- [ ] D-013 Implement history logic: add entry on analysis, remove oldest if over 30, update timestamp on re-analysis
-- [ ] D-014 Create history UI: list of recent 30 stocks, tap to navigate to analysis screen
+## Phase 4: First Launch Flow (iterations 10-11)
+- [ ] E-016 First launch: detect no KRX credentials, show KRX ID/PW input dialog
+- [ ] E-017 After credential save: trigger initial 2-week data collection for filtered Active ETFs
+- [ ] E-018 Build verification. STOP: Present to user for confirmation.
 
-## Phase 6: Integration and Verification (iterations 14-15)
-- [ ] D-015 Wire Hilt DI for all new DAOs, Repositories, UseCases
-- [ ] D-016 Test all flows: pre-populate, search, analyze, incremental update, retention cleanup, history FIFO
-- [ ] D-017 Build verification + IMPLEMENTATION_REPORT.md + update CLAUDE.md
+## Phase 5: ETF Analysis UI (iterations 12-14)
+- [ ] E-019 ETF분석 screen: list of Active ETFs filtered by keywords, tap for detail
+- [ ] E-020 ETF detail screen: daily data chart, constituent stocks list (adapt MarketMonitor_rev2 UI)
+- [ ] E-021 Build verification. STOP: Present to user for confirmation.
+
+## Phase 6: Scheduling (iterations 15-16)
+- [ ] E-022 Implement scheduled data update: replicate MarketMonitor_rev2 timing approach
+- [ ] E-023 Incremental update: fetch only new data since last update, append to DB
+- [ ] E-024 Build verification. STOP: Present to user for confirmation.
+
+## Phase 7: Final Verification (iterations 17-18)
+- [ ] E-025 Full flow test: launch, credentials, collect, display, schedule update
+- [ ] E-026 Regression: existing '종목분석' features unaffected
+- [ ] E-027 Generate IMPLEMENTATION_REPORT.md, update CLAUDE.md
+
+## Reference Mapping
+| Feature | Source | Notes |
+|---------|--------|-------|
+| ETF menu UI/UX | MarketMonitor_rev2 ETF menu | Adapt to current patterns |
+| ETF data APIs | kotlin_krx (latest) | Active ETF, constituents |
+| Scheduling | MarketMonitor_rev2 scheduling | Same timing approach |
+| KRX credentials | Current app settings pattern | EncryptedSharedPreferences |
+| Keyword filters | New feature | Include/exclude keyword lists |

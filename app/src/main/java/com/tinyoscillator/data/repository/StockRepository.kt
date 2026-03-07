@@ -7,6 +7,10 @@ import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.data.dto.*
 import com.tinyoscillator.domain.model.DailyTrading
+import com.tinyoscillator.domain.model.RealtimeSupplyData
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -34,6 +38,7 @@ class StockRepository @Inject constructor(
 ) {
     private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
     private val lastFetchTime = ConcurrentHashMap<String, Long>()
+    private val realtimeCache = ConcurrentHashMap<String, Pair<Long, RealtimeSupplyData>>()
 
     /**
      * 일별 거래 데이터 수집 (incremental cache 지원).
@@ -107,7 +112,8 @@ class StockRepository @Inject constructor(
                     date = daily.date,
                     marketCap = daily.marketCap,
                     foreignNet = daily.foreignNetBuy,
-                    instNet = daily.instNetBuy
+                    instNet = daily.instNetBuy,
+                    closePrice = daily.closePrice
                 )
             }
             val cutoffDate = LocalDate.now().minusDays(365).format(fmt)
@@ -134,7 +140,8 @@ class StockRepository @Inject constructor(
                 date = entity.date,
                 marketCap = entity.marketCap,
                 foreignNetBuy = entity.foreignNet,
-                instNetBuy = entity.instNet
+                instNetBuy = entity.instNet,
+                closePrice = entity.closePrice
             )
         }
     }
@@ -202,7 +209,8 @@ class StockRepository @Inject constructor(
                     date = trend.date,
                     marketCap = marketCap,
                     foreignNetBuy = trend.foreignNetWon,
-                    instNetBuy = trend.instNetWon
+                    instNetBuy = trend.instNetWon,
+                    closePrice = closePrice ?: 0
                 )
             }
             .sortedBy { it.date }
@@ -321,6 +329,99 @@ class StockRepository @Inject constructor(
         } ?: emptyList()
     }
 
+    /**
+     * 장중 실시간 수급 데이터 조회 (ka10063).
+     *
+     * 외국인+기관 합산 순매수를 반환.
+     * 60초 인메모리 캐시 적용.
+     */
+    suspend fun fetchRealtimeSupply(
+        ticker: String,
+        config: KiwoomApiKeyConfig,
+        useCache: Boolean = true
+    ): Result<RealtimeSupplyData> = withContext(Dispatchers.IO) {
+        if (!config.isValid()) {
+            return@withContext Result.failure(ApiError.NoApiKeyError())
+        }
+
+        if (useCache) {
+            realtimeCache[ticker]?.let { (timestamp, data) ->
+                if (System.currentTimeMillis() - timestamp < REALTIME_CACHE_TTL_MS) {
+                    Timber.d("실시간 수급 캐시 히트: $ticker")
+                    return@withContext Result.success(data)
+                }
+            }
+        }
+
+        val stexTp = if (config.investmentMode.name == "MOCK") "3" else "1"
+        val body = mapOf(
+            "stk_cd" to ticker,
+            "mrkt_tp" to "000",
+            "invsr" to "6",
+            "stex_tp" to stexTp,
+            "amt_qty_tp" to "1",
+            "frgn_all" to "0",
+            "smtm_netprps_tp" to "0"
+        )
+
+        try {
+            val result = apiClient.call(
+                apiId = StockApiIds.REALTIME_SUPPLY,
+                url = StockApiEndpoints.REALTIME_SUPPLY,
+                body = body,
+                config = config
+            ) { responseJson ->
+                parseRealtimeSupplyResponse(responseJson, ticker)
+            }
+
+            result.onSuccess { data ->
+                realtimeCache[ticker] = System.currentTimeMillis() to data
+            }
+
+            result
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w("실시간 수급 조회 실패: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    private fun parseRealtimeSupplyResponse(responseJson: String, ticker: String): RealtimeSupplyData {
+        // ka10063 응답은 동적 필드명을 가질 수 있어 generic parsing 사용
+        val rootObject = json.parseToJsonElement(responseJson).jsonObject
+        val skipFields = setOf("return_code", "return_msg", "msg_cd", "msg1")
+
+        for ((key, value) in rootObject.entries) {
+            if (key in skipFields) continue
+            if (value is kotlinx.serialization.json.JsonArray && value.isNotEmpty()) {
+                val items = json.decodeFromJsonElement<List<RealtimeSupplyItemDto>>(value)
+                val item = items.firstOrNull() ?: break
+                return RealtimeSupplyData(
+                    ticker = item.stkCd?.trim()?.ifEmpty { ticker } ?: ticker,
+                    name = item.stkNm?.trim() ?: "",
+                    currentPrice = parseSignedLong(item.currentPrice),
+                    netBuyAmount = parseSignedLong(item.netBuyAmount),
+                    buyAmount = parseSignedLong(item.buyAmount),
+                    sellAmount = parseSignedLong(item.sellAmount),
+                    netBuyQuantity = parseSignedLong(item.netBuyQuantity),
+                    accumulatedVolume = parseSignedLong(item.accumulatedVolume),
+                    fetchedAt = System.currentTimeMillis()
+                )
+            }
+        }
+
+        return RealtimeSupplyData(
+            ticker = ticker, name = "", currentPrice = 0L,
+            netBuyAmount = 0L, buyAmount = 0L, sellAmount = 0L,
+            netBuyQuantity = 0L, accumulatedVolume = 0L,
+            fetchedAt = System.currentTimeMillis()
+        )
+    }
+
+    private fun parseSignedLong(value: String?): Long =
+        value?.replace(",", "")?.replace("+", "")?.trim()?.toLongOrNull() ?: 0L
+
     private fun String?.toLongSafe(): Long =
         this?.removePrefix("+")?.replace(",", "")?.trim()?.toLongOrNull() ?: 0L
 
@@ -328,6 +429,7 @@ class StockRepository @Inject constructor(
         private const val COOLDOWN_MS = 60 * 60 * 1000L  // 1시간
         private const val MAX_COOLDOWN_ENTRIES = 50
         private const val API_BATCH_TIMEOUT_MS = 90_000L  // 90초 (OkHttp 30초 × 3 호출)
+        private const val REALTIME_CACHE_TTL_MS = 60_000L // 60초
     }
 }
 

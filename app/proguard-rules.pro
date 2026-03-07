@@ -52,3 +52,12 @@
 
 # MPAndroidChart
 -keep class com.github.mikephil.charting.** { *; }
+
+# kotlin_krx models (Gson serialization)
+-keep class com.krxkt.model.** { *; }
+-keep class com.google.gson.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
+
+# WorkManager
+-keep class androidx.work.** { *; }

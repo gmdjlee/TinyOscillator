@@ -14,6 +14,7 @@ import com.tinyoscillator.data.repository.StockMasterRepository
 import com.tinyoscillator.data.repository.StockRepository
 import com.tinyoscillator.domain.model.*
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
+import com.tinyoscillator.domain.usecase.IntradayDataMerger
 import com.tinyoscillator.domain.usecase.SaveAnalysisHistoryUseCase
 import com.tinyoscillator.domain.usecase.SearchStocksUseCase
 import com.tinyoscillator.presentation.settings.loadKisConfig
@@ -21,7 +22,10 @@ import com.tinyoscillator.presentation.settings.loadKiwoomConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,6 +43,7 @@ import javax.inject.Inject
  * 3. 데이터 수집 (StockRepository → Kiwoom API + 캐시)
  * 4. 오실레이터 계산 (CalcOscillatorUseCase)
  * 5. UI State 업데이트
+ * 6. 장중 실시간 수급 데이터 60초 폴링 (ka10063)
  */
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -59,6 +64,13 @@ class OscillatorViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<OscillatorUiState>(OscillatorUiState.Idle)
     val uiState: StateFlow<OscillatorUiState> = _uiState.asStateFlow()
 
+    // 실시간 수급 상태
+    private val _isIntradayMerged = MutableStateFlow(false)
+    val isIntradayMerged: StateFlow<Boolean> = _isIntradayMerged.asStateFlow()
+
+    private val _autoRefreshEnabled = MutableStateFlow(true)
+    val autoRefreshEnabled: StateFlow<Boolean> = _autoRefreshEnabled.asStateFlow()
+
     // 로컬 DB 검색 결과
     private val _searchQuery = MutableStateFlow("")
     val searchResults: StateFlow<List<StockMasterEntity>> = _searchQuery
@@ -78,6 +90,13 @@ class OscillatorViewModel @Inject constructor(
     @Volatile
     private var cachedApiConfig: KiwoomApiKeyConfig? = null
     private val configMutex = Mutex()
+
+    // 실시간 폴링 관련
+    private var autoRefreshJob: Job? = null
+    private var currentAnalysisTicker: String? = null
+    private var currentAnalysisName: String? = null
+    private var currentDailyData: List<DailyTrading>? = null
+    private var currentDisplayDays: Int = OscillatorConfig.DEFAULT_DISPLAY_DAYS
 
     init {
         // 앱 시작시 종목 마스터 DB 채우기
@@ -149,6 +168,11 @@ class OscillatorViewModel @Inject constructor(
         _searchQuery.value = query
     }
 
+    /** 자동 갱신 토글 */
+    fun toggleAutoRefresh() {
+        _autoRefreshEnabled.value = !_autoRefreshEnabled.value
+    }
+
     /** 오실레이터 분석 실행 */
     fun analyze(
         ticker: String,
@@ -164,8 +188,13 @@ class OscillatorViewModel @Inject constructor(
             _uiState.value = OscillatorUiState.Error("분석일수와 표시일수는 1 이상이어야 합니다.")
             return
         }
+
+        // 기존 폴링 중지
+        stopAutoRefresh()
+
         viewModelScope.launch {
             _uiState.value = OscillatorUiState.Loading("데이터 수집 중...")
+            _isIntradayMerged.value = false
 
             try {
                 if (!NetworkUtils.isNetworkAvailable(getApplication())) {
@@ -193,33 +222,29 @@ class OscillatorViewModel @Inject constructor(
                     return@launch
                 }
 
-                // Step 2: 오실레이터 계산
-                _uiState.value = OscillatorUiState.Loading("오실레이터 계산 중...")
-                val warmupCount = maxOf(0, dailyData.size - displayDays)
-                Timber.d("━━━ ViewModel 파이프라인 ━━━")
-                Timber.d("analysisDays=%d, displayDays=%d", analysisDays, displayDays)
-                Timber.d("수집 기간: %s ~ %s", startDate.format(fmt), endDate.format(fmt))
-                Timber.d("수집된 데이터: %d일, warmupCount=%d, 표시=%d일", dailyData.size, warmupCount, dailyData.size - warmupCount)
-                val oscillatorRows = calcOscillator.execute(dailyData, warmupCount)
+                // Step 2: 장중이면 실시간 수급 병합
+                val mergedData = mergeIntradayIfAvailable(dailyData, ticker, apiConfig)
 
-                // Step 3: 신호 분석
-                val signals = calcOscillator.analyzeSignals(oscillatorRows)
+                // Step 3: 오실레이터 계산
+                _uiState.value = OscillatorUiState.Loading("오실레이터 계산 중...")
+                val result = calculateOscillator(mergedData, stockName, ticker, displayDays)
 
                 // Step 4: 분석 기록 저장
                 saveAnalysisHistoryUseCase(ticker, stockName)
 
                 // Step 5: 결과 전달
-                _uiState.value = OscillatorUiState.Success(
-                    chartData = ChartData(
-                        stockName = stockName,
-                        ticker = ticker,
-                        rows = oscillatorRows
-                    ),
-                    signals = signals,
-                    latestSignal = signals.lastOrNull()
-                )
+                _uiState.value = result
 
-                // Step 6: 재무정보 비동기 수집 (오실레이터 결과와 독립)
+                // Step 6: 현재 분석 정보 저장 (폴링용)
+                currentAnalysisTicker = ticker
+                currentAnalysisName = stockName
+                currentDailyData = dailyData
+                currentDisplayDays = displayDays
+
+                // Step 7: 장중이면 자동 갱신 시작
+                startAutoRefresh(ticker)
+
+                // Step 8: 재무정보 비동기 수집 (오실레이터 결과와 독립)
                 launch {
                     try {
                         val kisConfig = loadKisConfig(getApplication())
@@ -249,7 +274,117 @@ class OscillatorViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 장중이면 실시간 수급 데이터를 병합.
+     * 장 마감 후에는 기존 데이터를 그대로 반환.
+     */
+    private suspend fun mergeIntradayIfAvailable(
+        dailyData: List<DailyTrading>,
+        ticker: String,
+        apiConfig: KiwoomApiKeyConfig
+    ): List<DailyTrading> {
+        if (!TradingHours.isTradingHours()) {
+            _isIntradayMerged.value = false
+            return dailyData
+        }
+
+        return try {
+            val result = repository.fetchRealtimeSupply(ticker, apiConfig, useCache = false)
+            result.getOrNull()?.let { supplyData ->
+                _isIntradayMerged.value = true
+                Timber.d("장중 수급 병합: ticker=$ticker, netBuy=${supplyData.netBuyAmount}M₩")
+                IntradayDataMerger.merge(dailyData, supplyData)
+            } ?: dailyData
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w("실시간 수급 병합 실패 (무시): ${e.message}")
+            dailyData
+        }
+    }
+
+    /**
+     * 오실레이터 계산 공통 메서드.
+     */
+    private fun calculateOscillator(
+        data: List<DailyTrading>,
+        stockName: String,
+        ticker: String,
+        displayDays: Int
+    ): OscillatorUiState.Success {
+        val warmupCount = maxOf(0, data.size - displayDays)
+        val oscillatorRows = calcOscillator.execute(data, warmupCount)
+        val signals = calcOscillator.analyzeSignals(oscillatorRows)
+
+        return OscillatorUiState.Success(
+            chartData = ChartData(
+                stockName = stockName,
+                ticker = ticker,
+                rows = oscillatorRows
+            ),
+            signals = signals,
+            latestSignal = signals.lastOrNull(),
+            isIntradayMerged = _isIntradayMerged.value
+        )
+    }
+
+    /**
+     * 60초 간격 자동 갱신 시작.
+     * 장중(09:00~15:30)에만 실제 API 호출.
+     */
+    private fun startAutoRefresh(ticker: String) {
+        stopAutoRefresh()
+        autoRefreshJob = viewModelScope.launch {
+            while (isActive) {
+                delay(AUTO_REFRESH_INTERVAL_MS)
+                if (!_autoRefreshEnabled.value) continue
+                if (!TradingHours.isTradingHours()) {
+                    if (_isIntradayMerged.value) {
+                        // 장 마감 → 기존 일봉 데이터로 복원
+                        _isIntradayMerged.value = false
+                        currentDailyData?.let { data ->
+                            val name = currentAnalysisName ?: return@let
+                            val result = calculateOscillator(data, name, ticker, currentDisplayDays)
+                            _uiState.value = result
+                            Timber.d("장 마감 → 종가 데이터로 복원: $ticker")
+                        }
+                    }
+                    continue
+                }
+
+                try {
+                    val apiConfig = getApiConfig()
+                    val dailyData = currentDailyData ?: continue
+                    val mergedData = mergeIntradayIfAvailable(dailyData, ticker, apiConfig)
+                    val name = currentAnalysisName ?: continue
+
+                    val result = calculateOscillator(mergedData, name, ticker, currentDisplayDays)
+                    _uiState.value = result
+                    Timber.d("실시간 갱신 완료: $ticker")
+                } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Timber.w("자동 갱신 실패 (무시): ${e.message}")
+                }
+            }
+        }
+    }
+
+    private fun stopAutoRefresh() {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopAutoRefresh()
+    }
+
     private fun isValidTicker(ticker: String): Boolean = ticker.matches(Regex("^\\d{6}$"))
+
+    companion object {
+        private const val AUTO_REFRESH_INTERVAL_MS = 60_000L // 60초
+    }
 }
 
 /** UI 상태 */
@@ -259,7 +394,8 @@ sealed class OscillatorUiState {
     data class Success(
         val chartData: ChartData,
         val signals: List<SignalAnalysis>,
-        val latestSignal: SignalAnalysis?
+        val latestSignal: SignalAnalysis?,
+        val isIntradayMerged: Boolean = false
     ) : OscillatorUiState()
     data class Error(val message: String) : OscillatorUiState()
 }

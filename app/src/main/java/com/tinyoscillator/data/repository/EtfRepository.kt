@@ -9,6 +9,8 @@ import com.tinyoscillator.domain.model.AmountRankingRow
 import com.tinyoscillator.domain.model.CashDepositRow
 import com.tinyoscillator.domain.model.ChangeType
 import com.tinyoscillator.domain.model.EtfDataProgress
+import com.tinyoscillator.domain.model.HoldingTimeSeries
+import com.tinyoscillator.domain.model.StockAggregatedTimePoint
 import com.tinyoscillator.domain.model.StockChange
 import com.tinyoscillator.domain.model.StockInEtfRow
 import com.tinyoscillator.domain.model.StockSearchResult
@@ -272,6 +274,15 @@ class EtfRepository(
             )
         }
     }
+
+    suspend fun getStockTrendInEtf(etfTicker: String, stockTicker: String): List<HoldingTimeSeries> =
+        etfDao.getStockTrendInEtf(etfTicker, stockTicker)
+
+    suspend fun getStockAggregatedTrend(stockTicker: String, excludedTickers: List<String> = emptyList()): List<StockAggregatedTimePoint> =
+        if (excludedTickers.isEmpty()) etfDao.getStockAggregatedTrend(stockTicker)
+        else etfDao.getStockAggregatedTrendExcluding(stockTicker, excludedTickers)
+
+    suspend fun getStockName(stockTicker: String): String? = etfDao.getStockName(stockTicker)
 
     private fun getBusinessDates(daysBack: Int): List<String> {
         val dates = mutableListOf<String>()

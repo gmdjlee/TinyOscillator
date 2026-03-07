@@ -19,7 +19,8 @@ data class DailyTrading(
     val date: String,           // "yyyyMMdd"
     val marketCap: Long,        // 시가총액 (원)
     val foreignNetBuy: Long,    // 외국인 순매수 (원)
-    val instNetBuy: Long        // 기관합계 순매수 (원)
+    val instNetBuy: Long,       // 기관합계 순매수 (원)
+    val closePrice: Int = 0     // 종가 (원)
 )
 
 /** 오실레이터 계산 중간 + 최종 결과 (엑셀 각 시트에 대응) */

@@ -20,4 +20,10 @@ dependencyResolutionManagement {
 
 rootProject.name = "TinyOscillator"
 
+includeBuild("../kotlin_krx") {
+    dependencySubstitution {
+        substitute(module("com.krxkt:krxkt")).using(project(":"))
+    }
+}
+
 include(":app")

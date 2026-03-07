@@ -77,6 +77,28 @@ data class OhlcvItem(
 )
 
 // ============================================================================
+// ka10063 - 실시간 수급 (장중 외국인/기관 순매수)
+// ============================================================================
+
+@Serializable
+data class RealtimeSupplyResponse(
+    @SerialName("return_code") val returnCode: Int = 0,
+    @SerialName("return_msg") val returnMsg: String? = null
+)
+
+@Serializable
+data class RealtimeSupplyItemDto(
+    @SerialName("stk_cd") val stkCd: String? = null,
+    @SerialName("stk_nm") val stkNm: String? = null,
+    @SerialName("cur_prc") val currentPrice: String? = null,
+    @SerialName("netbid_amt") val netBuyAmount: String? = null,
+    @SerialName("bid_amt") val buyAmount: String? = null,
+    @SerialName("ask_amt") val sellAmount: String? = null,
+    @SerialName("netbid_qty") val netBuyQuantity: String? = null,
+    @SerialName("acml_trde_qty") val accumulatedVolume: String? = null
+)
+
+// ============================================================================
 // API 엔드포인트 & ID 상수
 // ============================================================================
 
@@ -85,6 +107,7 @@ object StockApiEndpoints {
     const val STOCK_INFO = "/api/dostk/stkinfo"
     const val INVESTOR_TREND = "/api/dostk/stkinfo"
     const val DAILY_CHART = "/api/dostk/chart"
+    const val REALTIME_SUPPLY = "/api/dostk/mrkcond"
 }
 
 object StockApiIds {
@@ -92,4 +115,5 @@ object StockApiIds {
     const val STOCK_INFO = "ka10001"
     const val INVESTOR_TREND = "ka10059"
     const val DAILY_CHART = "ka10081"
+    const val REALTIME_SUPPLY = "ka10063"
 }

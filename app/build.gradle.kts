@@ -55,8 +55,9 @@ ksp {
 }
 
 dependencies {
-    // === Network (OkHttp) ===
+    // === Network (OkHttp + Jsoup) ===
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jsoup:jsoup:1.17.2")
 
     // === JSON (Kotlinx Serialization) ===
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
@@ -91,9 +92,17 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     // === Hilt ===
-    implementation("com.google.dagger:hilt-android:2.51.1")
-    ksp("com.google.dagger:hilt-compiler:2.51.1")
+    implementation("com.google.dagger:hilt-android:2.54")
+    ksp("com.google.dagger:hilt-compiler:2.54")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
+
+    // === WorkManager ===
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // === kotlin_krx ===
+    implementation("com.krxkt:krxkt:1.0.0-SNAPSHOT")
 
     // === MPAndroidChart ===
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")

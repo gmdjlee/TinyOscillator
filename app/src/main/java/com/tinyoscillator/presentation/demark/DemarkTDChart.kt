@@ -1,4 +1,4 @@
-package com.tinyoscillator.presentation.chart
+package com.tinyoscillator.presentation.demark
 
 import android.content.Context
 import android.graphics.Color
@@ -17,36 +17,38 @@ import com.github.mikephil.charting.components.Legend
 import com.github.mikephil.charting.components.MarkerView
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.components.YAxis
-import com.github.mikephil.charting.utils.Utils
 import com.github.mikephil.charting.data.*
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.github.mikephil.charting.formatter.ValueFormatter
 import com.github.mikephil.charting.highlight.Highlight
 import com.github.mikephil.charting.utils.MPPointF
+import com.github.mikephil.charting.utils.Utils
 import com.tinyoscillator.R
-import com.tinyoscillator.domain.model.ChartData
+import com.tinyoscillator.domain.model.DemarkTDChartData
 
 /**
- * 수급 오실레이터 차트 Composable
+ * DeMark TD Sequential 차트 Composable
  *
- * - 왼쪽 Y축: 시가총액 (조원) — LineChart
- * - 오른쪽 Y축: 오실레이터 — LineChart + 마커
- * - X축: 날짜
+ * - 좌측 Y축: 시가총액 (조원) — 파란 라인
+ * - 우측 Y축: TD 카운트 범위
+ *   - TD Sell 라인 (빨강, 양수 영역)
+ *   - TD Buy 라인 (파랑, 음수 반전 표시 = -count)
+ * - 9+ 카운트 시 circleRadius 확대
  */
 @Composable
-fun OscillatorChart(
-    chartData: ChartData,
+fun DemarkTDChart(
+    chartData: DemarkTDChartData,
     modifier: Modifier = Modifier
 ) {
-    // Track last bound data to skip redundant bindData calls on recomposition
-    val lastBound = remember { arrayOfNulls<ChartData>(1) }
+    val lastBound = remember { arrayOfNulls<DemarkTDChartData>(1) }
     val isDarkTheme = isSystemInDarkTheme()
     val chartTextColor = if (isDarkTheme) Color.WHITE else Color.DKGRAY
 
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "${chartData.stockName} 시가총액 & 수급오실레이터",
+                text = "${chartData.stockName} DeMark TD (${chartData.periodType.label})",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -59,14 +61,14 @@ fun OscillatorChart(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    setupChart(this, chartTextColor)
+                    setupDemarkChart(this, chartTextColor)
                 }
             },
             update = { chart ->
                 chart.xAxis.textColor = chartTextColor
                 chart.legend.textColor = chartTextColor
                 if (chartData != lastBound[0]) {
-                    bindData(chart, chartData)
+                    bindDemarkData(chart, chartData)
                     lastBound[0] = chartData
                 }
             },
@@ -78,7 +80,7 @@ fun OscillatorChart(
     }
 }
 
-private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
+private fun setupDemarkChart(chart: CombinedChart, chartTextColor: Int) {
     chart.apply {
         description.isEnabled = false
         setDrawGridBackground(false)
@@ -89,7 +91,6 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
         val gColor = Color.parseColor("#CCCCCC")
         val dashLen = Utils.convertDpToPixel(4f)
         val dashGap = Utils.convertDpToPixel(4f)
-
         val labelCount = 6
 
         setExtraOffsets(8f, 8f, 8f, 8f)
@@ -105,14 +106,12 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
 
         axisRight.apply {
             setDrawGridLines(false)
-            gridColor = gColor
-            gridLineWidth = 0.5f
-            enableGridDashedLine(dashLen, dashGap, 0f)
-            textColor = Color.parseColor("#388E3C")
+            textColor = Color.parseColor("#F44336")
             setLabelCount(labelCount, true)
             valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String {
-                    return String.format("%.2f%%", value)
+                    val absVal = kotlin.math.abs(value.toInt())
+                    return if (value >= 0) "S$absVal" else "B$absVal"
                 }
             }
         }
@@ -139,8 +138,9 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
     }
 }
 
-private fun bindData(chart: CombinedChart, chartData: ChartData) {
+private fun bindDemarkData(chart: CombinedChart, chartData: DemarkTDChartData) {
     val rows = chartData.rows
+    if (rows.isEmpty()) return
 
     val labels = rows.map { row ->
         if (row.date.length >= 8) {
@@ -149,11 +149,11 @@ private fun bindData(chart: CombinedChart, chartData: ChartData) {
     }
     chart.xAxis.valueFormatter = IndexAxisValueFormatter(labels)
 
-    // 시가총액 (조원) — 왼쪽 Y축
+    // 시가총액 (조원) — 좌측 Y축
     val mcapEntries = rows.mapIndexed { i, row ->
         Entry(i.toFloat(), row.marketCapTril.toFloat())
     }
-    val mcapDataSet = LineDataSet(mcapEntries, "${chartData.stockName} 시가총액(조)").apply {
+    val mcapDataSet = LineDataSet(mcapEntries, "시가총액(조)").apply {
         color = Color.parseColor("#1976D2")
         lineWidth = 2f
         setDrawCircles(false)
@@ -163,42 +163,112 @@ private fun bindData(chart: CombinedChart, chartData: ChartData) {
         highLightColor = Color.parseColor("#1976D2")
     }
 
-    // 왼쪽 Y축 범위를 데이터에 맞게 fitting
+    // 좌측 Y축 범위
     val mcapValues = rows.map { it.marketCapTril.toFloat() }
-    if (mcapValues.isEmpty()) return
     val mcapMin = mcapValues.min()
     val mcapMax = mcapValues.max()
     val mcapPadding = (mcapMax - mcapMin) * 0.05f
     chart.axisLeft.axisMinimum = mcapMin - mcapPadding
     chart.axisLeft.axisMaximum = mcapMax + mcapPadding
 
-    // 오실레이터 (%) — 오른쪽 Y축
-    val oscEntries = rows.mapIndexed { i, row ->
-        Entry(i.toFloat(), (row.oscillator * 100).toFloat())
+    // TD Sell — 우측 Y축 (양수 영역, 빨강)
+    val sellEntries = rows.mapIndexed { i, row ->
+        Entry(i.toFloat(), row.tdSellCount.toFloat())
     }
-    val oscDataSet = LineDataSet(oscEntries, "수급오실레이터(%)").apply {
-        color = Color.parseColor("#388E3C")
+    val sellDataSet = LineDataSet(sellEntries, "TD Sell").apply {
+        color = Color.parseColor("#F44336")
         lineWidth = 1.5f
         setDrawCircles(true)
-        circleRadius = 3f
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.RIGHT
-        circleColors = rows.map { row ->
-            if (row.oscillator >= 0) Color.parseColor("#4CAF50")
-            else Color.parseColor("#F44336")
-        }
+        isHighlightEnabled = true
+        highLightColor = Color.parseColor("#F44336")
+        // 9+ 카운트 시 원 크기 확대
+        circleColors = rows.map { Color.parseColor("#F44336") }
+        circleRadius = 3f
         setCircleHoleColor(Color.WHITE)
         circleHoleRadius = 1.5f
-        isHighlightEnabled = true
-        highLightColor = Color.parseColor("#388E3C")
     }
 
+    // TD Buy — 우측 Y축 (음수 반전 표시, 파랑)
+    val buyEntries = rows.mapIndexed { i, row ->
+        Entry(i.toFloat(), -row.tdBuyCount.toFloat())
+    }
+    val buyDataSet = LineDataSet(buyEntries, "TD Buy").apply {
+        color = Color.parseColor("#2196F3")
+        lineWidth = 1.5f
+        setDrawCircles(true)
+        setDrawValues(false)
+        axisDependency = YAxis.AxisDependency.RIGHT
+        isHighlightEnabled = true
+        highLightColor = Color.parseColor("#2196F3")
+        circleColors = rows.map { Color.parseColor("#2196F3") }
+        circleRadius = 3f
+        setCircleHoleColor(Color.WHITE)
+        circleHoleRadius = 1.5f
+    }
+
+    // 9+ 카운트 시 개별 원 크기 확대 (EntryIcon 대신 커스텀 원 크기는 DataSet 레벨)
+    // MPAndroidChart에서는 per-entry circle radius가 불가하므로 전체적으로 표시
+    // 대신 9+ 도달 시점을 강조하기 위해 별도 scatter 데이터셋 추가
+    val sellHighlightEntries = mutableListOf<Entry>()
+    val buyHighlightEntries = mutableListOf<Entry>()
+    rows.forEachIndexed { i, row ->
+        if (row.tdSellCount >= 9) {
+            sellHighlightEntries.add(Entry(i.toFloat(), row.tdSellCount.toFloat()))
+        }
+        if (row.tdBuyCount >= 9) {
+            buyHighlightEntries.add(Entry(i.toFloat(), -row.tdBuyCount.toFloat()))
+        }
+    }
+
+    val dataSets = mutableListOf<ILineDataSet>(mcapDataSet, sellDataSet, buyDataSet)
+
+    if (sellHighlightEntries.isNotEmpty()) {
+        val sellHighlight = LineDataSet(sellHighlightEntries, "Sell 9+").apply {
+            color = Color.TRANSPARENT
+            lineWidth = 0f
+            setDrawCircles(true)
+            circleRadius = 6f
+            circleColors = listOf(Color.parseColor("#F44336"))
+            setCircleHoleColor(Color.parseColor("#F44336"))
+            circleHoleRadius = 3f
+            setDrawValues(false)
+            axisDependency = YAxis.AxisDependency.RIGHT
+            isHighlightEnabled = false
+        }
+        dataSets.add(sellHighlight)
+    }
+
+    if (buyHighlightEntries.isNotEmpty()) {
+        val buyHighlight = LineDataSet(buyHighlightEntries, "Buy 9+").apply {
+            color = Color.TRANSPARENT
+            lineWidth = 0f
+            setDrawCircles(true)
+            circleRadius = 6f
+            circleColors = listOf(Color.parseColor("#2196F3"))
+            setCircleHoleColor(Color.parseColor("#2196F3"))
+            circleHoleRadius = 3f
+            setDrawValues(false)
+            axisDependency = YAxis.AxisDependency.RIGHT
+            isHighlightEnabled = false
+        }
+        dataSets.add(buyHighlight)
+    }
+
+    // 우측 Y축 범위 설정
+    val maxSell = rows.maxOf { it.tdSellCount }
+    val maxBuy = rows.maxOf { it.tdBuyCount }
+    val maxCount = maxOf(maxSell, maxBuy, 9)  // 최소 9까지 표시
+    chart.axisRight.axisMinimum = -(maxCount + 1).toFloat()
+    chart.axisRight.axisMaximum = (maxCount + 1).toFloat()
+
     chart.data = CombinedData().apply {
-        setData(LineData(mcapDataSet, oscDataSet))
+        setData(LineData(dataSets))
     }
 
     // 마커 설정
-    val marker = OscillatorMarkerView(chart.context, labels)
+    val marker = DemarkTDMarkerView(chart.context, labels, chartData)
     marker.chartView = chart
     chart.marker = marker
 
@@ -206,9 +276,10 @@ private fun bindData(chart: CombinedChart, chartData: ChartData) {
 }
 
 /** 차트 데이터 포인트 선택 시 값을 표시하는 MarkerView */
-class OscillatorMarkerView(
+class DemarkTDMarkerView(
     context: Context,
-    private val labels: List<String>
+    private val labels: List<String>,
+    private val chartData: DemarkTDChartData
 ) : MarkerView(context, R.layout.chart_marker_view) {
 
     private val tvContent: TextView = findViewById(R.id.marker_text)
@@ -221,11 +292,13 @@ class OscillatorMarkerView(
 
         val xIndex = e.x.toInt()
         val date = labels.getOrElse(xIndex) { "" }
+        val row = chartData.rows.getOrNull(xIndex)
 
         val valueText = when (highlight.dataSetIndex) {
             0 -> "시가총액: ${String.format("%.2f", e.y)}조"
-            1 -> "오실레이터: ${String.format("%.2f%%", e.y)}"
-            else -> String.format("%.2f", e.y)
+            1 -> "TD Sell: ${row?.tdSellCount ?: 0}"
+            2 -> "TD Buy: ${row?.tdBuyCount ?: 0}"
+            else -> ""
         }
 
         tvContent.text = "$date\n$valueText"

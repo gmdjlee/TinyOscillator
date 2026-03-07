@@ -21,5 +21,8 @@ data class AnalysisCacheEntity(
     val foreignNet: Long,       // 외국인 순매수 (원)
 
     @ColumnInfo(name = "inst_net")
-    val instNet: Long           // 기관 순매수 (원)
+    val instNet: Long,          // 기관 순매수 (원)
+
+    @ColumnInfo(name = "close_price", defaultValue = "0")
+    val closePrice: Int = 0     // 종가 (원)
 )
