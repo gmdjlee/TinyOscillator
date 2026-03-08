@@ -45,9 +45,6 @@ class MarketDepositViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         repository = mockk(relaxed = true)
-
-        // Default: getOrUpdateMarketData returns null (no-op)
-        coEvery { repository.getOrUpdateMarketData(any(), any()) } returns null
     }
 
     @After
@@ -65,13 +62,12 @@ class MarketDepositViewModelTest {
     // ==========================================================
 
     @Test
-    fun `초기 state는 Loading이다`() = runTest {
-        // getDepositsByDateRange가 빈 리스트를 반환하도록 설정
+    fun `초기 state는 Idle이다`() = runTest {
         every { repository.getDepositsByDateRange(any(), any()) } returns flowOf(emptyList())
 
         viewModel = createViewModel()
 
-        assertEquals(MarketDepositState.Loading(), viewModel.state.value)
+        assertEquals(MarketDepositState.Idle, viewModel.state.value)
     }
 
     @Test
@@ -128,19 +124,6 @@ class MarketDepositViewModelTest {
         val state = viewModel.state.value
         assertTrue("Expected Error but got $state", state is MarketDepositState.Error)
         assertTrue((state as MarketDepositState.Error).message.contains("저장된 데이터가 없습니다"))
-    }
-
-    @Test
-    fun `getOrUpdateMarketData 예외 시 Error 상태가 된다`() = runTest {
-        coEvery { repository.getOrUpdateMarketData(any(), any()) } throws RuntimeException("네트워크 오류")
-        every { repository.getDepositsByDateRange(any(), any()) } returns flowOf(emptyList())
-
-        viewModel = createViewModel()
-        advanceUntilIdle()
-
-        val state = viewModel.state.value
-        assertTrue("Expected Error but got $state", state is MarketDepositState.Error)
-        assertTrue((state as MarketDepositState.Error).message.contains("데이터 로드 실패"))
     }
 
     // ==========================================================

@@ -122,154 +122,21 @@ class MarketOscillatorViewModelTest {
     }
 
     // ==========================================================
-    // initialize 테스트
-    // ==========================================================
-
-    @Test
-    fun `initialize 성공 시 Success 상태가 된다`() = runTest {
-        viewModel = createViewModel()
-        advanceUntilIdle()
-
-        coEvery { repository.initializeMarketData("KOSPI", any(), any(), any(), any()) } returns Result.success(20)
-        coEvery { repository.initializeMarketData("KOSDAQ", any(), any(), any(), any()) } returns Result.success(20)
-        coEvery { repository.getDataCount("KOSPI") } returns 20
-        coEvery { repository.getDataCount("KOSDAQ") } returns 20
-        coEvery { repository.getLatestData("KOSPI") } returns sampleOscillator
-
-        viewModel.initialize(days = 30)
-        advanceUntilIdle()
-
-        val state = viewModel.state.value
-        // initialize 성공 후 checkData()가 호출되므로 최종 상태는 Idle
-        // 하지만 Success 메시지가 먼저 설정됨
-        assertTrue(
-            "Expected Idle (after checkData) but got $state",
-            state is MarketOscillatorState.Idle
-        )
-    }
-
-    @Test
-    fun `initialize 실패 시 Error 상태가 된다`() = runTest {
-        viewModel = createViewModel()
-        advanceUntilIdle()
-
-        coEvery {
-            repository.initializeMarketData("KOSPI", any(), any(), any(), any())
-        } returns Result.failure(RuntimeException("KRX 로그인 실패"))
-        coEvery {
-            repository.initializeMarketData("KOSDAQ", any(), any(), any(), any())
-        } returns Result.success(10)
-
-        viewModel.initialize(days = 30)
-        advanceUntilIdle()
-
-        val state = viewModel.state.value
-        assertTrue("Expected Error but got $state", state is MarketOscillatorState.Error)
-        assertTrue((state as MarketOscillatorState.Error).message.contains("수집 실패"))
-    }
-
-    @Test
-    fun `initialize 시 인증정보 없으면 needsCredentials가 true가 된다`() = runTest {
-        viewModel = createViewModel()
-        advanceUntilIdle()
-
-        coEvery { com.tinyoscillator.presentation.settings.loadKrxCredentials(any()) } returns blankCredentials
-
-        viewModel.initialize()
-        advanceUntilIdle()
-
-        assertTrue(viewModel.needsCredentials.value)
-    }
-
-    // ==========================================================
-    // update 테스트
-    // ==========================================================
-
-    @Test
-    fun `update 성공 시 checkData가 호출되어 Idle 상태가 된다`() = runTest {
-        viewModel = createViewModel()
-        advanceUntilIdle()
-
-        coEvery { repository.updateMarketData("KOSPI", any(), any()) } returns Result.success(15)
-        coEvery { repository.updateMarketData("KOSDAQ", any(), any()) } returns Result.success(15)
-        coEvery { repository.getDataCount("KOSPI") } returns 15
-        coEvery { repository.getDataCount("KOSDAQ") } returns 15
-        coEvery { repository.getLatestData("KOSPI") } returns sampleOscillator
-
-        viewModel.update()
-        advanceUntilIdle()
-
-        val state = viewModel.state.value
-        assertTrue(
-            "Expected Idle (after checkData) but got $state",
-            state is MarketOscillatorState.Idle
-        )
-    }
-
-    @Test
-    fun `update 실패 시 Error 상태가 된다`() = runTest {
-        viewModel = createViewModel()
-        advanceUntilIdle()
-
-        coEvery {
-            repository.updateMarketData("KOSPI", any(), any())
-        } returns Result.failure(RuntimeException("네트워크 오류"))
-        coEvery {
-            repository.updateMarketData("KOSDAQ", any(), any())
-        } returns Result.success(10)
-
-        viewModel.update()
-        advanceUntilIdle()
-
-        val state = viewModel.state.value
-        assertTrue("Expected Error but got $state", state is MarketOscillatorState.Error)
-        assertTrue((state as MarketOscillatorState.Error).message.contains("업데이트 실패"))
-    }
-
-    @Test
-    fun `update 시 인증정보 없으면 needsCredentials가 true가 된다`() = runTest {
-        viewModel = createViewModel()
-        advanceUntilIdle()
-
-        coEvery { com.tinyoscillator.presentation.settings.loadKrxCredentials(any()) } returns blankCredentials
-
-        viewModel.update()
-        advanceUntilIdle()
-
-        assertTrue(viewModel.needsCredentials.value)
-    }
-
-    // ==========================================================
     // clearMessage 테스트
     // ==========================================================
 
     @Test
-    fun `clearMessage 호출 시 Success 상태에서 Idle로 전환된다`() = runTest {
+    fun `clearMessage 호출 시 Idle 상태에서는 변경되지 않는다`() = runTest {
         viewModel = createViewModel()
         advanceUntilIdle()
 
-        coEvery { repository.updateMarketData("KOSPI", any(), any()) } returns Result.success(10)
-        coEvery { repository.updateMarketData("KOSDAQ", any(), any()) } returns Result.success(10)
-
-        viewModel.update()
-        advanceUntilIdle()
-
-        // clearMessage는 Success/Error 상태에서 checkData()를 호출
-        // update 성공 후 이미 checkData()가 호출되어 Idle이므로,
-        // Error 상태에서 테스트
-        coEvery {
-            repository.updateMarketData("KOSPI", any(), any())
-        } returns Result.failure(RuntimeException("오류"))
-
-        viewModel.update()
-        advanceUntilIdle()
-        assertTrue(viewModel.state.value is MarketOscillatorState.Error)
+        assertTrue(viewModel.state.value is MarketOscillatorState.Idle)
 
         viewModel.clearMessage()
         advanceUntilIdle()
 
         val state = viewModel.state.value
-        assertTrue("Expected Idle after clearMessage but got $state", state is MarketOscillatorState.Idle)
+        assertTrue("Expected Idle but got $state", state is MarketOscillatorState.Idle)
     }
 
     // ==========================================================

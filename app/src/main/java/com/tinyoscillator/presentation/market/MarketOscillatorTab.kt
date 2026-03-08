@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -41,23 +40,12 @@ fun MarketOscillatorTab(
     val oversoldThreshold by viewModel.oversoldThreshold.collectAsState()
     val needsCredentials by viewModel.needsCredentials.collectAsState()
 
-    var showInitDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
 
     if (needsCredentials) {
         MarketKrxCredentialDialog(
             onDismiss = { /* can't dismiss without credentials */ },
             onSave = { viewModel.onCredentialsSaved() }
-        )
-    }
-
-    if (showInitDialog) {
-        InitializeDialog(
-            onDismiss = { showInitDialog = false },
-            onConfirm = { days ->
-                showInitDialog = false
-                viewModel.initialize(days)
-            }
         )
     }
 
@@ -187,7 +175,7 @@ fun MarketOscillatorTab(
                 }
             }
             is MarketOscillatorState.Idle -> {
-                if (!currentState.hasData) {
+                if (!currentState.hasData || marketData.isEmpty()) {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -195,32 +183,11 @@ fun MarketOscillatorTab(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                "시장 데이터가 없습니다.\n데이터를 수집해주세요.",
+                                "설정 > Schedule에서 데이터를 수집해주세요.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
                             )
-                            Button(onClick = { showInitDialog = true }) {
-                                Text("데이터 수집")
-                            }
-                        }
-                    }
-                } else if (marketData.isEmpty()) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                "$selectedMarket 데이터가 없습니다.\n데이터를 수집해주세요.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
-                            Button(onClick = { showInitDialog = true }) {
-                                Text("데이터 수집")
-                            }
                         }
                     }
                 }
@@ -433,77 +400,6 @@ fun DateRangeSelector(
             )
         }
     }
-}
-
-@Composable
-private fun InitializeDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (Int) -> Unit
-) {
-    val periodOptions = listOf(
-        Triple(30, "1개월 (권장)", "약 30일"),
-        Triple(60, "2개월", "약 60일"),
-        Triple(90, "3개월", "약 90일")
-    )
-
-    var selectedDays by remember { mutableStateOf(30) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("시장 과매수/과매도 초기화") },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text("코스피/코스닥 데이터 수집 기간을 선택하세요.", style = MaterialTheme.typography.bodyMedium)
-
-                Spacer(Modifier.height(8.dp))
-
-                periodOptions.forEach { (days, label, desc) ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = selectedDays == days,
-                                onClick = { selectedDays = days }
-                            )
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedDays == days,
-                            onClick = { selectedDays = days }
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text(label, style = MaterialTheme.typography.bodyLarge)
-                            Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(8.dp))
-
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        "데이터 수집에는 선택한 기간에 따라 30초-2분 정도 소요됩니다.",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(8.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(selectedDays) }) { Text("수집 시작") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("나중에") }
-        }
-    )
 }
 
 @Composable

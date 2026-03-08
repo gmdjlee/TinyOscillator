@@ -220,7 +220,7 @@ class MarketIndicatorRepository(
      * 스마트 업데이트: 캐시 TTL 확인 후 필요 시 스크래핑
      */
     suspend fun getOrUpdateMarketData(
-        limit: Int = 500,
+        daysBack: Int = 365,
         onProgress: ((String, Int) -> Unit)? = null
     ): MarketDepositChartData? =
         withContext(Dispatchers.IO) {
@@ -235,10 +235,11 @@ class MarketIndicatorRepository(
                     return@withContext convertToChartData(existingDeposits)
                 }
 
-                onProgress?.invoke("자금 동향 데이터 수집 중...", 30)
-                Timber.d("Fetching latest market deposit data from Naver Finance...")
+                val numPages = (daysBack / 20).coerceIn(1, 50)
+                onProgress?.invoke("자금 동향 데이터 수집 중 (${numPages}페이지)...", 30)
+                Timber.d("Fetching market deposit data: daysBack=$daysBack, numPages=$numPages")
                 val latestData = try {
-                    scraper.getLatestData()
+                    scraper.scrapeDepositData(numPages)
                 } catch (e: Exception) {
                     Timber.e(e, "Naver Finance scraping failed")
                     if (existingDeposits.isNotEmpty()) {
@@ -289,11 +290,7 @@ class MarketIndicatorRepository(
         val lastUpdate = deposits.maxOfOrNull { it.lastUpdated } ?: 0L
         val hoursSinceUpdate = (System.currentTimeMillis() - lastUpdate) / (1000 * 60 * 60)
 
-        if (hoursSinceUpdate >= DATA_EXPIRY_HOURS) return true
-
-        val today = LocalDate.now().toString()
-        val latestDate = deposits.maxOfOrNull { it.date } ?: ""
-        return latestDate != today
+        return hoursSinceUpdate >= DATA_EXPIRY_HOURS
     }
 
     private fun convertToChartData(deposits: List<MarketDepositEntity>): MarketDepositChartData {

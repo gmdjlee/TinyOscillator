@@ -320,7 +320,7 @@ class MarketIndicatorRepositoryTest {
         assertNotNull(result)
         assertEquals(1, result!!.dates.size)
         assertEquals(today, result.dates.first())
-        coVerify(exactly = 0) { scraper.getLatestData() }
+        coVerify(exactly = 0) { scraper.scrapeDepositData(any()) }
     }
 
     @Test
@@ -336,12 +336,12 @@ class MarketIndicatorRepositoryTest {
             flowOf(emptyList()),
             flowOf(newEntities)
         )
-        coEvery { scraper.getLatestData() } returns freshData
+        coEvery { scraper.scrapeDepositData(any()) } returns freshData
 
         val result = repository.getOrUpdateMarketData()
 
         assertNotNull(result)
-        coVerify(exactly = 1) { scraper.getLatestData() }
+        coVerify(exactly = 1) { scraper.scrapeDepositData(any()) }
         coVerify(exactly = 1) { depositDao.insertAndCleanup(any(), any()) }
     }
 
@@ -361,12 +361,12 @@ class MarketIndicatorRepositoryTest {
             flowOf(oldEntities),
             flowOf(updatedEntities)
         )
-        coEvery { scraper.getLatestData() } returns freshData
+        coEvery { scraper.scrapeDepositData(any()) } returns freshData
 
         val result = repository.getOrUpdateMarketData()
 
         assertNotNull(result)
-        coVerify(exactly = 1) { scraper.getLatestData() }
+        coVerify(exactly = 1) { scraper.scrapeDepositData(any()) }
     }
 
     @Test
@@ -377,7 +377,7 @@ class MarketIndicatorRepositoryTest {
         )
 
         coEvery { depositDao.getAllDeposits() } returns flowOf(existingEntities)
-        coEvery { scraper.getLatestData() } throws RuntimeException("Scraping failed")
+        coEvery { scraper.scrapeDepositData(any()) } throws RuntimeException("Scraping failed")
 
         val result = repository.getOrUpdateMarketData()
 
@@ -389,7 +389,7 @@ class MarketIndicatorRepositoryTest {
     @Test
     fun `getOrUpdateMarketData - 스크래핑 실패 시 캐시도 없으면 null을 반환한다`() = runTest {
         coEvery { depositDao.getAllDeposits() } returns flowOf(emptyList())
-        coEvery { scraper.getLatestData() } throws RuntimeException("Scraping failed")
+        coEvery { scraper.scrapeDepositData(any()) } throws RuntimeException("Scraping failed")
 
         val result = repository.getOrUpdateMarketData()
 
@@ -404,7 +404,7 @@ class MarketIndicatorRepositoryTest {
         )
 
         coEvery { depositDao.getAllDeposits() } returns flowOf(existingEntities)
-        coEvery { scraper.getLatestData() } returns null
+        coEvery { scraper.scrapeDepositData(any()) } returns null
 
         val result = repository.getOrUpdateMarketData()
 
@@ -415,7 +415,7 @@ class MarketIndicatorRepositoryTest {
     @Test
     fun `getOrUpdateMarketData - scraper가 null 반환하고 캐시도 없으면 null을 반환한다`() = runTest {
         coEvery { depositDao.getAllDeposits() } returns flowOf(emptyList())
-        coEvery { scraper.getLatestData() } returns null
+        coEvery { scraper.scrapeDepositData(any()) } returns null
 
         val result = repository.getOrUpdateMarketData()
 
@@ -423,28 +423,19 @@ class MarketIndicatorRepositoryTest {
     }
 
     @Test
-    fun `getOrUpdateMarketData - 날짜가 오늘이 아니면 업데이트를 수행한다`() = runTest {
-        val recentTimestamp = System.currentTimeMillis() - 1000 // 1초 전 (시간은 만료 안됨)
+    fun `getOrUpdateMarketData - TTL 이내이면 날짜와 무관하게 스크래핑하지 않는다`() = runTest {
+        val recentTimestamp = System.currentTimeMillis() - 1000 // 1초 전 (TTL 이내)
         val yesterday = java.time.LocalDate.now().minusDays(1).toString()
         val existingEntities = listOf(
             createDepositEntity(date = yesterday, lastUpdated = recentTimestamp)
         )
-        val freshData = createDepositChartData()
-        val updatedEntities = listOf(
-            createDepositEntity(date = yesterday),
-            createDepositEntity(date = java.time.LocalDate.now().toString())
-        )
-
-        coEvery { depositDao.getAllDeposits() } returnsMany listOf(
-            flowOf(existingEntities),
-            flowOf(updatedEntities)
-        )
-        coEvery { scraper.getLatestData() } returns freshData
+        coEvery { depositDao.getAllDeposits() } returns flowOf(existingEntities)
 
         val result = repository.getOrUpdateMarketData()
 
         assertNotNull(result)
-        coVerify(exactly = 1) { scraper.getLatestData() }
+        assertEquals(1, result!!.dates.size)
+        coVerify(exactly = 0) { scraper.scrapeDepositData(any()) }
     }
 
     // ==========================================================

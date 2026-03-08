@@ -611,13 +611,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 isDepositCollecting = true
                                 depositManualMessage = "자금 동향 업데이트를 시작합니다."
                                 try {
+                                    val depositPeriod = loadMarketDepositCollectionPeriod(context)
                                     val result = marketIndicatorRepository.getOrUpdateMarketData(
+                                        daysBack = depositPeriod.daysBack,
                                         onProgress = { message, _ ->
                                             depositManualMessage = message
                                         }
                                     )
                                     depositManualMessage = if (result != null) {
-                                        "완료: ${result.dates.size}건 데이터"
+                                        "완료: ${result.dates.size}건 데이터 (${depositPeriod.daysBack}일)"
                                     } else {
                                         "자금 동향 업데이트 실패"
                                     }

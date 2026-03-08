@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
+import com.tinyoscillator.presentation.settings.loadMarketDepositCollectionPeriod
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import timber.log.Timber
@@ -19,7 +20,8 @@ class MarketDepositUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.d("자금 동향 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
-        val chartData = repository.getOrUpdateMarketData(limit = 500)
+        val period = loadMarketDepositCollectionPeriod(applicationContext)
+        val chartData = repository.getOrUpdateMarketData(daysBack = period.daysBack)
         return if (chartData != null) {
             Timber.d("자금 동향 업데이트 완료: ${chartData.dates.size} records")
             Result.success()

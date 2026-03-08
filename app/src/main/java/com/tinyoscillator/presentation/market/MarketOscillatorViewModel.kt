@@ -10,15 +10,12 @@ import com.tinyoscillator.domain.model.MarketOscillatorState
 import com.tinyoscillator.presentation.settings.loadKrxCredentials
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -26,10 +23,6 @@ class MarketOscillatorViewModel @Inject constructor(
     private val repository: MarketIndicatorRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
-
-    companion object {
-        private const val KRX_RATE_LIMIT_COOLDOWN_MS = 5000L
-    }
 
     private val _state = MutableStateFlow<MarketOscillatorState>(MarketOscillatorState.Loading)
     val state: StateFlow<MarketOscillatorState> = _state.asStateFlow()
@@ -114,80 +107,6 @@ class MarketOscillatorViewModel @Inject constructor(
 
     fun onOversoldThresholdChanged(threshold: Double) {
         _oversoldThreshold.value = threshold
-    }
-
-    /**
-     * 초기 데이터 수집 (KOSPI → KOSDAQ 순차)
-     */
-    fun initialize(days: Int = 30) {
-        viewModelScope.launch {
-            val creds = loadKrxCredentials(context)
-            if (creds.id.isBlank() || creds.password.isBlank()) {
-                _needsCredentials.value = true
-                return@launch
-            }
-
-            _state.value = MarketOscillatorState.Initializing("시장 데이터 수집 중...", 0)
-
-            val (kospiResult, kosdaqResult) = withContext(NonCancellable) {
-                _state.value = MarketOscillatorState.Initializing("KOSPI 데이터 수집 중...", 25)
-                val kospi = repository.initializeMarketData("KOSPI", days, creds.id, creds.password)
-
-                _state.value = MarketOscillatorState.Initializing("KRX 서버 대기 중...", 45)
-                delay(KRX_RATE_LIMIT_COOLDOWN_MS)
-
-                _state.value = MarketOscillatorState.Initializing("KOSDAQ 데이터 수집 중...", 50)
-                val kosdaq = repository.initializeMarketData("KOSDAQ", days, creds.id, creds.password)
-                Pair(kospi, kosdaq)
-            }
-
-            if (kospiResult.isSuccess && kosdaqResult.isSuccess) {
-                val kospiCount = kospiResult.getOrNull() ?: 0
-                val kosdaqCount = kosdaqResult.getOrNull() ?: 0
-                _state.value = MarketOscillatorState.Success(
-                    "KOSPI: $kospiCount, KOSDAQ: $kosdaqCount 개의 데이터를 수집했습니다"
-                )
-                checkData()
-            } else {
-                val error = kospiResult.exceptionOrNull() ?: kosdaqResult.exceptionOrNull()
-                _state.value = MarketOscillatorState.Error("데이터 수집 실패: ${error?.message}")
-            }
-        }
-    }
-
-    /**
-     * 데이터 업데이트 (최근 30일)
-     */
-    fun update() {
-        viewModelScope.launch {
-            val creds = loadKrxCredentials(context)
-            if (creds.id.isBlank() || creds.password.isBlank()) {
-                _needsCredentials.value = true
-                return@launch
-            }
-
-            _state.value = MarketOscillatorState.Updating("시장 데이터 업데이트 중...")
-
-            val (kospiResult, kosdaqResult) = withContext(NonCancellable) {
-                val kospi = repository.updateMarketData("KOSPI", creds.id, creds.password)
-                _state.value = MarketOscillatorState.Updating("KRX 서버 대기 중...")
-                delay(KRX_RATE_LIMIT_COOLDOWN_MS)
-                val kosdaq = repository.updateMarketData("KOSDAQ", creds.id, creds.password)
-                Pair(kospi, kosdaq)
-            }
-
-            if (kospiResult.isSuccess && kosdaqResult.isSuccess) {
-                val kospiCount = kospiResult.getOrNull() ?: 0
-                val kosdaqCount = kosdaqResult.getOrNull() ?: 0
-                _state.value = MarketOscillatorState.Success(
-                    "KOSPI: $kospiCount, KOSDAQ: $kosdaqCount 개의 데이터를 업데이트했습니다"
-                )
-                checkData()
-            } else {
-                val error = kospiResult.exceptionOrNull() ?: kosdaqResult.exceptionOrNull()
-                _state.value = MarketOscillatorState.Error("업데이트 실패: ${error?.message}")
-            }
-        }
     }
 
     fun clearMessage() {
