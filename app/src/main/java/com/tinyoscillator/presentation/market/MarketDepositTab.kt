@@ -45,11 +45,29 @@ fun MarketDepositTab(
             // State Display
             when (val currentState = state) {
                 is MarketDepositState.Loading -> {
-                    Box(
+                    Column(
                         modifier = Modifier.fillMaxWidth().height(200.dp),
-                        contentAlignment = Alignment.Center
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        CircularProgressIndicator()
+                        if (currentState.progress in 0..100) {
+                            LinearProgressIndicator(
+                                progress = { currentState.progress / 100f },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+                            )
+                        } else {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+                            )
+                        }
+                        if (currentState.message.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                currentState.message,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 is MarketDepositState.Success -> {

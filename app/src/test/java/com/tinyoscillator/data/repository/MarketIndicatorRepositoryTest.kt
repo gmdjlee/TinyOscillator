@@ -194,8 +194,7 @@ class MarketIndicatorRepositoryTest {
 
         assertTrue(result.isSuccess)
         assertEquals(2, result.getOrThrow())
-        coVerify(exactly = 1) { oscillatorDao.insertAll(any()) }
-        coVerify(exactly = 1) { oscillatorDao.deleteOldData(testMarket, 90) }
+        coVerify(exactly = 1) { oscillatorDao.insertAndCleanup(any(), testMarket, 90) }
     }
 
     @Test
@@ -254,8 +253,7 @@ class MarketIndicatorRepositoryTest {
 
         assertTrue(result.isSuccess)
         assertEquals(2, result.getOrThrow())
-        coVerify(exactly = 1) { depositDao.deleteAll() }
-        coVerify(exactly = 1) { depositDao.insertAll(any()) }
+        coVerify(exactly = 1) { depositDao.insertAndCleanup(any(), any()) }
     }
 
     @Test
@@ -344,7 +342,7 @@ class MarketIndicatorRepositoryTest {
 
         assertNotNull(result)
         coVerify(exactly = 1) { scraper.getLatestData() }
-        coVerify(exactly = 1) { depositDao.insertAll(any()) }
+        coVerify(exactly = 1) { depositDao.insertAndCleanup(any(), any()) }
     }
 
     @Test

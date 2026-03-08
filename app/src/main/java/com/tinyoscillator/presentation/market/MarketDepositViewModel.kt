@@ -20,7 +20,7 @@ class MarketDepositViewModel @Inject constructor(
     private val repository: MarketIndicatorRepository
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow<MarketDepositState>(MarketDepositState.Loading)
+    private val _state = MutableStateFlow<MarketDepositState>(MarketDepositState.Loading())
     val state: StateFlow<MarketDepositState> = _state.asStateFlow()
 
     private val _selectedRange = MutableStateFlow(DateRangeOption.DEFAULT)
@@ -43,12 +43,14 @@ class MarketDepositViewModel @Inject constructor(
 
     private suspend fun loadDataByRange(range: DateRangeOption) {
         try {
-            _state.value = MarketDepositState.Loading
+            _state.value = MarketDepositState.Loading()
 
             val (startDate, endDate) = DateRangeOption.calculateDateRange(range)
 
             // 스마트 업데이트 (캐시 확인 후 필요 시 스크래핑)
-            repository.getOrUpdateMarketData(limit = 500)
+            repository.getOrUpdateMarketData(limit = 500) { message, progress ->
+                _state.value = MarketDepositState.Loading(message, progress)
+            }
 
             // 날짜 범위로 데이터 조회
             repository.getDepositsByDateRange(startDate, endDate)

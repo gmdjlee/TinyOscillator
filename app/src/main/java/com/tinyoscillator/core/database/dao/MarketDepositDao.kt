@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.tinyoscillator.core.database.entity.MarketDepositEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -30,4 +31,13 @@ interface MarketDepositDao {
 
     @Query("SELECT COUNT(*) FROM market_deposits")
     suspend fun getCount(): Int
+
+    @Query("DELETE FROM market_deposits WHERE date < :cutoffDate")
+    suspend fun deleteOldData(cutoffDate: String)
+
+    @Transaction
+    suspend fun insertAndCleanup(deposits: List<MarketDepositEntity>, cutoffDate: String) {
+        insertAll(deposits)
+        deleteOldData(cutoffDate)
+    }
 }

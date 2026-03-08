@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.tinyoscillator.core.database.entity.MarketOscillatorEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -30,4 +31,10 @@ interface MarketOscillatorDao {
 
     @Query("DELETE FROM market_oscillator")
     suspend fun deleteAll()
+
+    @Transaction
+    suspend fun insertAndCleanup(data: List<MarketOscillatorEntity>, market: String, keepDays: Int) {
+        insertAll(data)
+        deleteOldData(market, keepDays)
+    }
 }

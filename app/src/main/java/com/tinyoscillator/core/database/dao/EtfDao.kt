@@ -1,5 +1,6 @@
 package com.tinyoscillator.core.database.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -13,6 +14,16 @@ import com.tinyoscillator.domain.model.StockAggregatedTimePoint
 import com.tinyoscillator.domain.model.StockInEtfRow
 import com.tinyoscillator.domain.model.StockSearchResult
 import kotlinx.coroutines.flow.Flow
+
+data class DateEtfCount(
+    val date: String,
+    @ColumnInfo(name = "etfCount") val etfCount: Int
+)
+
+data class EtfDatePair(
+    @ColumnInfo(name = "etf_ticker") val etfTicker: String,
+    val date: String
+)
 
 @Dao
 interface EtfDao {
@@ -31,6 +42,15 @@ interface EtfDao {
 
     @Query("SELECT MAX(date) FROM etf_holdings")
     suspend fun getLatestDate(): String?
+
+    @Query("SELECT date, COUNT(DISTINCT etf_ticker) as etfCount FROM etf_holdings GROUP BY date")
+    suspend fun getHoldingsCountByDate(): List<DateEtfCount>
+
+    @Query("SELECT DISTINCT etf_ticker, date FROM etf_holdings")
+    suspend fun getExistingHoldingPairs(): List<EtfDatePair>
+
+    @Query("DELETE FROM etf_holdings WHERE date = :date")
+    suspend fun deleteHoldingsForDate(date: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHoldings(holdings: List<EtfHoldingEntity>)

@@ -374,7 +374,7 @@ class MarketIndicatorModelsTest {
 
     @Test
     fun `MarketDepositState - Loading 인스턴스 확인`() {
-        val state: MarketDepositState = MarketDepositState.Loading
+        val state: MarketDepositState = MarketDepositState.Loading()
         assertTrue(state is MarketDepositState.Loading)
     }
 

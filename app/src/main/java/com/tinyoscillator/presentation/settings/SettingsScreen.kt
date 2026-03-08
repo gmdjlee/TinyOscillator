@@ -29,11 +29,15 @@ import com.tinyoscillator.core.api.KisApiKeyConfig
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
 import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.worker.WorkManagerHelper
+import com.tinyoscillator.data.repository.EtfRepository
+import com.tinyoscillator.data.repository.MarketIndicatorRepository
+import com.tinyoscillator.domain.model.EtfDataProgress
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.cancellation.CancellationException
@@ -270,6 +274,8 @@ suspend fun loadKisConfig(context: Context): KisApiKeyConfig = withContext(Dispa
 @InstallIn(SingletonComponent::class)
 interface SettingsEntryPoint {
     fun appDatabase(): AppDatabase
+    fun etfRepository(): EtfRepository
+    fun marketIndicatorRepository(): MarketIndicatorRepository
 }
 
 private val TAB_TITLES = listOf("API", "ETF", "시장지표", "Schedule", "Backup")
@@ -317,6 +323,62 @@ fun SettingsScreen(onBack: () -> Unit) {
     var marketDepositCollectionDays by remember { mutableIntStateOf(365) }
 
     var saveMessage by remember { mutableStateOf<String?>(null) }
+
+    var etfCollectProgress by remember { mutableStateOf<Float?>(null) }
+    var isEtfCollecting by remember { mutableStateOf(false) }
+    var isOscCollecting by remember { mutableStateOf(false) }
+    var isDepositCollecting by remember { mutableStateOf(false) }
+
+    val entryPoint = remember {
+        EntryPointAccessors.fromApplication(context.applicationContext, SettingsEntryPoint::class.java)
+    }
+    val etfRepository = remember { entryPoint.etfRepository() }
+    val marketIndicatorRepository = remember { entryPoint.marketIndicatorRepository() }
+
+    val collectEtfData: (String?, (String?) -> Unit) -> Unit = { initialMessage, onMessageUpdate ->
+        if (!isEtfCollecting) {
+            scope.launch {
+                isEtfCollecting = true
+                etfCollectProgress = 0f
+                onMessageUpdate(initialMessage)
+                try {
+                    val creds = loadKrxCredentials(context)
+                    if (creds.id.isBlank() || creds.password.isBlank()) {
+                        onMessageUpdate("KRX 자격증명이 설정되지 않았습니다.")
+                        etfCollectProgress = null
+                        isEtfCollecting = false
+                        return@launch
+                    }
+                    val keywords = loadEtfKeywordFilter(context)
+                    val period = loadEtfCollectionPeriod(context)
+                    etfRepository.updateData(creds, keywords, daysBack = period.daysBack).collect { progress ->
+                        when (progress) {
+                            is EtfDataProgress.Loading -> {
+                                etfCollectProgress = progress.progress
+                                onMessageUpdate(progress.message)
+                            }
+                            is EtfDataProgress.Success -> {
+                                etfCollectProgress = null
+                                onMessageUpdate("완료: ETF ${progress.etfCount}개, 보유종목 ${progress.holdingCount}건")
+                            }
+                            is EtfDataProgress.Error -> {
+                                etfCollectProgress = null
+                                onMessageUpdate("오류: ${progress.message}")
+                            }
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    timber.log.Timber.e(e, "ETF 수집 오류 (${e.javaClass.simpleName})")
+                    etfCollectProgress = null
+                    onMessageUpdate("오류: ${e.message ?: e.javaClass.simpleName}")
+                } finally {
+                    isEtfCollecting = false
+                }
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         try {
@@ -449,9 +511,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                     },
                     onDismissExclude = { showAddExcludeDialog = false },
                     saveMessage = saveMessage,
+                    etfCollectProgress = etfCollectProgress,
+                    isEtfCollecting = isEtfCollecting,
                     onSave = {
                         scope.launch {
                             saveMessage = saveEtfSettings(context, includeKeywords, excludeKeywords, etfCollectionDays)
+                            collectEtfData(null) { msg -> saveMessage = msg }
                         }
                     }
                 )
@@ -475,9 +540,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     scheduleMinute = scheduleMinute,
                     onScheduleMinuteChange = { scheduleMinute = it },
                     manualCollectMessage = manualCollectMessage,
+                    etfCollectProgress = etfCollectProgress,
+                    isEtfCollecting = isEtfCollecting,
                     onManualCollect = {
-                        WorkManagerHelper.runEtfUpdateNow(context)
-                        manualCollectMessage = "ETF 데이터 수집을 시작합니다."
+                        collectEtfData("ETF 데이터 수집을 시작합니다.") { msg -> manualCollectMessage = msg }
                     },
                     oscScheduleEnabled = oscScheduleEnabled,
                     onOscScheduleEnabledChange = { oscScheduleEnabled = it },
@@ -486,9 +552,50 @@ fun SettingsScreen(onBack: () -> Unit) {
                     oscScheduleMinute = oscScheduleMinute,
                     onOscScheduleMinuteChange = { oscScheduleMinute = it },
                     oscManualMessage = oscManualMessage,
+                    isOscCollecting = isOscCollecting,
                     onOscManualCollect = {
-                        WorkManagerHelper.runOscillatorUpdateNow(context)
-                        oscManualMessage = "과매수/과매도 업데이트를 시작합니다."
+                        if (!isOscCollecting) {
+                            scope.launch {
+                                isOscCollecting = true
+                                oscManualMessage = "과매수/과매도 업데이트를 시작합니다."
+                                try {
+                                    val creds = loadKrxCredentials(context)
+                                    if (creds.id.isBlank() || creds.password.isBlank()) {
+                                        oscManualMessage = "KRX 자격증명이 설정되지 않았습니다."
+                                        return@launch
+                                    }
+                                    val period = loadMarketOscillatorCollectionPeriod(context)
+                                    val days = period.daysBack
+
+                                    oscManualMessage = "KOSPI 데이터 수집 중..."
+                                    val kospiResult = marketIndicatorRepository.updateMarketData("KOSPI", creds.id, creds.password, days)
+                                    if (kospiResult.isFailure) {
+                                        oscManualMessage = "KOSPI 업데이트 실패: ${kospiResult.exceptionOrNull()?.message}"
+                                        return@launch
+                                    }
+
+                                    delay(5000)
+
+                                    oscManualMessage = "KOSDAQ 데이터 수집 중..."
+                                    val kosdaqResult = marketIndicatorRepository.updateMarketData("KOSDAQ", creds.id, creds.password, days)
+                                    if (kosdaqResult.isFailure) {
+                                        oscManualMessage = "KOSDAQ 업데이트 실패: ${kosdaqResult.exceptionOrNull()?.message}"
+                                        return@launch
+                                    }
+
+                                    val kospiCount = kospiResult.getOrNull() ?: 0
+                                    val kosdaqCount = kosdaqResult.getOrNull() ?: 0
+                                    oscManualMessage = "완료: KOSPI ${kospiCount}건, KOSDAQ ${kosdaqCount}건 (${days}일)"
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    timber.log.Timber.e(e, "과매수/과매도 수집 오류")
+                                    oscManualMessage = "오류: ${e.message ?: e.javaClass.simpleName}"
+                                } finally {
+                                    isOscCollecting = false
+                                }
+                            }
+                        }
                     },
                     depositScheduleEnabled = depositScheduleEnabled,
                     onDepositScheduleEnabledChange = { depositScheduleEnabled = it },
@@ -497,9 +604,33 @@ fun SettingsScreen(onBack: () -> Unit) {
                     depositScheduleMinute = depositScheduleMinute,
                     onDepositScheduleMinuteChange = { depositScheduleMinute = it },
                     depositManualMessage = depositManualMessage,
+                    isDepositCollecting = isDepositCollecting,
                     onDepositManualCollect = {
-                        WorkManagerHelper.runDepositUpdateNow(context)
-                        depositManualMessage = "자금 동향 업데이트를 시작합니다."
+                        if (!isDepositCollecting) {
+                            scope.launch {
+                                isDepositCollecting = true
+                                depositManualMessage = "자금 동향 업데이트를 시작합니다."
+                                try {
+                                    val result = marketIndicatorRepository.getOrUpdateMarketData(
+                                        onProgress = { message, _ ->
+                                            depositManualMessage = message
+                                        }
+                                    )
+                                    depositManualMessage = if (result != null) {
+                                        "완료: ${result.dates.size}건 데이터"
+                                    } else {
+                                        "자금 동향 업데이트 실패"
+                                    }
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    timber.log.Timber.e(e, "자금 동향 수집 오류")
+                                    depositManualMessage = "오류: ${e.message ?: e.javaClass.simpleName}"
+                                } finally {
+                                    isDepositCollecting = false
+                                }
+                            }
+                        }
                     },
                     saveMessage = saveMessage,
                     onSave = {
@@ -512,12 +643,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     }
                 )
-                4 -> {
-                    val entryPoint = remember {
-                        EntryPointAccessors.fromApplication(context.applicationContext, SettingsEntryPoint::class.java)
-                    }
-                    BackupTab(db = entryPoint.appDatabase())
-                }
+                4 -> BackupTab(db = entryPoint.appDatabase())
             }
         }
     }
@@ -559,8 +685,7 @@ private suspend fun saveEtfSettings(
     return try {
         saveEtfKeywordFilter(context, EtfKeywordFilter(includeKeywords, excludeKeywords))
         saveEtfCollectionPeriod(context, EtfCollectionPeriod(collectionDays))
-        WorkManagerHelper.runEtfUpdateNow(context)
-        "저장되었습니다. 새 키워드 데이터를 수집합니다."
+        "저장되었습니다. 데이터를 수집합니다..."
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {
@@ -908,6 +1033,8 @@ private fun EtfTab(
     onAddExclude: (String) -> Unit,
     onDismissExclude: () -> Unit,
     saveMessage: String?,
+    etfCollectProgress: Float?,
+    isEtfCollecting: Boolean,
     onSave: () -> Unit
 ) {
     Column(
@@ -1025,7 +1152,8 @@ private fun EtfTab(
 
             Button(
                 onClick = onSave,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                enabled = !isEtfCollecting
             ) {
                 Text("저장")
             }
@@ -1036,6 +1164,13 @@ private fun EtfTab(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        etfCollectProgress?.let { progress ->
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
         saveMessage?.let { msg ->
             Text(
@@ -1060,7 +1195,9 @@ private fun ScheduleSection(
     onMinuteChange: (Int) -> Unit,
     manualButtonText: String,
     onManualCollect: () -> Unit,
-    message: String?
+    message: String?,
+    progress: Float? = null,
+    isCollecting: Boolean = false
 ) {
     Text(title, style = MaterialTheme.typography.titleMedium)
 
@@ -1111,9 +1248,17 @@ private fun ScheduleSection(
 
     OutlinedButton(
         onClick = onManualCollect,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !isCollecting
     ) {
         Text(manualButtonText)
+    }
+
+    progress?.let { p ->
+        LinearProgressIndicator(
+            progress = { p },
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 
     message?.let { msg ->
@@ -1134,6 +1279,8 @@ private fun ScheduleTab(
     scheduleMinute: Int,
     onScheduleMinuteChange: (Int) -> Unit,
     manualCollectMessage: String?,
+    etfCollectProgress: Float?,
+    isEtfCollecting: Boolean,
     onManualCollect: () -> Unit,
     oscScheduleEnabled: Boolean,
     onOscScheduleEnabledChange: (Boolean) -> Unit,
@@ -1142,6 +1289,7 @@ private fun ScheduleTab(
     oscScheduleMinute: Int,
     onOscScheduleMinuteChange: (Int) -> Unit,
     oscManualMessage: String?,
+    isOscCollecting: Boolean,
     onOscManualCollect: () -> Unit,
     depositScheduleEnabled: Boolean,
     onDepositScheduleEnabledChange: (Boolean) -> Unit,
@@ -1150,6 +1298,7 @@ private fun ScheduleTab(
     depositScheduleMinute: Int,
     onDepositScheduleMinuteChange: (Int) -> Unit,
     depositManualMessage: String?,
+    isDepositCollecting: Boolean,
     onDepositManualCollect: () -> Unit,
     saveMessage: String?,
     onSave: () -> Unit
@@ -1171,7 +1320,9 @@ private fun ScheduleTab(
             onMinuteChange = onScheduleMinuteChange,
             manualButtonText = "지금 ETF 데이터 수집",
             onManualCollect = onManualCollect,
-            message = manualCollectMessage
+            message = manualCollectMessage,
+            progress = etfCollectProgress,
+            isCollecting = isEtfCollecting
         )
 
         HorizontalDivider()
@@ -1186,7 +1337,8 @@ private fun ScheduleTab(
             onMinuteChange = onOscScheduleMinuteChange,
             manualButtonText = "지금 과매수/과매도 업데이트",
             onManualCollect = onOscManualCollect,
-            message = oscManualMessage
+            message = oscManualMessage,
+            isCollecting = isOscCollecting
         )
 
         HorizontalDivider()
@@ -1201,7 +1353,8 @@ private fun ScheduleTab(
             onMinuteChange = onDepositScheduleMinuteChange,
             manualButtonText = "지금 자금 동향 업데이트",
             onManualCollect = onDepositManualCollect,
-            message = depositManualMessage
+            message = depositManualMessage,
+            isCollecting = isDepositCollecting
         )
 
         HorizontalDivider()

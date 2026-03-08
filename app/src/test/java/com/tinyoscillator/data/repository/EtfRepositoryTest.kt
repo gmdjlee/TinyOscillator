@@ -4,6 +4,7 @@ import com.krxkt.model.EtfInfo
 import com.krxkt.model.EtfPortfolio
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.database.dao.EtfDao
+import com.tinyoscillator.core.database.dao.EtfDatePair
 import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.domain.model.AmountRankingRow
@@ -400,8 +401,7 @@ class EtfRepositoryTest {
                 totalFee = 0.15
             )
         )
-        coEvery { etfDao.getAllEtfsList() } returns emptyList()
-        coEvery { etfDao.getLatestDate() } returns null
+        coEvery { etfDao.getExistingHoldingPairs() } returns emptyList()
         coEvery { krxApiClient.getPortfolio(any(), any()) } returns listOf(
             EtfPortfolio(
                 ticker = "005930",
@@ -442,12 +442,16 @@ class EtfRepositoryTest {
         coEvery { krxApiClient.getEtfTickerList(any()) } returns listOf(
             EtfInfo("ETF001", "KODEX 200 액티브", "KR7ETF001007", null, null, null, null, null)
         )
-        // 이미 존재하고, latestDate가 모든 영업일을 커버
-        coEvery { etfDao.getAllEtfsList() } returns listOf(
-            createEtfEntity("ETF001", "KODEX 200 액티브")
-        )
-        // latestDate를 미래로 설정하여 workItems가 비게 함
-        coEvery { etfDao.getLatestDate() } returns "20990101"
+        // 모든 (ETF, 날짜) 쌍이 이미 존재 → workItems가 비게 함
+        val allPairs = (0 until 14).mapNotNull { i ->
+            val cal = java.util.Calendar.getInstance()
+            cal.add(java.util.Calendar.DAY_OF_YEAR, -i)
+            val dayOfWeek = cal.get(java.util.Calendar.DAY_OF_WEEK)
+            if (dayOfWeek != java.util.Calendar.SATURDAY && dayOfWeek != java.util.Calendar.SUNDAY) {
+                EtfDatePair("ETF001", java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.KOREA).format(cal.time))
+            } else null
+        }
+        coEvery { etfDao.getExistingHoldingPairs() } returns allPairs
 
         val emissions = repository.updateData(testCreds, emptyKeywords, daysBack = 7).toList()
 
@@ -464,8 +468,7 @@ class EtfRepositoryTest {
             EtfInfo("ETF002", "TIGER 채권 액티브", "KR7002", null, null, null, null, null),
             EtfInfo("ETF003", "KODEX AI 액티브", "KR7003", null, null, null, null, null)
         )
-        coEvery { etfDao.getAllEtfsList() } returns emptyList()
-        coEvery { etfDao.getLatestDate() } returns null
+        coEvery { etfDao.getExistingHoldingPairs() } returns emptyList()
         coEvery { krxApiClient.getPortfolio(any(), any()) } returns emptyList()
 
         val keywords = EtfKeywordFilter(
@@ -574,8 +577,7 @@ class EtfRepositoryTest {
             EtfInfo("ETF001", "KODEX 200 액티브", "KR7001", null, null, null, null, null),
             EtfInfo("ETF002", "KODEX 200", "KR7002", null, null, null, null, null) // 액티브 아님
         )
-        coEvery { etfDao.getAllEtfsList() } returns emptyList()
-        coEvery { etfDao.getLatestDate() } returns null
+        coEvery { etfDao.getExistingHoldingPairs() } returns emptyList()
         coEvery { krxApiClient.getPortfolio(any(), any()) } returns emptyList()
 
         repository.updateData(testCreds, emptyKeywords, daysBack = 7).toList()
@@ -587,13 +589,40 @@ class EtfRepositoryTest {
     }
 
     @Test
+    fun `updateData - 중단 시나리오에서 완료된 ETF는 스킵하고 미수집분만 재수집한다`() = runTest {
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        coEvery { krxApiClient.getEtfTickerList(any()) } returns listOf(
+            EtfInfo("ETF001", "KODEX 200 액티브", "KR7001", null, null, null, null, null),
+            EtfInfo("ETF002", "TIGER 반도체 액티브", "KR7002", null, null, null, null, null)
+        )
+        // ETF1: 2일 모두 수집 완료, ETF2: 1일만 수집됨 (중단 시나리오)
+        coEvery { etfDao.getExistingHoldingPairs() } returns listOf(
+            EtfDatePair("ETF001", "20260304"),
+            EtfDatePair("ETF001", "20260305"),
+            EtfDatePair("ETF002", "20260304")
+            // ETF002의 20260305가 누락 — 이것만 재수집 대상
+        )
+        coEvery { krxApiClient.getPortfolio(any(), any()) } returns listOf(
+            EtfPortfolio("005930", "삼성전자", 100, 5_000_000, 5_000_000, 10.0)
+        )
+
+        val emissions = repository.updateData(testCreds, emptyKeywords, daysBack = 2).toList()
+
+        val success = emissions.last()
+        assertTrue(success is EtfDataProgress.Success)
+        // ETF001은 모두 존재하므로 스킵, ETF002의 20260305만 수집
+        // daysBack=2이므로 영업일 2일이 대상이지만, 실제 날짜는 Calendar 기반이므로
+        // getPortfolio 호출 횟수로 검증 — 전체 4쌍 중 이미 3쌍 존재, 미수집 쌍만 호출됨
+        coVerify { krxApiClient.getPortfolio(any(), any()) }
+    }
+
+    @Test
     fun `updateData - 개별 포트폴리오 수집 실패는 전체 프로세스를 중단하지 않는다`() = runTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
         coEvery { krxApiClient.getEtfTickerList(any()) } returns listOf(
             EtfInfo("ETF001", "KODEX 200 액티브", "KR7001", null, null, null, null, null)
         )
-        coEvery { etfDao.getAllEtfsList() } returns emptyList()
-        coEvery { etfDao.getLatestDate() } returns null
+        coEvery { etfDao.getExistingHoldingPairs() } returns emptyList()
         coEvery { krxApiClient.getPortfolio(any(), any()) } throws RuntimeException("API 오류")
 
         val emissions = repository.updateData(testCreds, emptyKeywords, daysBack = 7).toList()

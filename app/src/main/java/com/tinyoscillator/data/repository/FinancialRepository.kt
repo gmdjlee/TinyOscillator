@@ -68,12 +68,18 @@ class FinancialRepository(
 
             // Merge: existing cache + fresh API data
             val mergedData = if (existingCache != null && freshData != null) {
+                Timber.i("재무 데이터 merge: %s (캐시 %d기간 + API %d기간)",
+                    ticker, existingCache.periods.size, freshData.periods.size)
                 mergeData(existingCache, freshData)
+            } else if (freshData == null && existingCache != null) {
+                Timber.w("API 수집 실패 → 기존 캐시 사용: %s (%d기간)", ticker, existingCache.periods.size)
+                existingCache
             } else {
                 freshData ?: existingCache
             }
 
             if (mergedData == null) {
+                Timber.e("재무 데이터 수집 완전 실패: %s (캐시 없음, API 실패)", ticker)
                 return Result.failure(Exception("재무정보를 가져올 수 없습니다."))
             }
 
@@ -199,6 +205,20 @@ class FinancialRepository(
                         FetchResults(bs.await(), is_.await(), pr.await(), sr.await(), gr.await())
                     }
                 }
+
+            val results = listOf(
+                "BalanceSheet" to balanceSheets.isNotEmpty(),
+                "IncomeStatement" to incomeStatements.isNotEmpty(),
+                "Profitability" to profitRatios.isNotEmpty(),
+                "Stability" to stabilityRatios.isNotEmpty(),
+                "Growth" to growthRatios.isNotEmpty()
+            )
+            val successCount = results.count { it.second }
+            if (successCount < results.size) {
+                val failed = results.filter { !it.second }.joinToString { it.first }
+                Timber.w("Partial API fetch for %s: %d/%d succeeded, failed: %s",
+                    ticker, successCount, results.size, failed)
+            }
 
             buildFinancialData(ticker, name, balanceSheets, incomeStatements, profitRatios, stabilityRatios, growthRatios)
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {

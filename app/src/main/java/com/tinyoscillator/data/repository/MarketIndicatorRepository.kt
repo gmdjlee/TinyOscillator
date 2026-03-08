@@ -21,6 +21,8 @@ import timber.log.Timber
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+private const val DEPOSIT_KEEP_DAYS = 365L
+
 /**
  * 시장지표 통합 Repository
  * - 과매수/과매도 (MarketOscillator)
@@ -99,9 +101,14 @@ class MarketIndicatorRepository(
             val dataList = toEntities(market, result)
 
             onProgress?.invoke("$market 데이터베이스 저장 중...", 90)
+            val existingCount = oscillatorDao.getDataCount(market)
             oscillatorDao.insertAll(dataList)
 
-            Timber.d("Initialized $market with ${dataList.size} data points")
+            if (existingCount > 0) {
+                Timber.i("$market 초기화 (기존 ${existingCount}건 위에 ${dataList.size}건 upsert)")
+            } else {
+                Timber.d("$market 초기 수집 완료: ${dataList.size}건")
+            }
             onProgress?.invoke("$market 완료", 100)
             Result.success(dataList.size)
         } catch (e: CancellationException) {
@@ -113,12 +120,13 @@ class MarketIndicatorRepository(
     }
 
     /**
-     * 데이터 업데이트 (최근 30일)
+     * 데이터 업데이트 (기본 최근 30일, days 파라미터로 조절 가능)
      */
     suspend fun updateMarketData(
         market: String,
         krxId: String,
-        krxPassword: String
+        krxPassword: String,
+        days: Int = 30
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             if (!krxApiClient.login(krxId, krxPassword)) {
@@ -126,7 +134,7 @@ class MarketIndicatorRepository(
             }
 
             val endDate = LocalDate.now()
-            val startDate = endDate.minusDays(30)
+            val startDate = endDate.minusDays(days.toLong())
             val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
 
             val result = calculator.analyze(market, startDate.format(formatter), endDate.format(formatter))
@@ -135,11 +143,12 @@ class MarketIndicatorRepository(
             }
 
             val dataList = toEntities(market, result)
+            val existingCount = oscillatorDao.getDataCount(market)
 
-            oscillatorDao.insertAll(dataList)
-            oscillatorDao.deleteOldData(market, DEFAULT_KEEP_DAYS)
+            oscillatorDao.insertAndCleanup(dataList, market, DEFAULT_KEEP_DAYS)
 
-            Timber.d("Updated $market with ${dataList.size} data points")
+            val afterCount = oscillatorDao.getDataCount(market)
+            Timber.i("$market 업데이트: ${dataList.size}건 upsert (기존 ${existingCount} → ${afterCount}건, ${DEFAULT_KEEP_DAYS}일 초과 정리)")
             Result.success(dataList.size)
         } catch (e: CancellationException) {
             throw e
@@ -190,8 +199,12 @@ class MarketIndicatorRepository(
             }
 
             onProgress?.invoke("데이터베이스 저장 중...", 90)
-            depositDao.deleteAll()
-            depositDao.insertAll(deposits)
+            val existingCount = depositDao.getCount()
+            val cutoffDate = LocalDate.now().minusDays(DEPOSIT_KEEP_DAYS).toString()
+            depositDao.insertAndCleanup(deposits, cutoffDate)
+            val afterCount = depositDao.getCount()
+
+            Timber.i("자금동향 초기화: ${deposits.size}건 upsert (기존 ${existingCount} → ${afterCount}건, $cutoffDate 이전 정리)")
 
             onProgress?.invoke("완료", 100)
             Result.success(deposits.size)
@@ -206,29 +219,40 @@ class MarketIndicatorRepository(
     /**
      * 스마트 업데이트: 캐시 TTL 확인 후 필요 시 스크래핑
      */
-    suspend fun getOrUpdateMarketData(limit: Int = 500): MarketDepositChartData? =
+    suspend fun getOrUpdateMarketData(
+        limit: Int = 500,
+        onProgress: ((String, Int) -> Unit)? = null
+    ): MarketDepositChartData? =
         withContext(Dispatchers.IO) {
             try {
+                onProgress?.invoke("캐시 확인 중...", 10)
                 val existingDeposits = depositDao.getAllDeposits().first()
                 val shouldUpdate = shouldUpdateMarketData(existingDeposits)
 
                 if (!shouldUpdate && existingDeposits.isNotEmpty()) {
                     Timber.d("Using cached market deposit data (${existingDeposits.size} records)")
+                    onProgress?.invoke("캐시 데이터 사용", 100)
                     return@withContext convertToChartData(existingDeposits)
                 }
 
+                onProgress?.invoke("자금 동향 데이터 수집 중...", 30)
                 Timber.d("Fetching latest market deposit data from Naver Finance...")
                 val latestData = try {
                     scraper.getLatestData()
                 } catch (e: Exception) {
                     Timber.e(e, "Naver Finance scraping failed")
+                    if (existingDeposits.isNotEmpty()) {
+                        Timber.w("스크래핑 실패 → 기존 캐시 ${existingDeposits.size}건으로 fallback")
+                    }
                     return@withContext if (existingDeposits.isNotEmpty()) convertToChartData(existingDeposits) else null
                 }
 
                 if (latestData == null) {
+                    Timber.w("스크래핑 null 반환 → 기존 캐시 ${existingDeposits.size}건으로 fallback")
                     return@withContext if (existingDeposits.isNotEmpty()) convertToChartData(existingDeposits) else null
                 }
 
+                onProgress?.invoke("데이터 처리 중...", 70)
                 val newDeposits = latestData.dates.mapIndexed { index, date ->
                     MarketDepositEntity(
                         date = date,
@@ -239,8 +263,15 @@ class MarketIndicatorRepository(
                     )
                 }
 
-                depositDao.insertAll(newDeposits)
+                onProgress?.invoke("데이터베이스 저장 중...", 90)
+                val beforeCount = depositDao.getCount()
+                val cutoffDate = LocalDate.now().minusDays(DEPOSIT_KEEP_DAYS).toString()
+                depositDao.insertAndCleanup(newDeposits, cutoffDate)
+                val afterCount = depositDao.getCount()
 
+                Timber.i("자금동향 업데이트: ${newDeposits.size}건 upsert (기존 ${beforeCount} → ${afterCount}건, $cutoffDate 이전 정리)")
+
+                onProgress?.invoke("완료", 100)
                 val updatedDeposits = depositDao.getAllDeposits().first()
                 convertToChartData(updatedDeposits)
             } catch (e: CancellationException) {

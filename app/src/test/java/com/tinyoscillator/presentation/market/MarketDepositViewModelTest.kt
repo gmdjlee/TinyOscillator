@@ -47,7 +47,7 @@ class MarketDepositViewModelTest {
         repository = mockk(relaxed = true)
 
         // Default: getOrUpdateMarketData returns null (no-op)
-        coEvery { repository.getOrUpdateMarketData(any()) } returns null
+        coEvery { repository.getOrUpdateMarketData(any(), any()) } returns null
     }
 
     @After
@@ -71,7 +71,7 @@ class MarketDepositViewModelTest {
 
         viewModel = createViewModel()
 
-        assertEquals(MarketDepositState.Loading, viewModel.state.value)
+        assertEquals(MarketDepositState.Loading(), viewModel.state.value)
     }
 
     @Test
@@ -132,7 +132,7 @@ class MarketDepositViewModelTest {
 
     @Test
     fun `getOrUpdateMarketData 예외 시 Error 상태가 된다`() = runTest {
-        coEvery { repository.getOrUpdateMarketData(any()) } throws RuntimeException("네트워크 오류")
+        coEvery { repository.getOrUpdateMarketData(any(), any()) } throws RuntimeException("네트워크 오류")
         every { repository.getDepositsByDateRange(any(), any()) } returns flowOf(emptyList())
 
         viewModel = createViewModel()

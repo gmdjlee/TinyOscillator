@@ -87,10 +87,6 @@ class EtfRepository(
             }
             Timber.d("3단계 포함 키워드 적용: ${step2Excluded.size} → ${filteredEtfs.size}개")
 
-            // Determine new vs existing ETFs
-            val existingTickers = etfDao.getAllEtfsList().map { it.ticker }.toSet()
-            val newEtfTickers = filteredEtfs.filter { it.ticker !in existingTickers }.map { it.ticker }.toSet()
-
             // Save ETF entities (upsert, no delete)
             val etfEntities = filteredEtfs.map { etf ->
                 EtfEntity(
@@ -103,21 +99,32 @@ class EtfRepository(
             }
             etfDao.insertEtfs(etfEntities)
 
-            // For existing ETFs: only new dates. For new ETFs: all dates in range.
-            val latestInDb = etfDao.getLatestDate()
-            val newDatesForExisting = if (latestInDb != null) dates.filter { it > latestInDb } else dates
+            // Pair-based incremental logic:
+            // Check which (etf_ticker, date) pairs already exist in DB
+            val existingPairs = etfDao.getExistingHoldingPairs()
+                .map { "${it.etfTicker}|${it.date}" }.toSet()
 
-            // Build work items per ETF: new ETFs get all dates, existing ETFs get only new dates
             data class WorkItem(val ticker: String, val name: String, val date: String)
             val workItems = mutableListOf<WorkItem>()
             for (etf in filteredEtfs) {
-                val etfDates = if (etf.ticker in newEtfTickers) dates else newDatesForExisting
-                for (date in etfDates) {
-                    workItems.add(WorkItem(etf.ticker, etf.name, date))
+                for (date in dates) {
+                    if ("${etf.ticker}|$date" !in existingPairs) {
+                        workItems.add(WorkItem(etf.ticker, etf.name, date))
+                    }
+                }
+            }
+
+            val skippedCount = (filteredEtfs.size * dates.size) - workItems.size
+            Timber.i("수집 대상: ${workItems.size}건, 스킵: ${skippedCount}건 (이미 수집됨)")
+            if (workItems.isNotEmpty()) {
+                val byEtf = workItems.groupBy { it.ticker }
+                for ((ticker, items) in byEtf.entries.take(5)) {
+                    Timber.d("  $ticker: ${items.size}/${dates.size}일 수집 필요")
                 }
             }
 
             if (workItems.isEmpty()) {
+                Timber.d("수집 대상 없음 — 모든 데이터 완결")
                 emit(EtfDataProgress.Success(filteredEtfs.size, 0))
                 return@flow
             }
@@ -126,6 +133,7 @@ class EtfRepository(
 
             // Fetch holdings for each work item
             var totalHoldings = 0
+            var failedOps = 0
             val totalOps = workItems.size
             var completedOps = 0
 
@@ -148,6 +156,7 @@ class EtfRepository(
                         totalHoldings += holdings.size
                     }
                 } catch (e: Exception) {
+                    failedOps++
                     Timber.w(e, "구성종목 수집 실패: ${item.ticker} / ${item.date}")
                 }
 
@@ -161,6 +170,12 @@ class EtfRepository(
                 delay(500) // Rate limit
             }
 
+            if (failedOps > 0) {
+                Timber.w("수집 완료: 성공=${completedOps - failedOps}, 실패=$failedOps, 총 holdings=$totalHoldings (다음 실행 시 실패 항목 재수집)")
+            } else {
+                Timber.i("수집 완료: 전체 ${completedOps}건 성공, 총 holdings=$totalHoldings")
+            }
+
             // Cleanup old data (>365 days)
             val cutoffDate = getCutoffDate(365)
             etfDao.deleteHoldingsBeforeDate(cutoffDate)
@@ -168,9 +183,13 @@ class EtfRepository(
             emit(EtfDataProgress.Success(filteredEtfs.size, totalHoldings))
         } catch (e: Exception) {
             Timber.e(e, "ETF 데이터 수집 실패")
-            emit(EtfDataProgress.Error("데이터 수집 실패: ${e.message}"))
+            emit(EtfDataProgress.Error("데이터 수집 실패: ${e.message ?: e.javaClass.simpleName}"))
         } finally {
-            krxApiClient.close()
+            try {
+                krxApiClient.close()
+            } catch (e: Exception) {
+                Timber.w(e, "KRX 클라이언트 close 실패")
+            }
         }
     }
 

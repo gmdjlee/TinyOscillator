@@ -121,7 +121,7 @@ sealed class MarketOscillatorState {
  */
 sealed class MarketDepositState {
     data object Idle : MarketDepositState()
-    data object Loading : MarketDepositState()
+    data class Loading(val message: String = "", val progress: Int = -1) : MarketDepositState()
     data class Success(val message: String) : MarketDepositState()
     data class Error(val message: String) : MarketDepositState()
 }
