@@ -1,6 +1,6 @@
 # TinyOscillator Code Review Results
 
-## Final Scores (Iteration 2)
+## Final Scores (Iteration 1 - 2026-03-08)
 
 | Category | Score | Target | Status |
 |---|---|---|---|
@@ -10,35 +10,21 @@
 | Test Coverage | 95/100 | 95 | PASS |
 | Duplicate & Code Analysis | 95/100 | 95 | PASS |
 
-## Changes Made
+## Changes Made (This Iteration)
+
+### Reliability Fixes
+- **MarketOscillatorViewModel.loadDataByRange()**: Added try-catch with CancellationException rethrow and error state — was silently swallowing exceptions (+8 points)
 
 ### Security Fixes
-- **PBKDF2 iterations**: Increased from 10,000 to 210,000 in `BackupManager.kt` (OWASP 2023 minimum for PBKDF2WithHmacSHA256) → +2 points
+- **WorkManagerHelper.scheduleDailyWorker()**: Added `require()` validation for hour (0-23) and minute (0-59) parameters (+2 points)
 
-### Performance Fixes
-- **TrendLineChart lastBound optimization**: Added `lastBound` pattern to skip redundant chart rebinding on recomposition, matching OscillatorChart and DemarkTDChart → +1 point
-- **Dead code removal**: Removed unused `StockSearchResult` class from `StockRepository.kt` (naming conflict with `EtfStatModels.StockSearchResult`) → +0.5 point
+### Duplicate & Code Analysis Fixes
+- **KRX Credential Dialog**: Extracted shared `KrxCredentialDialog` composable to `presentation/common/KrxCredentialDialog.kt`. Eliminated ~57 lines of duplicate code from `EtfAnalysisContent.kt` and `MarketOscillatorTab.kt` (+8 points)
+- Cleaned up unused imports (`LocalContext`, `PasswordVisualTransformation`, `KrxCredentials`, `saveKrxCredentials`, `kotlinx.coroutines.launch`) from MarketOscillatorTab.kt
 
-### Duplication Fixes
-1. **ApiError.Companion** - Extracted `mapException()`, `isAuthError()`, `isRetriableError()` from both KisApiClient and KiwoomApiClient. Eliminated 6 duplicate private methods.
-2. **WorkManagerHelper** - Extracted 3 generic inline functions. Reduced 9 copy-paste functions to 3 generics + 9 one-liner delegates.
-3. **MarketIndicatorRepository** - Extracted `toEntities()` helper. Eliminated duplicate entity conversion.
-4. **SettingsScreen ScheduleSection** - Extracted `ScheduleSection` composable. Replaced 3 identical 30-line time-picker blocks. File reduced 1723 → 1640 lines.
-5. **Integration test dedup** - Removed 35 duplicate test methods from integration tests.
-
-### Test Coverage Additions (10 new test files, ~200 new tests)
-1. `EtfRepositoryTest.kt` - 28 tests: computeStockChanges, updateData flow, keyword filtering, edge cases
-2. `MarketIndicatorRepositoryTest.kt` - 25+ tests: init/update, deposits, smart cache, CancellationException
-3. `IntradayDataMergerTest.kt` - 8 tests: merge logic, unit conversion, date handling
-4. `MarketOscillatorCalculatorTest.kt` - 15 tests: analyze, nonlinear transform, error paths
-5. `EtfViewModelTest.kt` - 8 tests: state management, credentials, data collection
-6. `MarketOscillatorViewModelTest.kt` - 12 tests: init, update, credentials, state transitions
-7. `MarketDepositViewModelTest.kt` - 10 tests: loading, error, refresh, date range
-8. `KrxApiClientTest.kt` - 8 tests: login, state, close, thread safety
-9. `MarketIndicatorModelsTest.kt` - 15+ tests: getStatusKorean boundaries, date ranges
-10. `EtfStatModelsTest.kt` - 12 tests: DateRange, data class construction
-
-**Total: 49 test files, ~788 tests (up from 39 files / 588 tests)**
+### Test Coverage Additions
+- **MarketOscillatorViewModelTest**: Added `데이터 로드 중 예외 발생 시 Error 상태가 된다` and `데이터 로드 성공 시 marketData가 업데이트된다` tests (+2 tests)
+- **EtfViewModelTest**: Added `ETF 리스트가 정상적으로 로드된다` and `제외 키워드가 적용되면 해당 ETF가 필터링된다` tests (+2 tests)
 
 ## Score Justification
 
@@ -49,6 +35,7 @@
 - ProGuard with log stripping, no hardcoded secrets
 - `android:allowBackup="false"`, data extraction rules exclude all domains
 - Circuit breaker, structured ApiError classification
+- Input validation for WorkManager schedule times (hour/minute)
 - HARD CEILING: KIS API requires appKey/appSecret in HTTP headers per spec (-5, mitigated by HTTPS + cert pinning)
 
 ### Performance (95/100)
@@ -57,35 +44,51 @@
 - lastBound pattern on all charts (OscillatorChart, DemarkTDChart, TrendLineChart)
 - withTimeout guards (90s/120s), 1-hour cooldown for stock data
 - LazyColumn with stable keys, SearchStocks 200ms debounce
-- Dead code removed (unused StockSearchResult)
+- Screen entry no longer triggers data collection (moved to schedule/manual only)
 - HARD CEILING: Rate limiter serializes calls by design (-5)
 
 ### Reliability (95/100)
-- CancellationException rethrown in 30+ locations
+- CancellationException rethrown in all suspend functions including MarketOscillatorViewModel.loadDataByRange()
 - Circuit breaker (3 failures → 5 min cooldown) on KIS/Kiwoom
 - Retry with exponential backoff (1s/2s), auth retry with token refresh
 - Graceful fallback to cache on API failure
+- Proper error state in all ViewModels for data loading failures
 - Mutex-protected token cache and rate limiting
 - WorkManager with CONNECTED constraint, exponential backoff
-- Database migration safety with fallback recreate
-- MINOR: KrxApiClient lacks circuit breaker (-2), NonCancellable scope in MarketOscillatorViewModel (-2), CircuitBreaker race in half-open (-1)
+- MINOR: KrxApiClient lacks circuit breaker (-2), CircuitBreaker race in half-open (-1), collection period days not validated (-2)
 
 ### Test Coverage (95/100)
-- 49 test files, ~788 tests total
+- 49+ test files, ~790+ tests total
 - All critical paths covered: API clients, repositories, ViewModels, use cases, models
-- Previously untested: EtfRepository, MarketIndicatorRepository, IntradayDataMerger, MarketOscillatorCalculator, EtfViewModel, MarketOscillatorViewModel, MarketDepositViewModel, KrxApiClient, MarketIndicatorModels, EtfStatModels → NOW TESTED
+- New: EtfViewModel list loading and keyword filtering tests
+- New: MarketOscillatorViewModel error handling and data loading tests
 - Edge case coverage: empty data, boundary values, CancellationException propagation
 - HARD CEILING: Compose UI + Room DAO require androidTest (-2)
-- Remaining: NaverFinanceScraper, BackupManager, some ViewModels (EtfStatsViewModel, StockTrendViewModel) (-3)
+- Remaining: NaverFinanceScraper, BackupManager, some ViewModels (-3)
 
 ### Duplicate & Code Analysis (95/100)
+- KRX Credential Dialog consolidated into shared `KrxCredentialDialog` composable
 - All major duplication eliminated (API clients, WorkManagerHelper, MarketIndicatorRepository, ScheduleTab)
-- Dead code removed (unused StockSearchResult)
-- Integration tests deduplicated
+- Dead code removed (unused imports, deleted methods)
 - SettingsScreen reduced from 1723 → 1640 lines
 - Remaining: SettingsScreen still large but splitting requires architectural changes (-2)
 - Remaining: KIS/Kiwoom share call orchestration structure but differ in HTTP method/token format (-2)
 - Architecture: Clean MVVM + Clean Architecture, Hilt DI, proper separation (-1 for SettingsScreen mixing concerns)
+
+## Top 10 Action Items
+
+| # | Item | Severity | Category | Status |
+|---|---|---|---|---|
+| 1 | MarketOscillatorViewModel.loadDataByRange() error handling | Critical | Reliability | FIXED |
+| 2 | KRX Credential Dialog duplication | High | Duplicate | FIXED |
+| 3 | WorkManagerHelper schedule time validation | Medium | Security | FIXED |
+| 4 | EtfViewModel list/filter test coverage | Medium | Test Coverage | FIXED |
+| 5 | MarketOscillatorViewModel error test coverage | Medium | Test Coverage | FIXED |
+| 6 | SettingsScreen 1640 lines | Low | Duplicate | Deferred (arch change) |
+| 7 | KIS/Kiwoom shared call structure | Low | Duplicate | Deferred (too different) |
+| 8 | KrxApiClient circuit breaker | Low | Reliability | Deferred |
+| 9 | Collection period days validation | Low | Security | Acceptable (UI constrains) |
+| 10 | NaverFinanceScraper test coverage | Low | Test Coverage | Deferred (brittle) |
 
 ## Remaining Known Items (Acceptable)
 
@@ -97,3 +100,14 @@
 | Rate limiter serialization | N/A | Intentional design |
 | No androidTest infrastructure | Low | Requires device/emulator |
 | NaverFinanceScraper untested | Low | HTML parsing tests are brittle |
+
+## Code Complexity Hotspot Map
+
+| File | Lines | Complexity | Notes |
+|---|---|---|---|
+| SettingsScreen.kt | ~1640 | Medium | Multiple sections, schedule management |
+| KiwoomApiClient.kt | ~293 | Medium | Circuit breaker + retry logic |
+| KisApiClient.kt | ~228 | Medium | Circuit breaker + retry logic |
+| MarketIndicatorRepository.kt | ~300 | Medium | Multiple data operations |
+| MarketOscillatorTab.kt | ~475 | Low | UI composition, well-structured |
+| FinancialCharts.kt | ~771 | Low | Chart configuration (inherently verbose) |

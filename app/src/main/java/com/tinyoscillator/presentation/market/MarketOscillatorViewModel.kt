@@ -10,6 +10,7 @@ import com.tinyoscillator.domain.model.MarketOscillatorState
 import com.tinyoscillator.presentation.settings.loadKrxCredentials
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -75,11 +76,17 @@ class MarketOscillatorViewModel @Inject constructor(
     }
 
     private suspend fun loadDataByRange(market: String, range: OscillatorRangeOption) {
-        val (startDate, endDate) = OscillatorRangeOption.calculateDateRange(range)
-        repository.getDataByDateRange(market, startDate, endDate)
-            .collect { data ->
-                _marketData.value = data
-            }
+        try {
+            val (startDate, endDate) = OscillatorRangeOption.calculateDateRange(range)
+            repository.getDataByDateRange(market, startDate, endDate)
+                .collect { data ->
+                    _marketData.value = data
+                }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _state.value = MarketOscillatorState.Error("데이터 로드 실패: ${e.message}")
+        }
     }
 
     private fun checkData() {

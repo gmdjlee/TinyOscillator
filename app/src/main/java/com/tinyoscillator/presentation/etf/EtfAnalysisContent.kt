@@ -11,16 +11,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.core.database.entity.EtfEntity
-import com.tinyoscillator.presentation.settings.KrxCredentials
-import com.tinyoscillator.presentation.settings.saveKrxCredentials
-import kotlinx.coroutines.launch
+import com.tinyoscillator.presentation.common.KrxCredentialDialog
 
 @Composable
 fun EtfAnalysisContent(
@@ -44,6 +40,7 @@ fun EtfAnalysisContent(
     // KRX Credential Dialog
     if (needsCredentials) {
         KrxCredentialDialog(
+            description = "ETF 데이터 수집을 위해 KRX 데이터시스템 계정이 필요합니다.",
             onDismiss = { /* can't dismiss without credentials */ },
             onSave = { viewModel.onCredentialsSaved() }
         )
@@ -140,63 +137,4 @@ private fun EtfListItem(
             }
         }
     }
-}
-
-@Composable
-private fun KrxCredentialDialog(
-    onDismiss: () -> Unit,
-    onSave: () -> Unit
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var id by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("KRX 로그인 정보") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "ETF 데이터 수집을 위해 KRX 데이터시스템 계정이 필요합니다.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                OutlinedTextField(
-                    value = id,
-                    onValueChange = { id = it },
-                    label = { Text("KRX ID") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("비밀번호") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (id.isNotBlank() && password.isNotBlank()) {
-                        scope.launch {
-                            saveKrxCredentials(context, KrxCredentials(id, password))
-                            onSave()
-                        }
-                    }
-                },
-                enabled = id.isNotBlank() && password.isNotBlank()
-            ) {
-                Text("저장")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("나중에")
-            }
-        }
-    )
 }

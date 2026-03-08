@@ -17,6 +17,9 @@ object WorkManagerHelper {
         hour: Int,
         minute: Int
     ) {
+        require(hour in 0..23) { "hour must be 0-23, got $hour" }
+        require(minute in 0..59) { "minute must be 0-59, got $minute" }
+
         val now = Calendar.getInstance()
         val target = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)

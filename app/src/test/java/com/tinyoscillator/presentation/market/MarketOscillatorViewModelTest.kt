@@ -8,6 +8,7 @@ import com.tinyoscillator.presentation.settings.KrxCredentials
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
 import org.junit.After
@@ -160,6 +161,35 @@ class MarketOscillatorViewModelTest {
         advanceUntilIdle()
 
         assertEquals("KOSDAQ", viewModel.selectedMarket.value)
+    }
+
+    // ==========================================================
+    // loadDataByRange 에러 처리 테스트
+    // ==========================================================
+
+    @Test
+    fun `데이터 로드 중 예외 발생 시 Error 상태가 된다`() = runTest {
+        every { repository.getDataByDateRange(any(), any(), any()) } returns flow {
+            throw RuntimeException("DB 조회 실패")
+        }
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue("Expected Error but got $state", state is MarketOscillatorState.Error)
+        assertTrue((state as MarketOscillatorState.Error).message.contains("데이터 로드 실패"))
+    }
+
+    @Test
+    fun `데이터 로드 성공 시 marketData가 업데이트된다`() = runTest {
+        every { repository.getDataByDateRange(any(), any(), any()) } returns flowOf(listOf(sampleOscillator))
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.marketData.value.size)
+        assertEquals("2026-03-05", viewModel.marketData.value[0].date)
     }
 
     @Test
