@@ -13,6 +13,7 @@ object WorkManagerHelper {
     private inline fun <reified W : ListenableWorker> scheduleDailyWorker(
         context: Context,
         workName: String,
+        tag: String,
         label: String,
         hour: Int,
         minute: Int
@@ -40,6 +41,7 @@ object WorkManagerHelper {
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .addTag(tag)
             .build()
 
         WorkManager.getInstance(context)
@@ -59,6 +61,8 @@ object WorkManagerHelper {
 
     private inline fun <reified W : ListenableWorker> runWorkerNow(
         context: Context,
+        workName: String,
+        tag: String,
         label: String
     ) {
         val constraints = Constraints.Builder()
@@ -68,43 +72,46 @@ object WorkManagerHelper {
         val request = OneTimeWorkRequestBuilder<W>()
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .addTag(tag)
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
 
-        WorkManager.getInstance(context).enqueue(request)
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork(workName, ExistingWorkPolicy.KEEP, request)
         Timber.d("$label 즉시 업데이트 요청")
     }
 
     // ===== ETF =====
 
     fun scheduleEtfUpdate(context: Context, hour: Int = 0, minute: Int = 30) =
-        scheduleDailyWorker<EtfUpdateWorker>(context, EtfUpdateWorker.WORK_NAME, "ETF", hour, minute)
+        scheduleDailyWorker<EtfUpdateWorker>(context, EtfUpdateWorker.WORK_NAME, EtfUpdateWorker.TAG, "ETF", hour, minute)
 
     fun cancelEtfUpdate(context: Context) =
         cancelWorker(context, EtfUpdateWorker.WORK_NAME, "ETF")
 
     fun runEtfUpdateNow(context: Context) =
-        runWorkerNow<EtfUpdateWorker>(context, "ETF")
+        runWorkerNow<EtfUpdateWorker>(context, EtfUpdateWorker.MANUAL_WORK_NAME, EtfUpdateWorker.TAG, "ETF")
 
     // ===== 시장지표(과매수/과매도) =====
 
     fun scheduleOscillatorUpdate(context: Context, hour: Int = 1, minute: Int = 0) =
-        scheduleDailyWorker<MarketOscillatorUpdateWorker>(context, MarketOscillatorUpdateWorker.WORK_NAME, "시장지표", hour, minute)
+        scheduleDailyWorker<MarketOscillatorUpdateWorker>(context, MarketOscillatorUpdateWorker.WORK_NAME, MarketOscillatorUpdateWorker.TAG, "시장지표", hour, minute)
 
     fun cancelOscillatorUpdate(context: Context) =
         cancelWorker(context, MarketOscillatorUpdateWorker.WORK_NAME, "시장지표")
 
     fun runOscillatorUpdateNow(context: Context) =
-        runWorkerNow<MarketOscillatorUpdateWorker>(context, "시장지표")
+        runWorkerNow<MarketOscillatorUpdateWorker>(context, MarketOscillatorUpdateWorker.MANUAL_WORK_NAME, MarketOscillatorUpdateWorker.TAG, "시장지표")
 
     // ===== 자금 동향(deposit) =====
 
     fun scheduleDepositUpdate(context: Context, hour: Int = 2, minute: Int = 0) =
-        scheduleDailyWorker<MarketDepositUpdateWorker>(context, MarketDepositUpdateWorker.WORK_NAME, "자금 동향", hour, minute)
+        scheduleDailyWorker<MarketDepositUpdateWorker>(context, MarketDepositUpdateWorker.WORK_NAME, MarketDepositUpdateWorker.TAG, "자금 동향", hour, minute)
 
     fun cancelDepositUpdate(context: Context) =
         cancelWorker(context, MarketDepositUpdateWorker.WORK_NAME, "자금 동향")
 
     fun runDepositUpdateNow(context: Context) =
-        runWorkerNow<MarketDepositUpdateWorker>(context, "자금 동향")
+        runWorkerNow<MarketDepositUpdateWorker>(context, MarketDepositUpdateWorker.MANUAL_WORK_NAME, MarketDepositUpdateWorker.TAG, "자금 동향")
 
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Sine wave oscillator icon for notification -->
+    <path
+        android:pathData="M2,12 C2,12 4.5,4 7.5,4 C10.5,4 10.5,20 13.5,20 C16.5,20 16.5,4 19.5,4 C21,4 22,8 22,8"
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+</vector>

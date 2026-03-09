@@ -5,8 +5,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.tinyoscillator.core.worker.MarketDepositUpdateWorker
+import com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker
+import com.tinyoscillator.presentation.common.CollectionProgressBar
 
 private enum class MarketTab(val label: String) {
     OSCILLATOR("과매수/과매도"),
@@ -20,7 +24,7 @@ fun MarketIndicatorScreen(
 ) {
     val oscillatorViewModel: MarketOscillatorViewModel = hiltViewModel()
     val depositViewModel: MarketDepositViewModel = hiltViewModel()
-    var selectedTab by remember { mutableStateOf(MarketTab.OSCILLATOR) }
+    var selectedTab by rememberSaveable { mutableStateOf(MarketTab.OSCILLATOR) }
 
     Scaffold(
         topBar = {
@@ -35,6 +39,13 @@ fun MarketIndicatorScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            CollectionProgressBar(
+                tag = when (selectedTab) {
+                    MarketTab.OSCILLATOR -> MarketOscillatorUpdateWorker.TAG
+                    MarketTab.DEPOSIT -> MarketDepositUpdateWorker.TAG
+                }
+            )
+
             TabRow(selectedTabIndex = selectedTab.ordinal) {
                 MarketTab.entries.forEach { tab ->
                     Tab(

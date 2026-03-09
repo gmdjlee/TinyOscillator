@@ -5,7 +5,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import com.tinyoscillator.core.worker.EtfUpdateWorker
+import com.tinyoscillator.presentation.common.CollectionProgressBar
 
 private enum class EtfTab(val label: String) {
     THEME_LIST("테마 목록"),
@@ -20,7 +23,7 @@ fun EtfScreen(
     onStockClick: (String) -> Unit = {},
     onStockTrendClick: (String, String) -> Unit = { _, _ -> }
 ) {
-    var selectedTab by remember { mutableStateOf(EtfTab.THEME_LIST) }
+    var selectedTab by rememberSaveable { mutableStateOf(EtfTab.THEME_LIST) }
 
     Scaffold(
         topBar = {
@@ -39,6 +42,8 @@ fun EtfScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            CollectionProgressBar(tag = EtfUpdateWorker.TAG)
+
             TabRow(selectedTabIndex = selectedTab.ordinal) {
                 EtfTab.entries.forEach { tab ->
                     Tab(

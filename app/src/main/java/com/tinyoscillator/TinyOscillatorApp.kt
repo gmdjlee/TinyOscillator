@@ -2,8 +2,11 @@ package com.tinyoscillator
 
 import android.app.Application
 import androidx.work.Configuration
+import com.tinyoscillator.core.worker.CollectionNotificationHelper
 import com.tinyoscillator.core.worker.WorkManagerHelper
+import com.tinyoscillator.presentation.settings.loadDepositScheduleTime
 import com.tinyoscillator.presentation.settings.loadEtfScheduleTime
+import com.tinyoscillator.presentation.settings.loadOscillatorScheduleTime
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
@@ -23,12 +26,22 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
-        // No tree planted in release = zero logging output
 
-        // Schedule daily ETF update at user-configured time (default 00:30)
-        val schedule = runBlocking { loadEtfScheduleTime(this@TinyOscillatorApp) }
-        if (schedule.enabled) {
-            WorkManagerHelper.scheduleEtfUpdate(this, schedule.hour, schedule.minute)
+        CollectionNotificationHelper.createChannel(this)
+
+        val etfSchedule = runBlocking { loadEtfScheduleTime(this@TinyOscillatorApp) }
+        if (etfSchedule.enabled) {
+            WorkManagerHelper.scheduleEtfUpdate(this, etfSchedule.hour, etfSchedule.minute)
+        }
+
+        val oscSchedule = runBlocking { loadOscillatorScheduleTime(this@TinyOscillatorApp) }
+        if (oscSchedule.enabled) {
+            WorkManagerHelper.scheduleOscillatorUpdate(this, oscSchedule.hour, oscSchedule.minute)
+        }
+
+        val depositSchedule = runBlocking { loadDepositScheduleTime(this@TinyOscillatorApp) }
+        if (depositSchedule.enabled) {
+            WorkManagerHelper.scheduleDepositUpdate(this, depositSchedule.hour, depositSchedule.minute)
         }
     }
 }

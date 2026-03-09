@@ -3,6 +3,7 @@ package com.tinyoscillator.presentation.etf
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -44,7 +45,7 @@ fun EtfStatsContent(
     val stockAnalysis by viewModel.stockAnalysis.collectAsStateWithLifecycle()
     val selectedStockName by viewModel.selectedStockName.collectAsStateWithLifecycle()
 
-    var selectedStatsTab by remember { mutableStateOf(StatsTab.AMOUNT_RANKING) }
+    var selectedStatsTab by rememberSaveable { mutableStateOf(StatsTab.AMOUNT_RANKING) }
 
     Column(modifier = modifier) {
         // Date selector row
