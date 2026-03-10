@@ -18,7 +18,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.temporal.WeekFields
 import javax.inject.Inject
+
+enum class ComparisonMode { DAILY, WEEKLY }
+
+data class WeekInfo(
+    val year: Int,
+    val weekNumber: Int,
+    val representativeDate: String,
+    val dateRange: Pair<String, String>,
+    val label: String
+)
 
 @HiltViewModel
 class EtfStatsViewModel @Inject constructor(
@@ -34,6 +47,15 @@ class EtfStatsViewModel @Inject constructor(
 
     private val _comparisonDate = MutableStateFlow<String?>(null)
     val comparisonDate: StateFlow<String?> = _comparisonDate.asStateFlow()
+
+    private val _comparisonMode = MutableStateFlow(ComparisonMode.DAILY)
+    val comparisonMode: StateFlow<ComparisonMode> = _comparisonMode.asStateFlow()
+
+    private val _weeks = MutableStateFlow<List<WeekInfo>>(emptyList())
+    val weeks: StateFlow<List<WeekInfo>> = _weeks.asStateFlow()
+
+    private val _selectedWeek = MutableStateFlow<WeekInfo?>(null)
+    val selectedWeek: StateFlow<WeekInfo?> = _selectedWeek.asStateFlow()
 
     private val _amountRanking = MutableStateFlow<List<AmountRankingItem>>(emptyList())
     val amountRanking: StateFlow<List<AmountRankingItem>> = _amountRanking.asStateFlow()
@@ -65,6 +87,54 @@ class EtfStatsViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    /** 금액 순위 탭 정렬 상태 (인코딩: "COLUMN:ORDER,..." 또는 빈 문자열) */
+    private val _amountRankingSortEncoded = MutableStateFlow("")
+    val amountRankingSortEncoded: StateFlow<String> = _amountRankingSortEncoded.asStateFlow()
+
+    fun updateAmountRankingSort(encoded: String) {
+        _amountRankingSortEncoded.value = encoded
+    }
+
+    fun setComparisonMode(mode: ComparisonMode) {
+        _comparisonMode.value = mode
+        if (mode == ComparisonMode.WEEKLY) {
+            val currentDate = _selectedDate.value
+            val matchingWeek = _weeks.value.find { week ->
+                currentDate != null && currentDate >= week.dateRange.first && currentDate <= week.dateRange.second
+            }
+            _selectedWeek.value = matchingWeek ?: _weeks.value.firstOrNull()
+            _selectedDate.value = _selectedWeek.value?.representativeDate ?: _selectedDate.value
+        }
+        updateComparisonDate()
+        loadAllStats()
+    }
+
+    fun selectWeek(weekInfo: WeekInfo) {
+        _selectedWeek.value = weekInfo
+        _selectedDate.value = weekInfo.representativeDate
+        updateComparisonDate()
+        loadAllStats()
+    }
+
+    private fun updateComparisonDate() {
+        when (_comparisonMode.value) {
+            ComparisonMode.DAILY -> {
+                val dates = _dates.value
+                val selected = _selectedDate.value ?: return
+                val idx = dates.indexOf(selected)
+                if (idx < 0) return
+                _comparisonDate.value = dates.getOrNull(idx + 1)
+            }
+            ComparisonMode.WEEKLY -> {
+                val weeks = _weeks.value
+                val selected = _selectedWeek.value ?: return
+                val idx = weeks.indexOf(selected)
+                if (idx < 0) return
+                _comparisonDate.value = weeks.getOrNull(idx + 1)?.representativeDate
+            }
+        }
+    }
+
     private var excludedTickers: List<String> = emptyList()
 
     init {
@@ -88,9 +158,11 @@ class EtfStatsViewModel @Inject constructor(
             try {
                 val allDates = etfRepository.getAllDates()
                 _dates.value = allDates
+                _weeks.value = groupDatesByWeek(allDates)
                 if (allDates.isNotEmpty()) {
                     _selectedDate.value = allDates.first() // most recent
-                    _comparisonDate.value = allDates.getOrNull(1) // second most recent
+                    _selectedWeek.value = _weeks.value.firstOrNull()
+                    updateComparisonDate()
                     loadAllStats()
                 }
             } catch (e: Exception) {
@@ -100,10 +172,8 @@ class EtfStatsViewModel @Inject constructor(
     }
 
     fun selectDate(date: String) {
-        val dates = _dates.value
-        val idx = dates.indexOf(date)
         _selectedDate.value = date
-        _comparisonDate.value = dates.getOrNull(idx + 1)
+        updateComparisonDate()
         loadAllStats()
     }
 
@@ -173,4 +243,26 @@ class EtfStatsViewModel @Inject constructor(
             }
         }
     }
+}
+
+private val DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd")
+
+private fun buildWeekLabel(weekNumber: Int, dateRange: Pair<String, String>): String {
+    fun shortDate(d: String) = "${d.substring(4, 6)}.${d.substring(6, 8)}"
+    return "${weekNumber}주차 (${shortDate(dateRange.first)}~${shortDate(dateRange.second)})"
+}
+
+internal fun groupDatesByWeek(dates: List<String>): List<WeekInfo> {
+    if (dates.isEmpty()) return emptyList()
+    val wf = WeekFields.of(java.util.Locale.KOREA)
+    return dates
+        .groupBy { d ->
+            val ld = LocalDate.parse(d, DATE_FMT)
+            ld.get(wf.weekBasedYear()) to ld.get(wf.weekOfWeekBasedYear())
+        }
+        .map { (yw, datesInWeek) ->
+            val range = datesInWeek.last() to datesInWeek.first()
+            WeekInfo(yw.first, yw.second, datesInWeek.first(), range, buildWeekLabel(yw.second, range))
+        }
+        .sortedByDescending { it.year * 100 + it.weekNumber }
 }

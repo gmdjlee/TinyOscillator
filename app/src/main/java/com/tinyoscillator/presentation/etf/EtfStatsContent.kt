@@ -44,6 +44,10 @@ fun EtfStatsContent(
     val stockSearchResults by viewModel.stockSearchResults.collectAsStateWithLifecycle()
     val stockAnalysis by viewModel.stockAnalysis.collectAsStateWithLifecycle()
     val selectedStockName by viewModel.selectedStockName.collectAsStateWithLifecycle()
+    val amountRankingSortEncoded by viewModel.amountRankingSortEncoded.collectAsStateWithLifecycle()
+    val comparisonMode by viewModel.comparisonMode.collectAsStateWithLifecycle()
+    val weeks by viewModel.weeks.collectAsStateWithLifecycle()
+    val selectedWeek by viewModel.selectedWeek.collectAsStateWithLifecycle()
 
     var selectedStatsTab by rememberSaveable { mutableStateOf(StatsTab.AMOUNT_RANKING) }
 
@@ -52,9 +56,14 @@ fun EtfStatsContent(
         if (dates.isNotEmpty()) {
             DateSelectorRow(
                 dates = dates,
+                weeks = weeks,
                 selectedDate = selectedDate,
+                selectedWeek = selectedWeek,
                 comparisonDate = comparisonDate,
-                onDateSelect = { viewModel.selectDate(it) }
+                comparisonMode = comparisonMode,
+                onDateSelect = { viewModel.selectDate(it) },
+                onWeekSelect = { viewModel.selectWeek(it) },
+                onComparisonModeChange = { viewModel.setComparisonMode(it) }
             )
         }
 
@@ -84,6 +93,8 @@ fun EtfStatsContent(
             when (selectedStatsTab) {
                 StatsTab.AMOUNT_RANKING -> AmountRankingTab(
                     items = amountRanking,
+                    sortEncoded = amountRankingSortEncoded,
+                    onSortChange = { viewModel.updateAmountRankingSort(it) },
                     onStockClick = onStockClick,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -129,15 +140,20 @@ fun EtfStatsContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DateSelectorRow(
     dates: List<String>,
+    weeks: List<WeekInfo>,
     selectedDate: String?,
+    selectedWeek: WeekInfo?,
     comparisonDate: String?,
-    onDateSelect: (String) -> Unit
+    comparisonMode: ComparisonMode,
+    onDateSelect: (String) -> Unit,
+    onWeekSelect: (WeekInfo) -> Unit,
+    onComparisonModeChange: (ComparisonMode) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val displayDate = selectedDate?.let { formatDisplayDate(it) } ?: "날짜 선택"
 
     Row(
         modifier = Modifier
@@ -149,38 +165,89 @@ private fun DateSelectorRow(
         Text("기준일:", style = MaterialTheme.typography.bodyMedium)
 
         Box {
-            OutlinedButton(onClick = { expanded = true }) {
-                Text(displayDate)
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                dates.forEach { date ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                formatDisplayDate(date),
-                                color = if (date == selectedDate) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurface
+            when (comparisonMode) {
+                ComparisonMode.DAILY -> {
+                    val displayDate = selectedDate?.let { formatDisplayDate(it) } ?: "날짜 선택"
+                    OutlinedButton(onClick = { expanded = true }) {
+                        Text(displayDate)
+                    }
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        dates.forEach { date ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        formatDisplayDate(date),
+                                        color = if (date == selectedDate) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = {
+                                    onDateSelect(date)
+                                    expanded = false
+                                }
                             )
-                        },
-                        onClick = {
-                            onDateSelect(date)
-                            expanded = false
                         }
+                    }
+                }
+                ComparisonMode.WEEKLY -> {
+                    val displayWeek = selectedWeek?.label ?: "주차 선택"
+                    OutlinedButton(onClick = { expanded = true }) {
+                        Text(displayWeek)
+                    }
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        weeks.forEach { week ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        week.label,
+                                        color = if (week == selectedWeek) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                onClick = {
+                                    onWeekSelect(week)
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        SingleChoiceSegmentedButtonRow {
+            ComparisonMode.entries.forEachIndexed { index, mode ->
+                SegmentedButton(
+                    selected = comparisonMode == mode,
+                    onClick = { onComparisonModeChange(mode) },
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = ComparisonMode.entries.size
+                    )
+                ) {
+                    Text(
+                        when (mode) {
+                            ComparisonMode.DAILY -> "일"
+                            ComparisonMode.WEEKLY -> "주"
+                        },
+                        style = MaterialTheme.typography.labelSmall
                     )
                 }
             }
         }
 
-        if (comparisonDate != null) {
-            Text(
-                "비교: ${formatDisplayDate(comparisonDate)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        Text(
+            if (comparisonDate != null) "비교: ${formatDisplayDate(comparisonDate)}"
+            else "비교 데이터 없음",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

@@ -8,10 +8,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -25,9 +24,22 @@ private enum class SortColumn { AMOUNT, ETF_COUNT, NEW, INCREASED, DECREASED, RE
 private enum class SortOrder { ASC, DESC }
 private data class SortSpec(val column: SortColumn, val order: SortOrder)
 
+private fun encodeSortSpecs(specs: List<SortSpec>): String =
+    specs.joinToString(",") { "${it.column.name}:${it.order.name}" }
+
+private fun decodeSortSpecs(encoded: String): List<SortSpec> {
+    if (encoded.isEmpty()) return emptyList()
+    return encoded.split(",").map { s ->
+        val (col, ord) = s.split(":")
+        SortSpec(SortColumn.valueOf(col), SortOrder.valueOf(ord))
+    }
+}
+
 @Composable
 fun AmountRankingTab(
     items: List<AmountRankingItem>,
+    sortEncoded: String,
+    onSortChange: (String) -> Unit,
     onStockClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -43,17 +55,18 @@ fun AmountRankingTab(
     }
 
     // 다중 정렬: 클릭 순서대로 우선순위 부여, 3-state 순환 (중립→DESC→ASC→중립)
-    var sortSpecs by remember { mutableStateOf(listOf<SortSpec>()) }
+    val sortSpecs by remember(sortEncoded) { derivedStateOf { decodeSortSpecs(sortEncoded) } }
 
     val onHeaderClick = { column: SortColumn ->
         val existing = sortSpecs.find { it.column == column }
-        sortSpecs = when {
+        val newSpecs = when {
             existing == null -> sortSpecs + SortSpec(column, SortOrder.DESC)
             existing.order == SortOrder.DESC -> sortSpecs.map {
                 if (it.column == column) it.copy(order = SortOrder.ASC) else it
             }
             else -> sortSpecs.filter { it.column != column } // ASC → 중립(제거)
         }
+        onSortChange(encodeSortSpecs(newSpecs))
     }
 
     val sortedItems = remember(items, sortSpecs) {
@@ -102,7 +115,7 @@ fun AmountRankingTab(
                         "↺",
                         modifier = Modifier
                             .padding(start = 4.dp)
-                            .clickable { sortSpecs = emptyList() },
+                            .clickable { onSortChange("") },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.error
                     )
