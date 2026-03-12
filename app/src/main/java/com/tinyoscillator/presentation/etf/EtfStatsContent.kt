@@ -44,6 +44,8 @@ fun EtfStatsContent(
     val stockSearchResults by viewModel.stockSearchResults.collectAsStateWithLifecycle()
     val stockAnalysis by viewModel.stockAnalysis.collectAsStateWithLifecycle()
     val selectedStockName by viewModel.selectedStockName.collectAsStateWithLifecycle()
+    val selectedStockMarket by viewModel.selectedStockMarket.collectAsStateWithLifecycle()
+    val selectedStockSector by viewModel.selectedStockSector.collectAsStateWithLifecycle()
     val amountRankingSortEncoded by viewModel.amountRankingSortEncoded.collectAsStateWithLifecycle()
     val comparisonMode by viewModel.comparisonMode.collectAsStateWithLifecycle()
     val weeks by viewModel.weeks.collectAsStateWithLifecycle()
@@ -130,6 +132,8 @@ fun EtfStatsContent(
                     searchResults = stockSearchResults,
                     analysisResults = stockAnalysis,
                     selectedStockName = selectedStockName,
+                    selectedStockMarket = selectedStockMarket,
+                    selectedStockSector = selectedStockSector,
                     onSearch = { viewModel.searchStock(it) },
                     onSelectStock = { viewModel.analyzeStock(it) },
                     onStockClick = onStockClick,

@@ -50,6 +50,8 @@ class StockMasterRepository @Inject constructor(
                 body = body,
                 config = config
             ) { responseJson ->
+                Timber.d("ka10099 raw response (%s, first 2000 chars): %s",
+                    label, responseJson.take(2000))
                 json.decodeFromString<StockListResponse>(responseJson)
             }
 
@@ -70,6 +72,7 @@ class StockMasterRepository @Inject constructor(
                 ticker = ticker,
                 name = name,
                 market = item.mrktNm ?: "",
+                sector = item.sector ?: "",
                 lastUpdated = now
             )
         }

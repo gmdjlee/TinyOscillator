@@ -20,6 +20,9 @@ data class StockMasterEntity(
     @ColumnInfo(name = "market")
     val market: String,
 
+    @ColumnInfo(name = "sector", defaultValue = "")
+    val sector: String = "",
+
     @ColumnInfo(name = "last_updated")
     val lastUpdated: Long
 )

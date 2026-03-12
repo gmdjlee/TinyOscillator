@@ -102,7 +102,9 @@ fun AmountRankingTab(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                HeaderCell("#", 64.dp)
+                HeaderCell("#", 36.dp)
+                HeaderCell("시장", 48.dp)
+                HeaderCell("업종", 72.dp)
                 HeaderCell("종목명", 150.dp)
                 SortableHeaderCell("금액(억)", 64.dp, sortSpecs, SortColumn.AMOUNT) { onHeaderClick(SortColumn.AMOUNT) }
                 SortableHeaderCell("ETF수", 64.dp, sortSpecs, SortColumn.ETF_COUNT) { onHeaderClick(SortColumn.ETF_COUNT) }
@@ -136,10 +138,12 @@ fun AmountRankingTab(
             ) {
                 Text(
                     "${item.rank}",
-                    modifier = Modifier.width(64.dp),
+                    modifier = Modifier.width(36.dp),
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center
                 )
+                MarketLabel(item.market, 48.dp)
+                SectorLabel(item.sector, 72.dp)
                 Text(
                     item.stockName,
                     modifier = Modifier.width(150.dp),

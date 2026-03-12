@@ -18,7 +18,8 @@ data class StockListResponse(
 data class StockListItem(
     @SerialName("code") val stkCd: String? = null,
     @SerialName("name") val stkNm: String? = null,
-    @SerialName("marketName") val mrktNm: String? = null
+    @SerialName("marketName") val mrktNm: String? = null,
+    @SerialName("upName") val sector: String? = null
 )
 
 // ============================================================================

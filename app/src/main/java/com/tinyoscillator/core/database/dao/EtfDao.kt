@@ -5,6 +5,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RoomWarnings
 import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.domain.model.AmountRankingRow
@@ -152,6 +153,7 @@ interface EtfDao {
         ORDER BY stock_name ASC
         LIMIT 20
     """)
+    @SuppressWarnings(RoomWarnings.CURSOR_MISMATCH)
     suspend fun searchStocksInHoldings(date: String, query: String): List<StockSearchResult>
 
     @Query("""
@@ -163,6 +165,7 @@ interface EtfDao {
         ORDER BY stock_name ASC
         LIMIT 20
     """)
+    @SuppressWarnings(RoomWarnings.CURSOR_MISMATCH)
     suspend fun searchStocksInHoldingsExcluding(date: String, query: String, excludedTickers: List<String>): List<StockSearchResult>
 
     // Stock trend queries

@@ -32,4 +32,14 @@ interface StockMasterDao {
 
     @Query("DELETE FROM stock_master")
     suspend fun deleteAll()
+
+    @Query("SELECT ticker, market FROM stock_master")
+    suspend fun getTickerMarketMap(): List<TickerMarketPair>
+
+    @Query("SELECT ticker, sector FROM stock_master WHERE sector != ''")
+    suspend fun getTickerSectorMap(): List<TickerSectorPair>
 }
+
+data class TickerMarketPair(val ticker: String, val market: String)
+
+data class TickerSectorPair(val ticker: String, val sector: String)

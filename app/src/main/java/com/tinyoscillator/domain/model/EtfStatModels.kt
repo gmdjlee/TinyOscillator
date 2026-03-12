@@ -27,7 +27,9 @@ data class StockInEtfRow(
 
 data class StockSearchResult(
     val stock_ticker: String,
-    val stock_name: String
+    val stock_name: String,
+    val market: String? = null,
+    val sector: String? = null
 )
 
 // Computed models
@@ -42,7 +44,9 @@ data class StockChange(
     val currentWeight: Double?,
     val previousAmount: Long,
     val currentAmount: Long,
-    val changeType: ChangeType
+    val changeType: ChangeType,
+    val market: String? = null,
+    val sector: String? = null
 )
 
 data class AmountRankingItem(
@@ -54,7 +58,9 @@ data class AmountRankingItem(
     val newCount: Int = 0,
     val increasedCount: Int = 0,
     val decreasedCount: Int = 0,
-    val removedCount: Int = 0
+    val removedCount: Int = 0,
+    val market: String? = null,
+    val sector: String? = null
 )
 
 // Stock trend time series models

@@ -26,6 +26,8 @@ fun StockAnalysisTab(
     searchResults: List<StockSearchResult>,
     analysisResults: List<StockInEtfRow>,
     selectedStockName: String?,
+    selectedStockMarket: String? = null,
+    selectedStockSector: String? = null,
     onSearch: (String) -> Unit,
     onSelectStock: (String) -> Unit,
     onStockClick: (String) -> Unit = {},
@@ -80,7 +82,14 @@ fun StockAnalysisTab(
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(result.stock_name, style = MaterialTheme.typography.bodyMedium)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(result.stock_name, style = MaterialTheme.typography.bodyMedium)
+                                MarketBadge(result.market)
+                                SectorBadge(result.sector)
+                            }
                             Text(
                                 result.stock_ticker,
                                 style = MaterialTheme.typography.bodySmall,
@@ -110,12 +119,19 @@ fun StockAnalysisTab(
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        selectedStockName ?: "",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            selectedStockName ?: "",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        MarketBadge(selectedStockMarket)
+                        SectorBadge(selectedStockSector)
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),

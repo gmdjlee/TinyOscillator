@@ -3,6 +3,7 @@ package com.tinyoscillator.presentation.etf
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.domain.model.AmountRankingItem
 import com.tinyoscillator.domain.model.CashDepositRow
@@ -36,6 +37,7 @@ data class WeekInfo(
 @HiltViewModel
 class EtfStatsViewModel @Inject constructor(
     private val etfRepository: EtfRepository,
+    private val stockMasterDao: StockMasterDao,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -83,6 +85,12 @@ class EtfStatsViewModel @Inject constructor(
 
     private val _selectedStockName = MutableStateFlow<String?>(null)
     val selectedStockName: StateFlow<String?> = _selectedStockName.asStateFlow()
+
+    private val _selectedStockMarket = MutableStateFlow<String?>(null)
+    val selectedStockMarket: StateFlow<String?> = _selectedStockMarket.asStateFlow()
+
+    private val _selectedStockSector = MutableStateFlow<String?>(null)
+    val selectedStockSector: StateFlow<String?> = _selectedStockSector.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -136,6 +144,8 @@ class EtfStatsViewModel @Inject constructor(
     }
 
     private var excludedTickers: List<String> = emptyList()
+    private var marketMap: Map<String, String> = emptyMap()
+    private var sectorMap: Map<String, String> = emptyMap()
 
     init {
         loadExcludedTickersAndDates()
@@ -146,6 +156,10 @@ class EtfStatsViewModel @Inject constructor(
             try {
                 val keywords = loadEtfKeywordFilter(context)
                 excludedTickers = etfRepository.getExcludedTickers(keywords.excludeKeywords)
+                marketMap = stockMasterDao.getTickerMarketMap()
+                    .associate { it.ticker to it.market }
+                sectorMap = stockMasterDao.getTickerSectorMap()
+                    .associate { it.ticker to it.sector }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to load excluded tickers")
             }
@@ -186,10 +200,12 @@ class EtfStatsViewModel @Inject constructor(
             try {
                 // Load amount ranking
                 _amountRanking.value = etfRepository.getEnrichedAmountRanking(date, compDate, excludedTickers)
+                    .map { it.copy(market = marketMap[it.stockTicker], sector = sectorMap[it.stockTicker]) }
 
                 // Load stock changes
                 if (compDate != null) {
                     val changes = etfRepository.computeStockChanges(compDate, date, excludedTickers)
+                        .map { it.copy(market = marketMap[it.stockTicker], sector = sectorMap[it.stockTicker]) }
                     _newStocks.value = changes.filter { it.changeType == ChangeType.NEW }
                         .sortedByDescending { it.currentAmount }
                     _removedStocks.value = changes.filter { it.changeType == ChangeType.REMOVED }
@@ -224,6 +240,7 @@ class EtfStatsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _stockSearchResults.value = etfRepository.searchStocksInHoldings(date, query, excludedTickers)
+                    .map { it.copy(market = marketMap[it.stock_ticker], sector = sectorMap[it.stock_ticker]) }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to search stocks")
             }
@@ -237,6 +254,8 @@ class EtfStatsViewModel @Inject constructor(
                 val results = etfRepository.getEtfsHoldingStock(ticker, date, excludedTickers)
                 _stockAnalysis.value = results
                 _selectedStockName.value = results.firstOrNull()?.stock_name
+                _selectedStockMarket.value = marketMap[ticker]
+                _selectedStockSector.value = sectorMap[ticker]
                 _stockSearchResults.value = emptyList()
             } catch (e: Exception) {
                 Timber.e(e, "Failed to analyze stock")

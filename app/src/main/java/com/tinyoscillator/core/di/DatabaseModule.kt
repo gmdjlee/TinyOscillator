@@ -131,6 +131,21 @@ object DatabaseModule {
         }
     }
 
+    /** Migration v5→v6: added sector column to stock_master */
+    private val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL(
+                    "ALTER TABLE `stock_master` ADD COLUMN `sector` TEXT NOT NULL DEFAULT ''"
+                )
+                Timber.d("Migration v5→v6 성공: stock_master에 sector 컬럼 추가")
+            } catch (e: Exception) {
+                Timber.e(e, "Migration v5→v6 실패")
+                throw e
+            }
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -140,7 +155,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
@@ -157,7 +172,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
         }
     }

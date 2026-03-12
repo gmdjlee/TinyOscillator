@@ -29,7 +29,7 @@ import com.tinyoscillator.core.database.entity.StockMasterEntity
         MarketOscillatorEntity::class,
         MarketDepositEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
