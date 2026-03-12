@@ -35,6 +35,10 @@ fun EtfStatsContent(
     val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
     val comparisonDate by viewModel.comparisonDate.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val filteredAmountRanking by viewModel.filteredAmountRanking.collectAsStateWithLifecycle()
+    val selectedMarketFilter by viewModel.selectedMarketFilter.collectAsStateWithLifecycle()
+    val selectedSectorFilter by viewModel.selectedSectorFilter.collectAsStateWithLifecycle()
+    val availableSectors by viewModel.availableSectors.collectAsStateWithLifecycle()
     val amountRanking by viewModel.amountRanking.collectAsStateWithLifecycle()
     val newStocks by viewModel.newStocks.collectAsStateWithLifecycle()
     val removedStocks by viewModel.removedStocks.collectAsStateWithLifecycle()
@@ -94,9 +98,14 @@ fun EtfStatsContent(
         } else {
             when (selectedStatsTab) {
                 StatsTab.AMOUNT_RANKING -> AmountRankingTab(
-                    items = amountRanking,
+                    items = filteredAmountRanking,
                     sortEncoded = amountRankingSortEncoded,
                     onSortChange = { viewModel.updateAmountRankingSort(it) },
+                    selectedMarket = selectedMarketFilter,
+                    selectedSector = selectedSectorFilter,
+                    availableSectors = availableSectors,
+                    onMarketFilter = { viewModel.setMarketFilter(it) },
+                    onSectorFilter = { viewModel.setSectorFilter(it) },
                     onStockClick = onStockClick,
                     modifier = Modifier.fillMaxSize()
                 )

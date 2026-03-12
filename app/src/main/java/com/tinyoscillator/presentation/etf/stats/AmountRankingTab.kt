@@ -10,7 +10,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -35,11 +37,17 @@ private fun decodeSortSpecs(encoded: String): List<SortSpec> {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AmountRankingTab(
     items: List<AmountRankingItem>,
     sortEncoded: String,
     onSortChange: (String) -> Unit,
+    selectedMarket: String?,
+    selectedSector: String?,
+    availableSectors: List<String>,
+    onMarketFilter: (String?) -> Unit,
+    onSectorFilter: (String?) -> Unit,
     onStockClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -92,6 +100,75 @@ fun AmountRankingTab(
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
+        // Filter row
+        item {
+            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                // Market filter chips
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    listOf(null to "전체", "KOSPI" to "코스피", "KOSDAQ" to "코스닥").forEach { (value, label) ->
+                        FilterChip(
+                            selected = selectedMarket == value,
+                            onClick = { onMarketFilter(value) },
+                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Sector dropdown
+                    var sectorExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = sectorExpanded,
+                        onExpandedChange = { sectorExpanded = it }
+                    ) {
+                        FilterChip(
+                            selected = selectedSector != null,
+                            onClick = { sectorExpanded = true },
+                            label = {
+                                Text(
+                                    selectedSector ?: "업종 전체",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            modifier = Modifier.menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = sectorExpanded,
+                            onDismissRequest = { sectorExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("전체") },
+                                onClick = {
+                                    onSectorFilter(null)
+                                    sectorExpanded = false
+                                }
+                            )
+                            availableSectors.forEach { sector ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            sector,
+                                            color = if (sector == selectedSector) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    onClick = {
+                                        onSectorFilter(sector)
+                                        sectorExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Header
         item {
             Row(

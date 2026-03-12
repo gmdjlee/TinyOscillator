@@ -15,8 +15,11 @@ import com.tinyoscillator.presentation.settings.loadEtfKeywordFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.time.LocalDate
@@ -101,6 +104,44 @@ class EtfStatsViewModel @Inject constructor(
 
     fun updateAmountRankingSort(encoded: String) {
         _amountRankingSortEncoded.value = encoded
+    }
+
+    /** 금액 순위 시장 필터 (null = 전체) */
+    private val _selectedMarketFilter = MutableStateFlow<String?>(null)
+    val selectedMarketFilter: StateFlow<String?> = _selectedMarketFilter.asStateFlow()
+
+    /** 금액 순위 업종 필터 (null = 전체) */
+    private val _selectedSectorFilter = MutableStateFlow<String?>(null)
+    val selectedSectorFilter: StateFlow<String?> = _selectedSectorFilter.asStateFlow()
+
+    /** 필터 적용된 금액 순위 */
+    val filteredAmountRanking: StateFlow<List<AmountRankingItem>> = combine(
+        _amountRanking, _selectedMarketFilter, _selectedSectorFilter
+    ) { items, market, sector ->
+        items.filter { item ->
+            (market == null || item.market == market) &&
+                (sector == null || item.sector == sector)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 현재 시장 필터 적용 후 사용 가능한 업종 목록 */
+    val availableSectors: StateFlow<List<String>> = combine(
+        _amountRanking, _selectedMarketFilter
+    ) { items, market ->
+        items.filter { market == null || it.market == market }
+            .mapNotNull { it.sector }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun setMarketFilter(market: String?) {
+        _selectedMarketFilter.value = market
+        _selectedSectorFilter.value = null
+    }
+
+    fun setSectorFilter(sector: String?) {
+        _selectedSectorFilter.value = sector
     }
 
     fun setComparisonMode(mode: ComparisonMode) {
