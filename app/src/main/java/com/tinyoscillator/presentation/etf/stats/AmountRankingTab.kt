@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.domain.model.AmountRankingItem
@@ -372,10 +373,10 @@ private fun WeightCell(
             WeightTrend.NONE -> ""
         }
         val trendColor = when (trend) {
-            WeightTrend.UP -> MaterialTheme.colorScheme.tertiary
-            WeightTrend.DOWN -> MaterialTheme.colorScheme.error
-            WeightTrend.FLAT -> MaterialTheme.colorScheme.onSurfaceVariant
-            WeightTrend.NONE -> MaterialTheme.colorScheme.onSurface
+            WeightTrend.UP -> Color.Red
+            WeightTrend.DOWN -> Color.Blue
+            WeightTrend.FLAT -> Color.Black
+            WeightTrend.NONE -> Color.Black
         }
         Text(
             "${"%.2f".format(maxWeight)}%$trendSymbol",
