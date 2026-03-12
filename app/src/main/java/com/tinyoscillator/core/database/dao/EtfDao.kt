@@ -71,7 +71,8 @@ interface EtfDao {
     @Query("""
         SELECT stock_ticker, stock_name,
                SUM(amount) AS totalAmount,
-               COUNT(DISTINCT etf_ticker) AS etfCount
+               COUNT(DISTINCT etf_ticker) AS etfCount,
+               MAX(weight) AS maxWeight
         FROM etf_holdings
         WHERE date = :date
         GROUP BY stock_ticker
@@ -82,7 +83,8 @@ interface EtfDao {
     @Query("""
         SELECT stock_ticker, stock_name,
                SUM(amount) AS totalAmount,
-               COUNT(DISTINCT etf_ticker) AS etfCount
+               COUNT(DISTINCT etf_ticker) AS etfCount,
+               MAX(weight) AS maxWeight
         FROM etf_holdings
         WHERE date = :date AND etf_ticker NOT IN (:excludedTickers)
         GROUP BY stock_ticker

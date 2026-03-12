@@ -11,6 +11,7 @@ import com.tinyoscillator.domain.model.ChangeType
 import com.tinyoscillator.domain.model.StockChange
 import com.tinyoscillator.domain.model.StockInEtfRow
 import com.tinyoscillator.domain.model.StockSearchResult
+import com.tinyoscillator.domain.model.WeightTrend
 import com.tinyoscillator.presentation.etf.stats.normalizeMarketCode
 import com.tinyoscillator.presentation.settings.loadEtfKeywordFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -115,13 +116,18 @@ class EtfStatsViewModel @Inject constructor(
     private val _selectedSectorFilter = MutableStateFlow<String?>(null)
     val selectedSectorFilter: StateFlow<String?> = _selectedSectorFilter.asStateFlow()
 
+    /** 금액 순위 비중추이 필터 (null = 전체, NONE = 비중없음) */
+    private val _selectedWeightTrendFilter = MutableStateFlow<WeightTrend?>(null)
+    val selectedWeightTrendFilter: StateFlow<WeightTrend?> = _selectedWeightTrendFilter.asStateFlow()
+
     /** 필터 적용된 금액 순위 */
     val filteredAmountRanking: StateFlow<List<AmountRankingItem>> = combine(
-        _amountRanking, _selectedMarketFilter, _selectedSectorFilter
-    ) { items, market, sector ->
+        _amountRanking, _selectedMarketFilter, _selectedSectorFilter, _selectedWeightTrendFilter
+    ) { items, market, sector, weightTrend ->
         items.filter { item ->
             (market == null || item.market == market) &&
-                (sector == null || item.sector == sector)
+                (sector == null || item.sector == sector) &&
+                (weightTrend == null || item.maxWeightTrend == weightTrend)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -143,6 +149,10 @@ class EtfStatsViewModel @Inject constructor(
 
     fun setSectorFilter(sector: String?) {
         _selectedSectorFilter.value = sector
+    }
+
+    fun setWeightTrendFilter(trend: WeightTrend?) {
+        _selectedWeightTrendFilter.value = trend
     }
 
     fun setComparisonMode(mode: ComparisonMode) {

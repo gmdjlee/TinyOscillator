@@ -8,6 +8,7 @@ import com.tinyoscillator.domain.model.AmountRankingItem
 import com.tinyoscillator.domain.model.AmountRankingRow
 import com.tinyoscillator.domain.model.CashDepositRow
 import com.tinyoscillator.domain.model.ChangeType
+import com.tinyoscillator.domain.model.WeightTrend
 import com.tinyoscillator.domain.model.EtfDataProgress
 import com.tinyoscillator.domain.model.HoldingTimeSeries
 import com.tinyoscillator.domain.model.StockAggregatedTimePoint
@@ -278,8 +279,25 @@ class EtfRepository(
         // Group change counts by stock
         val changeCounts = changes.groupBy { it.stockTicker }
 
+        // Compute comparison-date max weights per stock for trend calculation
+        val comparisonMaxWeights: Map<String, Double> = if (comparisonDate != null) {
+            val compHoldings = if (excludedTickers.isEmpty()) etfDao.getAllHoldingsForDate(comparisonDate)
+            else etfDao.getAllHoldingsForDateExcluding(comparisonDate, excludedTickers)
+            compHoldings.groupBy { it.stockTicker }
+                .mapValues { (_, holdings) -> holdings.mapNotNull { it.weight }.maxOrNull() ?: 0.0 }
+        } else emptyMap()
+
         return ranking.mapIndexed { index, row ->
             val stockChanges = changeCounts[row.stock_ticker] ?: emptyList()
+            val currentMax = row.maxWeight
+            val compMax = comparisonMaxWeights[row.stock_ticker]
+            val trend = when {
+                currentMax == null || comparisonDate == null -> WeightTrend.NONE
+                compMax == null -> WeightTrend.NONE
+                currentMax > compMax + 0.001 -> WeightTrend.UP
+                currentMax < compMax - 0.001 -> WeightTrend.DOWN
+                else -> WeightTrend.FLAT
+            }
             AmountRankingItem(
                 rank = index + 1,
                 stockTicker = row.stock_ticker,
@@ -289,7 +307,9 @@ class EtfRepository(
                 newCount = stockChanges.count { it.changeType == ChangeType.NEW },
                 increasedCount = stockChanges.count { it.changeType == ChangeType.INCREASED },
                 decreasedCount = stockChanges.count { it.changeType == ChangeType.DECREASED },
-                removedCount = stockChanges.count { it.changeType == ChangeType.REMOVED }
+                removedCount = stockChanges.count { it.changeType == ChangeType.REMOVED },
+                maxWeight = currentMax,
+                maxWeightTrend = trend
             )
         }
     }

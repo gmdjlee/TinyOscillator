@@ -5,7 +5,8 @@ data class AmountRankingRow(
     val stock_ticker: String,
     val stock_name: String,
     val totalAmount: Long,
-    val etfCount: Int
+    val etfCount: Int,
+    val maxWeight: Double? = null
 )
 
 data class CashDepositRow(
@@ -34,6 +35,7 @@ data class StockSearchResult(
 
 // Computed models
 enum class ChangeType { NEW, REMOVED, INCREASED, DECREASED }
+enum class WeightTrend { UP, DOWN, FLAT, NONE }
 
 data class StockChange(
     val stockTicker: String,
@@ -60,7 +62,9 @@ data class AmountRankingItem(
     val decreasedCount: Int = 0,
     val removedCount: Int = 0,
     val market: String? = null,
-    val sector: String? = null
+    val sector: String? = null,
+    val maxWeight: Double? = null,
+    val maxWeightTrend: WeightTrend = WeightTrend.NONE
 )
 
 // Stock trend time series models

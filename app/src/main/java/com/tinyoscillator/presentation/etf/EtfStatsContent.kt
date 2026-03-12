@@ -38,6 +38,7 @@ fun EtfStatsContent(
     val filteredAmountRanking by viewModel.filteredAmountRanking.collectAsStateWithLifecycle()
     val selectedMarketFilter by viewModel.selectedMarketFilter.collectAsStateWithLifecycle()
     val selectedSectorFilter by viewModel.selectedSectorFilter.collectAsStateWithLifecycle()
+    val selectedWeightTrendFilter by viewModel.selectedWeightTrendFilter.collectAsStateWithLifecycle()
     val availableSectors by viewModel.availableSectors.collectAsStateWithLifecycle()
     val amountRanking by viewModel.amountRanking.collectAsStateWithLifecycle()
     val newStocks by viewModel.newStocks.collectAsStateWithLifecycle()
@@ -104,8 +105,10 @@ fun EtfStatsContent(
                     selectedMarket = selectedMarketFilter,
                     selectedSector = selectedSectorFilter,
                     availableSectors = availableSectors,
+                    selectedWeightTrend = selectedWeightTrendFilter,
                     onMarketFilter = { viewModel.setMarketFilter(it) },
                     onSectorFilter = { viewModel.setSectorFilter(it) },
+                    onWeightTrendFilter = { viewModel.setWeightTrendFilter(it) },
                     onStockClick = onStockClick,
                     modifier = Modifier.fillMaxSize()
                 )

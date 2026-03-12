@@ -9,6 +9,7 @@ import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.domain.model.AmountRankingRow
 import com.tinyoscillator.domain.model.ChangeType
+import com.tinyoscillator.domain.model.WeightTrend
 import com.tinyoscillator.domain.model.EtfDataProgress
 import com.tinyoscillator.presentation.settings.EtfKeywordFilter
 import com.tinyoscillator.presentation.settings.KrxCredentials
@@ -301,8 +302,8 @@ class EtfRepositoryTest {
         val compDate = "20260304"
 
         coEvery { etfDao.getAmountRanking(date) } returns listOf(
-            AmountRankingRow("005930", "삼성전자", 500_000_000_000L, 10),
-            AmountRankingRow("000660", "SK하이닉스", 300_000_000_000L, 7)
+            AmountRankingRow("005930", "삼성전자", 500_000_000_000L, 10, maxWeight = 7.0),
+            AmountRankingRow("000660", "SK하이닉스", 300_000_000_000L, 7, maxWeight = 5.0005)
         )
 
         // 삼성전자: ETF001에서 NEW, ETF002에서 INCREASED
@@ -331,6 +332,8 @@ class EtfRepositoryTest {
         assertEquals(10, samsung.etfCount)
         assertEquals(1, samsung.newCount)       // ETF001에서 NEW
         assertEquals(1, samsung.increasedCount) // ETF002에서 INCREASED
+        assertEquals(7.0, samsung.maxWeight!!, 0.001)
+        assertEquals(WeightTrend.UP, samsung.maxWeightTrend) // 7.0 > 3.0
 
         // SK하이닉스: rank=2, 변화 없음
         val sk = result[1]
@@ -339,6 +342,8 @@ class EtfRepositoryTest {
         assertEquals(0, sk.increasedCount)
         assertEquals(0, sk.decreasedCount)
         assertEquals(0, sk.removedCount)
+        assertEquals(5.0005, sk.maxWeight!!, 0.001)
+        assertEquals(WeightTrend.FLAT, sk.maxWeightTrend) // 5.0005 ≈ 5.0
     }
 
     @Test
@@ -356,6 +361,7 @@ class EtfRepositoryTest {
         assertEquals(0, result[0].increasedCount)
         assertEquals(0, result[0].decreasedCount)
         assertEquals(0, result[0].removedCount)
+        assertEquals(WeightTrend.NONE, result[0].maxWeightTrend)
     }
 
     @Test

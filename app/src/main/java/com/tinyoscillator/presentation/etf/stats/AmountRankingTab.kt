@@ -21,8 +21,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.domain.model.AmountRankingItem
+import com.tinyoscillator.domain.model.WeightTrend
 
-private enum class SortColumn { AMOUNT, ETF_COUNT, NEW, INCREASED, DECREASED, REMOVED }
+private enum class SortColumn { AMOUNT, ETF_COUNT, MAX_WEIGHT, NEW, INCREASED, DECREASED, REMOVED }
 private enum class SortOrder { ASC, DESC }
 private data class SortSpec(val column: SortColumn, val order: SortOrder)
 
@@ -46,8 +47,10 @@ fun AmountRankingTab(
     selectedMarket: String?,
     selectedSector: String?,
     availableSectors: List<String>,
+    selectedWeightTrend: WeightTrend?,
     onMarketFilter: (String?) -> Unit,
     onSectorFilter: (String?) -> Unit,
+    onWeightTrendFilter: (WeightTrend?) -> Unit,
     onStockClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -84,6 +87,7 @@ fun AmountRankingTab(
                 val base = when (spec.column) {
                     SortColumn.AMOUNT -> compareBy<AmountRankingItem> { it.totalAmountBillion }
                     SortColumn.ETF_COUNT -> compareBy { it.etfCount }
+                    SortColumn.MAX_WEIGHT -> compareBy { it.maxWeight ?: 0.0 }
                     SortColumn.NEW -> compareBy { it.newCount }
                     SortColumn.INCREASED -> compareBy { it.increasedCount }
                     SortColumn.DECREASED -> compareBy { it.decreasedCount }
@@ -165,6 +169,65 @@ fun AmountRankingTab(
                             }
                         }
                     }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Weight trend dropdown
+                    var trendExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = trendExpanded,
+                        onExpandedChange = { trendExpanded = it }
+                    ) {
+                        FilterChip(
+                            selected = selectedWeightTrend != null,
+                            onClick = { trendExpanded = true },
+                            label = {
+                                Text(
+                                    when (selectedWeightTrend) {
+                                        WeightTrend.UP -> "비중상승"
+                                        WeightTrend.DOWN -> "비중감소"
+                                        WeightTrend.FLAT -> "비중유지"
+                                        WeightTrend.NONE -> "비중없음"
+                                        null -> "비중추이"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
+                            modifier = Modifier.menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = trendExpanded,
+                            onDismissRequest = { trendExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("전체") },
+                                onClick = {
+                                    onWeightTrendFilter(null)
+                                    trendExpanded = false
+                                }
+                            )
+                            listOf(
+                                WeightTrend.UP to "비중상승",
+                                WeightTrend.FLAT to "비중유지",
+                                WeightTrend.DOWN to "비중감소",
+                                WeightTrend.NONE to "비중없음"
+                            ).forEach { (trend, label) ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            label,
+                                            color = if (trend == selectedWeightTrend) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    onClick = {
+                                        onWeightTrendFilter(trend)
+                                        trendExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -185,6 +248,7 @@ fun AmountRankingTab(
                 HeaderCell("종목명", 150.dp)
                 SortableHeaderCell("금액(억)", 64.dp, sortSpecs, SortColumn.AMOUNT) { onHeaderClick(SortColumn.AMOUNT) }
                 SortableHeaderCell("ETF수", 64.dp, sortSpecs, SortColumn.ETF_COUNT) { onHeaderClick(SortColumn.ETF_COUNT) }
+                SortableHeaderCell("최대비중", 72.dp, sortSpecs, SortColumn.MAX_WEIGHT) { onHeaderClick(SortColumn.MAX_WEIGHT) }
                 SortableHeaderCell("신규", 64.dp, sortSpecs, SortColumn.NEW) { onHeaderClick(SortColumn.NEW) }
                 SortableHeaderCell("증가", 64.dp, sortSpecs, SortColumn.INCREASED) { onHeaderClick(SortColumn.INCREASED) }
                 SortableHeaderCell("감소", 64.dp, sortSpecs, SortColumn.DECREASED) { onHeaderClick(SortColumn.DECREASED) }
@@ -240,6 +304,7 @@ fun AmountRankingTab(
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center
                 )
+                WeightCell(item.maxWeight, item.maxWeightTrend, 72.dp)
                 CountBadge(item.newCount, MaterialTheme.colorScheme.primary, 64.dp)
                 CountBadge(item.increasedCount, MaterialTheme.colorScheme.tertiary, 64.dp)
                 CountBadge(item.decreasedCount, MaterialTheme.colorScheme.error, 64.dp)
@@ -291,6 +356,37 @@ private fun SortableHeaderCell(
         color = if (spec != null) MaterialTheme.colorScheme.primary
                else MaterialTheme.colorScheme.onSurfaceVariant
     )
+}
+
+@Composable
+private fun WeightCell(
+    maxWeight: Double?,
+    trend: WeightTrend,
+    width: Dp
+) {
+    if (maxWeight != null) {
+        val trendSymbol = when (trend) {
+            WeightTrend.UP -> "▲"
+            WeightTrend.DOWN -> "▼"
+            WeightTrend.FLAT -> "-"
+            WeightTrend.NONE -> ""
+        }
+        val trendColor = when (trend) {
+            WeightTrend.UP -> MaterialTheme.colorScheme.tertiary
+            WeightTrend.DOWN -> MaterialTheme.colorScheme.error
+            WeightTrend.FLAT -> MaterialTheme.colorScheme.onSurfaceVariant
+            WeightTrend.NONE -> MaterialTheme.colorScheme.onSurface
+        }
+        Text(
+            "${"%.2f".format(maxWeight)}%$trendSymbol",
+            modifier = Modifier.width(width),
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.End,
+            color = trendColor
+        )
+    } else {
+        Spacer(modifier = Modifier.width(width))
+    }
 }
 
 @Composable
