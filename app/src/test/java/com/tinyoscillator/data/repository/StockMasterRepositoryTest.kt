@@ -271,7 +271,7 @@ class StockMasterRepositoryTest {
     @Test
     fun `searchStocks는 DAO에 위임한다`() = runTest {
         val entities = listOf(
-            StockMasterEntity("005930", "삼성전자", "KOSPI", 0L)
+            StockMasterEntity("005930", "삼성전자", "KOSPI", lastUpdated = 0L)
         )
         every { stockMasterDao.searchStocks("삼성") } returns flowOf(entities)
 

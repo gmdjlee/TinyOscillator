@@ -20,17 +20,25 @@ private val KospiColor = Color(0xFF1565C0)
 private val KosdaqColor = Color(0xFFD32F2F)
 private val SectorColor = Color(0xFF616161)
 
+/** 시장 코드를 표시명으로 변환. Kiwoom API는 "거래소"/"코스닥"을 반환함 */
 fun marketDisplayName(market: String?): String? = when (market) {
-    "KOSPI" -> "코스피"
-    "KOSDAQ" -> "코스닥"
+    "KOSPI", "거래소" -> "코스피"
+    "KOSDAQ", "코스닥" -> "코스닥"
     else -> null
+}
+
+/** 시장명을 정규화된 코드로 변환 (필터 비교용) */
+fun normalizeMarketCode(market: String?): String? = when (market) {
+    "KOSPI", "거래소" -> "KOSPI"
+    "KOSDAQ", "코스닥" -> "KOSDAQ"
+    else -> market
 }
 
 @Composable
 fun MarketLabel(market: String?, width: Dp) {
     val name = marketDisplayName(market)
     if (name != null) {
-        val color = if (market == "KOSPI") KospiColor else KosdaqColor
+        val color = if (normalizeMarketCode(market) == "KOSPI") KospiColor else KosdaqColor
         Text(
             name,
             modifier = Modifier.width(width),
@@ -63,7 +71,7 @@ fun SectorLabel(sector: String?, width: Dp) {
 @Composable
 fun MarketBadge(market: String?, modifier: Modifier = Modifier) {
     val name = marketDisplayName(market) ?: return
-    val color = if (market == "KOSPI") KospiColor else KosdaqColor
+    val color = if (normalizeMarketCode(market) == "KOSPI") KospiColor else KosdaqColor
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.extraSmall,

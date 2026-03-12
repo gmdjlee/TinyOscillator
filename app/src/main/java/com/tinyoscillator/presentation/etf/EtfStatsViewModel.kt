@@ -11,6 +11,7 @@ import com.tinyoscillator.domain.model.ChangeType
 import com.tinyoscillator.domain.model.StockChange
 import com.tinyoscillator.domain.model.StockInEtfRow
 import com.tinyoscillator.domain.model.StockSearchResult
+import com.tinyoscillator.presentation.etf.stats.normalizeMarketCode
 import com.tinyoscillator.presentation.settings.loadEtfKeywordFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -198,7 +199,7 @@ class EtfStatsViewModel @Inject constructor(
                 val keywords = loadEtfKeywordFilter(context)
                 excludedTickers = etfRepository.getExcludedTickers(keywords.excludeKeywords)
                 marketMap = stockMasterDao.getTickerMarketMap()
-                    .associate { it.ticker to it.market }
+                    .associate { it.ticker to (normalizeMarketCode(it.market) ?: it.market) }
                 sectorMap = stockMasterDao.getTickerSectorMap()
                     .associate { it.ticker to it.sector }
             } catch (e: Exception) {

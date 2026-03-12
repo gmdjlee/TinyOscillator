@@ -109,8 +109,8 @@ class StockMasterRepositoryEdgeCaseTest {
     @Test
     fun `searchStocks - 빈 문자열로 검색 시 DAO에 위임한다`() = runTest {
         val entities = listOf(
-            StockMasterEntity("005930", "삼성전자", "KOSPI", 0L),
-            StockMasterEntity("005935", "삼성전자우", "KOSPI", 0L)
+            StockMasterEntity("005930", "삼성전자", "KOSPI", lastUpdated = 0L),
+            StockMasterEntity("005935", "삼성전자우", "KOSPI", lastUpdated = 0L)
         )
         every { stockMasterDao.searchStocks("") } returns flowOf(entities)
 

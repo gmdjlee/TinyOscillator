@@ -14,7 +14,7 @@ class DatabaseEntityTest {
 
     @Test
     fun `StockMasterEntity 생성 및 프로퍼티 접근`() {
-        val entity = StockMasterEntity("005930", "삼성전자", "KOSPI", 1700000000L)
+        val entity = StockMasterEntity("005930", "삼성전자", "KOSPI", lastUpdated = 1700000000L)
         assertEquals("005930", entity.ticker)
         assertEquals("삼성전자", entity.name)
         assertEquals("KOSPI", entity.market)
@@ -23,22 +23,22 @@ class DatabaseEntityTest {
 
     @Test
     fun `StockMasterEntity equals - 같은 값`() {
-        val e1 = StockMasterEntity("005930", "삼성전자", "KOSPI", 100L)
-        val e2 = StockMasterEntity("005930", "삼성전자", "KOSPI", 100L)
+        val e1 = StockMasterEntity("005930", "삼성전자", "KOSPI", lastUpdated = 100L)
+        val e2 = StockMasterEntity("005930", "삼성전자", "KOSPI", lastUpdated = 100L)
         assertEquals(e1, e2)
         assertEquals(e1.hashCode(), e2.hashCode())
     }
 
     @Test
     fun `StockMasterEntity equals - 다른 ticker`() {
-        val e1 = StockMasterEntity("005930", "삼성전자", "KOSPI", 100L)
-        val e2 = StockMasterEntity("000660", "삼성전자", "KOSPI", 100L)
+        val e1 = StockMasterEntity("005930", "삼성전자", "KOSPI", lastUpdated = 100L)
+        val e2 = StockMasterEntity("000660", "삼성전자", "KOSPI", lastUpdated = 100L)
         assertNotEquals(e1, e2)
     }
 
     @Test
     fun `StockMasterEntity copy`() {
-        val original = StockMasterEntity("005930", "삼성전자", "KOSPI", 100L)
+        val original = StockMasterEntity("005930", "삼성전자", "KOSPI", lastUpdated = 100L)
         val updated = original.copy(lastUpdated = 200L)
         assertEquals("005930", updated.ticker)
         assertEquals(200L, updated.lastUpdated)
@@ -46,7 +46,7 @@ class DatabaseEntityTest {
 
     @Test
     fun `StockMasterEntity 빈 market`() {
-        val entity = StockMasterEntity("005930", "삼성전자", "", 100L)
+        val entity = StockMasterEntity("005930", "삼성전자", "", lastUpdated = 100L)
         assertEquals("", entity.market)
     }
 
