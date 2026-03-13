@@ -30,6 +30,8 @@ import androidx.work.WorkManager
 import com.tinyoscillator.core.api.InvestmentMode
 import com.tinyoscillator.core.api.KisApiKeyConfig
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
+import com.tinyoscillator.domain.model.AiApiKeyConfig
+import com.tinyoscillator.domain.model.AiProvider
 import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.worker.EtfUpdateWorker
 import com.tinyoscillator.core.worker.KEY_MESSAGE
@@ -56,6 +58,8 @@ private object PrefsKeys {
     const val KIS_MODE = "kis_mode"
     const val KRX_ID = "krx_id"
     const val KRX_PASSWORD = "krx_password"
+    const val AI_API_KEY = "ai_api_key"
+    const val AI_PROVIDER = "ai_provider"
     const val ETF_INCLUDE_KEYWORDS = "etf_include_keywords"
     const val ETF_EXCLUDE_KEYWORDS = "etf_exclude_keywords"
     const val ETF_SCHEDULE_HOUR = "etf_schedule_hour"
@@ -275,6 +279,22 @@ suspend fun loadKisConfig(context: Context): KisApiKeyConfig = withContext(Dispa
     )
 }
 
+suspend fun loadAiConfig(context: Context): AiApiKeyConfig = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    val providerName = prefs.getString(PrefsKeys.AI_PROVIDER, AiProvider.CLAUDE_HAIKU.name) ?: AiProvider.CLAUDE_HAIKU.name
+    AiApiKeyConfig(
+        provider = AiProvider.entries.find { it.name == providerName } ?: AiProvider.CLAUDE_HAIKU,
+        apiKey = prefs.getString(PrefsKeys.AI_API_KEY, "") ?: ""
+    )
+}
+
+suspend fun saveAiConfig(context: Context, config: AiApiKeyConfig) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putString(PrefsKeys.AI_PROVIDER, config.provider.name)
+        .putString(PrefsKeys.AI_API_KEY, config.apiKey)
+        .apply()
+}
+
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface SettingsEntryPoint {
@@ -348,6 +368,9 @@ fun SettingsScreen(onBack: () -> Unit) {
     var krxId by remember { mutableStateOf("") }
     var krxPassword by remember { mutableStateOf("") }
 
+    var aiApiKey by remember { mutableStateOf("") }
+    var aiProvider by remember { mutableStateOf(AiProvider.CLAUDE_HAIKU) }
+
     var includeKeywords by remember { mutableStateOf(DEFAULT_INCLUDE_KEYWORDS) }
     var excludeKeywords by remember { mutableStateOf(DEFAULT_EXCLUDE_KEYWORDS) }
     var etfCollectionDays by remember { mutableIntStateOf(14) }
@@ -401,6 +424,10 @@ fun SettingsScreen(onBack: () -> Unit) {
             val krxCreds = loadKrxCredentials(context)
             krxId = krxCreds.id
             krxPassword = krxCreds.password
+
+            val aiConfig = loadAiConfig(context)
+            aiApiKey = aiConfig.apiKey
+            aiProvider = aiConfig.provider
 
             val keywordFilter = loadEtfKeywordFilter(context)
             includeKeywords = keywordFilter.includeKeywords
@@ -481,6 +508,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onKrxIdChange = { krxId = it },
                     krxPassword = krxPassword,
                     onKrxPasswordChange = { krxPassword = it },
+                    aiApiKey = aiApiKey,
+                    onAiApiKeyChange = { aiApiKey = it },
+                    aiProvider = aiProvider,
+                    onAiProviderChange = { aiProvider = it },
                     saveMessage = saveMessage,
                     onSave = {
                         scope.launch {
@@ -488,6 +519,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 context, kiwoomAppKey, kiwoomSecretKey, kiwoomMode,
                                 kisAppKey, kisAppSecret, kisMode, krxId, krxPassword
                             )
+                            saveAiConfig(context, AiApiKeyConfig(aiProvider, aiApiKey))
                         }
                     }
                 )
@@ -827,6 +859,7 @@ private fun CollectionPeriodRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ApiTab(
     kiwoomAppKey: String, onKiwoomAppKeyChange: (String) -> Unit,
@@ -837,6 +870,8 @@ private fun ApiTab(
     kisMode: InvestmentMode, onKisModeChange: (InvestmentMode) -> Unit,
     krxId: String, onKrxIdChange: (String) -> Unit,
     krxPassword: String, onKrxPasswordChange: (String) -> Unit,
+    aiApiKey: String, onAiApiKeyChange: (String) -> Unit,
+    aiProvider: AiProvider, onAiProviderChange: (AiProvider) -> Unit,
     saveMessage: String?,
     onSave: () -> Unit
 ) {
@@ -930,6 +965,60 @@ private fun ApiTab(
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
+
+        HorizontalDivider()
+
+        // === AI API ===
+        Text("AI 분석 (Claude / Gemini)", style = MaterialTheme.typography.titleMedium)
+
+        var providerExpanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(
+            expanded = providerExpanded,
+            onExpandedChange = { providerExpanded = it }
+        ) {
+            OutlinedTextField(
+                value = aiProvider.displayName,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("AI Provider") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            ExposedDropdownMenu(
+                expanded = providerExpanded,
+                onDismissRequest = { providerExpanded = false }
+            ) {
+                AiProvider.entries.forEach { provider ->
+                    DropdownMenuItem(
+                        text = { Text(provider.displayName) },
+                        onClick = {
+                            onAiProviderChange(provider)
+                            providerExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        OutlinedTextField(
+            value = aiApiKey,
+            onValueChange = onAiApiKeyChange,
+            label = { Text("API Key") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Surface(
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            shape = MaterialTheme.shapes.small
+        ) {
+            Text(
+                "• Claude: anthropic.com에서 API Key 발급\n• Gemini: aistudio.google.com에서 API Key 발급\n• 권장: Claude Haiku (가장 저렴, 월 ~₩1,100)",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
 
         HorizontalDivider()
 

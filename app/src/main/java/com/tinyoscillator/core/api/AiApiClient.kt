@@ -1,0 +1,236 @@
+package com.tinyoscillator.core.api
+
+import com.tinyoscillator.domain.model.AiAnalysisResult
+import com.tinyoscillator.domain.model.AiAnalysisType
+import com.tinyoscillator.domain.model.AiApiKeyConfig
+import com.tinyoscillator.domain.model.AiProvider
+import com.tinyoscillator.domain.model.ClaudeResponse
+import com.tinyoscillator.domain.model.GeminiResponse
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import timber.log.Timber
+import kotlin.coroutines.cancellation.CancellationException
+
+/**
+ * AI API 클라이언트 (Claude / Gemini).
+ *
+ * KisApiClient 패턴 준수: OkHttpClient 싱글톤, Result<T>, ApiError, CircuitBreaker, Mutex 레이트리밋.
+ */
+class AiApiClient(
+    private val httpClient: OkHttpClient = KiwoomApiClient.createDefaultClient(),
+    private val json: Json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
+) {
+    private val circuitBreaker = CircuitBreaker()
+    private val rateLimitMutex = Mutex()
+
+    @Volatile
+    private var lastCallTime = 0L
+
+    suspend fun analyze(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        userMessage: String,
+        analysisType: AiAnalysisType = AiAnalysisType.STOCK_OSCILLATOR,
+        maxTokens: Int = 1024,
+        temperature: Double = 0.3
+    ): Result<AiAnalysisResult> = withContext(Dispatchers.IO) {
+        if (circuitBreaker.isOpen) {
+            Timber.w("AI 서킷 브레이커 OPEN → 즉시 실패")
+            return@withContext Result.failure(ApiError.NetworkError("AI API 일시 중단 (연속 실패)"))
+        }
+
+        var lastResult = analyzeOnce(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
+
+        // 429 재시도
+        if (lastResult.isFailure) {
+            val error = lastResult.exceptionOrNull()
+            if (error is ApiError.ApiCallError && error.code == 429) {
+                for (attempt in 1..MAX_RETRIES) {
+                    delay(RETRY_DELAYS[attempt - 1])
+                    Timber.d("AI API 재시도 %d/%d (429)", attempt, MAX_RETRIES)
+                    lastResult = analyzeOnce(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
+                    if (lastResult.isSuccess) break
+                }
+            }
+        }
+
+        if (lastResult.isSuccess) {
+            circuitBreaker.recordSuccess()
+        } else {
+            circuitBreaker.recordFailure()
+        }
+
+        lastResult
+    }
+
+    private suspend fun analyzeOnce(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        userMessage: String,
+        analysisType: AiAnalysisType,
+        maxTokens: Int,
+        temperature: Double
+    ): Result<AiAnalysisResult> {
+        try {
+            waitForRateLimit()
+
+            return when (config.provider) {
+                AiProvider.CLAUDE_HAIKU, AiProvider.CLAUDE_SONNET ->
+                    callClaude(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
+                AiProvider.GEMINI_FLASH ->
+                    callGemini(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return Result.failure(ApiError.mapException(e))
+        }
+    }
+
+    private suspend fun callClaude(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        userMessage: String,
+        analysisType: AiAnalysisType,
+        maxTokens: Int,
+        temperature: Double
+    ): Result<AiAnalysisResult> {
+        val requestBody = json.encodeToString(
+            mapOf(
+                "model" to config.provider.modelId,
+                "max_tokens" to maxTokens.toString(),
+                "temperature" to temperature.toString(),
+                "system" to systemPrompt,
+                "messages" to listOf(
+                    mapOf("role" to "user", "content" to userMessage)
+                )
+            )
+        )
+
+        val request = Request.Builder()
+            .url("${config.getBaseUrl()}/v1/messages")
+            .addHeader("x-api-key", config.apiKey)
+            .addHeader("anthropic-version", "2023-06-01")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        Timber.d("Claude API call: %s", config.provider.modelId)
+
+        val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).await().use { response ->
+            Triple(response.body?.string(), response.code, response.isSuccessful)
+        }
+
+        if (!isSuccessful || responseBody == null) {
+            return Result.failure(mapHttpError(responseCode))
+        }
+
+        val claudeResponse = json.decodeFromString<ClaudeResponse>(responseBody)
+        val text = claudeResponse.content.firstOrNull { it.type == "text" }?.text ?: ""
+
+        return Result.success(
+            AiAnalysisResult(
+                type = analysisType,
+                provider = config.provider,
+                content = text,
+                inputTokens = claudeResponse.usage.inputTokens,
+                outputTokens = claudeResponse.usage.outputTokens
+            )
+        )
+    }
+
+    private suspend fun callGemini(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        userMessage: String,
+        analysisType: AiAnalysisType,
+        maxTokens: Int,
+        temperature: Double
+    ): Result<AiAnalysisResult> {
+        val combinedMessage = "$systemPrompt\n\n$userMessage"
+
+        val requestBody = json.encodeToString(
+            mapOf(
+                "contents" to listOf(
+                    mapOf(
+                        "parts" to listOf(
+                            mapOf("text" to combinedMessage)
+                        )
+                    )
+                ),
+                "generationConfig" to mapOf(
+                    "temperature" to temperature.toString(),
+                    "maxOutputTokens" to maxTokens.toString()
+                )
+            )
+        )
+
+        val url = "${config.getBaseUrl()}/v1beta/models/${config.provider.modelId}:generateContent?key=${config.apiKey}"
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        Timber.d("Gemini API call: %s", config.provider.modelId)
+
+        val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).await().use { response ->
+            Triple(response.body?.string(), response.code, response.isSuccessful)
+        }
+
+        if (!isSuccessful || responseBody == null) {
+            return Result.failure(mapHttpError(responseCode))
+        }
+
+        val geminiResponse = json.decodeFromString<GeminiResponse>(responseBody)
+        val text = geminiResponse.candidates.firstOrNull()
+            ?.content?.parts?.firstOrNull()?.text ?: ""
+
+        return Result.success(
+            AiAnalysisResult(
+                type = analysisType,
+                provider = config.provider,
+                content = text,
+                inputTokens = geminiResponse.usageMetadata.promptTokenCount,
+                outputTokens = geminiResponse.usageMetadata.candidatesTokenCount
+            )
+        )
+    }
+
+    private fun mapHttpError(code: Int): ApiError = when (code) {
+        401, 403 -> ApiError.AuthError("AI API 인증 실패 (HTTP $code)")
+        429 -> ApiError.ApiCallError(429, "요청 한도 초과, 잠시 후 다시 시도해주세요")
+        in 500..599 -> ApiError.NetworkError("AI API 서버 오류 (HTTP $code)")
+        else -> ApiError.ApiCallError(code, "HTTP $code")
+    }
+
+    private suspend fun waitForRateLimit() {
+        val delayMs: Long
+        rateLimitMutex.withLock {
+            val now = System.currentTimeMillis()
+            val elapsed = now - lastCallTime
+            delayMs = if (elapsed < RATE_LIMIT_MS) RATE_LIMIT_MS - elapsed else 0L
+            lastCallTime = now + delayMs
+        }
+        if (delayMs > 0L) delay(delayMs)
+    }
+
+    companion object {
+        private const val MAX_RETRIES = 2
+        private const val RATE_LIMIT_MS = 1000L
+        private val RETRY_DELAYS = listOf(2000L, 4000L)
+    }
+}

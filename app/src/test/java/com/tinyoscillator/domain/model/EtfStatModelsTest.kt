@@ -348,4 +348,74 @@ class EtfStatModelsTest {
         assertEquals(t1, t2)
         assertEquals(t1.hashCode(), t2.hashCode())
     }
+
+    // ==========================================================
+    // WeightTrend enum 테스트
+    // ==========================================================
+
+    @Test
+    fun `WeightTrend - entries 개수가 4개이다`() {
+        assertEquals(4, WeightTrend.entries.size)
+    }
+
+    @Test
+    fun `WeightTrend - 각 값을 valueOf로 조회할 수 있다`() {
+        assertEquals(WeightTrend.UP, WeightTrend.valueOf("UP"))
+        assertEquals(WeightTrend.DOWN, WeightTrend.valueOf("DOWN"))
+        assertEquals(WeightTrend.FLAT, WeightTrend.valueOf("FLAT"))
+        assertEquals(WeightTrend.NONE, WeightTrend.valueOf("NONE"))
+    }
+
+    // ==========================================================
+    // AmountRankingItem with market/sector/weight 테스트
+    // ==========================================================
+
+    @Test
+    fun `AmountRankingItem - market과 sector 기본값은 null이다`() {
+        val item = AmountRankingItem(
+            rank = 1, stockTicker = "005930", stockName = "삼성전자",
+            totalAmountBillion = 100.0, etfCount = 10
+        )
+        assertNull(item.market)
+        assertNull(item.sector)
+        assertNull(item.maxWeight)
+        assertEquals(WeightTrend.NONE, item.maxWeightTrend)
+    }
+
+    @Test
+    fun `AmountRankingItem - market과 sector를 설정할 수 있다`() {
+        val item = AmountRankingItem(
+            rank = 1, stockTicker = "005930", stockName = "삼성전자",
+            totalAmountBillion = 100.0, etfCount = 10,
+            market = "KOSPI", sector = "전기전자",
+            maxWeight = 7.5, maxWeightTrend = WeightTrend.UP
+        )
+        assertEquals("KOSPI", item.market)
+        assertEquals("전기전자", item.sector)
+        assertEquals(7.5, item.maxWeight!!, 1e-10)
+        assertEquals(WeightTrend.UP, item.maxWeightTrend)
+    }
+
+    @Test
+    fun `StockChange - market과 sector 기본값은 null이다`() {
+        val change = StockChange(
+            stockTicker = "005930", stockName = "삼성전자",
+            etfTicker = "069500", etfName = "KODEX 200",
+            previousWeight = null, currentWeight = 5.0,
+            previousAmount = 0L, currentAmount = 1_000_000L,
+            changeType = ChangeType.NEW
+        )
+        assertNull(change.market)
+        assertNull(change.sector)
+    }
+
+    @Test
+    fun `StockSearchResult - market과 sector를 설정할 수 있다`() {
+        val result = StockSearchResult(
+            stock_ticker = "005930", stock_name = "삼성전자",
+            market = "KOSPI", sector = "전기전자"
+        )
+        assertEquals("KOSPI", result.market)
+        assertEquals("전기전자", result.sector)
+    }
 }

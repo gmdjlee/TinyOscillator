@@ -59,5 +59,15 @@
 -keepattributes Signature
 -keepattributes *Annotation*
 
+# AI API response models (kotlinx.serialization)
+-keep class com.tinyoscillator.domain.model.ClaudeResponse { *; }
+-keep class com.tinyoscillator.domain.model.ClaudeContent { *; }
+-keep class com.tinyoscillator.domain.model.ClaudeUsage { *; }
+-keep class com.tinyoscillator.domain.model.GeminiResponse { *; }
+-keep class com.tinyoscillator.domain.model.GeminiCandidate { *; }
+-keep class com.tinyoscillator.domain.model.GeminiContent { *; }
+-keep class com.tinyoscillator.domain.model.GeminiPart { *; }
+-keep class com.tinyoscillator.domain.model.GeminiUsageMetadata { *; }
+
 # WorkManager
 -keep class androidx.work.** { *; }

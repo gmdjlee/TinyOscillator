@@ -63,6 +63,16 @@ class MarketIndicatorRepository(
             oscillatorDao.getDataCount(market)
         }
 
+    suspend fun getRecentData(market: String, limit: Int): List<MarketOscillator> =
+        withContext(Dispatchers.IO) {
+            oscillatorDao.getRecentData(market, limit).map { it.toDomain() }
+        }
+
+    suspend fun getRecentDeposits(limit: Int): List<MarketDeposit> =
+        withContext(Dispatchers.IO) {
+            depositDao.getRecentDeposits(limit).map { it.toDomain() }
+        }
+
     /**
      * 초기 데이터 수집
      */

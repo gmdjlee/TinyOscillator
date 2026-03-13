@@ -1,5 +1,6 @@
 package com.tinyoscillator.core.di
 
+import com.tinyoscillator.core.api.AiApiClient
 import com.tinyoscillator.core.api.KisApiClient
 import com.tinyoscillator.core.api.KiwoomApiClient
 import com.tinyoscillator.core.api.KrxApiClient
@@ -11,6 +12,7 @@ import com.tinyoscillator.core.scraper.NaverFinanceScraper
 import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
+import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.domain.usecase.MarketOscillatorCalculator
@@ -51,6 +53,15 @@ object AppModule {
     @Provides
     @Singleton
     fun provideCalcDemarkTDUseCase(): CalcDemarkTDUseCase = CalcDemarkTDUseCase()
+
+    @Provides
+    @Singleton
+    fun provideAiApiClient(httpClient: OkHttpClient): AiApiClient =
+        AiApiClient(httpClient = httpClient)
+
+    @Provides
+    @Singleton
+    fun provideAiAnalysisPreparer(): AiAnalysisPreparer = AiAnalysisPreparer()
 
     @Provides
     @Singleton

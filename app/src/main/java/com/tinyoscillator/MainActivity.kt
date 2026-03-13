@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -50,6 +51,7 @@ import com.tinyoscillator.presentation.etf.AggregatedStockTrendScreen
 import com.tinyoscillator.presentation.etf.EtfScreen
 import com.tinyoscillator.presentation.etf.StockTrendScreen
 import com.tinyoscillator.presentation.financial.FinancialInfoContent
+import com.tinyoscillator.presentation.ai.AiAnalysisScreen
 import com.tinyoscillator.presentation.market.MarketIndicatorScreen
 import com.tinyoscillator.presentation.settings.SettingsScreen
 import com.tinyoscillator.presentation.viewmodel.OscillatorUiState
@@ -97,7 +99,8 @@ class MainActivity : ComponentActivity() {
 private enum class BottomNavItem(val label: String, val icon: ImageVector) {
     STOCK_ANALYSIS("종목분석", Icons.AutoMirrored.Filled.ShowChart),
     ETF_ANALYSIS("ETF분석", Icons.Default.PieChart),
-    MARKET_INDICATOR("시장지표", Icons.AutoMirrored.Filled.TrendingUp)
+    MARKET_INDICATOR("시장지표", Icons.AutoMirrored.Filled.TrendingUp),
+    AI_ANALYSIS("AI분석", Icons.Default.Psychology)
 }
 
 @Composable
@@ -184,6 +187,11 @@ private fun MainScaffold(
                 }
                 BottomNavItem.MARKET_INDICATOR -> {
                     MarketIndicatorScreen(
+                        onSettingsClick = onSettingsClick
+                    )
+                }
+                BottomNavItem.AI_ANALYSIS -> {
+                    AiAnalysisScreen(
                         onSettingsClick = onSettingsClick
                     )
                 }

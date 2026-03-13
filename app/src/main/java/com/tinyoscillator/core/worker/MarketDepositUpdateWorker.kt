@@ -2,11 +2,7 @@ package com.tinyoscillator.core.worker
 
 import android.content.Context
 import androidx.hilt.work.HiltWorker
-import androidx.work.CoroutineWorker
-import android.content.pm.ServiceInfo
-import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
-import androidx.work.workDataOf
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.presentation.settings.loadMarketDepositCollectionPeriod
 import dagger.assisted.Assisted
@@ -18,7 +14,10 @@ class MarketDepositUpdateWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted workerParams: WorkerParameters,
     private val repository: MarketIndicatorRepository
-) : CoroutineWorker(context, workerParams) {
+) : BaseCollectionWorker(context, workerParams) {
+
+    override val notificationTitle = "자금 동향 데이터 수집"
+    override val notificationId = CollectionNotificationHelper.DEPOSIT_NOTIFICATION_ID
 
     override suspend fun doWork(): Result {
         Timber.d("자금 동향 업데이트 워커 시작 (attempt: $runAttemptCount)")
@@ -36,7 +35,6 @@ class MarketDepositUpdateWorker @AssistedInject constructor(
             onProgress = { message, progressPercent ->
                 val p = (progressPercent.toFloat() / 100f).coerceIn(0.1f, 0.9f)
                 try {
-                    // setProgress is suspend but callback is not, use notification only here
                     updateNotification(message, (p * 100).toInt())
                 } catch (_: Exception) { /* ignore notification failures */ }
             }
@@ -59,43 +57,6 @@ class MarketDepositUpdateWorker @AssistedInject constructor(
             showCompletion("자금 동향 업데이트 최종 실패", isError = true)
             Result.failure()
         }
-    }
-
-    private suspend fun updateProgress(message: String, status: String, progress: Float = 0f) {
-        setProgress(workDataOf(
-            KEY_PROGRESS to progress,
-            KEY_MESSAGE to message,
-            KEY_STATUS to status
-        ))
-    }
-
-    private fun updateNotification(message: String, progress: Int) {
-        val notification = CollectionNotificationHelper.buildProgressNotification(
-            applicationContext, "자금 동향 데이터 수집", message, progress
-        )
-        CollectionNotificationHelper.showNotification(
-            applicationContext, CollectionNotificationHelper.DEPOSIT_NOTIFICATION_ID, notification
-        )
-    }
-
-    private fun showCompletion(message: String, isError: Boolean = false) {
-        val notification = CollectionNotificationHelper.buildCompletionNotification(
-            applicationContext, "자금 동향 데이터 수집", message, isError
-        )
-        CollectionNotificationHelper.showNotification(
-            applicationContext, CollectionNotificationHelper.DEPOSIT_NOTIFICATION_ID, notification
-        )
-    }
-
-    private fun createForegroundInfo(message: String): ForegroundInfo {
-        val notification = CollectionNotificationHelper.buildProgressNotification(
-            applicationContext, "자금 동향 데이터 수집", message, indeterminate = true
-        )
-        return ForegroundInfo(
-            CollectionNotificationHelper.DEPOSIT_NOTIFICATION_ID,
-            notification.build(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-        )
     }
 
     companion object {

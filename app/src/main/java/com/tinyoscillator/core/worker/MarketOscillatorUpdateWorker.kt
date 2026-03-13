@@ -2,11 +2,7 @@ package com.tinyoscillator.core.worker
 
 import android.content.Context
 import androidx.hilt.work.HiltWorker
-import androidx.work.CoroutineWorker
-import android.content.pm.ServiceInfo
-import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
-import androidx.work.workDataOf
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.presentation.settings.loadKrxCredentials
 import com.tinyoscillator.presentation.settings.loadMarketOscillatorCollectionPeriod
@@ -20,7 +16,10 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted workerParams: WorkerParameters,
     private val repository: MarketIndicatorRepository
-) : CoroutineWorker(context, workerParams) {
+) : BaseCollectionWorker(context, workerParams) {
+
+    override val notificationTitle = "과매수/과매도 데이터 수집"
+    override val notificationId = CollectionNotificationHelper.OSCILLATOR_NOTIFICATION_ID
 
     override suspend fun doWork(): Result {
         Timber.d("시장지표 업데이트 워커 시작 (attempt: $runAttemptCount)")
@@ -74,43 +73,6 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
         updateProgress(msg, STATUS_SUCCESS, 1f)
         showCompletion(msg)
         return Result.success()
-    }
-
-    private suspend fun updateProgress(message: String, status: String, progress: Float = 0f) {
-        setProgress(workDataOf(
-            KEY_PROGRESS to progress,
-            KEY_MESSAGE to message,
-            KEY_STATUS to status
-        ))
-    }
-
-    private fun updateNotification(message: String, progress: Int) {
-        val notification = CollectionNotificationHelper.buildProgressNotification(
-            applicationContext, "과매수/과매도 데이터 수집", message, progress
-        )
-        CollectionNotificationHelper.showNotification(
-            applicationContext, CollectionNotificationHelper.OSCILLATOR_NOTIFICATION_ID, notification
-        )
-    }
-
-    private fun showCompletion(message: String, isError: Boolean = false) {
-        val notification = CollectionNotificationHelper.buildCompletionNotification(
-            applicationContext, "과매수/과매도 데이터 수집", message, isError
-        )
-        CollectionNotificationHelper.showNotification(
-            applicationContext, CollectionNotificationHelper.OSCILLATOR_NOTIFICATION_ID, notification
-        )
-    }
-
-    private fun createForegroundInfo(message: String): ForegroundInfo {
-        val notification = CollectionNotificationHelper.buildProgressNotification(
-            applicationContext, "과매수/과매도 데이터 수집", message, indeterminate = true
-        )
-        return ForegroundInfo(
-            CollectionNotificationHelper.OSCILLATOR_NOTIFICATION_ID,
-            notification.build(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-        )
     }
 
     companion object {

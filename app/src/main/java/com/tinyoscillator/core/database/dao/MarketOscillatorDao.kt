@@ -20,6 +20,9 @@ interface MarketOscillatorDao {
     @Query("SELECT * FROM market_oscillator WHERE market = :market ORDER BY date DESC LIMIT 1")
     suspend fun getLatestData(market: String): MarketOscillatorEntity?
 
+    @Query("SELECT * FROM market_oscillator WHERE market = :market ORDER BY date DESC LIMIT :limit")
+    suspend fun getRecentData(market: String, limit: Int): List<MarketOscillatorEntity>
+
     @Query("SELECT COUNT(*) FROM market_oscillator WHERE market = :market")
     suspend fun getDataCount(market: String): Int
 

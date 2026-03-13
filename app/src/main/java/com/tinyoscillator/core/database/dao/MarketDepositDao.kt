@@ -20,6 +20,9 @@ interface MarketDepositDao {
     @Query("SELECT * FROM market_deposits ORDER BY date DESC LIMIT 1")
     suspend fun getLatestDeposit(): MarketDepositEntity?
 
+    @Query("SELECT * FROM market_deposits ORDER BY date DESC LIMIT :limit")
+    suspend fun getRecentDeposits(limit: Int): List<MarketDepositEntity>
+
     @Query("SELECT last_updated FROM market_deposits ORDER BY last_updated DESC LIMIT 1")
     suspend fun getLastUpdateTime(): Long?
 
