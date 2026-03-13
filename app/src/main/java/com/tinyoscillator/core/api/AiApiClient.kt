@@ -11,8 +11,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -107,17 +109,18 @@ class AiApiClient(
         maxTokens: Int,
         temperature: Double
     ): Result<AiAnalysisResult> {
-        val requestBody = json.encodeToString(
-            mapOf(
-                "model" to config.provider.modelId,
-                "max_tokens" to maxTokens.toString(),
-                "temperature" to temperature.toString(),
-                "system" to systemPrompt,
-                "messages" to listOf(
-                    mapOf("role" to "user", "content" to userMessage)
-                )
-            )
-        )
+        val requestBody = buildJsonObject {
+            put("model", config.provider.modelId)
+            put("max_tokens", maxTokens)
+            put("temperature", temperature)
+            put("system", systemPrompt)
+            put("messages", buildJsonArray {
+                add(buildJsonObject {
+                    put("role", "user")
+                    put("content", userMessage)
+                })
+            })
+        }.toString()
 
         val request = Request.Builder()
             .url("${config.getBaseUrl()}/v1/messages")
@@ -161,21 +164,21 @@ class AiApiClient(
     ): Result<AiAnalysisResult> {
         val combinedMessage = "$systemPrompt\n\n$userMessage"
 
-        val requestBody = json.encodeToString(
-            mapOf(
-                "contents" to listOf(
-                    mapOf(
-                        "parts" to listOf(
-                            mapOf("text" to combinedMessage)
-                        )
-                    )
-                ),
-                "generationConfig" to mapOf(
-                    "temperature" to temperature.toString(),
-                    "maxOutputTokens" to maxTokens.toString()
-                )
-            )
-        )
+        val requestBody = buildJsonObject {
+            put("contents", buildJsonArray {
+                add(buildJsonObject {
+                    put("parts", buildJsonArray {
+                        add(buildJsonObject {
+                            put("text", combinedMessage)
+                        })
+                    })
+                })
+            })
+            put("generationConfig", buildJsonObject {
+                put("temperature", temperature)
+                put("maxOutputTokens", maxTokens)
+            })
+        }.toString()
 
         val url = "${config.getBaseUrl()}/v1beta/models/${config.provider.modelId}:generateContent?key=${config.apiKey}"
 
