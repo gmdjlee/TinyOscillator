@@ -27,18 +27,10 @@ import kotlin.coroutines.cancellation.CancellationException
 class KiwoomApiClient(
     private val httpClient: OkHttpClient = createDefaultClient(),
     private val json: Json = createDefaultJson()
-) {
+) : BaseApiClient(rateLimitMs = RATE_LIMIT_MS) {
     // 토큰 캐시 (baseUrl + appKey 조합)
     private val tokenCache = ConcurrentHashMap<String, TokenInfo>()
     private val tokenMutex = Mutex()
-
-    // 레이트 리밋 (500ms 간격)
-    @Volatile
-    private var lastCallTime = 0L
-    private val rateLimitMutex = Mutex()
-
-    // 서킷 브레이커: 연속 3회 실패 시 5분간 즉시 실패 반환
-    private val circuitBreaker = CircuitBreaker()
 
     /**
      * Kiwoom API 호출.
@@ -78,12 +70,7 @@ class KiwoomApiClient(
             }
         }
 
-        // Update circuit breaker state
-        if (lastResult.isSuccess) {
-            circuitBreaker.recordSuccess()
-        } else {
-            circuitBreaker.recordFailure()
-        }
+        updateCircuitBreaker(lastResult.isSuccess)
 
         lastResult
     }
@@ -207,17 +194,6 @@ class KiwoomApiClient(
     private suspend fun refreshToken(config: KiwoomApiKeyConfig) = tokenMutex.withLock {
         val cacheKey = "${config.getBaseUrl()}:${config.appKey.hashCode()}"
         tokenCache.remove(cacheKey)
-    }
-
-    private suspend fun waitForRateLimit() {
-        val delayMs: Long
-        rateLimitMutex.withLock {
-            val now = System.currentTimeMillis()
-            val elapsed = now - lastCallTime
-            delayMs = if (elapsed < RATE_LIMIT_MS) RATE_LIMIT_MS - elapsed else 0L
-            lastCallTime = now + delayMs  // Reserve this time slot
-        }
-        if (delayMs > 0L) delay(delayMs)
     }
 
     /**

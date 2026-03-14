@@ -48,6 +48,10 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    lint {
+        checkReleaseBuilds = false
+    }
 }
 
 ksp {

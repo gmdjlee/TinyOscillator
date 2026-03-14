@@ -23,6 +23,9 @@ class KrxApiClient {
     suspend fun login(id: String, pw: String): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             try {
+                // Clear previous state before attempting login
+                closeInternal()
+
                 val client = KrxClient()
                 val success = client.login(id, pw)
                 if (success) {
@@ -33,6 +36,7 @@ class KrxApiClient {
                     Timber.d("KRX 로그인 성공")
                 } else {
                     Timber.w("KRX 로그인 실패")
+                    client.close()
                 }
                 success
             } catch (e: Exception) {
@@ -42,17 +46,29 @@ class KrxApiClient {
         }
     }
 
-    suspend fun getEtfTickerList(date: String): List<EtfInfo> = withContext(Dispatchers.IO) {
+    suspend fun getEtfTickerList(date: String): Result<List<EtfInfo>> = withContext(Dispatchers.IO) {
         mutex.withLock {
-            val etf = krxEtf ?: throw IllegalStateException("KRX 로그인이 필요합니다")
-            etf.getEtfTickerList(date)
+            val etf = krxEtf
+                ?: return@withContext Result.failure(IllegalStateException("KRX 로그인이 필요합니다"))
+            try {
+                Result.success(etf.getEtfTickerList(date))
+            } catch (e: Exception) {
+                Timber.e(e, "ETF 목록 조회 실패: $date")
+                Result.failure(e)
+            }
         }
     }
 
-    suspend fun getPortfolio(date: String, ticker: String): List<EtfPortfolio> = withContext(Dispatchers.IO) {
+    suspend fun getPortfolio(date: String, ticker: String): Result<List<EtfPortfolio>> = withContext(Dispatchers.IO) {
         mutex.withLock {
-            val etf = krxEtf ?: throw IllegalStateException("KRX 로그인이 필요합니다")
-            etf.getPortfolio(date, ticker)
+            val etf = krxEtf
+                ?: return@withContext Result.failure(IllegalStateException("KRX 로그인이 필요합니다"))
+            try {
+                Result.success(etf.getPortfolio(date, ticker))
+            } catch (e: Exception) {
+                Timber.e(e, "포트폴리오 조회 실패: $ticker / $date")
+                Result.failure(e)
+            }
         }
     }
 
@@ -61,7 +77,15 @@ class KrxApiClient {
     fun getKrxStock(): KrxStock? = krxStock
 
     fun close() {
-        krxClient?.close()
+        closeInternal()
+    }
+
+    private fun closeInternal() {
+        try {
+            krxClient?.close()
+        } catch (e: Exception) {
+            Timber.w(e, "KRX 클라이언트 close 실패")
+        }
         krxClient = null
         krxEtf = null
         krxIndex = null

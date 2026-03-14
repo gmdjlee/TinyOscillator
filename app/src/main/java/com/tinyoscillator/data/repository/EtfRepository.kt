@@ -67,7 +67,10 @@ class EtfRepository(
 
             // Fetch ETF list from the most recent date
             val latestDate = dates.last()
-            val allEtfs = krxApiClient.getEtfTickerList(latestDate)
+            val allEtfs = krxApiClient.getEtfTickerList(latestDate).getOrElse { e ->
+                emit(EtfDataProgress.Error("ETF 목록 조회 실패: ${e.message ?: e.javaClass.simpleName}"))
+                return@flow
+            }
             Timber.d("전체 ETF 수: ${allEtfs.size}")
 
             // Apply keyword filter (순서: 1.액티브 ETF 기본 수집 → 2.제외 키워드 → 3.포함 키워드)
@@ -140,7 +143,7 @@ class EtfRepository(
 
             for (item in workItems) {
                 try {
-                    val portfolio = krxApiClient.getPortfolio(item.date, item.ticker)
+                    val portfolio = krxApiClient.getPortfolio(item.date, item.ticker).getOrThrow()
                     if (portfolio.isNotEmpty()) {
                         val holdings = portfolio.map { p ->
                             EtfHoldingEntity(

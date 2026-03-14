@@ -26,18 +26,10 @@ import kotlin.coroutines.cancellation.CancellationException
 class KisApiClient(
     private val httpClient: OkHttpClient = KiwoomApiClient.createDefaultClient(),
     private val json: Json = KiwoomApiClient.createDefaultJson()
-) {
+) : BaseApiClient(rateLimitMs = RATE_LIMIT_MS) {
     // 토큰 캐시
     private val tokenCache = ConcurrentHashMap<String, TokenInfo>()
     private val tokenMutex = Mutex()
-
-    // 레이트 리밋
-    @Volatile
-    private var lastCallTime = 0L
-    private val rateLimitMutex = Mutex()
-
-    // 서킷 브레이커
-    private val circuitBreaker = CircuitBreaker()
 
     /**
      * KIS API GET 요청.
@@ -76,12 +68,7 @@ class KisApiClient(
             }
         }
 
-        // Update circuit breaker state
-        if (lastResult.isSuccess) {
-            circuitBreaker.recordSuccess()
-        } else {
-            circuitBreaker.recordFailure()
-        }
+        updateCircuitBreaker(lastResult.isSuccess)
 
         lastResult
     }
@@ -206,17 +193,6 @@ class KisApiClient(
     private suspend fun refreshToken(config: KisApiKeyConfig) = tokenMutex.withLock {
         val cacheKey = "${config.getBaseUrl()}:${config.appKey.hashCode()}"
         tokenCache.remove(cacheKey)
-    }
-
-    private suspend fun waitForRateLimit() {
-        val delayMs: Long
-        rateLimitMutex.withLock {
-            val now = System.currentTimeMillis()
-            val elapsed = now - lastCallTime
-            delayMs = if (elapsed < RATE_LIMIT_MS) RATE_LIMIT_MS - elapsed else 0L
-            lastCallTime = now + delayMs  // Reserve this time slot
-        }
-        if (delayMs > 0L) delay(delayMs)
     }
 
     companion object {

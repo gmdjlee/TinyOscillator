@@ -395,7 +395,7 @@ class EtfRepositoryTest {
     @Test
     fun `updateData - 정상 흐름은 Loading에서 Success로 진행한다`() = runTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
-        coEvery { krxApiClient.getEtfTickerList(any()) } returns listOf(
+        coEvery { krxApiClient.getEtfTickerList(any()) } returns Result.success(listOf(
             EtfInfo(
                 ticker = "ETF001",
                 name = "KODEX 200 액티브",
@@ -406,9 +406,9 @@ class EtfRepositoryTest {
                 cu = null,
                 totalFee = 0.15
             )
-        )
+        ))
         coEvery { etfDao.getExistingHoldingPairs() } returns emptyList()
-        coEvery { krxApiClient.getPortfolio(any(), any()) } returns listOf(
+        coEvery { krxApiClient.getPortfolio(any(), any()) } returns Result.success(listOf(
             EtfPortfolio(
                 ticker = "005930",
                 name = "삼성전자",
@@ -417,7 +417,7 @@ class EtfRepositoryTest {
                 amount = 5_000_000,
                 weight = 10.0
             )
-        )
+        ))
 
         val emissions = repository.updateData(testCreds, emptyKeywords, daysBack = 7).toList()
 
@@ -433,7 +433,7 @@ class EtfRepositoryTest {
     @Test
     fun `updateData - 예외 발생 시 Error를 emit하고 close를 호출한다`() = runTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
-        coEvery { krxApiClient.getEtfTickerList(any()) } throws RuntimeException("네트워크 오류")
+        coEvery { krxApiClient.getEtfTickerList(any()) } returns Result.failure(RuntimeException("네트워크 오류"))
 
         val emissions = repository.updateData(testCreds, emptyKeywords).toList()
 
@@ -445,9 +445,9 @@ class EtfRepositoryTest {
     @Test
     fun `updateData - 새 수집 대상이 없으면 즉시 Success를 반환한다`() = runTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
-        coEvery { krxApiClient.getEtfTickerList(any()) } returns listOf(
+        coEvery { krxApiClient.getEtfTickerList(any()) } returns Result.success(listOf(
             EtfInfo("ETF001", "KODEX 200 액티브", "KR7ETF001007", null, null, null, null, null)
-        )
+        ))
         // 모든 (ETF, 날짜) 쌍이 이미 존재 → workItems가 비게 함
         val allPairs = (0 until 14).mapNotNull { i ->
             val cal = java.util.Calendar.getInstance()
@@ -469,13 +469,13 @@ class EtfRepositoryTest {
     @Test
     fun `updateData - 키워드 필터가 ETF를 올바르게 필터링한다`() = runTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
-        coEvery { krxApiClient.getEtfTickerList(any()) } returns listOf(
+        coEvery { krxApiClient.getEtfTickerList(any()) } returns Result.success(listOf(
             EtfInfo("ETF001", "KODEX 반도체 액티브", "KR7001", null, null, null, null, null),
             EtfInfo("ETF002", "TIGER 채권 액티브", "KR7002", null, null, null, null, null),
             EtfInfo("ETF003", "KODEX AI 액티브", "KR7003", null, null, null, null, null)
-        )
+        ))
         coEvery { etfDao.getExistingHoldingPairs() } returns emptyList()
-        coEvery { krxApiClient.getPortfolio(any(), any()) } returns emptyList()
+        coEvery { krxApiClient.getPortfolio(any(), any()) } returns Result.success(emptyList())
 
         val keywords = EtfKeywordFilter(
             includeKeywords = listOf("반도체"),
@@ -579,12 +579,12 @@ class EtfRepositoryTest {
     @Test
     fun `updateData - 액티브가 아닌 ETF는 필터링된다`() = runTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
-        coEvery { krxApiClient.getEtfTickerList(any()) } returns listOf(
+        coEvery { krxApiClient.getEtfTickerList(any()) } returns Result.success(listOf(
             EtfInfo("ETF001", "KODEX 200 액티브", "KR7001", null, null, null, null, null),
             EtfInfo("ETF002", "KODEX 200", "KR7002", null, null, null, null, null) // 액티브 아님
-        )
+        ))
         coEvery { etfDao.getExistingHoldingPairs() } returns emptyList()
-        coEvery { krxApiClient.getPortfolio(any(), any()) } returns emptyList()
+        coEvery { krxApiClient.getPortfolio(any(), any()) } returns Result.success(emptyList())
 
         repository.updateData(testCreds, emptyKeywords, daysBack = 7).toList()
 
@@ -597,10 +597,10 @@ class EtfRepositoryTest {
     @Test
     fun `updateData - 중단 시나리오에서 완료된 ETF는 스킵하고 미수집분만 재수집한다`() = runTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
-        coEvery { krxApiClient.getEtfTickerList(any()) } returns listOf(
+        coEvery { krxApiClient.getEtfTickerList(any()) } returns Result.success(listOf(
             EtfInfo("ETF001", "KODEX 200 액티브", "KR7001", null, null, null, null, null),
             EtfInfo("ETF002", "TIGER 반도체 액티브", "KR7002", null, null, null, null, null)
-        )
+        ))
         // ETF1: 2일 모두 수집 완료, ETF2: 1일만 수집됨 (중단 시나리오)
         coEvery { etfDao.getExistingHoldingPairs() } returns listOf(
             EtfDatePair("ETF001", "20260304"),
@@ -608,9 +608,9 @@ class EtfRepositoryTest {
             EtfDatePair("ETF002", "20260304")
             // ETF002의 20260305가 누락 — 이것만 재수집 대상
         )
-        coEvery { krxApiClient.getPortfolio(any(), any()) } returns listOf(
+        coEvery { krxApiClient.getPortfolio(any(), any()) } returns Result.success(listOf(
             EtfPortfolio("005930", "삼성전자", 100, 5_000_000, 5_000_000, 10.0)
-        )
+        ))
 
         val emissions = repository.updateData(testCreds, emptyKeywords, daysBack = 2).toList()
 
@@ -625,11 +625,11 @@ class EtfRepositoryTest {
     @Test
     fun `updateData - 개별 포트폴리오 수집 실패는 전체 프로세스를 중단하지 않는다`() = runTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
-        coEvery { krxApiClient.getEtfTickerList(any()) } returns listOf(
+        coEvery { krxApiClient.getEtfTickerList(any()) } returns Result.success(listOf(
             EtfInfo("ETF001", "KODEX 200 액티브", "KR7001", null, null, null, null, null)
-        )
+        ))
         coEvery { etfDao.getExistingHoldingPairs() } returns emptyList()
-        coEvery { krxApiClient.getPortfolio(any(), any()) } throws RuntimeException("API 오류")
+        coEvery { krxApiClient.getPortfolio(any(), any()) } returns Result.failure(RuntimeException("API 오류"))
 
         val emissions = repository.updateData(testCreds, emptyKeywords, daysBack = 7).toList()
 

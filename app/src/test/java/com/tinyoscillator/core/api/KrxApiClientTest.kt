@@ -108,14 +108,18 @@ class KrxApiClientTest {
     // getEtfTickerList 테스트
     // ==========================================================
 
-    @Test(expected = IllegalStateException::class)
-    fun `getEtfTickerList - 로그인 전 호출 시 IllegalStateException을 던진다`() = runTest {
-        client.getEtfTickerList("20240101")
+    @Test
+    fun `getEtfTickerList - 로그인 전 호출 시 Result_failure를 반환한다`() = runTest {
+        val result = client.getEtfTickerList("20240101")
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is IllegalStateException)
     }
 
-    @Test(expected = IllegalStateException::class)
-    fun `getPortfolio - 로그인 전 호출 시 IllegalStateException을 던진다`() = runTest {
-        client.getPortfolio("20240101", "069500")
+    @Test
+    fun `getPortfolio - 로그인 전 호출 시 Result_failure를 반환한다`() = runTest {
+        val result = client.getPortfolio("20240101", "069500")
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is IllegalStateException)
     }
 
     // ==========================================================

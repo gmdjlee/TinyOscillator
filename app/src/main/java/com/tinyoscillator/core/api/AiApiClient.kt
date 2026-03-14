@@ -8,8 +8,6 @@ import com.tinyoscillator.domain.model.ClaudeResponse
 import com.tinyoscillator.domain.model.GeminiResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
@@ -33,12 +31,7 @@ class AiApiClient(
         ignoreUnknownKeys = true
         isLenient = true
     }
-) {
-    private val circuitBreaker = CircuitBreaker()
-    private val rateLimitMutex = Mutex()
-
-    @Volatile
-    private var lastCallTime = 0L
+) : BaseApiClient(rateLimitMs = RATE_LIMIT_MS) {
 
     suspend fun analyze(
         config: AiApiKeyConfig,
@@ -68,11 +61,7 @@ class AiApiClient(
             }
         }
 
-        if (lastResult.isSuccess) {
-            circuitBreaker.recordSuccess()
-        } else {
-            circuitBreaker.recordFailure()
-        }
+        updateCircuitBreaker(lastResult.isSuccess)
 
         lastResult
     }
@@ -180,10 +169,11 @@ class AiApiClient(
             })
         }.toString()
 
-        val url = "${config.getBaseUrl()}/v1beta/models/${config.provider.modelId}:generateContent?key=${config.apiKey}"
+        val url = "${config.getBaseUrl()}/v1beta/models/${config.provider.modelId}:generateContent"
 
         val request = Request.Builder()
             .url(url)
+            .addHeader("x-goog-api-key", config.apiKey)
             .addHeader("Content-Type", "application/json")
             .post(requestBody.toRequestBody("application/json".toMediaType()))
             .build()
@@ -218,17 +208,6 @@ class AiApiClient(
         429 -> ApiError.ApiCallError(429, "요청 한도 초과, 잠시 후 다시 시도해주세요")
         in 500..599 -> ApiError.NetworkError("AI API 서버 오류 (HTTP $code)")
         else -> ApiError.ApiCallError(code, "HTTP $code")
-    }
-
-    private suspend fun waitForRateLimit() {
-        val delayMs: Long
-        rateLimitMutex.withLock {
-            val now = System.currentTimeMillis()
-            val elapsed = now - lastCallTime
-            delayMs = if (elapsed < RATE_LIMIT_MS) RATE_LIMIT_MS - elapsed else 0L
-            lastCallTime = now + delayMs
-        }
-        if (delayMs > 0L) delay(delayMs)
     }
 
     companion object {

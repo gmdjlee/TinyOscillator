@@ -53,7 +53,7 @@ class RateLimitTest {
             httpClient = KiwoomApiClient.createDefaultClient(enablePinning = false),
             json = KiwoomApiClient.createDefaultJson()
         )
-        val field = KiwoomApiClient::class.java.getDeclaredField("lastCallTime")
+        val field = BaseApiClient::class.java.getDeclaredField("lastCallTime")
         field.isAccessible = true
         assertEquals(0L, field.get(client))
     }
@@ -64,7 +64,7 @@ class RateLimitTest {
             httpClient = KiwoomApiClient.createDefaultClient(enablePinning = false),
             json = KiwoomApiClient.createDefaultJson()
         )
-        val field = KisApiClient::class.java.getDeclaredField("lastCallTime")
+        val field = BaseApiClient::class.java.getDeclaredField("lastCallTime")
         field.isAccessible = true
         assertEquals(0L, field.get(client))
     }
@@ -85,7 +85,7 @@ class RateLimitTest {
 
     @Test
     fun `KiwoomApiClient rateLimitMutex가 존재한다`() {
-        val field = KiwoomApiClient::class.java.getDeclaredField("rateLimitMutex")
+        val field = BaseApiClient::class.java.getDeclaredField("rateLimitMutex")
         field.isAccessible = true
         val mutex = field.get(kiwoomClient)
         assertNotNull(mutex)
@@ -94,7 +94,7 @@ class RateLimitTest {
 
     @Test
     fun `KisApiClient rateLimitMutex가 존재한다`() {
-        val field = KisApiClient::class.java.getDeclaredField("rateLimitMutex")
+        val field = BaseApiClient::class.java.getDeclaredField("rateLimitMutex")
         field.isAccessible = true
         val mutex = field.get(kisClient)
         assertNotNull(mutex)
@@ -108,7 +108,7 @@ class RateLimitTest {
             json = KiwoomApiClient.createDefaultJson()
         )
 
-        val field = KiwoomApiClient::class.java.getDeclaredField("lastCallTime")
+        val field = BaseApiClient::class.java.getDeclaredField("lastCallTime")
         field.isAccessible = true
 
         // Initial value should be 0
@@ -121,14 +121,8 @@ class RateLimitTest {
     }
 
     @Test
-    fun `lastCallTime은 @Volatile이다 - Kiwoom`() {
-        val field = KiwoomApiClient::class.java.getDeclaredField("lastCallTime")
-        assertTrue(java.lang.reflect.Modifier.isVolatile(field.modifiers))
-    }
-
-    @Test
-    fun `lastCallTime은 @Volatile이다 - KIS`() {
-        val field = KisApiClient::class.java.getDeclaredField("lastCallTime")
+    fun `lastCallTime은 @Volatile이다`() {
+        val field = BaseApiClient::class.java.getDeclaredField("lastCallTime")
         assertTrue(java.lang.reflect.Modifier.isVolatile(field.modifiers))
     }
 

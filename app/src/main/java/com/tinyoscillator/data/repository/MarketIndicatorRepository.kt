@@ -126,6 +126,8 @@ class MarketIndicatorRepository(
         } catch (e: Exception) {
             Timber.e(e, "Error initializing market data")
             Result.failure(e)
+        } finally {
+            krxApiClient.close()
         }
     }
 
@@ -165,6 +167,8 @@ class MarketIndicatorRepository(
         } catch (e: Exception) {
             Timber.e(e, "Error updating market data")
             Result.failure(e)
+        } finally {
+            krxApiClient.close()
         }
     }
 
