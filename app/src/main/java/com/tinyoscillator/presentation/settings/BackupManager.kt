@@ -5,6 +5,9 @@ import android.net.Uri
 import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
+import com.tinyoscillator.core.database.entity.PortfolioEntity
+import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
+import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -87,6 +90,49 @@ data class EtfDataBackup(
     val endDate: String? = null,
     val etfs: List<EtfBackupEntry>,
     val holdings: List<EtfHoldingBackupEntry>
+)
+
+// endregion
+
+// region Portfolio Backup Models
+
+@Serializable
+data class PortfolioBackupEntry(
+    val name: String,
+    val maxWeightPercent: Int,
+    val totalAmountLimit: Long? = null
+)
+
+@Serializable
+data class PortfolioHoldingBackupEntry(
+    val ticker: String,
+    val stockName: String,
+    val market: String,
+    val sector: String,
+    val lastPrice: Int = 0,
+    val priceUpdatedAt: Long = 0
+)
+
+@Serializable
+data class PortfolioTransactionBackupEntry(
+    val date: String,
+    val shares: Int,
+    val pricePerShare: Int,
+    val memo: String = ""
+)
+
+@Serializable
+data class PortfolioHoldingWithTransactions(
+    val holding: PortfolioHoldingBackupEntry,
+    val transactions: List<PortfolioTransactionBackupEntry>
+)
+
+@Serializable
+data class PortfolioDataBackup(
+    val version: Int = 1,
+    val type: String = "portfolio",
+    val portfolio: PortfolioBackupEntry,
+    val holdings: List<PortfolioHoldingWithTransactions>
 )
 
 // endregion
@@ -295,6 +341,127 @@ object BackupManager {
                 Result.failure(e)
             }
         }
+
+    // endregion
+
+    // region Portfolio Backup/Restore
+
+    suspend fun exportPortfolioData(
+        context: Context,
+        uri: Uri,
+        db: AppDatabase
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val dao = db.portfolioDao()
+            val portfolios = dao.getAllPortfoliosList()
+            if (portfolios.isEmpty()) {
+                return@withContext Result.failure(Exception("포트폴리오가 없습니다"))
+            }
+            val portfolio = portfolios.first()
+
+            val holdings = dao.getHoldingsListForPortfolio(portfolio.id)
+            val holdingsWithTx = holdings.map { holding ->
+                val transactions = dao.getTransactionsListForHolding(holding.id)
+                PortfolioHoldingWithTransactions(
+                    holding = PortfolioHoldingBackupEntry(
+                        ticker = holding.ticker,
+                        stockName = holding.stockName,
+                        market = holding.market,
+                        sector = holding.sector,
+                        lastPrice = holding.lastPrice,
+                        priceUpdatedAt = holding.priceUpdatedAt
+                    ),
+                    transactions = transactions.map { tx ->
+                        PortfolioTransactionBackupEntry(
+                            date = tx.date,
+                            shares = tx.shares,
+                            pricePerShare = tx.pricePerShare,
+                            memo = tx.memo
+                        )
+                    }
+                )
+            }
+
+            val backup = PortfolioDataBackup(
+                portfolio = PortfolioBackupEntry(
+                    name = portfolio.name,
+                    maxWeightPercent = portfolio.maxWeightPercent,
+                    totalAmountLimit = portfolio.totalAmountLimit
+                ),
+                holdings = holdingsWithTx
+            )
+
+            val json = backupJson.encodeToString(backup)
+            context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+            val txCount = holdingsWithTx.sumOf { it.transactions.size }
+            Result.success(txCount)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun importPortfolioData(
+        context: Context,
+        uri: Uri,
+        db: AppDatabase
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val json = context.contentResolver.openInputStream(uri)?.use {
+                it.bufferedReader().readText()
+            } ?: return@withContext Result.failure(Exception("파일을 읽을 수 없습니다"))
+
+            val backup = backupJson.decodeFromString<PortfolioDataBackup>(json)
+            val dao = db.portfolioDao()
+
+            // Delete existing portfolio data (single portfolio model)
+            val existing = dao.getAllPortfoliosList()
+            existing.forEach { dao.deletePortfolioWithData(it.id) }
+
+            // Insert portfolio
+            val portfolioId = dao.insertPortfolio(
+                PortfolioEntity(
+                    name = backup.portfolio.name,
+                    maxWeightPercent = backup.portfolio.maxWeightPercent,
+                    totalAmountLimit = backup.portfolio.totalAmountLimit
+                )
+            )
+
+            var totalTx = 0
+            for (hwt in backup.holdings) {
+                val holdingId = dao.insertHolding(
+                    PortfolioHoldingEntity(
+                        portfolioId = portfolioId,
+                        ticker = hwt.holding.ticker,
+                        stockName = hwt.holding.stockName,
+                        market = hwt.holding.market,
+                        sector = hwt.holding.sector,
+                        lastPrice = hwt.holding.lastPrice,
+                        priceUpdatedAt = hwt.holding.priceUpdatedAt
+                    )
+                )
+                for (tx in hwt.transactions) {
+                    dao.insertTransaction(
+                        PortfolioTransactionEntity(
+                            holdingId = holdingId,
+                            date = tx.date,
+                            shares = tx.shares,
+                            pricePerShare = tx.pricePerShare,
+                            memo = tx.memo
+                        )
+                    )
+                    totalTx++
+                }
+            }
+
+            Result.success("포트폴리오 복원 완료 (종목 ${backup.holdings.size}개, 거래 ${totalTx}건)")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     // endregion
 

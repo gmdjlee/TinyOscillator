@@ -12,6 +12,7 @@ import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
+import com.tinyoscillator.core.database.dao.PortfolioDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import dagger.Module
 import dagger.Provides
@@ -146,6 +147,50 @@ object DatabaseModule {
         }
     }
 
+    /** Migration v6→v7: added portfolio tables (portfolios, portfolio_holdings, portfolio_transactions) */
+    private val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `portfolios` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`name` TEXT NOT NULL, " +
+                        "`max_weight_percent` INTEGER NOT NULL, " +
+                        "`total_amount_limit` INTEGER, " +
+                        "`created_at` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `portfolio_holdings` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`portfolio_id` INTEGER NOT NULL, " +
+                        "`ticker` TEXT NOT NULL, " +
+                        "`stock_name` TEXT NOT NULL, " +
+                        "`market` TEXT NOT NULL, " +
+                        "`sector` TEXT NOT NULL, " +
+                        "`last_price` INTEGER NOT NULL DEFAULT 0, " +
+                        "`price_updated_at` INTEGER NOT NULL DEFAULT 0)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_portfolio_holdings_portfolio_id` ON `portfolio_holdings` (`portfolio_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_portfolio_holdings_ticker` ON `portfolio_holdings` (`ticker`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `portfolio_transactions` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`holding_id` INTEGER NOT NULL, " +
+                        "`date` TEXT NOT NULL, " +
+                        "`shares` INTEGER NOT NULL, " +
+                        "`price_per_share` INTEGER NOT NULL, " +
+                        "`memo` TEXT NOT NULL DEFAULT '', " +
+                        "`created_at` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_portfolio_transactions_holding_id` ON `portfolio_transactions` (`holding_id`)")
+                Timber.d("Migration v6→v7 성공: portfolios, portfolio_holdings, portfolio_transactions 테이블 생성")
+            } catch (e: Exception) {
+                Timber.e(e, "Migration v6→v7 실패")
+                throw e
+            }
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -155,7 +200,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
@@ -172,7 +217,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build()
         }
     }
@@ -197,4 +242,7 @@ object DatabaseModule {
 
     @Provides
     fun provideMarketDepositDao(db: AppDatabase): MarketDepositDao = db.marketDepositDao()
+
+    @Provides
+    fun providePortfolioDao(db: AppDatabase): PortfolioDao = db.portfolioDao()
 }

@@ -1455,6 +1455,39 @@ private fun BackupTab(db: AppDatabase) {
         }
     }
 
+    // Portfolio backup launchers
+    val portfolioExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                isProcessing = true
+                val result = BackupManager.exportPortfolioData(context, it, db)
+                backupMessage = result.fold(
+                    onSuccess = { count -> "포트폴리오 백업 완료 (거래 ${count}건)" },
+                    onFailure = { e -> "백업 실패: ${e.message}" }
+                )
+                isProcessing = false
+            }
+        }
+    }
+
+    val portfolioImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                isProcessing = true
+                val result = BackupManager.importPortfolioData(context, it, db)
+                backupMessage = result.fold(
+                    onSuccess = { msg -> msg },
+                    onFailure = { e -> "복원 실패: ${e.message}" }
+                )
+                isProcessing = false
+            }
+        }
+    }
+
     // ETF backup launchers
     val etfExportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -1626,6 +1659,27 @@ private fun BackupTab(db: AppDatabase) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("ETF 백업 복원")
+        }
+
+        HorizontalDivider()
+
+        // === 포트폴리오 데이터 백업 ===
+        Text("포트폴리오 백업/복원", style = MaterialTheme.typography.titleMedium)
+
+        Button(
+            onClick = { portfolioExportLauncher.launch("portfolio_backup.json") },
+            enabled = !isProcessing,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("포트폴리오 내보내기")
+        }
+
+        OutlinedButton(
+            onClick = { portfolioImportLauncher.launch(arrayOf("application/json")) },
+            enabled = !isProcessing,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("포트폴리오 가져오기")
         }
 
         if (isProcessing) {

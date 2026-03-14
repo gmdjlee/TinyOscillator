@@ -8,6 +8,7 @@ import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
+import com.tinyoscillator.core.database.dao.PortfolioDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
@@ -16,6 +17,9 @@ import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.core.database.entity.FinancialCacheEntity
 import com.tinyoscillator.core.database.entity.MarketDepositEntity
 import com.tinyoscillator.core.database.entity.MarketOscillatorEntity
+import com.tinyoscillator.core.database.entity.PortfolioEntity
+import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
+import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
 
 @Database(
@@ -27,9 +31,12 @@ import com.tinyoscillator.core.database.entity.StockMasterEntity
         EtfEntity::class,
         EtfHoldingEntity::class,
         MarketOscillatorEntity::class,
-        MarketDepositEntity::class
+        MarketDepositEntity::class,
+        PortfolioEntity::class,
+        PortfolioHoldingEntity::class,
+        PortfolioTransactionEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -40,4 +47,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun etfDao(): EtfDao
     abstract fun marketOscillatorDao(): MarketOscillatorDao
     abstract fun marketDepositDao(): MarketDepositDao
+    abstract fun portfolioDao(): PortfolioDao
 }

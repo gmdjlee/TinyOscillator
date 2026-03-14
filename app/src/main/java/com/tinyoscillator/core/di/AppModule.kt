@@ -4,14 +4,18 @@ import com.tinyoscillator.core.api.AiApiClient
 import com.tinyoscillator.core.api.KisApiClient
 import com.tinyoscillator.core.api.KiwoomApiClient
 import com.tinyoscillator.core.api.KrxApiClient
+import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
+import com.tinyoscillator.core.database.dao.PortfolioDao
 import com.tinyoscillator.core.scraper.NaverFinanceScraper
 import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
+import com.tinyoscillator.data.repository.PortfolioRepository
+import com.tinyoscillator.data.repository.StockRepository
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
@@ -90,6 +94,14 @@ object AppModule {
     @Provides
     @Singleton
     fun provideNaverFinanceScraper(): NaverFinanceScraper = NaverFinanceScraper()
+
+    @Provides
+    @Singleton
+    fun providePortfolioRepository(
+        portfolioDao: PortfolioDao,
+        analysisCacheDao: AnalysisCacheDao,
+        stockRepository: StockRepository
+    ): PortfolioRepository = PortfolioRepository(portfolioDao, analysisCacheDao, stockRepository)
 
     @Provides
     @Singleton
