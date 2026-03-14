@@ -251,30 +251,67 @@ class PortfolioRepository(
 
     // Build transaction items with profit/loss
     suspend fun getTransactionItems(holdingId: Long, currentPrice: Long): List<TransactionItem> {
+        // Query returns DESC order; sort ASC for running avg calculation
         val transactions = portfolioDao.getTransactionsListForHolding(holdingId)
-        return transactions.map { tx ->
-            val plAmount = if (tx.shares > 0) {
-                (currentPrice - tx.pricePerShare) * tx.shares.toLong()
-            } else {
-                // For sell transactions: profit = (sellPrice - avgBuy) * |shares|
-                // But we don't track avg buy at sell time, so show as-is
-                (tx.pricePerShare - currentPrice) * abs(tx.shares).toLong()
-            }
-            val plPercent = if (tx.pricePerShare > 0) {
-                (currentPrice - tx.pricePerShare).toDouble() / tx.pricePerShare * 100.0
-            } else 0.0
+        val chronological = transactions.sortedWith(compareBy({ it.date }, { it.createdAt }))
 
-            TransactionItem(
-                id = tx.id,
-                date = tx.date,
-                shares = tx.shares,
-                pricePerShare = tx.pricePerShare,
-                memo = tx.memo,
-                currentPrice = currentPrice,
-                profitLossPercent = plPercent,
-                profitLossAmount = plAmount
-            )
+        // Calculate running average buy price for realized P&L on sells
+        var totalBuyShares = 0L
+        var totalBuyCost = 0L
+        val itemMap = mutableMapOf<Long, TransactionItem>()
+
+        for (tx in chronological) {
+            if (tx.shares > 0) {
+                // Buy: update running average
+                totalBuyShares += tx.shares
+                totalBuyCost += tx.shares.toLong() * tx.pricePerShare
+
+                val plAmount = (currentPrice - tx.pricePerShare) * tx.shares.toLong()
+                val plPercent = if (tx.pricePerShare > 0) {
+                    (currentPrice - tx.pricePerShare).toDouble() / tx.pricePerShare * 100.0
+                } else 0.0
+
+                itemMap[tx.id] = TransactionItem(
+                    id = tx.id,
+                    date = tx.date,
+                    shares = tx.shares,
+                    pricePerShare = tx.pricePerShare,
+                    memo = tx.memo,
+                    currentPrice = currentPrice,
+                    profitLossPercent = plPercent,
+                    profitLossAmount = plAmount
+                )
+            } else {
+                // Sell: realized P&L = (sellPrice - avgBuyPrice) * |shares|
+                val avgBuyPrice = if (totalBuyShares > 0) totalBuyCost / totalBuyShares else 0L
+                val sellShares = abs(tx.shares).toLong()
+                val plAmount = (tx.pricePerShare - avgBuyPrice) * sellShares
+                val plPercent = if (avgBuyPrice > 0) {
+                    (tx.pricePerShare - avgBuyPrice).toDouble() / avgBuyPrice * 100.0
+                } else 0.0
+
+                // Adjust running totals after sell
+                val sharesToDeduct = minOf(sellShares, totalBuyShares)
+                if (totalBuyShares > 0) {
+                    totalBuyCost -= avgBuyPrice * sharesToDeduct
+                    totalBuyShares -= sharesToDeduct
+                }
+
+                itemMap[tx.id] = TransactionItem(
+                    id = tx.id,
+                    date = tx.date,
+                    shares = tx.shares,
+                    pricePerShare = tx.pricePerShare,
+                    memo = tx.memo,
+                    currentPrice = currentPrice,
+                    profitLossPercent = plPercent,
+                    profitLossAmount = plAmount
+                )
+            }
         }
+
+        // Return in original DESC order
+        return transactions.map { itemMap[it.id]!! }
     }
 
     // For backup

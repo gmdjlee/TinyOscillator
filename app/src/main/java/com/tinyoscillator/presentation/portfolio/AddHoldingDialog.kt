@@ -7,13 +7,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.core.database.entity.StockMasterEntity
+import com.tinyoscillator.presentation.etf.stats.MarketBadge
+import com.tinyoscillator.presentation.etf.stats.SectorBadge
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -74,37 +80,47 @@ fun AddHoldingDialog(
                         }
                     }
 
-                    // Overlay dropdown
+                    // Popup overlay - doesn't affect parent layout size
                     if (showDropdown) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 60.dp)
-                                .heightIn(max = 200.dp)
-                                .zIndex(1f),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        val offsetY = with(LocalDensity.current) { 60.dp.roundToPx() }
+                        Popup(
+                            alignment = Alignment.TopStart,
+                            offset = IntOffset(0, offsetY),
+                            properties = PopupProperties(focusable = false)
                         ) {
-                            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                                searchResults.take(10).forEach { stock ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                selectedStock = stock
-                                                query = stock.name
-                                                viewModel.searchStock("")
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 200.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                            ) {
+                                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                                    searchResults.take(10).forEach { stock ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    selectedStock = stock
+                                                    query = stock.name
+                                                    viewModel.searchStock("")
+                                                }
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(stock.name, style = MaterialTheme.typography.bodyMedium)
+                                                MarketBadge(stock.market)
+                                                SectorBadge(stock.sector)
                                             }
-                                            .padding(12.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(stock.name, style = MaterialTheme.typography.bodyMedium)
-                                        Text(
-                                            "${stock.ticker} (${stock.market})",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    if (stock != searchResults.take(10).last()) {
+                                            Text(
+                                                stock.ticker,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                         HorizontalDivider()
                                     }
                                 }

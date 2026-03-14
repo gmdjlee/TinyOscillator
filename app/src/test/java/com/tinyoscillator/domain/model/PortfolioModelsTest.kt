@@ -141,8 +141,7 @@ class PortfolioModelsTest {
             memo = "초기 매수",
             currentPrice = 75000,
             profitLossPercent = 7.14,
-            profitLossAmount = 500_000,
-            realizedProfitLoss = 0
+            profitLossAmount = 500_000
         )
         assertTrue(tx.shares > 0)
         assertTrue(tx.profitLossAmount > 0)
@@ -157,11 +156,11 @@ class PortfolioModelsTest {
             pricePerShare = 80000,
             memo = "일부 매도",
             currentPrice = 75000,
-            profitLossPercent = -6.25,
-            profitLossAmount = -250_000,
-            realizedProfitLoss = 0
+            profitLossPercent = 14.29,
+            profitLossAmount = 500_000
         )
         assertTrue(tx.shares < 0)
+        assertTrue(tx.profitLossAmount > 0) // 실현 수익
     }
 
     @Test

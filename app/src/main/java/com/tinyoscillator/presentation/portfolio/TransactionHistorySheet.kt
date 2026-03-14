@@ -227,12 +227,13 @@ private fun TransactionRow(
                 }
             }
 
-            if (transaction.currentPrice > 0 && isBuy) {
+            if (transaction.currentPrice > 0 || !isBuy) {
                 val plColor = when {
                     transaction.profitLossAmount > 0 -> gainColor
                     transaction.profitLossAmount < 0 -> lossColor
                     else -> MaterialTheme.colorScheme.onSurface
                 }
+                val plLabel = if (isBuy) "" else "실현 "
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         "${if (transaction.profitLossPercent >= 0) "+" else ""}${String.format("%.1f", transaction.profitLossPercent)}%",
@@ -241,7 +242,7 @@ private fun TransactionRow(
                         color = plColor
                     )
                     Text(
-                        "${if (transaction.profitLossAmount >= 0) "+" else ""}${krwFormat.format(transaction.profitLossAmount)}",
+                        "${plLabel}${if (transaction.profitLossAmount >= 0) "+" else ""}${krwFormat.format(transaction.profitLossAmount)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = plColor
                     )

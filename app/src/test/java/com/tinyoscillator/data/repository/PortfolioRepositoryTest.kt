@@ -206,9 +206,13 @@ class PortfolioRepositoryTest {
         assertEquals(7.14, buy.profitLossPercent, 0.1)
         assertEquals(500_000L, buy.profitLossAmount) // (75000 - 70000) * 100
 
-        // 매도 거래
+        // 매도 거래: avgBuyPrice=70000, sellPrice=80000
+        // realized P&L = (80000 - 70000) * 50 = 500,000
+        // realized P&L% = (80000 - 70000) / 70000 * 100 = 14.29%
         val sell = items[1]
         assertEquals(-50, sell.shares)
+        assertEquals(14.29, sell.profitLossPercent, 0.1)
+        assertEquals(500_000L, sell.profitLossAmount)
     }
 
     @Test
