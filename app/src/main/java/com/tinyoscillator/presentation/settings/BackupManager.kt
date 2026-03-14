@@ -49,12 +49,19 @@ data class KrxApiBackup(
 )
 
 @Serializable
+data class AiApiBackup(
+    val apiKey: String,
+    val provider: String
+)
+
+@Serializable
 data class ApiBackup(
     val version: Int = 1,
-    val type: String, // "kiwoom", "kis", "krx", "all_api"
+    val type: String, // "kiwoom", "kis", "krx", "ai", "all_api"
     val kiwoom: KiwoomApiBackup? = null,
     val kis: KisApiBackup? = null,
-    val krx: KrxApiBackup? = null
+    val krx: KrxApiBackup? = null,
+    val ai: AiApiBackup? = null
 )
 
 // endregion
@@ -110,7 +117,8 @@ data class PortfolioHoldingBackupEntry(
     val market: String,
     val sector: String,
     val lastPrice: Int = 0,
-    val priceUpdatedAt: Long = 0
+    val priceUpdatedAt: Long = 0,
+    val targetPrice: Int = 0
 )
 
 @Serializable
@@ -198,15 +206,24 @@ object BackupManager {
                             krx = KrxApiBackup(creds.id, creds.password)
                         )
                     }
+                    "ai" -> {
+                        val aiConfig = loadAiConfig(context)
+                        ApiBackup(
+                            type = "ai",
+                            ai = AiApiBackup(aiConfig.apiKey, aiConfig.provider.name)
+                        )
+                    }
                     else -> {
                         val kiwoomConfig = loadKiwoomConfig(context)
                         val kisConfig = loadKisConfig(context)
                         val krxCreds = loadKrxCredentials(context)
+                        val aiConfig = loadAiConfig(context)
                         ApiBackup(
                             type = "all_api",
                             kiwoom = KiwoomApiBackup(kiwoomConfig.appKey, kiwoomConfig.secretKey, kiwoomConfig.investmentMode.name),
                             kis = KisApiBackup(kisConfig.appKey, kisConfig.appSecret, kisConfig.investmentMode.name),
-                            krx = KrxApiBackup(krxCreds.id, krxCreds.password)
+                            krx = KrxApiBackup(krxCreds.id, krxCreds.password),
+                            ai = AiApiBackup(aiConfig.apiKey, aiConfig.provider.name)
                         )
                     }
                 }
@@ -262,6 +279,16 @@ object BackupManager {
                 backup.krx?.let { krx ->
                     saveKrxCredentials(context, KrxCredentials(krx.id, krx.password))
                     restoredParts.add("KRX")
+                }
+                backup.ai?.let { ai ->
+                    val provider = com.tinyoscillator.domain.model.AiProvider.entries.find { it.name == ai.provider }
+                        ?: com.tinyoscillator.domain.model.AiProvider.CLAUDE_HAIKU
+                    val prefs = getEncryptedPrefsForBackup(context)
+                    prefs.edit()
+                        .putString("ai_api_key", ai.apiKey)
+                        .putString("ai_provider", provider.name)
+                        .apply()
+                    restoredParts.add("AI")
                 }
 
                 Result.success("${restoredParts.joinToString(", ")} 복원 완료")
@@ -369,7 +396,8 @@ object BackupManager {
                         market = holding.market,
                         sector = holding.sector,
                         lastPrice = holding.lastPrice,
-                        priceUpdatedAt = holding.priceUpdatedAt
+                        priceUpdatedAt = holding.priceUpdatedAt,
+                        targetPrice = holding.targetPrice
                     ),
                     transactions = transactions.map { tx ->
                         PortfolioTransactionBackupEntry(
@@ -438,7 +466,8 @@ object BackupManager {
                         market = hwt.holding.market,
                         sector = hwt.holding.sector,
                         lastPrice = hwt.holding.lastPrice,
-                        priceUpdatedAt = hwt.holding.priceUpdatedAt
+                        priceUpdatedAt = hwt.holding.priceUpdatedAt,
+                        targetPrice = hwt.holding.targetPrice
                     )
                 )
                 for (tx in hwt.transactions) {

@@ -46,10 +46,11 @@ fun PortfolioSettingsDialog(
                 OutlinedTextField(
                     value = editLimit,
                     onValueChange = { editLimit = it.filter { c -> c.isDigit() } },
-                    label = { Text("총 금액 제한 (원, 선택)") },
+                    label = { Text("총 자산 (원)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    placeholder = { Text("미설정") },
+                    placeholder = { Text("미설정 시 보유종목 평가합계 기준") },
+                    supportingText = { Text("비중 계산의 기준 금액 (현금+주식 총액)") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }

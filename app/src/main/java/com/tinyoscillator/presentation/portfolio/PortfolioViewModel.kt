@@ -102,11 +102,12 @@ class PortfolioViewModel @Inject constructor(
     fun loadPortfolio() {
         val id = _portfolioId.value ?: return
         val maxWeight = _portfolio.value?.maxWeightPercent ?: 30
+        val totalAssets = _portfolio.value?.totalAmountLimit
 
         viewModelScope.launch {
             _uiState.value = PortfolioUiState.Loading("포트폴리오 로딩 중...")
             try {
-                val (summary, holdings) = portfolioRepository.loadPortfolioHoldings(id, maxWeight)
+                val (summary, holdings) = portfolioRepository.loadPortfolioHoldings(id, maxWeight, totalAssets)
                 _uiState.value = PortfolioUiState.Success(summary, holdings)
             } catch (e: Exception) {
                 Timber.e(e, "포트폴리오 로딩 실패")
@@ -151,7 +152,8 @@ class PortfolioViewModel @Inject constructor(
         shares: Int,
         pricePerShare: Int,
         date: String,
-        memo: String
+        memo: String,
+        targetPrice: Int = 0
     ) {
         val portfolioId = _portfolioId.value ?: return
         viewModelScope.launch {
@@ -162,7 +164,8 @@ class PortfolioViewModel @Inject constructor(
                         ticker = ticker,
                         stockName = stockName,
                         market = market,
-                        sector = sector
+                        sector = sector,
+                        targetPrice = targetPrice
                     )
                 )
                 portfolioRepository.insertTransaction(
@@ -175,6 +178,18 @@ class PortfolioViewModel @Inject constructor(
                     )
                 )
                 loadPortfolio()
+                // Auto-fetch current price for the newly added holding
+                try {
+                    val config = getApiConfig()
+                    if (config != null && config.isValid()) {
+                        portfolioRepository.fetchAndUpdatePrice(holdingId, ticker, config)
+                        loadPortfolio()
+                    }
+                } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Timber.w("신규 종목 현재가 조회 실패: $ticker - ${e.message}")
+                }
             } catch (e: Exception) {
                 Timber.e(e, "종목 추가 실패")
             }
@@ -210,6 +225,23 @@ class PortfolioViewModel @Inject constructor(
         }
     }
 
+    fun updateHolding(
+        holdingId: Long,
+        stockName: String,
+        market: String,
+        sector: String,
+        targetPrice: Int
+    ) {
+        viewModelScope.launch {
+            try {
+                portfolioRepository.updateHoldingInfo(holdingId, stockName, market, sector, targetPrice)
+                loadPortfolio()
+            } catch (e: Exception) {
+                Timber.e(e, "종목 수정 실패")
+            }
+        }
+    }
+
     fun deleteHolding(holdingId: Long) {
         viewModelScope.launch {
             try {
@@ -217,6 +249,24 @@ class PortfolioViewModel @Inject constructor(
                 loadPortfolio()
             } catch (e: Exception) {
                 Timber.e(e, "종목 삭제 실패")
+            }
+        }
+    }
+
+    fun updateTransaction(
+        transactionId: Long,
+        shares: Int,
+        pricePerShare: Int,
+        date: String,
+        memo: String
+    ) {
+        viewModelScope.launch {
+            try {
+                portfolioRepository.updateTransaction(transactionId, date, shares, pricePerShare, memo)
+                loadPortfolio()
+                _selectedHoldingId.value?.let { loadTransactions(it) }
+            } catch (e: Exception) {
+                Timber.e(e, "거래 수정 실패")
             }
         }
     }

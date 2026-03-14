@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.core.database.entity.StockMasterEntity
 import java.time.LocalDate
@@ -21,7 +22,7 @@ import java.time.format.DateTimeFormatter
 fun AddHoldingDialog(
     viewModel: PortfolioViewModel,
     onDismiss: () -> Unit,
-    onConfirm: (ticker: String, stockName: String, market: String, sector: String, shares: Int, pricePerShare: Int, date: String, memo: String) -> Unit
+    onConfirm: (ticker: String, stockName: String, market: String, sector: String, shares: Int, pricePerShare: Int, date: String, memo: String, targetPrice: Int) -> Unit
 ) {
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
 
@@ -31,6 +32,9 @@ fun AddHoldingDialog(
     var price by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))) }
     var memo by remember { mutableStateOf("") }
+    var targetPrice by remember { mutableStateOf("") }
+
+    val showDropdown = searchResults.isNotEmpty() && selectedStock == null && query.isNotBlank()
 
     AlertDialog(
         onDismissRequest = {
@@ -43,61 +47,70 @@ fun AddHoldingDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Stock search
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = {
-                        query = it
-                        selectedStock = null
-                        viewModel.searchStock(it)
-                    },
-                    label = { Text("종목명 또는 코드") },
-                    placeholder = { Text("예: 삼성전자") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Stock search + overlay dropdown
+                Box {
+                    Column {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = {
+                                query = it
+                                selectedStock = null
+                                viewModel.searchStock(it)
+                            },
+                            label = { Text("종목명 또는 코드") },
+                            placeholder = { Text("예: 삼성전자") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
-                // Search results dropdown
-                if (searchResults.isNotEmpty() && selectedStock == null && query.isNotBlank()) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                    ) {
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                            searchResults.take(10).forEach { stock ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            selectedStock = stock
-                                            query = stock.name
-                                            viewModel.searchStock("")
-                                        }
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(stock.name, style = MaterialTheme.typography.bodyMedium)
-                                    Text(
-                                        "${stock.ticker} (${stock.market})",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (stock != searchResults.take(10).last()) {
-                                    HorizontalDivider()
+                        if (selectedStock != null) {
+                            Text(
+                                "${selectedStock!!.ticker} (${selectedStock!!.market}) ${selectedStock!!.sector}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+
+                    // Overlay dropdown
+                    if (showDropdown) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 60.dp)
+                                .heightIn(max = 200.dp)
+                                .zIndex(1f),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        ) {
+                            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                                searchResults.take(10).forEach { stock ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                selectedStock = stock
+                                                query = stock.name
+                                                viewModel.searchStock("")
+                                            }
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(stock.name, style = MaterialTheme.typography.bodyMedium)
+                                        Text(
+                                            "${stock.ticker} (${stock.market})",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    if (stock != searchResults.take(10).last()) {
+                                        HorizontalDivider()
+                                    }
                                 }
                             }
                         }
                     }
-                }
-
-                if (selectedStock != null) {
-                    Text(
-                        "${selectedStock!!.ticker} (${selectedStock!!.market}) ${selectedStock!!.sector}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
                 }
 
                 OutlinedTextField(
@@ -116,6 +129,19 @@ fun AddHoldingDialog(
                     value = price,
                     onValueChange = { price = it.filter { c -> c.isDigit() } },
                     label = { Text("매입가 (원)") },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Next
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = targetPrice,
+                    onValueChange = { targetPrice = it.filter { c -> c.isDigit() } },
+                    label = { Text("목표가 (원)") },
+                    placeholder = { Text("미설정 시 비워두세요") },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Next
@@ -157,7 +183,8 @@ fun AddHoldingDialog(
                         sharesInt,
                         priceInt,
                         date,
-                        memo
+                        memo,
+                        targetPrice.toIntOrNull() ?: 0
                     )
                 },
                 enabled = selectedStock != null

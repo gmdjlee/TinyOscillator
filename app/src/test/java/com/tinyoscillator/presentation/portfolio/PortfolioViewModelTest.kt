@@ -36,7 +36,7 @@ class PortfolioViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
     private val testPortfolio = PortfolioEntity(id = 1, name = "기본 포트폴리오", maxWeightPercent = 30)
-    private val emptySummary = PortfolioSummary(0, 0, 0, 0.0, 0)
+    private val emptySummary = PortfolioSummary(0, 0, 0, 0.0, 0, 0)
 
     @Before
     fun setup() {
@@ -75,10 +75,10 @@ class PortfolioViewModelTest {
 
     @Test
     fun `기본 포트폴리오 로딩`() = runTest {
-        val summary = PortfolioSummary(10_000_000, 8_000_000, 2_000_000, 25.0, 2)
+        val summary = PortfolioSummary(10_000_000, 8_000_000, 2_000_000, 25.0, 0, 2)
         val holdings = listOf(
-            PortfolioHoldingItem(1, "005930", "삼성전자", "KOSPI", "반도체", 100, 70000, 75000, 60.0, true, 20, 1_500_000, 7.14, 500_000),
-            PortfolioHoldingItem(2, "000660", "SK하이닉스", "KOSPI", "반도체", 50, 150000, 160000, 40.0, true, 5, 800_000, 6.67, 500_000)
+            PortfolioHoldingItem(1, "005930", "삼성전자", "KOSPI", "반도체", 100, 70000, 75000, 85000, 60.0, true, 20, 1_500_000, 7.14, 500_000, 0),
+            PortfolioHoldingItem(2, "000660", "SK하이닉스", "KOSPI", "반도체", 50, 150000, 160000, 0, 40.0, true, 5, 800_000, 6.67, 500_000, 0)
         )
         coEvery { portfolioRepository.loadPortfolioHoldings(1L, 30) } returns (summary to holdings)
 
@@ -215,6 +215,19 @@ class PortfolioViewModelTest {
 
         // searchResults is a debounced flow, verify it was triggered
         // Note: exact verification of debounced flow is complex in unit tests
+    }
+
+    @Test
+    fun `종목 정보 수정`() = runTest {
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        vm.updateHolding(5L, "삼성전자(수정)", "KOSPI", "전자", 90000)
+        advanceUntilIdle()
+
+        coVerify {
+            portfolioRepository.updateHoldingInfo(5L, "삼성전자(수정)", "KOSPI", "전자", 90000)
+        }
     }
 
     @Test

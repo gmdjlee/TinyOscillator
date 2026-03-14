@@ -20,8 +20,13 @@ data class HoldingSummaryRow(
     @ColumnInfo(name = "sector") val sector: String,
     @ColumnInfo(name = "lastPrice") val lastPrice: Int,
     @ColumnInfo(name = "priceUpdatedAt") val priceUpdatedAt: Long,
+    @ColumnInfo(name = "targetPrice") val targetPrice: Int,
     @ColumnInfo(name = "totalShares") val totalShares: Int,
-    @ColumnInfo(name = "totalInvested") val totalInvested: Long
+    @ColumnInfo(name = "totalInvested") val totalInvested: Long,
+    @ColumnInfo(name = "totalBuyShares") val totalBuyShares: Int,
+    @ColumnInfo(name = "totalBuyAmount") val totalBuyAmount: Long,
+    @ColumnInfo(name = "totalSellShares") val totalSellShares: Int,
+    @ColumnInfo(name = "totalSellAmount") val totalSellAmount: Long
 )
 
 @Dao
@@ -65,6 +70,9 @@ interface PortfolioDao {
     @Query("UPDATE portfolio_holdings SET last_price = :price, price_updated_at = :updatedAt WHERE id = :holdingId")
     suspend fun updateHoldingPrice(holdingId: Long, price: Int, updatedAt: Long)
 
+    @Query("UPDATE portfolio_holdings SET stock_name = :stockName, market = :market, sector = :sector, target_price = :targetPrice WHERE id = :holdingId")
+    suspend fun updateHoldingInfo(holdingId: Long, stockName: String, market: String, sector: String, targetPrice: Int)
+
     // Transactions CRUD
     @Query("SELECT * FROM portfolio_transactions WHERE holding_id = :holdingId ORDER BY date DESC, created_at DESC")
     fun getTransactionsForHolding(holdingId: Long): Flow<List<PortfolioTransactionEntity>>
@@ -75,6 +83,9 @@ interface PortfolioDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: PortfolioTransactionEntity)
 
+    @Query("UPDATE portfolio_transactions SET date = :date, shares = :shares, price_per_share = :pricePerShare, memo = :memo WHERE id = :id")
+    suspend fun updateTransaction(id: Long, date: String, shares: Int, pricePerShare: Int, memo: String)
+
     @Query("DELETE FROM portfolio_transactions WHERE id = :id")
     suspend fun deleteTransaction(id: Long)
 
@@ -83,8 +94,13 @@ interface PortfolioDao {
         SELECT h.id AS holdingId, h.ticker, h.stock_name AS stockName,
                h.market, h.sector, h.last_price AS lastPrice,
                h.price_updated_at AS priceUpdatedAt,
+               h.target_price AS targetPrice,
                COALESCE(SUM(t.shares), 0) AS totalShares,
-               COALESCE(SUM(t.shares * t.price_per_share), 0) AS totalInvested
+               COALESCE(SUM(t.shares * t.price_per_share), 0) AS totalInvested,
+               COALESCE(SUM(CASE WHEN t.shares > 0 THEN t.shares ELSE 0 END), 0) AS totalBuyShares,
+               COALESCE(SUM(CASE WHEN t.shares > 0 THEN t.shares * t.price_per_share ELSE 0 END), 0) AS totalBuyAmount,
+               COALESCE(SUM(CASE WHEN t.shares < 0 THEN -t.shares ELSE 0 END), 0) AS totalSellShares,
+               COALESCE(SUM(CASE WHEN t.shares < 0 THEN -t.shares * t.price_per_share ELSE 0 END), 0) AS totalSellAmount
         FROM portfolio_holdings h
         LEFT JOIN portfolio_transactions t ON t.holding_id = h.id
         WHERE h.portfolio_id = :portfolioId

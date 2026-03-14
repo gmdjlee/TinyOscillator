@@ -1567,6 +1567,16 @@ private fun BackupTab(db: AppDatabase) {
             ) {
                 Text("KRX", style = MaterialTheme.typography.labelSmall)
             }
+            OutlinedButton(
+                onClick = {
+                    pendingApiExportType = "ai"
+                    showExportPasswordDialog = true
+                },
+                enabled = !isProcessing,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("AI", style = MaterialTheme.typography.labelSmall)
+            }
         }
 
         Button(

@@ -21,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.PortfolioHoldingItem
 import com.tinyoscillator.domain.model.PortfolioSummary
 import com.tinyoscillator.domain.model.PortfolioUiState
+import com.tinyoscillator.domain.model.TransactionItem
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -44,6 +45,10 @@ fun PortfolioContent(
     var showAddTransactionDialog by remember { mutableStateOf(false) }
     var addTransactionHoldingId by remember { mutableLongStateOf(0L) }
     var addTransactionIsSell by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editTargetHolding by remember { mutableStateOf<PortfolioHoldingItem?>(null) }
+    var showEditTransactionDialog by remember { mutableStateOf(false) }
+    var editTargetTransaction by remember { mutableStateOf<TransactionItem?>(null) }
 
     Box(modifier = modifier) {
         when (val state = uiState) {
@@ -177,8 +182,8 @@ fun PortfolioContent(
         AddHoldingDialog(
             viewModel = viewModel,
             onDismiss = { showAddDialog = false },
-            onConfirm = { ticker, stockName, market, sector, shares, price, date, memo ->
-                viewModel.addHolding(ticker, stockName, market, sector, shares, price, date, memo)
+            onConfirm = { ticker, stockName, market, sector, shares, price, date, memo, targetPrice ->
+                viewModel.addHolding(ticker, stockName, market, sector, shares, price, date, memo, targetPrice)
                 showAddDialog = false
             }
         )
@@ -200,6 +205,17 @@ fun PortfolioContent(
                 addTransactionIsSell = true
                 showAddTransactionDialog = true
             },
+            onEditHolding = {
+                val currentState = uiState
+                if (currentState is PortfolioUiState.Success) {
+                    editTargetHolding = currentState.holdings.find { it.holdingId == selectedHoldingId }
+                    showEditDialog = true
+                }
+            },
+            onEditTransaction = { tx ->
+                editTargetTransaction = tx
+                showEditTransactionDialog = true
+            },
             onDeleteTransaction = { viewModel.deleteTransaction(it) },
             onDeleteHolding = {
                 viewModel.deleteHolding(selectedHoldingId!!)
@@ -220,6 +236,44 @@ fun PortfolioContent(
             }
         )
     }
+
+    // Edit Holding Dialog
+    if (showEditDialog && editTargetHolding != null) {
+        EditHoldingDialog(
+            holding = editTargetHolding!!,
+            onDismiss = {
+                showEditDialog = false
+                editTargetHolding = null
+            },
+            onConfirm = { stockName, market, sector, targetPrice ->
+                viewModel.updateHolding(
+                    editTargetHolding!!.holdingId,
+                    stockName, market, sector, targetPrice
+                )
+                showEditDialog = false
+                editTargetHolding = null
+            }
+        )
+    }
+
+    // Edit Transaction Dialog
+    if (showEditTransactionDialog && editTargetTransaction != null) {
+        EditTransactionDialog(
+            transaction = editTargetTransaction!!,
+            onDismiss = {
+                showEditTransactionDialog = false
+                editTargetTransaction = null
+            },
+            onConfirm = { shares, pricePerShare, date, memo ->
+                viewModel.updateTransaction(
+                    editTargetTransaction!!.id,
+                    shares, pricePerShare, date, memo
+                )
+                showEditTransactionDialog = false
+                editTargetTransaction = null
+            }
+        )
+    }
 }
 
 @Composable
@@ -237,6 +291,42 @@ private fun SummaryCard(summary: PortfolioSummary) {
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Spacer(modifier = Modifier.height(12.dp))
+
+            if (summary.totalAssets > summary.totalEvaluation) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            "총 자산",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            "${krwFormat.format(summary.totalAssets)}원",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "주식비중",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                        val stockRatio = if (summary.totalAssets > 0)
+                            summary.totalEvaluation.toDouble() / summary.totalAssets * 100.0 else 0.0
+                        Text(
+                            "${String.format("%.1f", stockRatio)}%",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -310,6 +400,33 @@ private fun SummaryCard(summary: PortfolioSummary) {
                 }
             }
 
+            if (summary.totalRealizedProfitLoss != 0L) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
+                Spacer(modifier = Modifier.height(8.dp))
+                val rlColor = when {
+                    summary.totalRealizedProfitLoss > 0 -> gainColor
+                    summary.totalRealizedProfitLoss < 0 -> lossColor
+                    else -> MaterialTheme.colorScheme.onPrimaryContainer
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "실현손익",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        "${if (summary.totalRealizedProfitLoss >= 0) "+" else ""}${krwFormat.format(summary.totalRealizedProfitLoss)}원",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = rlColor
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 "보유종목 ${summary.holdingsCount}개",
@@ -338,14 +455,17 @@ private fun HoldingsTable(
                 TableCell("종목명", 100.dp, fontWeight = FontWeight.Bold)
                 TableCell("시장", 60.dp, fontWeight = FontWeight.Bold)
                 TableCell("업종", 80.dp, fontWeight = FontWeight.Bold)
+                TableCell("보유수", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                 TableCell("평균매입가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                 TableCell("현재가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                TableCell("목표가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                 TableCell("비중%", 60.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                 TableCell("초과", 40.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 TableCell("조절주식", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                 TableCell("조절금액", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                 TableCell("수익률%", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                 TableCell("수익금", 100.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                TableCell("실현손익", 100.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
             }
             HorizontalDivider()
 
@@ -365,11 +485,19 @@ private fun HoldingsTable(
                     TableCell(holding.stockName, 100.dp, maxLines = 1)
                     TableCell(holding.market, 60.dp)
                     TableCell(holding.sector, 80.dp, maxLines = 1)
+                    TableCell(krwFormat.format(holding.totalShares), 70.dp, textAlign = TextAlign.End)
                     TableCell(krwFormat.format(holding.avgBuyPrice), 90.dp, textAlign = TextAlign.End)
                     TableCell(
                         if (holding.currentPrice > 0) krwFormat.format(holding.currentPrice) else "-",
                         90.dp,
                         textAlign = TextAlign.End
+                    )
+                    val targetReached = holding.targetPrice > 0 && holding.currentPrice >= holding.targetPrice
+                    TableCell(
+                        if (holding.targetPrice > 0) krwFormat.format(holding.targetPrice) else "-",
+                        90.dp,
+                        textAlign = TextAlign.End,
+                        color = if (targetReached) gainColor else null
                     )
                     TableCell(
                         String.format("%.1f", holding.weightPercent),
@@ -405,6 +533,19 @@ private fun HoldingsTable(
                         100.dp,
                         textAlign = TextAlign.End,
                         color = plColor
+                    )
+                    val rlColor = when {
+                        holding.realizedProfitLoss > 0 -> gainColor
+                        holding.realizedProfitLoss < 0 -> lossColor
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
+                    TableCell(
+                        if (holding.realizedProfitLoss != 0L)
+                            "${if (holding.realizedProfitLoss >= 0) "+" else ""}${krwFormat.format(holding.realizedProfitLoss)}"
+                        else "-",
+                        100.dp,
+                        textAlign = TextAlign.End,
+                        color = rlColor
                     )
                 }
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)

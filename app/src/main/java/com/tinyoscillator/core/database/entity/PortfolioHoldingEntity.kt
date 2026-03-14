@@ -36,5 +36,8 @@ data class PortfolioHoldingEntity(
     val lastPrice: Int = 0,
 
     @ColumnInfo(name = "price_updated_at", defaultValue = "0")
-    val priceUpdatedAt: Long = 0
+    val priceUpdatedAt: Long = 0,
+
+    @ColumnInfo(name = "target_price", defaultValue = "0")
+    val targetPrice: Int = 0
 )

@@ -69,6 +69,7 @@ class PortfolioEntityTest {
         assertEquals("반도체", entity.sector)
         assertEquals(0, entity.lastPrice)
         assertEquals(0L, entity.priceUpdatedAt)
+        assertEquals(0, entity.targetPrice)
     }
 
     @Test
@@ -84,6 +85,19 @@ class PortfolioEntityTest {
         )
         assertEquals(75000, entity.lastPrice)
         assertEquals(1000L, entity.priceUpdatedAt)
+    }
+
+    @Test
+    fun `PortfolioHoldingEntity targetPrice 값 설정`() {
+        val entity = PortfolioHoldingEntity(
+            portfolioId = 1L,
+            ticker = "005930",
+            stockName = "삼성전자",
+            market = "KOSPI",
+            sector = "반도체",
+            targetPrice = 90000
+        )
+        assertEquals(90000, entity.targetPrice)
     }
 
     @Test

@@ -12,6 +12,7 @@ class PortfolioModelsTest {
             totalInvested = 8_000_000,
             totalProfitLoss = 2_000_000,
             totalProfitLossPercent = 25.0,
+            totalRealizedProfitLoss = 0,
             holdingsCount = 3
         )
         assertEquals(10_000_000L, summary.totalEvaluation)
@@ -28,6 +29,7 @@ class PortfolioModelsTest {
             totalInvested = 10_000_000,
             totalProfitLoss = -3_000_000,
             totalProfitLossPercent = -30.0,
+            totalRealizedProfitLoss = 0,
             holdingsCount = 2
         )
         assertTrue(summary.totalProfitLoss < 0)
@@ -41,6 +43,7 @@ class PortfolioModelsTest {
             totalInvested = 0,
             totalProfitLoss = 0,
             totalProfitLossPercent = 0.0,
+            totalRealizedProfitLoss = 0,
             holdingsCount = 0
         )
         assertEquals(0L, summary.totalEvaluation)
@@ -58,12 +61,14 @@ class PortfolioModelsTest {
             totalShares = 100,
             avgBuyPrice = 70000,
             currentPrice = 75000,
+            targetPrice = 85000,
             weightPercent = 50.0,
             isOverWeight = true,
             rebalanceShares = 27,
             rebalanceAmount = 2_025_000,
             profitLossPercent = 7.14,
-            profitLossAmount = 500_000
+            profitLossAmount = 500_000,
+            realizedProfitLoss = 0
         )
         assertEquals("005930", item.ticker)
         assertEquals(100, item.totalShares)
@@ -87,12 +92,14 @@ class PortfolioModelsTest {
             totalShares = 50,
             avgBuyPrice = 150000,
             currentPrice = 120000,
+            targetPrice = 0,
             weightPercent = 20.0,
             isOverWeight = false,
             rebalanceShares = 0,
             rebalanceAmount = 0,
             profitLossPercent = -20.0,
-            profitLossAmount = -1_500_000
+            profitLossAmount = -1_500_000,
+            realizedProfitLoss = 0
         )
         assertFalse(item.isOverWeight)
         assertEquals(0, item.rebalanceShares)
@@ -111,12 +118,14 @@ class PortfolioModelsTest {
             totalShares = 10,
             avgBuyPrice = 200000,
             currentPrice = 0,
+            targetPrice = 0,
             weightPercent = 0.0,
             isOverWeight = false,
             rebalanceShares = 0,
             rebalanceAmount = 0,
             profitLossPercent = 0.0,
-            profitLossAmount = 0
+            profitLossAmount = 0,
+            realizedProfitLoss = 0
         )
         assertEquals(0L, item.currentPrice)
         assertEquals(0.0, item.weightPercent, 0.001)
@@ -132,7 +141,8 @@ class PortfolioModelsTest {
             memo = "초기 매수",
             currentPrice = 75000,
             profitLossPercent = 7.14,
-            profitLossAmount = 500_000
+            profitLossAmount = 500_000,
+            realizedProfitLoss = 0
         )
         assertTrue(tx.shares > 0)
         assertTrue(tx.profitLossAmount > 0)
@@ -148,7 +158,8 @@ class PortfolioModelsTest {
             memo = "일부 매도",
             currentPrice = 75000,
             profitLossPercent = -6.25,
-            profitLossAmount = -250_000
+            profitLossAmount = -250_000,
+            realizedProfitLoss = 0
         )
         assertTrue(tx.shares < 0)
     }
@@ -166,7 +177,7 @@ class PortfolioModelsTest {
         assertTrue(error is PortfolioUiState.Error)
         assertEquals("에러 발생", (error as PortfolioUiState.Error).message)
 
-        val summary = PortfolioSummary(1000, 800, 200, 25.0, 1)
+        val summary = PortfolioSummary(1000, 800, 200, 25.0, 0, 1)
         val success: PortfolioUiState = PortfolioUiState.Success(summary, emptyList())
         assertTrue(success is PortfolioUiState.Success)
         assertEquals(1, (success as PortfolioUiState.Success).summary.holdingsCount)
@@ -187,12 +198,14 @@ class PortfolioModelsTest {
             totalShares = 50,
             avgBuyPrice = 80,
             currentPrice = 100,
+            targetPrice = 0,
             weightPercent = 50.0,
             isOverWeight = true,
             rebalanceShares = 20,
             rebalanceAmount = 2000,
             profitLossPercent = 25.0,
-            profitLossAmount = 1000
+            profitLossAmount = 1000,
+            realizedProfitLoss = 0
         )
         assertTrue(item.isOverWeight)
         assertEquals(20, item.rebalanceShares)

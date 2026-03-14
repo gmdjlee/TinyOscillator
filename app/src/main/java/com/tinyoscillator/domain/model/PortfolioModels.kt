@@ -9,12 +9,14 @@ data class PortfolioHoldingItem(
     val totalShares: Int,
     val avgBuyPrice: Int,
     val currentPrice: Long,
+    val targetPrice: Int,
     val weightPercent: Double,
     val isOverWeight: Boolean,
     val rebalanceShares: Int,
     val rebalanceAmount: Long,
     val profitLossPercent: Double,
-    val profitLossAmount: Long
+    val profitLossAmount: Long,
+    val realizedProfitLoss: Long
 )
 
 data class PortfolioSummary(
@@ -22,7 +24,9 @@ data class PortfolioSummary(
     val totalInvested: Long,
     val totalProfitLoss: Long,
     val totalProfitLossPercent: Double,
-    val holdingsCount: Int
+    val totalRealizedProfitLoss: Long,
+    val holdingsCount: Int,
+    val totalAssets: Long = 0
 )
 
 data class TransactionItem(

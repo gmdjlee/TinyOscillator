@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,8 @@ fun TransactionHistorySheet(
     onDismiss: () -> Unit,
     onAddBuy: () -> Unit,
     onAddSell: () -> Unit,
+    onEditHolding: () -> Unit,
+    onEditTransaction: (TransactionItem) -> Unit,
     onDeleteTransaction: (Long) -> Unit,
     onDeleteHolding: () -> Unit
 ) {
@@ -73,6 +76,9 @@ fun TransactionHistorySheet(
                 ) {
                     Text("매도 추가")
                 }
+                IconButton(onClick = onEditHolding) {
+                    Icon(Icons.Default.Edit, contentDescription = "종목 수정")
+                }
                 IconButton(
                     onClick = { showDeleteHoldingConfirm = true },
                     colors = IconButtonDefaults.iconButtonColors(
@@ -102,6 +108,7 @@ fun TransactionHistorySheet(
                     items(transactions, key = { it.id }) { tx ->
                         TransactionRow(
                             transaction = tx,
+                            onClick = { onEditTransaction(tx) },
                             onLongClick = {
                                 deleteTargetId = tx.id
                                 showDeleteConfirm = true
@@ -162,6 +169,7 @@ fun TransactionHistorySheet(
 @Composable
 private fun TransactionRow(
     transaction: TransactionItem,
+    onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
     val isBuy = transaction.shares > 0
@@ -172,7 +180,7 @@ private fun TransactionRow(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(
-                onClick = {},
+                onClick = onClick,
                 onLongClick = onLongClick
             ),
         colors = CardDefaults.cardColors(

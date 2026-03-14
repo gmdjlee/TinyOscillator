@@ -297,6 +297,43 @@ class StockRepository @Inject constructor(
     }
 
     /**
+     * 현재가 조회 (ka10001 기본 정보에서 cur_prc 추출).
+     *
+     * ka10063(수급 API)은 특정 투자자 유형의 거래가 없으면
+     * 현재가가 누락/부정확할 수 있어, ka10001을 사용합니다.
+     */
+    suspend fun fetchCurrentPrice(
+        ticker: String,
+        config: KiwoomApiKeyConfig
+    ): Result<Long> = withContext(Dispatchers.IO) {
+        if (!config.isValid()) {
+            return@withContext Result.failure(ApiError.NoApiKeyError())
+        }
+
+        try {
+            val body = mapOf("stk_cd" to ticker)
+            val result = apiClient.call(
+                apiId = StockApiIds.STOCK_INFO,
+                url = StockApiEndpoints.STOCK_INFO,
+                body = body,
+                config = config
+            ) { responseJson ->
+                json.decodeFromString<StockInfoResponse>(responseJson)
+            }
+
+            result.map { response ->
+                val price = response.curPrc.toLongSafe()
+                kotlin.math.abs(price)
+            }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w("현재가 조회 실패: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
      * 일봉 차트 조회 (ka10081).
      */
     private suspend fun fetchDailyOhlcv(

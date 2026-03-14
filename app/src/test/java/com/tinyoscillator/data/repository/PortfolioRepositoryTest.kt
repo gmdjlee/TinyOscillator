@@ -52,7 +52,11 @@ class PortfolioRepositoryTest {
         stockName: String,
         lastPrice: Int = 0,
         totalShares: Int = 100,
-        totalInvested: Long = 7_000_000
+        totalInvested: Long = 7_000_000,
+        totalBuyShares: Int = 100,
+        totalBuyAmount: Long = 7_000_000,
+        totalSellShares: Int = 0,
+        totalSellAmount: Long = 0
     ) = HoldingSummaryRow(
         holdingId = holdingId,
         ticker = ticker,
@@ -61,8 +65,13 @@ class PortfolioRepositoryTest {
         sector = "반도체",
         lastPrice = lastPrice,
         priceUpdatedAt = 0L,
+        targetPrice = 0,
         totalShares = totalShares,
-        totalInvested = totalInvested
+        totalInvested = totalInvested,
+        totalBuyShares = totalBuyShares,
+        totalBuyAmount = totalBuyAmount,
+        totalSellShares = totalSellShares,
+        totalSellAmount = totalSellAmount
     )
 
     // -- Tests --

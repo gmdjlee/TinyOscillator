@@ -41,6 +41,35 @@ class PortfolioRepository(
     suspend fun insertHolding(holding: PortfolioHoldingEntity): Long =
         portfolioDao.insertHolding(holding)
 
+    suspend fun updateHoldingInfo(
+        holdingId: Long,
+        stockName: String,
+        market: String,
+        sector: String,
+        targetPrice: Int
+    ) = portfolioDao.updateHoldingInfo(holdingId, stockName, market, sector, targetPrice)
+
+    suspend fun fetchAndUpdatePrice(
+        holdingId: Long,
+        ticker: String,
+        config: KiwoomApiKeyConfig
+    ): Long {
+        try {
+            val result = stockRepository.fetchCurrentPrice(ticker, config)
+            result.onSuccess { price ->
+                if (price > 0) {
+                    portfolioDao.updateHoldingPrice(holdingId, price.toInt(), System.currentTimeMillis())
+                    return price
+                }
+            }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w("가격 조회 실패: $ticker - ${e.message}")
+        }
+        return 0L
+    }
+
     suspend fun deleteHoldingWithTransactions(holdingId: Long) =
         portfolioDao.deleteHoldingWithTransactions(holdingId)
 
@@ -50,6 +79,9 @@ class PortfolioRepository(
 
     suspend fun insertTransaction(transaction: PortfolioTransactionEntity) =
         portfolioDao.insertTransaction(transaction)
+
+    suspend fun updateTransaction(id: Long, date: String, shares: Int, pricePerShare: Int, memo: String) =
+        portfolioDao.updateTransaction(id, date, shares, pricePerShare, memo)
 
     suspend fun deleteTransaction(id: Long) =
         portfolioDao.deleteTransaction(id)
@@ -64,11 +96,12 @@ class PortfolioRepository(
     // Load portfolio with calculated holdings
     suspend fun loadPortfolioHoldings(
         portfolioId: Long,
-        maxWeightPercent: Int
+        maxWeightPercent: Int,
+        totalAssets: Long? = null
     ): Pair<PortfolioSummary, List<PortfolioHoldingItem>> {
         val summaries = portfolioDao.getHoldingSummaries(portfolioId)
         if (summaries.isEmpty()) {
-            return PortfolioSummary(0, 0, 0, 0.0, 0) to emptyList()
+            return PortfolioSummary(0, 0, 0, 0.0, 0, 0, totalAssets ?: 0) to emptyList()
         }
 
         // Resolve current prices: use lastPrice from DB, or fallback to AnalysisCache close price
@@ -82,7 +115,7 @@ class PortfolioRepository(
             priceMap[row.holdingId] = price
         }
 
-        return calculatePortfolio(summaries, priceMap, maxWeightPercent)
+        return calculatePortfolio(summaries, priceMap, maxWeightPercent, totalAssets)
     }
 
     // Refresh prices from API (user-triggered only)
@@ -96,9 +129,8 @@ class PortfolioRepository(
 
         for (holding in holdings) {
             try {
-                val result = stockRepository.fetchRealtimeSupply(holding.ticker, config, useCache = false)
-                result.onSuccess { data ->
-                    val price = abs(data.currentPrice)
+                val result = stockRepository.fetchCurrentPrice(holding.ticker, config)
+                result.onSuccess { price ->
                     if (price > 0) {
                         priceMap[holding.ticker] = price
                         portfolioDao.updateHoldingPrice(holding.id, price.toInt(), now)
@@ -126,7 +158,8 @@ class PortfolioRepository(
     private fun calculatePortfolio(
         summaries: List<HoldingSummaryRow>,
         priceMap: Map<Long, Long>,
-        maxWeightPercent: Int
+        maxWeightPercent: Int,
+        totalAssets: Long? = null
     ): Pair<PortfolioSummary, List<PortfolioHoldingItem>> {
         // Filter out holdings with zero shares
         val activeHoldings = summaries.filter { it.totalShares > 0 }
@@ -136,34 +169,45 @@ class PortfolioRepository(
             price * row.totalShares
         }
 
+        // Weight calculation base: use totalAssets if set, otherwise use totalEvaluation
+        val weightBase = if (totalAssets != null && totalAssets > 0) totalAssets else totalEvaluation
+
         val items = activeHoldings.map { row ->
             val currentPrice = priceMap[row.holdingId] ?: 0L
             val evalAmount = currentPrice * row.totalShares
-            val weightPercent = if (totalEvaluation > 0) {
-                evalAmount.toDouble() / totalEvaluation * 100.0
+            val weightPercent = if (weightBase > 0) {
+                evalAmount.toDouble() / weightBase * 100.0
             } else 0.0
 
             val isOverWeight = weightPercent > maxWeightPercent
-            val avgBuyPrice = if (row.totalShares > 0) {
-                (row.totalInvested / row.totalShares).toInt()
+
+            // Average buy price from buy transactions only
+            val avgBuyPrice = if (row.totalBuyShares > 0) {
+                (row.totalBuyAmount / row.totalBuyShares).toInt()
             } else 0
 
             // Rebalance calculation: how many shares to sell to reach max weight
-            val rebalanceShares = if (isOverWeight && currentPrice > 0 && totalEvaluation > 0) {
-                val targetAmount = totalEvaluation * maxWeightPercent / 100.0
+            val rebalanceShares = if (isOverWeight && currentPrice > 0 && weightBase > 0) {
+                val targetAmount = weightBase * maxWeightPercent / 100.0
                 val excessAmount = evalAmount - targetAmount
                 (excessAmount / currentPrice).toInt()
             } else 0
 
             val rebalanceAmount = rebalanceShares * currentPrice
 
-            val profitLossAmount = if (row.totalShares > 0) {
+            // Unrealized P&L: (currentPrice - avgBuyPrice) * currently held shares
+            val profitLossAmount = if (row.totalShares > 0 && avgBuyPrice > 0) {
                 (currentPrice - avgBuyPrice) * row.totalShares.toLong()
             } else 0L
 
             val profitLossPercent = if (avgBuyPrice > 0) {
                 (currentPrice - avgBuyPrice).toDouble() / avgBuyPrice * 100.0
             } else 0.0
+
+            // Realized P&L: sellAmount - (avgBuyPrice * sellShares)
+            val realizedProfitLoss = if (row.totalSellShares > 0 && avgBuyPrice > 0) {
+                row.totalSellAmount - avgBuyPrice.toLong() * row.totalSellShares
+            } else 0L
 
             PortfolioHoldingItem(
                 holdingId = row.holdingId,
@@ -174,27 +218,32 @@ class PortfolioRepository(
                 totalShares = row.totalShares,
                 avgBuyPrice = avgBuyPrice,
                 currentPrice = currentPrice,
+                targetPrice = row.targetPrice,
                 weightPercent = weightPercent,
                 isOverWeight = isOverWeight,
                 rebalanceShares = rebalanceShares,
                 rebalanceAmount = rebalanceAmount,
                 profitLossPercent = profitLossPercent,
-                profitLossAmount = profitLossAmount
+                profitLossAmount = profitLossAmount,
+                realizedProfitLoss = realizedProfitLoss
             )
         }
 
-        val totalInvested = activeHoldings.sumOf { it.totalInvested }
-        val totalProfitLoss = totalEvaluation - totalInvested
-        val totalProfitLossPercent = if (totalInvested > 0) {
-            totalProfitLoss.toDouble() / totalInvested * 100.0
+        val totalBuyAmount = activeHoldings.sumOf { it.totalBuyAmount }
+        val totalProfitLoss = totalEvaluation - totalBuyAmount + items.sumOf { it.realizedProfitLoss }
+        val totalProfitLossPercent = if (totalBuyAmount > 0) {
+            totalProfitLoss.toDouble() / totalBuyAmount * 100.0
         } else 0.0
+        val totalRealizedProfitLoss = items.sumOf { it.realizedProfitLoss }
 
         val summary = PortfolioSummary(
             totalEvaluation = totalEvaluation,
-            totalInvested = totalInvested,
+            totalInvested = totalBuyAmount,
             totalProfitLoss = totalProfitLoss,
             totalProfitLossPercent = totalProfitLossPercent,
-            holdingsCount = activeHoldings.size
+            totalRealizedProfitLoss = totalRealizedProfitLoss,
+            holdingsCount = activeHoldings.size,
+            totalAssets = if (totalAssets != null && totalAssets > 0) totalAssets else totalEvaluation
         )
 
         return summary to items
