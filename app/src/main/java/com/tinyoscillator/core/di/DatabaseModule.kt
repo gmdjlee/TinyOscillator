@@ -10,6 +10,7 @@ import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
+import com.tinyoscillator.core.database.dao.FundamentalCacheDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
@@ -206,6 +207,31 @@ object DatabaseModule {
         }
     }
 
+    /** Migration v8→v9: added fundamental_cache table */
+    private val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `fundamental_cache` (" +
+                        "`ticker` TEXT NOT NULL, " +
+                        "`date` TEXT NOT NULL, " +
+                        "`close` INTEGER NOT NULL, " +
+                        "`eps` INTEGER NOT NULL, " +
+                        "`per` REAL NOT NULL, " +
+                        "`bps` INTEGER NOT NULL, " +
+                        "`pbr` REAL NOT NULL, " +
+                        "`dps` INTEGER NOT NULL, " +
+                        "`dividend_yield` REAL NOT NULL, " +
+                        "PRIMARY KEY(`ticker`, `date`))"
+                )
+                Timber.d("Migration v8→v9 성공: fundamental_cache 테이블 생성")
+            } catch (e: Exception) {
+                Timber.e(e, "Migration v8→v9 실패")
+                throw e
+            }
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -215,7 +241,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
@@ -232,7 +258,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .build()
         }
     }
@@ -260,4 +286,7 @@ object DatabaseModule {
 
     @Provides
     fun providePortfolioDao(db: AppDatabase): PortfolioDao = db.portfolioDao()
+
+    @Provides
+    fun provideFundamentalCacheDao(db: AppDatabase): FundamentalCacheDao = db.fundamentalCacheDao()
 }

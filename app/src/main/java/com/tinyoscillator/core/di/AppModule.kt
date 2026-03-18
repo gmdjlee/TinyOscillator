@@ -7,12 +7,14 @@ import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
+import com.tinyoscillator.core.database.dao.FundamentalCacheDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
 import com.tinyoscillator.core.scraper.NaverFinanceScraper
 import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.data.repository.FinancialRepository
+import com.tinyoscillator.data.repository.FundamentalHistoryRepository
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.data.repository.PortfolioRepository
 import com.tinyoscillator.data.repository.StockRepository
@@ -112,4 +114,11 @@ object AppModule {
         scraper: NaverFinanceScraper,
         krxApiClient: KrxApiClient
     ): MarketIndicatorRepository = MarketIndicatorRepository(oscillatorDao, depositDao, calculator, scraper, krxApiClient)
+
+    @Provides
+    @Singleton
+    fun provideFundamentalHistoryRepository(
+        fundamentalCacheDao: FundamentalCacheDao,
+        krxApiClient: KrxApiClient
+    ): FundamentalHistoryRepository = FundamentalHistoryRepository(fundamentalCacheDao, krxApiClient)
 }

@@ -52,6 +52,7 @@ import com.tinyoscillator.presentation.etf.AggregatedStockTrendScreen
 import com.tinyoscillator.presentation.etf.EtfScreen
 import com.tinyoscillator.presentation.etf.StockTrendScreen
 import com.tinyoscillator.presentation.financial.FinancialInfoContent
+import com.tinyoscillator.presentation.fundamental.FundamentalHistoryContent
 import com.tinyoscillator.presentation.ai.AiAnalysisScreen
 import com.tinyoscillator.presentation.market.MarketIndicatorScreen
 import com.tinyoscillator.presentation.portfolio.PortfolioScreen
@@ -211,7 +212,8 @@ private fun MainScaffold(
 private enum class MainTab(val label: String) {
     OSCILLATOR("오실레이터"),
     DEMARK("DeMark"),
-    FINANCIAL("재무정보")
+    FINANCIAL("재무정보"),
+    INDICATOR("지표")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -495,6 +497,14 @@ fun OscillatorScreen(
 
                     MainTab.FINANCIAL -> {
                         FinancialInfoContent(
+                            ticker = currentTicker,
+                            stockName = currentStockName,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    MainTab.INDICATOR -> {
+                        FundamentalHistoryContent(
                             ticker = currentTicker,
                             stockName = currentStockName,
                             modifier = Modifier.fillMaxSize()
