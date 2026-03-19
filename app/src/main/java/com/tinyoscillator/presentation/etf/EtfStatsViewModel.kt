@@ -16,6 +16,7 @@ import com.tinyoscillator.presentation.etf.stats.normalizeMarketCode
 import com.tinyoscillator.presentation.settings.loadEtfKeywordFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -63,6 +64,9 @@ class EtfStatsViewModel @Inject constructor(
 
     private val _selectedWeek = MutableStateFlow<WeekInfo?>(null)
     val selectedWeek: StateFlow<WeekInfo?> = _selectedWeek.asStateFlow()
+
+    private val _selectedComparisonWeek = MutableStateFlow<WeekInfo?>(null)
+    val selectedComparisonWeek: StateFlow<WeekInfo?> = _selectedComparisonWeek.asStateFlow()
 
     private val _amountRanking = MutableStateFlow<List<AmountRankingItem>>(emptyList())
     val amountRanking: StateFlow<List<AmountRankingItem>> = _amountRanking.asStateFlow()
@@ -165,18 +169,32 @@ class EtfStatsViewModel @Inject constructor(
             _selectedWeek.value = matchingWeek ?: _weeks.value.firstOrNull()
             _selectedDate.value = _selectedWeek.value?.representativeDate ?: _selectedDate.value
         }
-        updateComparisonDate()
+        autoSelectComparisonIfNeeded()
         loadAllStats()
     }
 
     fun selectWeek(weekInfo: WeekInfo) {
         _selectedWeek.value = weekInfo
         _selectedDate.value = weekInfo.representativeDate
-        updateComparisonDate()
+        autoSelectComparisonIfNeeded()
         loadAllStats()
     }
 
-    private fun updateComparisonDate() {
+    /** 비교일 수동 선택 (일간 모드) */
+    fun selectComparisonDate(date: String) {
+        _comparisonDate.value = date
+        loadAllStats()
+    }
+
+    /** 비교주 수동 선택 (주간 모드) */
+    fun selectComparisonWeek(weekInfo: WeekInfo) {
+        _selectedComparisonWeek.value = weekInfo
+        _comparisonDate.value = weekInfo.representativeDate
+        loadAllStats()
+    }
+
+    /** 초기 로드 또는 기준일 변경 시 비교일 자동 설정 (다음 날짜/주차) */
+    private fun autoSelectComparisonIfNeeded() {
         when (_comparisonMode.value) {
             ComparisonMode.DAILY -> {
                 val dates = _dates.value
@@ -190,11 +208,14 @@ class EtfStatsViewModel @Inject constructor(
                 val selected = _selectedWeek.value ?: return
                 val idx = weeks.indexOf(selected)
                 if (idx < 0) return
-                _comparisonDate.value = weeks.getOrNull(idx + 1)?.representativeDate
+                val compWeek = weeks.getOrNull(idx + 1)
+                _selectedComparisonWeek.value = compWeek
+                _comparisonDate.value = compWeek?.representativeDate
             }
         }
     }
 
+    private var loadStatsJob: Job? = null
     private var excludedTickers: List<String> = emptyList()
     private var marketMap: Map<String, String> = emptyMap()
     private var sectorMap: Map<String, String> = emptyMap()
@@ -228,7 +249,7 @@ class EtfStatsViewModel @Inject constructor(
                 if (allDates.isNotEmpty()) {
                     _selectedDate.value = allDates.first() // most recent
                     _selectedWeek.value = _weeks.value.firstOrNull()
-                    updateComparisonDate()
+                    autoSelectComparisonIfNeeded()
                     loadAllStats()
                 }
             } catch (e: Exception) {
@@ -239,7 +260,7 @@ class EtfStatsViewModel @Inject constructor(
 
     fun selectDate(date: String) {
         _selectedDate.value = date
-        updateComparisonDate()
+        autoSelectComparisonIfNeeded()
         loadAllStats()
     }
 
@@ -247,7 +268,8 @@ class EtfStatsViewModel @Inject constructor(
         val date = _selectedDate.value ?: return
         val compDate = _comparisonDate.value
 
-        viewModelScope.launch {
+        loadStatsJob?.cancel()
+        loadStatsJob = viewModelScope.launch {
             _isLoading.value = true
             try {
                 // Load amount ranking

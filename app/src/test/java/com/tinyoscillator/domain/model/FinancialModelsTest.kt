@@ -629,4 +629,146 @@ class FinancialModelsTest {
             borrowingDependencies = emptyList()
         )
     }
+
+    // ========== DuPont 분석 테스트 ==========
+
+    @Test
+    fun `toSummary - 듀퐁 순이익률이 올바르게 계산된다`() {
+        // createFullFinancialData: Q1 revenue=500, netIncome=80 (YTD=quarterly for Q1)
+        val data = createFullFinancialData()
+        val summary = data.toSummary()
+
+        // Q1: netIncome=80, revenue=500 → 순이익률 = 80/500*100 = 16.0%
+        assertEquals(16.0, summary.netProfitMargins.first(), TOLERANCE)
+    }
+
+    @Test
+    fun `toSummary - 듀퐁 총자산회전율이 올바르게 계산된다`() {
+        val data = createFullFinancialData()
+        val summary = data.toSummary()
+
+        // Q1: quarterly revenue=500, totalAssets=3000 → 500/3000 = 0.1667
+        val expected = 500.0 / 3000.0
+        assertEquals(expected, summary.assetTurnovers.first(), TOLERANCE)
+    }
+
+    @Test
+    fun `toSummary - 듀퐁 재무레버리지가 올바르게 계산된다`() {
+        val data = createFullFinancialData()
+        val summary = data.toSummary()
+
+        // totalAssets=3000, totalEquity=1700 → 3000/1700 = 1.7647
+        val expected = 3000.0 / 1700.0
+        assertEquals(expected, summary.equityMultipliers.first(), TOLERANCE)
+    }
+
+    @Test
+    fun `toSummary - 듀퐁 ROE가 API 값으로 설정된다`() {
+        val data = createFullFinancialData()
+        val summary = data.toSummary()
+
+        // profitabilityRatios.roe = 15.0
+        assertEquals(15.0, summary.roes.first(), TOLERANCE)
+    }
+
+    @Test
+    fun `toSummary - 매출액 0일 때 순이익률은 0이다`() {
+        val periods = listOf("202303")
+        val data = FinancialData(
+            ticker = "TEST", name = "테스트",
+            periods = periods,
+            balanceSheets = periods.associate {
+                it to BalanceSheet(FinancialPeriod.fromYearMonth(it),
+                    null, null, 1000L, null, null, null, null, null, null, 500L)
+            },
+            incomeStatements = periods.associate {
+                it to IncomeStatement(FinancialPeriod.fromYearMonth(it),
+                    0L, null, null, null, null, 100L)
+            },
+            profitabilityRatios = emptyMap(),
+            stabilityRatios = emptyMap(),
+            growthRatios = emptyMap()
+        )
+        val summary = data.toSummary()
+        assertEquals(0.0, summary.netProfitMargins.first(), TOLERANCE)
+    }
+
+    @Test
+    fun `toSummary - 총자산 0일 때 총자산회전율은 0이다`() {
+        val periods = listOf("202303")
+        val data = FinancialData(
+            ticker = "TEST", name = "테스트",
+            periods = periods,
+            balanceSheets = periods.associate {
+                it to BalanceSheet(FinancialPeriod.fromYearMonth(it),
+                    null, null, 0L, null, null, null, null, null, null, 500L)
+            },
+            incomeStatements = periods.associate {
+                it to IncomeStatement(FinancialPeriod.fromYearMonth(it),
+                    1000L, null, null, null, null, 100L)
+            },
+            profitabilityRatios = emptyMap(),
+            stabilityRatios = emptyMap(),
+            growthRatios = emptyMap()
+        )
+        val summary = data.toSummary()
+        assertEquals(0.0, summary.assetTurnovers.first(), TOLERANCE)
+    }
+
+    @Test
+    fun `toSummary - 총자본 0일 때 재무레버리지는 0이다`() {
+        val periods = listOf("202303")
+        val data = FinancialData(
+            ticker = "TEST", name = "테스트",
+            periods = periods,
+            balanceSheets = periods.associate {
+                it to BalanceSheet(FinancialPeriod.fromYearMonth(it),
+                    null, null, 1000L, null, null, null, null, null, null, 0L)
+            },
+            incomeStatements = periods.associate {
+                it to IncomeStatement(FinancialPeriod.fromYearMonth(it),
+                    1000L, null, null, null, null, 100L)
+            },
+            profitabilityRatios = emptyMap(),
+            stabilityRatios = emptyMap(),
+            growthRatios = emptyMap()
+        )
+        val summary = data.toSummary()
+        assertEquals(0.0, summary.equityMultipliers.first(), TOLERANCE)
+    }
+
+    @Test
+    fun `hasDuPontData - 모든 값이 0이면 false`() {
+        val summary = createEmptySummary()
+        assertFalse(summary.hasDuPontData)
+    }
+
+    @Test
+    fun `hasDuPontData - ROE가 존재하면 true`() {
+        val summary = createEmptySummary().copy(roes = listOf(10.0))
+        assertTrue(summary.hasDuPontData)
+    }
+
+    @Test
+    fun `hasDuPontData - assetTurnovers만 존재해도 true`() {
+        val summary = createEmptySummary().copy(assetTurnovers = listOf(0.5))
+        assertTrue(summary.hasDuPontData)
+    }
+
+    @Test
+    fun `trimToLast - 듀퐁 필드도 함께 잘린다`() {
+        val summary = createSummaryWithPeriods(8).copy(
+            netProfitMargins = List(8) { it * 1.0 },
+            assetTurnovers = List(8) { it * 0.1 },
+            equityMultipliers = List(8) { 1.0 + it * 0.1 },
+            roes = List(8) { it * 2.0 }
+        )
+        val trimmed = summary.trimToLast(4)
+        assertEquals(4, trimmed.netProfitMargins.size)
+        assertEquals(4, trimmed.assetTurnovers.size)
+        assertEquals(4, trimmed.equityMultipliers.size)
+        assertEquals(4, trimmed.roes.size)
+        // 마지막 4개가 남아야 함
+        assertEquals(7.0 * 2.0, trimmed.roes.last(), TOLERANCE)
+    }
 }

@@ -117,7 +117,12 @@ data class FinancialSummary(
     val totalAssetsGrowthRates: List<Double>,
     val debtRatios: List<Double>,
     val currentRatios: List<Double>,
-    val borrowingDependencies: List<Double>
+    val borrowingDependencies: List<Double>,
+    // DuPont 분석 구성요소
+    val netProfitMargins: List<Double> = emptyList(),
+    val assetTurnovers: List<Double> = emptyList(),
+    val equityMultipliers: List<Double> = emptyList(),
+    val roes: List<Double> = emptyList()
 ) {
     val latestRevenue: Long? get() = revenues.lastOrNull()
     val latestOperatingProfit: Long? get() = operatingProfits.lastOrNull()
@@ -144,6 +149,12 @@ data class FinancialSummary(
                 currentRatios.any { it != 0.0 } ||
                 borrowingDependencies.any { it != 0.0 }
 
+    val hasDuPontData: Boolean
+        get() = roes.any { it != 0.0 } ||
+                netProfitMargins.any { it != 0.0 } ||
+                assetTurnovers.any { it != 0.0 } ||
+                equityMultipliers.any { it != 0.0 }
+
     fun trimToLast(count: Int): FinancialSummary {
         val n = count.coerceAtLeast(MIN_DISPLAY_QUARTERS)
         if (n >= periods.size) return this
@@ -161,6 +172,10 @@ data class FinancialSummary(
             debtRatios = debtRatios.takeLast(n),
             currentRatios = currentRatios.takeLast(n),
             borrowingDependencies = borrowingDependencies.takeLast(n),
+            netProfitMargins = netProfitMargins.takeLast(n),
+            assetTurnovers = assetTurnovers.takeLast(n),
+            equityMultipliers = equityMultipliers.takeLast(n),
+            roes = roes.takeLast(n),
         )
     }
 
@@ -369,6 +384,26 @@ fun FinancialData.toSummary(): FinancialSummary {
         apiNetIncomeGrowths
     }
 
+    // DuPont 구성요소 계산
+    val netProfitMargins = sortedPeriods.mapIndexed { i, p ->
+        val ni = netIncomes[i]
+        val rev = revenues[i]
+        if (rev != 0L) (ni.toDouble() / rev) * 100.0 else 0.0
+    }
+    val assetTurnovers = sortedPeriods.mapIndexed { i, p ->
+        val rev = revenues[i] // 분기별 변환된 매출액 사용
+        val ta = balanceSheets[p]?.totalAssets ?: 0L
+        if (ta != 0L) rev.toDouble() / ta else 0.0
+    }
+    val equityMultipliers = sortedPeriods.map { p ->
+        val ta = balanceSheets[p]?.totalAssets ?: 0L
+        val te = balanceSheets[p]?.totalEquity ?: 0L
+        if (te != 0L) ta.toDouble() / te else 0.0
+    }
+    val roes = sortedPeriods.map { p ->
+        profitabilityRatios[p]?.roe ?: 0.0
+    }
+
     return FinancialSummary(
         ticker = ticker,
         name = name,
@@ -384,7 +419,11 @@ fun FinancialData.toSummary(): FinancialSummary {
         totalAssetsGrowthRates = sortedPeriods.map { growthRatios[it]?.totalAssetsGrowth ?: 0.0 },
         debtRatios = sortedPeriods.map { stabilityRatios[it]?.debtRatio ?: 0.0 },
         currentRatios = sortedPeriods.map { stabilityRatios[it]?.currentRatio ?: 0.0 },
-        borrowingDependencies = sortedPeriods.map { stabilityRatios[it]?.borrowingDependency ?: 0.0 }
+        borrowingDependencies = sortedPeriods.map { stabilityRatios[it]?.borrowingDependency ?: 0.0 },
+        netProfitMargins = netProfitMargins,
+        assetTurnovers = assetTurnovers,
+        equityMultipliers = equityMultipliers,
+        roes = roes
     )
 }
 

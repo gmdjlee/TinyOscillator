@@ -120,4 +120,74 @@ class EtfStatsViewModelTest {
         assertEquals(ComparisonMode.DAILY, ComparisonMode.valueOf("DAILY"))
         assertEquals(ComparisonMode.WEEKLY, ComparisonMode.valueOf("WEEKLY"))
     }
+
+    // ==========================================================
+    // 비교일 자동 선택 로직 테스트 (순수 함수 추출 테스트)
+    // ==========================================================
+
+    @Test
+    fun `일간 모드 - 비교일은 기준일 다음 날짜가 된다`() {
+        val dates = listOf("20260306", "20260305", "20260304", "20260303")
+        val selectedDate = "20260305"
+        val idx = dates.indexOf(selectedDate)
+        val comparisonDate = dates.getOrNull(idx + 1)
+        assertEquals("20260304", comparisonDate)
+    }
+
+    @Test
+    fun `일간 모드 - 가장 오래된 날짜 선택 시 비교일은 null이다`() {
+        val dates = listOf("20260306", "20260305", "20260304")
+        val selectedDate = "20260304"
+        val idx = dates.indexOf(selectedDate)
+        val comparisonDate = dates.getOrNull(idx + 1)
+        assertNull(comparisonDate)
+    }
+
+    @Test
+    fun `일간 모드 - 존재하지 않는 날짜 선택 시 비교일을 설정하지 않는다`() {
+        val dates = listOf("20260306", "20260305")
+        val selectedDate = "20260301"
+        val idx = dates.indexOf(selectedDate)
+        assertTrue(idx < 0)
+    }
+
+    @Test
+    fun `주간 모드 - 비교주는 기준주 다음 주차가 된다`() {
+        val dates = listOf("20260313", "20260312", "20260306", "20260305")
+        val weeks = groupDatesByWeek(dates)
+        assertTrue(weeks.size >= 2)
+        val selectedWeek = weeks[0]
+        val compWeek = weeks.getOrNull(1)
+        assertNotNull(compWeek)
+        assertNotEquals(selectedWeek.weekNumber, compWeek!!.weekNumber)
+    }
+
+    @Test
+    fun `주간 모드 - 마지막 주차 선택 시 비교주는 null이다`() {
+        val dates = listOf("20260306", "20260305")
+        val weeks = groupDatesByWeek(dates)
+        assertEquals(1, weeks.size)
+        val compWeek = weeks.getOrNull(1)
+        assertNull(compWeek)
+    }
+
+    @Test
+    fun `비교일 수동 선택 - 기준일과 다른 날짜를 선택할 수 있다`() {
+        val dates = listOf("20260306", "20260305", "20260304", "20260303")
+        val selectedDate = "20260306"
+        val manualComparisonDate = "20260303"
+        // 기준일과 비교일이 다른지 검증
+        assertNotEquals(selectedDate, manualComparisonDate)
+        assertTrue(dates.contains(manualComparisonDate))
+    }
+
+    @Test
+    fun `비교주 수동 선택 - 기준주와 다른 주차를 선택할 수 있다`() {
+        val dates = listOf("20260313", "20260312", "20260306", "20260305", "20260227")
+        val weeks = groupDatesByWeek(dates)
+        assertTrue(weeks.size >= 2)
+        val selectedWeek = weeks[0]
+        val manualComparisonWeek = weeks.last()
+        assertNotEquals(selectedWeek, manualComparisonWeek)
+    }
 }

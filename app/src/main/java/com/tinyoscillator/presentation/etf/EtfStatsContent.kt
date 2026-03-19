@@ -55,6 +55,7 @@ fun EtfStatsContent(
     val comparisonMode by viewModel.comparisonMode.collectAsStateWithLifecycle()
     val weeks by viewModel.weeks.collectAsStateWithLifecycle()
     val selectedWeek by viewModel.selectedWeek.collectAsStateWithLifecycle()
+    val selectedComparisonWeek by viewModel.selectedComparisonWeek.collectAsStateWithLifecycle()
 
     var selectedStatsTab by rememberSaveable { mutableStateOf(StatsTab.AMOUNT_RANKING) }
 
@@ -67,9 +68,12 @@ fun EtfStatsContent(
                 selectedDate = selectedDate,
                 selectedWeek = selectedWeek,
                 comparisonDate = comparisonDate,
+                selectedComparisonWeek = selectedComparisonWeek,
                 comparisonMode = comparisonMode,
                 onDateSelect = { viewModel.selectDate(it) },
                 onWeekSelect = { viewModel.selectWeek(it) },
+                onComparisonDateSelect = { viewModel.selectComparisonDate(it) },
+                onComparisonWeekSelect = { viewModel.selectComparisonWeek(it) },
                 onComparisonModeChange = { viewModel.setComparisonMode(it) }
             )
         }
@@ -164,12 +168,16 @@ private fun DateSelectorRow(
     selectedDate: String?,
     selectedWeek: WeekInfo?,
     comparisonDate: String?,
+    selectedComparisonWeek: WeekInfo?,
     comparisonMode: ComparisonMode,
     onDateSelect: (String) -> Unit,
     onWeekSelect: (WeekInfo) -> Unit,
+    onComparisonDateSelect: (String) -> Unit,
+    onComparisonWeekSelect: (WeekInfo) -> Unit,
     onComparisonModeChange: (ComparisonMode) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var baseExpanded by remember { mutableStateOf(false) }
+    var compExpanded by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -178,18 +186,19 @@ private fun DateSelectorRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("기준일:", style = MaterialTheme.typography.bodyMedium)
+        Text("기준:", style = MaterialTheme.typography.bodyMedium)
 
+        // 기준일/기준주 드롭다운
         Box {
             when (comparisonMode) {
                 ComparisonMode.DAILY -> {
                     val displayDate = selectedDate?.let { formatDisplayDate(it) } ?: "날짜 선택"
-                    OutlinedButton(onClick = { expanded = true }) {
-                        Text(displayDate)
+                    OutlinedButton(onClick = { baseExpanded = true }) {
+                        Text(displayDate, style = MaterialTheme.typography.labelSmall)
                     }
                     DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        expanded = baseExpanded,
+                        onDismissRequest = { baseExpanded = false }
                     ) {
                         dates.forEach { date ->
                             DropdownMenuItem(
@@ -202,7 +211,7 @@ private fun DateSelectorRow(
                                 },
                                 onClick = {
                                     onDateSelect(date)
-                                    expanded = false
+                                    baseExpanded = false
                                 }
                             )
                         }
@@ -210,12 +219,12 @@ private fun DateSelectorRow(
                 }
                 ComparisonMode.WEEKLY -> {
                     val displayWeek = selectedWeek?.label ?: "주차 선택"
-                    OutlinedButton(onClick = { expanded = true }) {
-                        Text(displayWeek)
+                    OutlinedButton(onClick = { baseExpanded = true }) {
+                        Text(displayWeek, style = MaterialTheme.typography.labelSmall)
                     }
                     DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        expanded = baseExpanded,
+                        onDismissRequest = { baseExpanded = false }
                     ) {
                         weeks.forEach { week ->
                             DropdownMenuItem(
@@ -228,7 +237,7 @@ private fun DateSelectorRow(
                                 },
                                 onClick = {
                                     onWeekSelect(week)
-                                    expanded = false
+                                    baseExpanded = false
                                 }
                             )
                         }
@@ -236,6 +245,72 @@ private fun DateSelectorRow(
                 }
             }
         }
+
+        Text("비교:", style = MaterialTheme.typography.bodyMedium)
+
+        // 비교일/비교주 드롭다운
+        Box {
+            when (comparisonMode) {
+                ComparisonMode.DAILY -> {
+                    val displayCompDate = comparisonDate?.let { formatDisplayDate(it) } ?: "없음"
+                    OutlinedButton(onClick = { compExpanded = true }) {
+                        Text(displayCompDate, style = MaterialTheme.typography.labelSmall)
+                    }
+                    DropdownMenu(
+                        expanded = compExpanded,
+                        onDismissRequest = { compExpanded = false }
+                    ) {
+                        dates.forEach { date ->
+                            if (date != selectedDate) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            formatDisplayDate(date),
+                                            color = if (date == comparisonDate) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    onClick = {
+                                        onComparisonDateSelect(date)
+                                        compExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                ComparisonMode.WEEKLY -> {
+                    val displayCompWeek = selectedComparisonWeek?.label ?: "없음"
+                    OutlinedButton(onClick = { compExpanded = true }) {
+                        Text(displayCompWeek, style = MaterialTheme.typography.labelSmall)
+                    }
+                    DropdownMenu(
+                        expanded = compExpanded,
+                        onDismissRequest = { compExpanded = false }
+                    ) {
+                        weeks.forEach { week ->
+                            if (week != selectedWeek) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            week.label,
+                                            color = if (week == selectedComparisonWeek) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    onClick = {
+                                        onComparisonWeekSelect(week)
+                                        compExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
 
         SingleChoiceSegmentedButtonRow {
             ComparisonMode.entries.forEachIndexed { index, mode ->
@@ -257,13 +332,6 @@ private fun DateSelectorRow(
                 }
             }
         }
-
-        Text(
-            if (comparisonDate != null) "비교: ${formatDisplayDate(comparisonDate)}"
-            else "비교 데이터 없음",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 

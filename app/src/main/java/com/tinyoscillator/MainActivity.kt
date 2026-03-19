@@ -51,6 +51,7 @@ import com.tinyoscillator.presentation.demark.DemarkTDContent
 import com.tinyoscillator.presentation.etf.AggregatedStockTrendScreen
 import com.tinyoscillator.presentation.etf.EtfScreen
 import com.tinyoscillator.presentation.etf.StockTrendScreen
+import com.tinyoscillator.presentation.financial.DuPontContent
 import com.tinyoscillator.presentation.financial.FinancialInfoContent
 import com.tinyoscillator.presentation.fundamental.FundamentalHistoryContent
 import com.tinyoscillator.presentation.ai.AiAnalysisScreen
@@ -213,7 +214,8 @@ private enum class MainTab(val label: String) {
     OSCILLATOR("오실레이터"),
     DEMARK("DeMark"),
     FINANCIAL("재무정보"),
-    INDICATOR("지표")
+    INDICATOR("지표"),
+    DUPONT("DuPont")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -355,9 +357,10 @@ fun OscillatorScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Main Tab Row (3 tabs now fit in TabRow)
-                    TabRow(
-                        selectedTabIndex = selectedMainTab.ordinal
+                    // Main Tab Row
+                    ScrollableTabRow(
+                        selectedTabIndex = selectedMainTab.ordinal,
+                        edgePadding = 4.dp
                     ) {
                         MainTab.entries.forEach { tab ->
                             Tab(
@@ -505,6 +508,14 @@ fun OscillatorScreen(
 
                     MainTab.INDICATOR -> {
                         FundamentalHistoryContent(
+                            ticker = currentTicker,
+                            stockName = currentStockName,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    MainTab.DUPONT -> {
+                        DuPontContent(
                             ticker = currentTicker,
                             stockName = currentStockName,
                             modifier = Modifier.fillMaxSize()
