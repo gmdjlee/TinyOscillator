@@ -17,11 +17,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.github.mikephil.charting.charts.CombinedChart
 import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.Legend
 import com.github.mikephil.charting.components.XAxis
-import com.github.mikephil.charting.data.Entry
-import com.github.mikephil.charting.data.LineData
-import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.components.YAxis
+import com.github.mikephil.charting.data.*
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.github.mikephil.charting.formatter.ValueFormatter
 import com.tinyoscillator.domain.model.FinancialState
@@ -229,17 +230,15 @@ private fun DuPontCharts(
             }
         }
 
-        // 듀퐁 3요소 추이 차트
-        ChartCard(title = "듀퐁 3요소 추이") {
-            DuPontLineChart(
-                dataSets = listOf(
-                    ChartLine("순이익률(%)", trimmed.netProfitMargins, "#4CAF50"),
-                    ChartLine("총자산회전율(x)", trimmed.assetTurnovers, "#2196F3"),
-                    ChartLine("재무레버리지(x)", trimmed.equityMultipliers, "#FF9800")
-                ),
+        // 듀퐁 3요소 + ROE 추이 차트 (Double-Y Axis)
+        ChartCard(title = "듀퐁 3요소 + ROE 추이") {
+            DuPontCombinedChart(
+                roes = trimmed.roes,
+                netProfitMargins = trimmed.netProfitMargins,
+                assetTurnovers = trimmed.assetTurnovers,
+                equityMultipliers = trimmed.equityMultipliers,
                 labels = trimmed.displayPeriods,
-                chartTextColor = chartTextColor,
-                yAxisFormatter = { "%.2f".format(it) }
+                chartTextColor = chartTextColor
             )
         }
 
@@ -404,6 +403,203 @@ private fun evaluateRoe(value: Double): Pair<String, Color> = when {
 }
 
 // ========== Chart Components ==========
+
+/**
+ * 듀퐁 3요소 + ROE CombinedChart (Double-Y Axis)
+ *
+ * - 왼쪽 Y축: 순이익률(%) 라인 + ROE(%) 막대
+ * - 오른쪽 Y축: 총자산회전율(x) 라인 + 재무레버리지(x) 라인
+ */
+@Composable
+private fun DuPontCombinedChart(
+    roes: List<Double>,
+    netProfitMargins: List<Double>,
+    assetTurnovers: List<Double>,
+    equityMultipliers: List<Double>,
+    labels: List<String>,
+    chartTextColor: Int
+) {
+    AndroidView(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp),
+        factory = { context ->
+            CombinedChart(context).apply {
+                description.isEnabled = false
+                setDrawGridBackground(false)
+                setDrawBarShadow(false)
+                isHighlightFullBarEnabled = false
+                setDrawOrder(arrayOf(
+                    CombinedChart.DrawOrder.BAR,
+                    CombinedChart.DrawOrder.LINE
+                ))
+                setExtraOffsets(8f, 8f, 8f, 8f)
+                setTouchEnabled(true)
+                isDragEnabled = true
+                setScaleEnabled(true)
+                setPinchZoom(true)
+            }
+        },
+        update = { chart ->
+            // --- ROE 막대 (왼쪽 Y축) ---
+            val barEntries = roes.mapIndexed { i, v ->
+                BarEntry(i.toFloat(), v.toFloat())
+            }
+            val roeBarSet = BarDataSet(barEntries, "ROE(%)").apply {
+                color = AndroidColor.parseColor("#F44336")
+                setDrawValues(false)
+                axisDependency = YAxis.AxisDependency.LEFT
+            }
+
+            // --- 순이익률 라인 (왼쪽 Y축) ---
+            val npmEntries = netProfitMargins.mapIndexed { i, v ->
+                Entry(i.toFloat(), v.toFloat())
+            }
+            val npmLineSet = LineDataSet(npmEntries, "순이익률(%)").apply {
+                color = AndroidColor.parseColor("#4CAF50")
+                setCircleColor(AndroidColor.parseColor("#4CAF50"))
+                lineWidth = 2f
+                circleRadius = 3f
+                setDrawValues(false)
+                setDrawCircleHole(false)
+                mode = LineDataSet.Mode.CUBIC_BEZIER
+                axisDependency = YAxis.AxisDependency.LEFT
+            }
+
+            // --- 총자산회전율 라인 (오른쪽 Y축) ---
+            val atEntries = assetTurnovers.mapIndexed { i, v ->
+                Entry(i.toFloat(), v.toFloat())
+            }
+            val atLineSet = LineDataSet(atEntries, "총자산회전율(x)").apply {
+                color = AndroidColor.parseColor("#2196F3")
+                setCircleColor(AndroidColor.parseColor("#2196F3"))
+                lineWidth = 2f
+                circleRadius = 3f
+                setDrawValues(false)
+                setDrawCircleHole(false)
+                mode = LineDataSet.Mode.CUBIC_BEZIER
+                axisDependency = YAxis.AxisDependency.RIGHT
+            }
+
+            // --- 재무레버리지 라인 (오른쪽 Y축) ---
+            val emEntries = equityMultipliers.mapIndexed { i, v ->
+                Entry(i.toFloat(), v.toFloat())
+            }
+            val emLineSet = LineDataSet(emEntries, "재무레버리지(x)").apply {
+                color = AndroidColor.parseColor("#FF9800")
+                setCircleColor(AndroidColor.parseColor("#FF9800"))
+                lineWidth = 2f
+                circleRadius = 3f
+                setDrawValues(false)
+                setDrawCircleHole(false)
+                mode = LineDataSet.Mode.CUBIC_BEZIER
+                axisDependency = YAxis.AxisDependency.RIGHT
+            }
+
+            // --- CombinedData 구성 ---
+            val barData = BarData(roeBarSet).apply {
+                barWidth = 0.4f
+            }
+            val lineData = LineData(npmLineSet, atLineSet, emLineSet)
+
+            chart.data = CombinedData().apply {
+                setData(barData)
+                setData(lineData)
+            }
+
+            // --- X축 ---
+            chart.xAxis.apply {
+                position = XAxis.XAxisPosition.BOTTOM
+                valueFormatter = IndexAxisValueFormatter(labels)
+                granularity = 1f
+                setDrawGridLines(false)
+                textColor = chartTextColor
+            }
+
+            // --- 왼쪽 Y축: % 단위 (순이익률, ROE) ---
+            chart.axisLeft.apply {
+                setDrawGridLines(true)
+                textColor = AndroidColor.parseColor("#4CAF50")
+                valueFormatter = object : ValueFormatter() {
+                    override fun getFormattedValue(value: Float): String =
+                        "%.1f%%".format(value)
+                }
+                setLabelCount(6, false)
+            }
+
+            // --- 오른쪽 Y축: 배수 단위 (총자산회전율, 재무레버리지) ---
+            chart.axisRight.apply {
+                isEnabled = true
+                setDrawGridLines(false)
+                textColor = AndroidColor.parseColor("#2196F3")
+                valueFormatter = object : ValueFormatter() {
+                    override fun getFormattedValue(value: Float): String =
+                        "%.2fx".format(value)
+                }
+                setLabelCount(6, false)
+            }
+
+            // --- 범례 ---
+            chart.legend.apply {
+                isEnabled = true
+                verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+                horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
+                setDrawInside(false)
+                textColor = chartTextColor
+                isWordWrapEnabled = true
+            }
+
+            // --- 마커 ---
+            chart.marker = DuPontCombinedMarkerView(chart.context, labels)
+            chart.isHighlightPerTapEnabled = true
+
+            chart.invalidate()
+        }
+    )
+}
+
+/**
+ * 듀퐁 CombinedChart 전용 마커뷰
+ * - 막대(ROE): % 형식
+ * - 라인 0(순이익률): % 형식
+ * - 라인 1(총자산회전율): x 형식
+ * - 라인 2(재무레버리지): x 형식
+ */
+private class DuPontCombinedMarkerView(
+    context: android.content.Context,
+    private val labels: List<String>
+) : com.github.mikephil.charting.components.MarkerView(
+    context, com.tinyoscillator.R.layout.chart_marker_view
+) {
+    private val tvContent: android.widget.TextView = findViewById(com.tinyoscillator.R.id.marker_text)
+
+    override fun refreshContent(e: Entry?, highlight: com.github.mikephil.charting.highlight.Highlight?) {
+        if (e == null || highlight == null) {
+            super.refreshContent(e, highlight)
+            return
+        }
+
+        val xIndex = e.x.toInt()
+        val date = labels.getOrElse(xIndex) { "" }
+
+        val valueText = when {
+            // BarEntry → ROE
+            e is BarEntry -> "ROE: ${"%.1f%%".format(e.y)}"
+            // LineData sets: index 0=순이익률, 1=총자산회전율, 2=재무레버리지
+            highlight.dataSetIndex == 0 -> "순이익률: ${"%.1f%%".format(e.y)}"
+            highlight.dataSetIndex == 1 -> "총자산회전율: ${"%.2fx".format(e.y)}"
+            highlight.dataSetIndex == 2 -> "재무레버리지: ${"%.2fx".format(e.y)}"
+            else -> "%.2f".format(e.y)
+        }
+
+        tvContent.text = "$date\n$valueText"
+        super.refreshContent(e, highlight)
+    }
+
+    override fun getOffset(): com.github.mikephil.charting.utils.MPPointF {
+        return com.github.mikephil.charting.utils.MPPointF(-(width / 2f), -height.toFloat())
+    }
+}
 
 private data class ChartLine(
     val label: String,
