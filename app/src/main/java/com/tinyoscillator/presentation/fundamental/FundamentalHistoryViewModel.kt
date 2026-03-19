@@ -81,7 +81,7 @@ class FundamentalHistoryViewModel @Inject constructor(
                 }
 
                 val endDate = LocalDate.now().format(fmt)
-                val startDate = LocalDate.now().minusYears(1).format(fmt)
+                val startDate = LocalDate.now().minusYears(2).format(fmt)
                 Timber.d("FundamentalVM: loading ticker=$ticker, range=$startDate~$endDate")
 
                 val data = fundamentalHistoryRepository.getFundamentalHistory(

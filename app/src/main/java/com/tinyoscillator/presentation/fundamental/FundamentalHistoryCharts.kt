@@ -142,7 +142,7 @@ fun FundamentalHistoryCharts(
             }
         }
 
-        // DPS / Dividend Yield Chart
+        // DPS / Dividend Yield Chart (Line)
         if (data.any { it.dps != 0L || it.dividendYield != 0.0 }) {
             ChartCard(title = "배당 정보 추이") {
                 AndroidView(
@@ -179,6 +179,180 @@ fun FundamentalHistoryCharts(
                         chart.invalidate()
                     }
                 )
+            }
+        }
+
+        // 분기별 데이터 집계 (각 분기 마지막 데이터 포인트 사용, EPS/BPS 0인 불완전 데이터 제외)
+        val quarterlyData = data
+            .filter { it.date.length == 8 && (it.eps != 0L || it.bps != 0L) }
+            .groupBy { d ->
+                val month = d.date.substring(4, 6).toIntOrNull() ?: 0
+                val year = d.date.substring(0, 4)
+                val q = when {
+                    month <= 3 -> "Q1"
+                    month <= 6 -> "Q2"
+                    month <= 9 -> "Q3"
+                    else -> "Q4"
+                }
+                "$year $q"
+            }
+            .mapValues { (_, items) -> items.last() }
+            .toSortedMap()
+            .values.toList()
+
+        val quarterLabels = quarterlyData.map { d ->
+            val year = d.date.substring(2, 4)
+            val month = d.date.substring(4, 6).toIntOrNull() ?: 0
+            val q = when {
+                month <= 3 -> "Q1"
+                month <= 6 -> "Q2"
+                month <= 9 -> "Q3"
+                else -> "Q4"
+            }
+            "$year.$q"
+        }
+
+        // ROE 추이 Chart (분기별, EPS / BPS 기반)
+        val quarterlyRoe = quarterlyData.filter { it.bps != 0L }
+        if (quarterlyRoe.isNotEmpty()) {
+            val roeLabels = quarterlyRoe.map { d ->
+                val year = d.date.substring(2, 4)
+                val month = d.date.substring(4, 6).toIntOrNull() ?: 0
+                val q = when {
+                    month <= 3 -> "Q1"; month <= 6 -> "Q2"
+                    month <= 9 -> "Q3"; else -> "Q4"
+                }
+                "$year.$q"
+            }
+            val roeEntries = quarterlyRoe.mapIndexed { i, d ->
+                Entry(i.toFloat(), (d.eps.toDouble() / d.bps.toDouble() * 100).toFloat())
+            }
+            FundamentalLineChart(
+                title = "ROE 추이 (분기)",
+                entries = roeEntries,
+                labels = roeLabels,
+                colorHex = "#FF5722",
+                chartTextColor = chartTextColor,
+                valueFormat = { "%.2f%%".format(it) }
+            )
+        }
+
+        // PBR vs ROE 산점도 (분기 순서 라인 연결)
+        val quarterlyPbrRoe = quarterlyData.filter { it.bps != 0L && it.pbr != 0.0 }
+        if (quarterlyPbrRoe.isNotEmpty()) {
+            ChartCard(title = "PBR vs ROE (분기)") {
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp),
+                    factory = { context ->
+                        LineChart(context).apply {
+                            description.isEnabled = false
+                            legend.isEnabled = false
+                            setExtraOffsets(12f, 8f, 12f, 8f)
+                        }
+                    },
+                    update = { chart ->
+                        // 분기 순서대로 (PBR, ROE) — 시간순 유지, data에 분기 라벨 저장
+                        val entries = quarterlyPbrRoe.map { d ->
+                            val roe = (d.eps.toDouble() / d.bps.toDouble() * 100).toFloat()
+                            val year = d.date.substring(2, 4)
+                            val month = d.date.substring(4, 6).toIntOrNull() ?: 0
+                            val q = when {
+                                month <= 3 -> "Q1"; month <= 6 -> "Q2"
+                                month <= 9 -> "Q3"; else -> "Q4"
+                            }
+                            Entry(d.pbr.toFloat(), roe).also { it.data = "$year.$q" }
+                        }
+
+                        val dataSet = LineDataSet(entries, "PBR vs ROE").apply {
+                            color = AndroidColor.parseColor("#9C27B0")
+                            setCircleColor(AndroidColor.parseColor("#9C27B0"))
+                            lineWidth = 1.5f
+                            circleRadius = 5f
+                            setDrawCircleHole(true)
+                            circleHoleRadius = 2.5f
+                            setDrawValues(true)
+                            valueTextSize = 9f
+                            valueTextColor = chartTextColor
+                            valueFormatter = object : ValueFormatter() {
+                                override fun getPointLabel(entry: Entry): String =
+                                    entry.data as? String ?: ""
+                            }
+                            mode = LineDataSet.Mode.LINEAR
+                        }
+
+                        chart.data = LineData(dataSet)
+
+                        // 데이터 범위 기반 축 설정
+                        val pbrValues = entries.map { it.x }
+                        val roeValues = entries.map { it.y }
+                        val pbrMin = pbrValues.min()
+                        val pbrMax = pbrValues.max()
+                        val roeMin = roeValues.min()
+                        val roeMax = roeValues.max()
+                        val pbrRange = (pbrMax - pbrMin).coerceAtLeast(0.01f)
+                        val roeRange = (roeMax - roeMin).coerceAtLeast(0.1f)
+                        val pbrMargin = pbrRange * 0.15f
+                        val roeMargin = roeRange * 0.15f
+
+                        chart.xAxis.apply {
+                            position = XAxis.XAxisPosition.BOTTOM
+                            setDrawGridLines(true)
+                            textColor = chartTextColor
+                            axisMinimum = (pbrMin - pbrMargin).coerceAtLeast(0f)
+                            axisMaximum = pbrMax + pbrMargin
+                            // 데이터 범위에 따라 틱 간격 조정
+                            granularity = when {
+                                pbrRange < 0.1f -> 0.01f
+                                pbrRange < 0.5f -> 0.05f
+                                pbrRange < 1f -> 0.1f
+                                else -> 0.2f
+                            }
+                            labelCount = 6
+                            valueFormatter = object : ValueFormatter() {
+                                override fun getFormattedValue(value: Float): String =
+                                    "%.2f".format(value)
+                            }
+                        }
+                        chart.axisLeft.apply {
+                            setDrawGridLines(true)
+                            textColor = chartTextColor
+                            axisMinimum = roeMin - roeMargin
+                            axisMaximum = roeMax + roeMargin
+                            granularity = when {
+                                roeRange < 1f -> 0.1f
+                                roeRange < 5f -> 0.5f
+                                roeRange < 10f -> 1f
+                                else -> 2f
+                            }
+                            labelCount = 6
+                            valueFormatter = object : ValueFormatter() {
+                                override fun getFormattedValue(value: Float): String =
+                                    "%.1f%%".format(value)
+                            }
+                        }
+                        chart.axisRight.isEnabled = false
+                        chart.invalidate()
+                    }
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "X축: PBR",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "Y축: ROE(%)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

@@ -23,7 +23,7 @@ class FundamentalHistoryRepository @Inject constructor(
 
     companion object {
         private const val COOLDOWN_MS = 3_600_000L // 1시간
-        private const val TTL_DAYS = 365L
+        private const val TTL_DAYS = 730L
     }
 
     suspend fun getFundamentalHistory(
