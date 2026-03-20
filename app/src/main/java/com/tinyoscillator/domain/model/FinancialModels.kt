@@ -400,8 +400,14 @@ fun FinancialData.toSummary(): FinancialSummary {
         val te = balanceSheets[p]?.totalEquity ?: 0L
         if (te != 0L) ta.toDouble() / te else 0.0
     }
-    val roes = sortedPeriods.map { p ->
-        profitabilityRatios[p]?.roe ?: 0.0
+    // ROE: API 값 우선, 없으면 DuPont 공식(NPM × AT × EM)으로 계산
+    val roes = sortedPeriods.mapIndexed { i, p ->
+        val apiRoe = profitabilityRatios[p]?.roe
+        if (apiRoe != null && apiRoe != 0.0) {
+            apiRoe
+        } else {
+            netProfitMargins[i] * assetTurnovers[i] * equityMultipliers[i]
+        }
     }
 
     return FinancialSummary(

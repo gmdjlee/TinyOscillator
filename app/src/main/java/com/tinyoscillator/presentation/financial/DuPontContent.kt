@@ -212,24 +212,6 @@ private fun DuPontCharts(
             )
         }
 
-        // ROE 추이 차트
-        if (trimmed.roes.any { it != 0.0 }) {
-            ChartCard(title = "ROE 추이") {
-                DuPontLineChart(
-                    dataSets = listOf(
-                        ChartLine("ROE (API)", trimmed.roes, "#F44336"),
-                        ChartLine("ROE (계산)", trimmed.netProfitMargins.mapIndexed { i, npm ->
-                            npm * trimmed.assetTurnovers.getOrElse(i) { 0.0 } *
-                                trimmed.equityMultipliers.getOrElse(i) { 0.0 }
-                        }, "#2196F3")
-                    ),
-                    labels = trimmed.displayPeriods,
-                    chartTextColor = chartTextColor,
-                    yAxisFormatter = { "%.1f%%".format(it) }
-                )
-            }
-        }
-
         // 듀퐁 3요소 + ROE 추이 차트 (Double-Y Axis)
         ChartCard(title = "듀퐁 3요소 + ROE 추이") {
             DuPontCombinedChart(
@@ -445,7 +427,7 @@ private fun DuPontCombinedChart(
             val barEntries = roes.mapIndexed { i, v ->
                 BarEntry(i.toFloat(), v.toFloat())
             }
-            val roeBarSet = BarDataSet(barEntries, "ROE(%)").apply {
+            val roeBarSet = BarDataSet(barEntries, "ROE(%) [좌]").apply {
                 color = AndroidColor.parseColor("#F44336")
                 setDrawValues(false)
                 axisDependency = YAxis.AxisDependency.LEFT
@@ -455,7 +437,7 @@ private fun DuPontCombinedChart(
             val npmEntries = netProfitMargins.mapIndexed { i, v ->
                 Entry(i.toFloat(), v.toFloat())
             }
-            val npmLineSet = LineDataSet(npmEntries, "순이익률(%)").apply {
+            val npmLineSet = LineDataSet(npmEntries, "순이익률(%) [좌]").apply {
                 color = AndroidColor.parseColor("#4CAF50")
                 setCircleColor(AndroidColor.parseColor("#4CAF50"))
                 lineWidth = 2f
@@ -470,7 +452,7 @@ private fun DuPontCombinedChart(
             val atEntries = assetTurnovers.mapIndexed { i, v ->
                 Entry(i.toFloat(), v.toFloat())
             }
-            val atLineSet = LineDataSet(atEntries, "총자산회전율(x)").apply {
+            val atLineSet = LineDataSet(atEntries, "총자산회전율(x) [우]").apply {
                 color = AndroidColor.parseColor("#2196F3")
                 setCircleColor(AndroidColor.parseColor("#2196F3"))
                 lineWidth = 2f
@@ -485,7 +467,7 @@ private fun DuPontCombinedChart(
             val emEntries = equityMultipliers.mapIndexed { i, v ->
                 Entry(i.toFloat(), v.toFloat())
             }
-            val emLineSet = LineDataSet(emEntries, "재무레버리지(x)").apply {
+            val emLineSet = LineDataSet(emEntries, "재무레버리지(x) [우]").apply {
                 color = AndroidColor.parseColor("#FF9800")
                 setCircleColor(AndroidColor.parseColor("#FF9800"))
                 lineWidth = 2f
@@ -507,13 +489,15 @@ private fun DuPontCombinedChart(
                 setData(lineData)
             }
 
-            // --- X축 ---
+            // --- X축 (막대 폭을 고려한 여유 공간 확보) ---
             chart.xAxis.apply {
                 position = XAxis.XAxisPosition.BOTTOM
                 valueFormatter = IndexAxisValueFormatter(labels)
                 granularity = 1f
                 setDrawGridLines(false)
                 textColor = chartTextColor
+                axisMinimum = -0.5f
+                axisMaximum = labels.size - 0.5f
             }
 
             // --- 왼쪽 Y축: % 단위 (순이익률, ROE) ---
@@ -525,6 +509,7 @@ private fun DuPontCombinedChart(
                         "%.1f%%".format(value)
                 }
                 setLabelCount(6, false)
+                axisMinimum = 0f
             }
 
             // --- 오른쪽 Y축: 배수 단위 (총자산회전율, 재무레버리지) ---

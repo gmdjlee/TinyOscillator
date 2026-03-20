@@ -310,8 +310,6 @@ private fun DateSelectorRow(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
-
         SingleChoiceSegmentedButtonRow {
             ComparisonMode.entries.forEachIndexed { index, mode ->
                 SegmentedButton(
