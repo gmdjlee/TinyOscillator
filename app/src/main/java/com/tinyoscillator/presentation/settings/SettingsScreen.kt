@@ -1488,6 +1488,26 @@ private fun BackupTab(db: AppDatabase) {
         }
     }
 
+    // Data export launcher
+    val dataExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                isProcessing = true
+                backupMessage = "내보내기 준비 중..."
+                val result = BackupManager.exportAllDataForAnalysis(
+                    context, it, db
+                ) { progress -> backupMessage = progress }
+                backupMessage = result.fold(
+                    onSuccess = { count -> "데이터 내보내기 완료 (총 ${count}건)" },
+                    onFailure = { e -> "내보내기 실패: ${e.message}" }
+                )
+                isProcessing = false
+            }
+        }
+    }
+
     // ETF backup launchers
     val etfExportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -1690,6 +1710,27 @@ private fun BackupTab(db: AppDatabase) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("포트폴리오 가져오기")
+        }
+
+        HorizontalDivider()
+
+        // === 전체 데이터 내보내기 (분석용) ===
+        Text("전체 데이터 내보내기", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "모든 DB 데이터를 TSV 형식으로 내보냅니다. Claude 등 AI 분석에 활용할 수 있습니다.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Button(
+            onClick = {
+                val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+                dataExportLauncher.launch("tinyoscillator_data_$date.txt")
+            },
+            enabled = !isProcessing,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("전체 데이터 내보내기 (TSV)")
         }
 
         if (isProcessing) {

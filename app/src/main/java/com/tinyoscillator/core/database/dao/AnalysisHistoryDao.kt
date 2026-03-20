@@ -20,6 +20,9 @@ interface AnalysisHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: AnalysisHistoryEntity)
 
+    @Query("SELECT * FROM analysis_history ORDER BY last_analyzed_at DESC")
+    suspend fun getAll(): List<AnalysisHistoryEntity>
+
     @Query("SELECT COUNT(*) FROM analysis_history")
     suspend fun getCount(): Int
 

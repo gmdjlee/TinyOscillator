@@ -11,6 +11,9 @@ interface FinancialCacheDao {
     @Query("SELECT * FROM financial_cache WHERE ticker = :ticker")
     suspend fun get(ticker: String): FinancialCacheEntity?
 
+    @Query("SELECT * FROM financial_cache ORDER BY ticker")
+    suspend fun getAll(): List<FinancialCacheEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(cache: FinancialCacheEntity)
 

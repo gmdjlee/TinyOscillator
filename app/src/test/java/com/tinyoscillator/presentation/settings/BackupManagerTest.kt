@@ -66,4 +66,60 @@ class BackupManagerTest {
     fun `truncated data throws exception`() {
         BackupManager.decrypt(ByteArray(20) { it.toByte() }, "pw")
     }
+
+    // region TSV helper tests
+
+    @Test
+    fun `toTsv - null returns empty`() {
+        assertEquals("", null.toTsv())
+    }
+
+    @Test
+    fun `toTsv - zero number returns empty`() {
+        assertEquals("", 0.toTsv())
+        assertEquals("", 0L.toTsv())
+        assertEquals("", 0.0.toTsv())
+    }
+
+    @Test
+    fun `toTsv - non-zero values return string`() {
+        assertEquals("42", 42.toTsv())
+        assertEquals("3.14", 3.14.toTsv())
+        assertEquals("-100", (-100L).toTsv())
+        assertEquals("hello", "hello".toTsv())
+    }
+
+    @Test
+    fun `toTsv - empty string returns empty`() {
+        assertEquals("", "".toTsv())
+    }
+
+    @Test
+    fun `formatTimestamp - zero returns empty`() {
+        assertEquals("", BackupManager.formatTimestamp(0L))
+    }
+
+    @Test
+    fun `formatTimestamp - valid millis returns formatted date`() {
+        // 2026-01-15 09:30 KST = specific epoch millis
+        val result = BackupManager.formatTimestamp(1736904600000L)
+        assertTrue("Expected date format yyyy-MM-dd HH:mm, got: $result", result.matches(Regex("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}")))
+    }
+
+    @Test
+    fun `TSV line format - tab separated values`() {
+        val ticker = "005930"
+        val date = "20260315"
+        val marketCap = 400000000000L
+        val line = "$ticker\t$date\t${marketCap.toTsv()}"
+        val parts = line.split("\t")
+        assertEquals(3, parts.size)
+        assertEquals("005930", parts[0])
+        assertEquals("20260315", parts[1])
+        assertEquals("400000000000", parts[2])
+    }
+
+    private fun Any?.toTsv(): String = with(BackupManager) { this@toTsv.toTsv() }
+
+    // endregion
 }

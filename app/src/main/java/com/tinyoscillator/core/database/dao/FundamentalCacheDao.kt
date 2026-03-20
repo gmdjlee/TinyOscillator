@@ -26,6 +26,9 @@ interface FundamentalCacheDao {
     @Query("SELECT MAX(date) FROM fundamental_cache WHERE ticker = :ticker")
     suspend fun getLatestDate(ticker: String): String?
 
+    @Query("SELECT * FROM fundamental_cache ORDER BY ticker, date")
+    suspend fun getAll(): List<FundamentalCacheEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(entries: List<FundamentalCacheEntity>)
 

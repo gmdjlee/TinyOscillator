@@ -29,6 +29,9 @@ interface AnalysisCacheDao {
     @Query("SELECT MIN(date) FROM analysis_cache WHERE ticker = :ticker")
     suspend fun getEarliestDate(ticker: String): String?
 
+    @Query("SELECT * FROM analysis_cache ORDER BY ticker, date")
+    suspend fun getAll(): List<AnalysisCacheEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(entries: List<AnalysisCacheEntity>)
 

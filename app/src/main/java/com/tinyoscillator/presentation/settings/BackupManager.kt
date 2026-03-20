@@ -8,12 +8,18 @@ import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
 import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
+import com.tinyoscillator.domain.model.FinancialDataCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.BufferedWriter
+import java.io.OutputStreamWriter
 import java.security.SecureRandom
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
@@ -485,6 +491,237 @@ object BackupManager {
             }
 
             Result.success("포트폴리오 복원 완료 (종목 ${backup.holdings.size}개, 거래 ${totalTx}건)")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // endregion
+
+    // region Data Export for Analysis
+
+    internal fun formatTimestamp(millis: Long): String {
+        if (millis == 0L) return ""
+        return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(millis))
+    }
+
+    internal fun Any?.toTsv(): String = when {
+        this == null -> ""
+        this is Number && this.toDouble() == 0.0 -> ""
+        this is String && this.isEmpty() -> ""
+        else -> toString()
+    }
+
+    suspend fun exportAllDataForAnalysis(
+        context: Context,
+        uri: Uri,
+        db: AppDatabase,
+        onProgress: (String) -> Unit = {}
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val t = "\t"
+            var totalRecords = 0
+
+            onProgress("데이터 로딩 중...")
+            val stockMasters = db.stockMasterDao().getAll()
+            val analysisCache = db.analysisCacheDao().getAll()
+            val analysisHistory = db.analysisHistoryDao().getAll()
+            val fundamentalCache = db.fundamentalCacheDao().getAll()
+            val financialCache = db.financialCacheDao().getAll()
+            val oscillators = db.marketOscillatorDao().getAllList()
+            val deposits = db.marketDepositDao().getAllList()
+            val etfs = db.etfDao().getAllEtfsList()
+            val etfHoldings = db.etfDao().getAllHoldings()
+            val portfolios = db.portfolioDao().getAllPortfoliosList()
+
+            onProgress("파일 쓰기 중...")
+            context.contentResolver.openOutputStream(uri)?.use { os ->
+                BufferedWriter(OutputStreamWriter(os, Charsets.UTF_8)).use { w ->
+                    val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
+
+                    // Header
+                    w.write("# TinyOscillator Data Export\n")
+                    w.write("# Date: $now\n")
+                    w.write("# Records: stock_master=${stockMasters.size}, analysis_cache=${analysisCache.size}, ")
+                    w.write("analysis_history=${analysisHistory.size}, fundamental_cache=${fundamentalCache.size}, ")
+                    w.write("financial_cache=${financialCache.size}, market_oscillator=${oscillators.size}, ")
+                    w.write("market_deposits=${deposits.size}, etfs=${etfs.size}, etf_holdings=${etfHoldings.size}, ")
+                    w.write("portfolios=${portfolios.size}\n\n")
+
+                    // stock_master
+                    w.write("## stock_master\n")
+                    w.write("ticker${t}name${t}market${t}sector${t}lastUpdated\n")
+                    for (s in stockMasters) {
+                        w.write("${s.ticker}$t${s.name}$t${s.market}$t${s.sector}$t${formatTimestamp(s.lastUpdated)}\n")
+                    }
+                    totalRecords += stockMasters.size
+                    onProgress("stock_master: ${stockMasters.size}건")
+
+                    // analysis_cache
+                    w.write("\n## analysis_cache\n")
+                    w.write("ticker${t}date${t}marketCap${t}foreignNet${t}instNet${t}close\n")
+                    for (a in analysisCache) {
+                        w.write("${a.ticker}$t${a.date}$t${a.marketCap.toTsv()}$t${a.foreignNet.toTsv()}$t${a.instNet.toTsv()}$t${a.closePrice.toTsv()}\n")
+                    }
+                    totalRecords += analysisCache.size
+                    onProgress("analysis_cache: ${analysisCache.size}건")
+
+                    // analysis_history
+                    w.write("\n## analysis_history\n")
+                    w.write("ticker${t}name${t}lastAnalyzedAt\n")
+                    for (h in analysisHistory) {
+                        w.write("${h.ticker}$t${h.name}$t${formatTimestamp(h.lastAnalyzedAt)}\n")
+                    }
+                    totalRecords += analysisHistory.size
+
+                    // fundamental_cache
+                    w.write("\n## fundamental_cache\n")
+                    w.write("ticker${t}date${t}close${t}eps${t}per${t}bps${t}pbr${t}dps${t}dividendYield\n")
+                    for (f in fundamentalCache) {
+                        w.write("${f.ticker}$t${f.date}$t${f.close.toTsv()}$t${f.eps.toTsv()}$t${f.per.toTsv()}$t${f.bps.toTsv()}$t${f.pbr.toTsv()}$t${f.dps.toTsv()}$t${f.dividendYield.toTsv()}\n")
+                    }
+                    totalRecords += fundamentalCache.size
+                    onProgress("fundamental_cache: ${fundamentalCache.size}건")
+
+                    // financial_cache → 5 sub-tables
+                    val parsed = financialCache.mapNotNull { entity ->
+                        try {
+                            val cache = backupJson.decodeFromString<FinancialDataCache>(entity.data)
+                            Triple(entity.ticker, entity.name, cache)
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+
+                    // financial_balance_sheet
+                    w.write("\n## financial_balance_sheet\n")
+                    w.write("ticker${t}name${t}yearMonth${t}currentAssets${t}fixedAssets${t}totalAssets${t}currentLiabilities${t}fixedLiabilities${t}totalLiabilities${t}capital${t}capitalSurplus${t}retainedEarnings${t}totalEquity\n")
+                    var financialRows = 0
+                    for ((ticker, name, cache) in parsed) {
+                        for (bs in cache.balanceSheets) {
+                            w.write("$ticker$t$name$t${bs.yearMonth}$t${bs.currentAssets.toTsv()}$t${bs.fixedAssets.toTsv()}$t${bs.totalAssets.toTsv()}$t${bs.currentLiabilities.toTsv()}$t${bs.fixedLiabilities.toTsv()}$t${bs.totalLiabilities.toTsv()}$t${bs.capital.toTsv()}$t${bs.capitalSurplus.toTsv()}$t${bs.retainedEarnings.toTsv()}$t${bs.totalEquity.toTsv()}\n")
+                            financialRows++
+                        }
+                    }
+
+                    // financial_income_statement
+                    w.write("\n## financial_income_statement\n")
+                    w.write("ticker${t}name${t}yearMonth${t}revenue${t}costOfSales${t}grossProfit${t}operatingProfit${t}ordinaryProfit${t}netIncome\n")
+                    for ((ticker, name, cache) in parsed) {
+                        for (is_ in cache.incomeStatements) {
+                            w.write("$ticker$t$name$t${is_.yearMonth}$t${is_.revenue.toTsv()}$t${is_.costOfSales.toTsv()}$t${is_.grossProfit.toTsv()}$t${is_.operatingProfit.toTsv()}$t${is_.ordinaryProfit.toTsv()}$t${is_.netIncome.toTsv()}\n")
+                            financialRows++
+                        }
+                    }
+
+                    // financial_profitability
+                    w.write("\n## financial_profitability\n")
+                    w.write("ticker${t}name${t}yearMonth${t}operatingMargin${t}netMargin${t}roe${t}roa\n")
+                    for ((ticker, name, cache) in parsed) {
+                        for (pr in cache.profitabilityRatios) {
+                            w.write("$ticker$t$name$t${pr.yearMonth}$t${pr.operatingMargin.toTsv()}$t${pr.netMargin.toTsv()}$t${pr.roe.toTsv()}$t${pr.roa.toTsv()}\n")
+                            financialRows++
+                        }
+                    }
+
+                    // financial_stability
+                    w.write("\n## financial_stability\n")
+                    w.write("ticker${t}name${t}yearMonth${t}debtRatio${t}currentRatio${t}quickRatio${t}borrowingDependency${t}interestCoverageRatio\n")
+                    for ((ticker, name, cache) in parsed) {
+                        for (sr in cache.stabilityRatios) {
+                            w.write("$ticker$t$name$t${sr.yearMonth}$t${sr.debtRatio.toTsv()}$t${sr.currentRatio.toTsv()}$t${sr.quickRatio.toTsv()}$t${sr.borrowingDependency.toTsv()}$t${sr.interestCoverageRatio.toTsv()}\n")
+                            financialRows++
+                        }
+                    }
+
+                    // financial_growth
+                    w.write("\n## financial_growth\n")
+                    w.write("ticker${t}name${t}yearMonth${t}revenueGrowth${t}operatingProfitGrowth${t}netIncomeGrowth${t}equityGrowth${t}totalAssetsGrowth\n")
+                    for ((ticker, name, cache) in parsed) {
+                        for (gr in cache.growthRatios) {
+                            w.write("$ticker$t$name$t${gr.yearMonth}$t${gr.revenueGrowth.toTsv()}$t${gr.operatingProfitGrowth.toTsv()}$t${gr.netIncomeGrowth.toTsv()}$t${gr.equityGrowth.toTsv()}$t${gr.totalAssetsGrowth.toTsv()}\n")
+                            financialRows++
+                        }
+                    }
+                    totalRecords += financialRows
+                    onProgress("financial: ${parsed.size}종목, ${financialRows}행")
+
+                    // market_oscillator
+                    w.write("\n## market_oscillator\n")
+                    w.write("market${t}date${t}indexValue${t}oscillator\n")
+                    for (o in oscillators) {
+                        w.write("${o.market}$t${o.date}$t${o.indexValue}$t${o.oscillator}\n")
+                    }
+                    totalRecords += oscillators.size
+                    onProgress("market_oscillator: ${oscillators.size}건")
+
+                    // market_deposits
+                    w.write("\n## market_deposits\n")
+                    w.write("date${t}depositAmount${t}depositChange${t}creditAmount${t}creditChange\n")
+                    for (d in deposits) {
+                        w.write("${d.date}$t${d.depositAmount}$t${d.depositChange}$t${d.creditAmount}$t${d.creditChange}\n")
+                    }
+                    totalRecords += deposits.size
+
+                    // etfs
+                    w.write("\n## etfs\n")
+                    w.write("ticker${t}name${t}isinCode${t}indexName${t}totalFee\n")
+                    for (e in etfs) {
+                        w.write("${e.ticker}$t${e.name}$t${e.isinCode}$t${e.indexName.toTsv()}$t${e.totalFee.toTsv()}\n")
+                    }
+                    totalRecords += etfs.size
+
+                    // etf_holdings
+                    w.write("\n## etf_holdings\n")
+                    w.write("etfTicker${t}stockTicker${t}date${t}stockName${t}weight${t}shares${t}amount\n")
+                    for (h in etfHoldings) {
+                        w.write("${h.etfTicker}$t${h.stockTicker}$t${h.date}$t${h.stockName}$t${h.weight.toTsv()}$t${h.shares.toTsv()}$t${h.amount.toTsv()}\n")
+                    }
+                    totalRecords += etfHoldings.size
+                    onProgress("etf: ${etfs.size}종목, holdings ${etfHoldings.size}건")
+
+                    // portfolios
+                    w.write("\n## portfolios\n")
+                    w.write("id${t}name${t}maxWeightPercent${t}totalAmountLimit\n")
+                    for (p in portfolios) {
+                        w.write("${p.id}$t${p.name}$t${p.maxWeightPercent}$t${p.totalAmountLimit.toTsv()}\n")
+                    }
+                    totalRecords += portfolios.size
+
+                    // portfolio_holdings & transactions
+                    w.write("\n## portfolio_holdings\n")
+                    w.write("portfolioId${t}ticker${t}stockName${t}market${t}sector${t}lastPrice${t}targetPrice\n")
+                    var holdingCount = 0
+                    var txCount = 0
+                    val allTx = mutableListOf<Triple<Long, String, com.tinyoscillator.core.database.entity.PortfolioTransactionEntity>>()
+                    for (p in portfolios) {
+                        val holdings = db.portfolioDao().getHoldingsListForPortfolio(p.id)
+                        for (h in holdings) {
+                            w.write("${p.id}$t${h.ticker}$t${h.stockName}$t${h.market}$t${h.sector}$t${h.lastPrice.toTsv()}$t${h.targetPrice.toTsv()}\n")
+                            holdingCount++
+                            val transactions = db.portfolioDao().getTransactionsListForHolding(h.id)
+                            for (tx in transactions) {
+                                allTx.add(Triple(h.id, h.ticker, tx))
+                            }
+                        }
+                    }
+                    totalRecords += holdingCount
+
+                    w.write("\n## portfolio_transactions\n")
+                    w.write("holdingId${t}date${t}shares${t}pricePerShare${t}memo\n")
+                    for ((holdingId, _, tx) in allTx) {
+                        w.write("$holdingId$t${tx.date}$t${tx.shares}$t${tx.pricePerShare}$t${tx.memo}\n")
+                        txCount++
+                    }
+                    totalRecords += txCount
+                    onProgress("portfolio: ${portfolios.size}개, holdings $holdingCount, tx $txCount")
+                }
+            }
+
+            onProgress("완료: 총 $totalRecords 레코드")
+            Result.success(totalRecords)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
