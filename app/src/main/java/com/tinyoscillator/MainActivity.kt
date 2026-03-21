@@ -291,6 +291,19 @@ fun OscillatorScreen(
             TopAppBar(
                 title = { Text("종목분석") },
                 actions = {
+                    IconButton(
+                        onClick = { viewModel.refreshStockMaster() },
+                        enabled = stockMasterStatus !is StockMasterStatus.Loading
+                    ) {
+                        if (stockMasterStatus is StockMasterStatus.Loading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "종목리스트 새로고침")
+                        }
+                    }
                     ThemeToggleIcon(themeModeState)
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "설정")
