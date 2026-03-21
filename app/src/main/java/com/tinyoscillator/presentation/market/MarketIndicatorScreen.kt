@@ -11,6 +11,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.tinyoscillator.core.worker.MarketDepositUpdateWorker
 import com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker
 import com.tinyoscillator.presentation.common.CollectionProgressBar
+import com.tinyoscillator.presentation.common.PillTabRow
 
 private enum class MarketTab(val label: String) {
     OSCILLATOR("과매수/과매도"),
@@ -46,15 +47,12 @@ fun MarketIndicatorScreen(
                 }
             )
 
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                MarketTab.entries.forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = { Text(tab.label) }
-                    )
-                }
-            }
+            PillTabRow(
+                tabs = MarketTab.entries.toList(),
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it },
+                tabLabel = { it.label }
+            )
 
             when (selectedTab) {
                 MarketTab.OSCILLATOR -> MarketOscillatorTab(viewModel = oscillatorViewModel)

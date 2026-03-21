@@ -9,6 +9,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import com.tinyoscillator.core.worker.EtfUpdateWorker
 import com.tinyoscillator.presentation.common.CollectionProgressBar
+import com.tinyoscillator.presentation.common.PillTabRow
 
 private enum class EtfTab(val label: String) {
     THEME_LIST("테마 목록"),
@@ -44,15 +45,12 @@ fun EtfScreen(
         ) {
             CollectionProgressBar(tag = EtfUpdateWorker.TAG)
 
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                EtfTab.entries.forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = { Text(tab.label) }
-                    )
-                }
-            }
+            PillTabRow(
+                tabs = EtfTab.entries.toList(),
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it },
+                tabLabel = { it.label }
+            )
 
             when (selectedTab) {
                 EtfTab.THEME_LIST -> {

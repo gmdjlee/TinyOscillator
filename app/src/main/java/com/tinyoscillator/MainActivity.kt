@@ -17,7 +17,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Psychology
@@ -53,6 +55,7 @@ import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.presentation.chart.OscillatorChart
 import com.tinyoscillator.presentation.common.WindowType
 import com.tinyoscillator.presentation.common.calculateWindowType
+import com.tinyoscillator.presentation.common.ScrollablePillTabRow
 import com.tinyoscillator.presentation.common.TwoPaneLayout
 import com.tinyoscillator.presentation.demark.DemarkTDContent
 import com.tinyoscillator.presentation.etf.AggregatedStockTrendScreen
@@ -358,7 +361,7 @@ fun OscillatorScreen(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // 검색 입력
+                    // 검색 입력 (Stitch: 둥근 검색바)
                     OutlinedTextField(
                         value = query,
                         onValueChange = {
@@ -366,9 +369,9 @@ fun OscillatorScreen(
                             viewModel.searchStock(it)
                             showHistory = false
                         },
-                        label = { Text("종목명 또는 종목코드") },
-                        placeholder = { Text("예: 삼성전자, 005930") },
+                        placeholder = { Text("종목명 또는 종목코드 검색") },
                         singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = {
                             if (searchResults.isNotEmpty()) {
@@ -378,6 +381,13 @@ fun OscillatorScreen(
                                 viewModel.searchStock("") // 검색 결과 초기화
                             }
                         }),
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
                         trailingIcon = {
                             if (analysisHistory.isNotEmpty()) {
                                 IconButton(onClick = { showHistory = !showHistory }) {
@@ -390,6 +400,10 @@ fun OscillatorScreen(
                                 }
                             }
                         },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
@@ -398,19 +412,13 @@ fun OscillatorScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Main Tab Row
-                    ScrollableTabRow(
-                        selectedTabIndex = selectedMainTab.ordinal,
-                        edgePadding = 4.dp
-                    ) {
-                        MainTab.entries.forEach { tab ->
-                            Tab(
-                                selected = selectedMainTab == tab,
-                                onClick = { selectedMainTab = tab },
-                                text = { Text(tab.label) }
-                            )
-                        }
-                    }
+                    // Main Tab Row (Stitch Pill Style)
+                    ScrollablePillTabRow(
+                        tabs = MainTab.entries.toList(),
+                        selectedTab = selectedMainTab,
+                        onTabSelected = { selectedMainTab = it },
+                        tabLabel = { it.label }
+                    )
 
                     // Tab content
                     Box(modifier = Modifier.fillMaxSize()) {

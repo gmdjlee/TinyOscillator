@@ -21,6 +21,7 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.presentation.common.AiAnalysisSection
+import com.tinyoscillator.presentation.common.PillTabRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,15 +56,12 @@ fun AiAnalysisScreen(
                 .padding(padding)
         ) {
             // Tab Row
-            TabRow(selectedTabIndex = selectedTab.ordinal) {
-                AiTab.entries.forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = { viewModel.selectTab(tab) },
-                        text = { Text(tab.label) }
-                    )
-                }
-            }
+            PillTabRow(
+                tabs = AiTab.entries.toList(),
+                selectedTab = selectedTab,
+                onTabSelected = { viewModel.selectTab(it) },
+                tabLabel = { it.label }
+            )
 
             when (selectedTab) {
                 AiTab.MARKET -> {
