@@ -239,7 +239,7 @@ fun FundamentalHistoryCharts(
 
         // PBR vs ROE 산점도 (분기 순서 라인 연결)
         val quarterlyPbrRoe = quarterlyData.filter { it.bps != 0L && it.pbr != 0.0 }
-        if (quarterlyPbrRoe.isNotEmpty()) {
+        if (quarterlyPbrRoe.size >= 2) {
             ChartCard(title = "PBR vs ROE (분기)") {
                 AndroidView(
                     modifier = Modifier
@@ -253,7 +253,7 @@ fun FundamentalHistoryCharts(
                         }
                     },
                     update = { chart ->
-                        // 분기 순서대로 (PBR, ROE) — 시간순 유지, data에 분기 라벨 저장
+                        // 분기 순서대로 (PBR, ROE) — PBR(x축) 기준 정렬 필수 (MPAndroidChart 요구사항)
                         val entries = quarterlyPbrRoe.map { d ->
                             val roe = (d.eps.toDouble() / d.bps.toDouble() * 100).toFloat()
                             val year = d.date.substring(2, 4)
@@ -263,7 +263,7 @@ fun FundamentalHistoryCharts(
                                 month <= 9 -> "Q3"; else -> "Q4"
                             }
                             Entry(d.pbr.toFloat(), roe).also { it.data = "$year.$q" }
-                        }
+                        }.sortedBy { it.x }
 
                         val dataSet = LineDataSet(entries, "PBR vs ROE").apply {
                             color = AndroidColor.parseColor("#9C27B0")
@@ -433,7 +433,7 @@ private fun createLineDataSet(entries: List<Entry>, label: String, colorHex: Str
         circleRadius = 3f
         setDrawValues(false)
         setDrawCircleHole(false)
-        mode = LineDataSet.Mode.CUBIC_BEZIER
+        mode = if (entries.size >= 2) LineDataSet.Mode.CUBIC_BEZIER else LineDataSet.Mode.LINEAR
     }
 }
 
