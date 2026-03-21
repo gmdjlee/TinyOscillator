@@ -1,7 +1,6 @@
 package com.tinyoscillator.presentation.fundamental
 
 import android.graphics.Color as AndroidColor
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -10,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.mikephil.charting.charts.LineChart
@@ -30,7 +30,7 @@ fun FundamentalHistoryCharts(
     stockName: String,
     modifier: Modifier = Modifier
 ) {
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val chartTextColor = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.DKGRAY
 
     // 날짜 라벨: yyyyMMdd → MM/dd
@@ -48,13 +48,13 @@ fun FundamentalHistoryCharts(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Summary Card
         if (latest != null) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
@@ -104,7 +104,7 @@ fun FundamentalHistoryCharts(
                 AndroidView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(250.dp),
+                        .height(240.dp),
                     factory = { context ->
                         LineChart(context).apply {
                             description.isEnabled = false
@@ -121,11 +121,13 @@ fun FundamentalHistoryCharts(
                         val bpsSet = createLineDataSet(bpsEntries, "BPS", "#9C27B0")
 
                         chart.data = LineData(epsSet, bpsSet)
+                        val gridColor = if (isDarkTheme) AndroidColor.parseColor("#444444") else AndroidColor.parseColor("#CCCCCC")
                         chart.legend.textColor = chartTextColor
                         setupXAxis(chart, dateLabels, chartTextColor)
                         chart.axisLeft.apply {
                             setDrawGridLines(true)
                             textColor = chartTextColor
+                            this.gridColor = gridColor
                             valueFormatter = object : ValueFormatter() {
                                 override fun getFormattedValue(value: Float): String =
                                     numberFmt.format(value.toLong())
@@ -148,7 +150,7 @@ fun FundamentalHistoryCharts(
                 AndroidView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(250.dp),
+                        .height(240.dp),
                     factory = { context ->
                         LineChart(context).apply {
                             description.isEnabled = false
@@ -170,6 +172,7 @@ fun FundamentalHistoryCharts(
                         chart.axisLeft.apply {
                             setDrawGridLines(true)
                             textColor = chartTextColor
+                            gridColor = if (isDarkTheme) AndroidColor.parseColor("#444444") else AndroidColor.parseColor("#CCCCCC")
                         }
                         chart.axisRight.isEnabled = false
                         chart.marker = FinancialMarkerView(
@@ -244,7 +247,7 @@ fun FundamentalHistoryCharts(
                 AndroidView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(280.dp),
+                        .height(240.dp),
                     factory = { context ->
                         LineChart(context).apply {
                             description.isEnabled = false
@@ -296,10 +299,12 @@ fun FundamentalHistoryCharts(
                         val pbrMargin = pbrRange * 0.15f
                         val roeMargin = roeRange * 0.15f
 
+                        val pbrRoeGridColor = if (isDarkTheme) AndroidColor.parseColor("#444444") else AndroidColor.parseColor("#CCCCCC")
                         chart.xAxis.apply {
                             position = XAxis.XAxisPosition.BOTTOM
                             setDrawGridLines(true)
                             textColor = chartTextColor
+                            gridColor = pbrRoeGridColor
                             axisMinimum = (pbrMin - pbrMargin).coerceAtLeast(0f)
                             axisMaximum = pbrMax + pbrMargin
                             // 데이터 범위에 따라 틱 간격 조정
@@ -318,6 +323,7 @@ fun FundamentalHistoryCharts(
                         chart.axisLeft.apply {
                             setDrawGridLines(true)
                             textColor = chartTextColor
+                            gridColor = pbrRoeGridColor
                             axisMinimum = roeMin - roeMargin
                             axisMaximum = roeMax + roeMargin
                             granularity = when {
@@ -386,11 +392,12 @@ private fun FundamentalLineChart(
     chartTextColor: Int,
     valueFormat: (Float) -> String
 ) {
+    val isDark = chartTextColor == AndroidColor.WHITE
     ChartCard(title = title) {
         AndroidView(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(250.dp),
+                .height(240.dp),
             factory = { context ->
                 LineChart(context).apply {
                     description.isEnabled = false
@@ -410,6 +417,7 @@ private fun FundamentalLineChart(
                 chart.axisLeft.apply {
                     setDrawGridLines(true)
                     textColor = chartTextColor
+                    gridColor = if (isDark) AndroidColor.parseColor("#444444") else AndroidColor.parseColor("#CCCCCC")
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String = valueFormat(value)
                     }

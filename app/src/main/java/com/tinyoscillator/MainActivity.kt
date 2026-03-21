@@ -191,7 +191,8 @@ private fun MainScaffold(
                         onSettingsClick = onSettingsClick,
                         onEtfDetailClick = onEtfDetailClick,
                         onStockClick = onStockClick,
-                        onStockTrendClick = onStockTrendClick
+                        onStockTrendClick = onStockTrendClick,
+                        windowType = windowType
                     )
                 }
                 BottomNavItem.MARKET_INDICATOR -> {

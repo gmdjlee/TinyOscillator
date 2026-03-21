@@ -1,7 +1,6 @@
 package com.tinyoscillator.presentation.financial
 
 import android.graphics.Color as AndroidColor
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -12,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -184,7 +184,7 @@ private fun DuPontCharts(
         return
     }
 
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val chartTextColor = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.DKGRAY
 
     val totalQuarters = summary.periods.size
@@ -503,7 +503,7 @@ private fun DuPontCombinedChart(
             // --- 왼쪽 Y축: % 단위 (순이익률, ROE) ---
             chart.axisLeft.apply {
                 setDrawGridLines(true)
-                textColor = AndroidColor.parseColor("#4CAF50")
+                textColor = chartTextColor
                 valueFormatter = object : ValueFormatter() {
                     override fun getFormattedValue(value: Float): String =
                         "%.1f%%".format(value)
@@ -516,7 +516,7 @@ private fun DuPontCombinedChart(
             chart.axisRight.apply {
                 isEnabled = true
                 setDrawGridLines(false)
-                textColor = AndroidColor.parseColor("#2196F3")
+                textColor = chartTextColor
                 valueFormatter = object : ValueFormatter() {
                     override fun getFormattedValue(value: Float): String =
                         "%.2fx".format(value)

@@ -83,7 +83,6 @@ fun DemarkTDContent(
                     chartData = currentState.chartData,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
                 )
             }
 

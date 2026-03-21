@@ -1,12 +1,13 @@
 package com.tinyoscillator.presentation.etf.stats
 
 import android.graphics.Color as AndroidColor
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.mikephil.charting.charts.LineChart
@@ -25,7 +26,7 @@ fun TrendLineChart(
     modifier: Modifier = Modifier
 ) {
     val lastBound = remember { arrayOfNulls<Any>(1) }
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     AndroidView(
         factory = { context ->
@@ -92,12 +93,12 @@ fun TrendLineChart(
                 }
 
                 chart.data = LineData(dataSet)
-                chart.invalidate()
                 lastBound[0] = boundKey
             }
+            chart.invalidate()
         },
         modifier = modifier
             .fillMaxWidth()
-            .height(200.dp)
+            .height(240.dp)
     )
 }

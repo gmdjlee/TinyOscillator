@@ -4,12 +4,12 @@ import android.content.Context
 import android.graphics.Color
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.mikephil.charting.charts.CombinedChart
@@ -40,17 +40,17 @@ fun OscillatorChart(
 ) {
     // Track last bound data to skip redundant bindData calls on recomposition
     val lastBound = remember { arrayOfNulls<ChartData>(1) }
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val chartTextColor = if (isDarkTheme) Color.WHITE else Color.DKGRAY
 
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 text = "${chartData.stockName} 시가총액 & 수급오실레이터",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             AndroidView(
             factory = { context ->
@@ -65,20 +65,27 @@ fun OscillatorChart(
             update = { chart ->
                 chart.xAxis.textColor = chartTextColor
                 chart.legend.textColor = chartTextColor
+                chart.axisLeft.textColor = chartTextColor
+                chart.axisRight.textColor = chartTextColor
+                val gridColor = if (isDarkTheme) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
+                chart.axisLeft.gridColor = gridColor
+                chart.axisRight.gridColor = gridColor
                 if (chartData != lastBound[0]) {
-                    bindData(chart, chartData)
+                    bindData(chart, chartData, isDarkTheme)
                     lastBound[0] = chartData
                 }
+                chart.invalidate()
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(280.dp)
+                .height(240.dp)
             )
         }
     }
 }
 
 private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
+    val isDark = chartTextColor == Color.WHITE
     chart.apply {
         description.isEnabled = false
         setDrawGridBackground(false)
@@ -86,7 +93,7 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
         isHighlightFullBarEnabled = false
         setDrawOrder(arrayOf(CombinedChart.DrawOrder.LINE))
 
-        val gColor = Color.parseColor("#CCCCCC")
+        val gColor = if (isDark) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
         val dashLen = Utils.convertDpToPixel(4f)
         val dashGap = Utils.convertDpToPixel(4f)
 
@@ -99,7 +106,7 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
             gridColor = gColor
             gridLineWidth = 0.5f
             enableGridDashedLine(dashLen, dashGap, 0f)
-            textColor = Color.parseColor("#1976D2")
+            textColor = chartTextColor
             setLabelCount(labelCount, true)
         }
 
@@ -108,7 +115,7 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
             gridColor = gColor
             gridLineWidth = 0.5f
             enableGridDashedLine(dashLen, dashGap, 0f)
-            textColor = Color.parseColor("#388E3C")
+            textColor = chartTextColor
             setLabelCount(labelCount, true)
             valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String {
@@ -139,7 +146,7 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
     }
 }
 
-private fun bindData(chart: CombinedChart, chartData: ChartData) {
+private fun bindData(chart: CombinedChart, chartData: ChartData, isDarkTheme: Boolean = false) {
     val rows = chartData.rows
 
     val labels = rows.map { row ->
@@ -187,7 +194,7 @@ private fun bindData(chart: CombinedChart, chartData: ChartData) {
             if (row.oscillator >= 0) Color.parseColor("#4CAF50")
             else Color.parseColor("#F44336")
         }
-        setCircleHoleColor(Color.WHITE)
+        setCircleHoleColor(if (isDarkTheme) Color.parseColor("#1C1B1F") else Color.WHITE)
         circleHoleRadius = 1.5f
         isHighlightEnabled = true
         highLightColor = Color.parseColor("#388E3C")

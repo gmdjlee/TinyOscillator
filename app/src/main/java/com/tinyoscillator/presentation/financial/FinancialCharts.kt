@@ -3,7 +3,6 @@ package com.tinyoscillator.presentation.financial
 import android.content.Context
 import android.graphics.Color as AndroidColor
 import android.widget.TextView
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -16,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -83,7 +83,7 @@ fun ProfitabilityContent(
         return
     }
 
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val chartTextColor = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.DKGRAY
 
     val totalQuarters = summary.periods.size
@@ -97,12 +97,12 @@ fun ProfitabilityContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Summary Card
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
@@ -144,7 +144,7 @@ fun ProfitabilityContent(
                 AndroidView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(280.dp),
+                        .height(240.dp),
                     factory = { context ->
                         BarChart(context).apply {
                             setupCommonChartProperties(this, chartTextColor)
@@ -164,7 +164,7 @@ fun ProfitabilityContent(
                 AndroidView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(250.dp),
+                        .height(240.dp),
                     factory = { context ->
                         LineChart(context).apply {
                             setupCommonChartProperties(this, chartTextColor)
@@ -184,7 +184,7 @@ fun ProfitabilityContent(
                 AndroidView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(250.dp),
+                        .height(240.dp),
                     factory = { context ->
                         LineChart(context).apply {
                             setupCommonChartProperties(this, chartTextColor)
@@ -207,7 +207,7 @@ fun StabilityContent(
     summary: FinancialSummary,
     modifier: Modifier = Modifier
 ) {
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val chartTextColor = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.DKGRAY
 
     if (!summary.hasStabilityData) {
@@ -235,12 +235,12 @@ fun StabilityContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Summary Card
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
@@ -286,7 +286,7 @@ fun StabilityContent(
             AndroidView(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(280.dp),
+                    .height(240.dp),
                 factory = { context ->
                     LineChart(context).apply {
                         description.isEnabled = false
@@ -459,13 +459,13 @@ internal fun ChartCard(
     content: @Composable () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             content()
         }
     }
@@ -483,7 +483,7 @@ private fun IndividualRatioChart(
         AndroidView(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp),
+                .height(240.dp),
             factory = { context ->
                 LineChart(context).apply {
                     description.isEnabled = false
@@ -514,9 +514,11 @@ private fun IndividualRatioChart(
                     setDrawGridLines(false)
                     textColor = chartTextColor
                 }
+                val isDark = chartTextColor == AndroidColor.WHITE
                 chart.axisLeft.apply {
                     setDrawGridLines(true)
                     textColor = chartTextColor
+                    gridColor = if (isDark) AndroidColor.parseColor("#444444") else AndroidColor.parseColor("#CCCCCC")
                     valueFormatter = object : ValueFormatter() {
                         override fun getFormattedValue(value: Float): String = "%.0f%%".format(value)
                     }
@@ -544,6 +546,18 @@ private fun setupCommonChartProperties(chart: com.github.mikephil.charting.chart
     if (chart is BarChart) {
         chart.setFitBars(true)
     }
+    val isDark = chartTextColor == AndroidColor.WHITE
+    val gridColor = if (isDark) AndroidColor.parseColor("#444444") else AndroidColor.parseColor("#CCCCCC")
+    if (chart is BarChart) {
+        chart.axisLeft.gridColor = gridColor
+    } else if (chart is LineChart) {
+        chart.axisLeft.gridColor = gridColor
+    }
+}
+
+private fun gridColorFor(chartTextColor: Int): Int {
+    val isDark = chartTextColor == AndroidColor.WHITE
+    return if (isDark) AndroidColor.parseColor("#444444") else AndroidColor.parseColor("#CCCCCC")
 }
 
 private fun updateIncomeBarChart(chart: BarChart, summary: FinancialSummary, chartTextColor: Int) {
@@ -594,6 +608,7 @@ private fun updateIncomeBarChart(chart: BarChart, summary: FinancialSummary, cha
     chart.axisLeft.apply {
         setDrawGridLines(true)
         textColor = chartTextColor
+        gridColor = gridColorFor(chartTextColor)
         valueFormatter = object : ValueFormatter() {
             override fun getFormattedValue(value: Float): String {
                 return formatNumber(value.toLong())
@@ -628,6 +643,7 @@ private fun updateGrowthLineChart(chart: LineChart, summary: FinancialSummary, c
     chart.axisLeft.apply {
         setDrawGridLines(true)
         textColor = chartTextColor
+        gridColor = gridColorFor(chartTextColor)
         valueFormatter = object : ValueFormatter() {
             override fun getFormattedValue(value: Float): String = "%.1f%%".format(value)
         }
@@ -656,6 +672,7 @@ private fun updateAssetGrowthChart(chart: LineChart, summary: FinancialSummary, 
     chart.axisLeft.apply {
         setDrawGridLines(true)
         textColor = chartTextColor
+        gridColor = gridColorFor(chartTextColor)
         valueFormatter = object : ValueFormatter() {
             override fun getFormattedValue(value: Float): String = "%.1f%%".format(value)
         }
@@ -708,6 +725,7 @@ private fun updateCombinedStabilityChart(chart: LineChart, summary: FinancialSum
     chart.axisLeft.apply {
         setDrawGridLines(true)
         textColor = chartTextColor
+        gridColor = gridColorFor(chartTextColor)
         valueFormatter = object : ValueFormatter() {
             override fun getFormattedValue(value: Float): String = "%.0f%%".format(value)
         }

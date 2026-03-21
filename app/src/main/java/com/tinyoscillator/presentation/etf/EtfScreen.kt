@@ -5,9 +5,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
+import com.tinyoscillator.presentation.common.TwoPaneLayout
+import com.tinyoscillator.presentation.common.WindowType
 import com.tinyoscillator.ui.theme.LocalThemeModeState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.tinyoscillator.core.worker.EtfUpdateWorker
 import com.tinyoscillator.presentation.common.CollectionProgressBar
@@ -24,10 +27,13 @@ fun EtfScreen(
     onSettingsClick: () -> Unit,
     onEtfDetailClick: (String) -> Unit,
     onStockClick: (String) -> Unit = {},
-    onStockTrendClick: (String, String) -> Unit = { _, _ -> }
+    onStockTrendClick: (String, String) -> Unit = { _, _ -> },
+    windowType: WindowType = WindowType.COMPACT
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(EtfTab.THEME_LIST) }
+    var selectedTicker by rememberSaveable { mutableStateOf<String?>(null) }
     val themeModeState = LocalThemeModeState.current
+    val isTwoPane = windowType != WindowType.COMPACT
 
     Scaffold(
         topBar = {
@@ -58,10 +64,49 @@ fun EtfScreen(
 
             when (selectedTab) {
                 EtfTab.THEME_LIST -> {
-                    EtfAnalysisContent(
-                        onEtfClick = onEtfDetailClick,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (isTwoPane) {
+                        TwoPaneLayout(
+                            windowType = windowType,
+                            listPane = {
+                                EtfAnalysisContent(
+                                    onEtfClick = { ticker -> selectedTicker = ticker },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            },
+                            detailPane = {
+                                val ticker = selectedTicker
+                                if (ticker != null) {
+                                    EtfDetailContent(
+                                        ticker = ticker,
+                                        onStockTrendClick = onStockTrendClick,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "ETF를 선택해주세요.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            },
+                            singlePane = {
+                                EtfAnalysisContent(
+                                    onEtfClick = onEtfDetailClick,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        )
+                    } else {
+                        EtfAnalysisContent(
+                            onEtfClick = onEtfDetailClick,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
                 EtfTab.STATS -> {
                     EtfStatsContent(
