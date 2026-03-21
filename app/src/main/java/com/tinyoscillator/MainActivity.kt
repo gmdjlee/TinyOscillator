@@ -27,15 +27,19 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.*
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,6 +51,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.presentation.chart.OscillatorChart
+import com.tinyoscillator.presentation.common.WindowType
+import com.tinyoscillator.presentation.common.calculateWindowType
+import com.tinyoscillator.presentation.common.TwoPaneLayout
 import com.tinyoscillator.presentation.demark.DemarkTDContent
 import com.tinyoscillator.presentation.etf.AggregatedStockTrendScreen
 import com.tinyoscillator.presentation.etf.EtfScreen
@@ -112,11 +119,14 @@ private enum class BottomNavItem(val label: String, val icon: ImageVector) {
 fun AppNavigation() {
     val navController = rememberNavController()
     val viewModel: OscillatorViewModel = hiltViewModel()
+    val configuration = LocalConfiguration.current
+    val windowType = calculateWindowType(configuration.screenWidthDp.dp)
 
     NavHost(navController = navController, startDestination = "main") {
         composable("main") {
             MainScaffold(
                 viewModel = viewModel,
+                windowType = windowType,
                 onSettingsClick = { navController.navigate("settings") },
                 onEtfDetailClick = { ticker -> navController.navigate("etf_detail/$ticker") },
                 onStockClick = { stockTicker -> navController.navigate("stock_aggregated/$stockTicker") },
@@ -153,6 +163,7 @@ fun AppNavigation() {
 @Composable
 private fun MainScaffold(
     viewModel: OscillatorViewModel,
+    windowType: WindowType = WindowType.COMPACT,
     onSettingsClick: () -> Unit,
     onEtfDetailClick: (String) -> Unit,
     onStockClick: (String) -> Unit = {},
@@ -160,21 +171,8 @@ private fun MainScaffold(
 ) {
     var selectedNav by rememberSaveable { mutableStateOf(BottomNavItem.STOCK_ANALYSIS) }
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                BottomNavItem.entries.forEach { item ->
-                    NavigationBarItem(
-                        selected = selectedNav == item,
-                        onClick = { selectedNav = item },
-                        icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) }
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Box(modifier = Modifier.padding(padding)) {
+    val screenContent: @Composable (Modifier) -> Unit = { modifier ->
+        Box(modifier = modifier) {
             when (selectedNav) {
                 BottomNavItem.STOCK_ANALYSIS -> {
                     OscillatorScreen(
@@ -206,6 +204,49 @@ private fun MainScaffold(
                     )
                 }
             }
+        }
+    }
+
+    if (windowType == WindowType.COMPACT) {
+        // 일반 스마트폰: 기존 Bottom Navigation
+        Scaffold(
+            bottomBar = {
+                NavigationBar {
+                    BottomNavItem.entries.forEach { item ->
+                        NavigationBarItem(
+                            selected = selectedNav == item,
+                            onClick = { selectedNav = item },
+                            icon = { Icon(item.icon, contentDescription = item.label) },
+                            label = { Text(item.label) }
+                        )
+                    }
+                }
+            }
+        ) { padding ->
+            screenContent(Modifier.padding(padding))
+        }
+    } else {
+        // 폴더블/태블릿: Navigation Rail + 넓은 콘텐츠
+        Row(modifier = Modifier.fillMaxSize()) {
+            NavigationRail(
+                header = {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, contentDescription = "설정")
+                    }
+                }
+            ) {
+                Spacer(modifier = Modifier.weight(1f))
+                BottomNavItem.entries.forEach { item ->
+                    NavigationRailItem(
+                        selected = selectedNav == item,
+                        onClick = { selectedNav = item },
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label, style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+            screenContent(Modifier.fillMaxSize())
         }
     }
 }
