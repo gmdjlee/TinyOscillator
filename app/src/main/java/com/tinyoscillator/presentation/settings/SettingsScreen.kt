@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import com.tinyoscillator.presentation.common.CarvedTextField
+import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.presentation.common.ScrollablePillTabRow
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
 import com.tinyoscillator.ui.theme.LocalThemeModeState
@@ -732,36 +733,38 @@ private fun MarketIndicatorTab(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // === 과매수/과매도 수집 기간 ===
-        Text("과매수/과매도 데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
-
-        CollectionPeriodRow(
-            daysBack = marketOscCollectionDays,
-            onDaysBackChange = onMarketOscCollectionDaysChange,
-            onSave = { onSave(marketOscCollectionDays, marketDepositCollectionDays) }
-        )
-
-        Text(
-            "초기 수집 또는 전체 새로고침 시 수집할 기간입니다.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        HorizontalDivider()
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("과매수/과매도 데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            CollectionPeriodRow(
+                daysBack = marketOscCollectionDays,
+                onDaysBackChange = onMarketOscCollectionDaysChange,
+                onSave = { onSave(marketOscCollectionDays, marketDepositCollectionDays) }
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "초기 수집 또는 전체 새로고침 시 수집할 기간입니다.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         // === 자금 동향 수집 기간 ===
-        Text("자금 동향 데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
-
-        CollectionPeriodRow(
-            daysBack = marketDepositCollectionDays,
-            onDaysBackChange = onMarketDepositCollectionDaysChange,
-            onSave = { onSave(marketOscCollectionDays, marketDepositCollectionDays) }
-        )
-
-        Text(
-            "초기 수집 또는 전체 새로고침 시 수집할 기간입니다.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("자금 동향 데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            CollectionPeriodRow(
+                daysBack = marketDepositCollectionDays,
+                onDaysBackChange = onMarketDepositCollectionDaysChange,
+                onSave = { onSave(marketOscCollectionDays, marketDepositCollectionDays) }
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "초기 수집 또는 전체 새로고침 시 수집할 기간입니다.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         saveMessage?.let { msg ->
             Text(
@@ -889,136 +892,136 @@ private fun ApiTab(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // === Kiwoom API ===
-        Text("Kiwoom API", style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.secondary)
-
-        CarvedTextField(
-            value = kiwoomAppKey,
-            onValueChange = onKiwoomAppKeyChange,
-            label = "App Key"
-        )
-
-        CarvedTextField(
-            value = kiwoomSecretKey,
-            onValueChange = onKiwoomSecretKeyChange,
-            label = "Secret Key",
-            visualTransformation = PasswordVisualTransformation()
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            InvestmentMode.entries.forEach { mode ->
-                FilterChip(
-                    selected = kiwoomMode == mode,
-                    onClick = { onKiwoomModeChange(mode) },
-                    label = { Text(mode.displayName) }
-                )
-            }
-        }
-
-        HorizontalDivider()
-
-        // === KIS API ===
-        Text("KIS API (한국투자증권)", style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.secondary)
-
-        CarvedTextField(
-            value = kisAppKey,
-            onValueChange = onKisAppKeyChange,
-            label = "App Key"
-        )
-
-        CarvedTextField(
-            value = kisAppSecret,
-            onValueChange = onKisAppSecretChange,
-            label = "App Secret",
-            visualTransformation = PasswordVisualTransformation()
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            InvestmentMode.entries.forEach { mode ->
-                FilterChip(
-                    selected = kisMode == mode,
-                    onClick = { onKisModeChange(mode) },
-                    label = { Text(mode.displayName) }
-                )
-            }
-        }
-
-        HorizontalDivider()
-
-        // === KRX API ===
-        Text("KRX 데이터 (ETF분석용)", style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.secondary)
-
-        CarvedTextField(
-            value = krxId,
-            onValueChange = onKrxIdChange,
-            label = "KRX ID"
-        )
-
-        CarvedTextField(
-            value = krxPassword,
-            onValueChange = onKrxPasswordChange,
-            label = "KRX 비밀번호",
-            visualTransformation = PasswordVisualTransformation()
-        )
-
-        HorizontalDivider()
-
-        // === AI API ===
-        Text("AI 분석 (Claude / Gemini)", style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.secondary)
-
-        var providerExpanded by remember { mutableStateOf(false) }
-        ExposedDropdownMenuBox(
-            expanded = providerExpanded,
-            onExpandedChange = { providerExpanded = it }
-        ) {
-            OutlinedTextField(
-                value = aiProvider.displayName,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("AI Provider") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("Kiwoom API", style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.secondary)
+            Spacer(Modifier.height(12.dp))
+            CarvedTextField(
+                value = kiwoomAppKey,
+                onValueChange = onKiwoomAppKeyChange,
+                label = "App Key"
             )
-            ExposedDropdownMenu(
-                expanded = providerExpanded,
-                onDismissRequest = { providerExpanded = false }
-            ) {
-                AiProvider.entries.forEach { provider ->
-                    DropdownMenuItem(
-                        text = { Text(provider.displayName) },
-                        onClick = {
-                            onAiProviderChange(provider)
-                            providerExpanded = false
-                        }
+            Spacer(Modifier.height(12.dp))
+            CarvedTextField(
+                value = kiwoomSecretKey,
+                onValueChange = onKiwoomSecretKeyChange,
+                label = "Secret Key",
+                visualTransformation = PasswordVisualTransformation()
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                InvestmentMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = kiwoomMode == mode,
+                        onClick = { onKiwoomModeChange(mode) },
+                        label = { Text(mode.displayName) }
                     )
                 }
             }
         }
 
-        OutlinedTextField(
-            value = aiApiKey,
-            onValueChange = onAiApiKeyChange,
-            label = { Text("API Key") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
+        // === KIS API ===
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("KIS API (한국투자증권)", style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.secondary)
+            Spacer(Modifier.height(12.dp))
+            CarvedTextField(
+                value = kisAppKey,
+                onValueChange = onKisAppKeyChange,
+                label = "App Key"
+            )
+            Spacer(Modifier.height(12.dp))
+            CarvedTextField(
+                value = kisAppSecret,
+                onValueChange = onKisAppSecretChange,
+                label = "App Secret",
+                visualTransformation = PasswordVisualTransformation()
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                InvestmentMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = kisMode == mode,
+                        onClick = { onKisModeChange(mode) },
+                        label = { Text(mode.displayName) }
+                    )
+                }
+            }
+        }
 
-        Surface(
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            shape = MaterialTheme.shapes.small
-        ) {
-            Text(
-                "• Claude: anthropic.com에서 API Key 발급\n• Gemini: aistudio.google.com에서 API Key 발급\n• 권장: Claude Haiku (가장 저렴, 월 ~₩1,100)",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(8.dp)
+        // === KRX API ===
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("KRX 데이터 (ETF분석용)", style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.secondary)
+            Spacer(Modifier.height(12.dp))
+            CarvedTextField(
+                value = krxId,
+                onValueChange = onKrxIdChange,
+                label = "KRX ID"
+            )
+            Spacer(Modifier.height(12.dp))
+            CarvedTextField(
+                value = krxPassword,
+                onValueChange = onKrxPasswordChange,
+                label = "KRX 비밀번호",
+                visualTransformation = PasswordVisualTransformation()
             )
         }
 
-        HorizontalDivider()
+        // === AI API ===
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("AI 분석 (Claude / Gemini)", style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.secondary)
+            Spacer(Modifier.height(12.dp))
+            var providerExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = providerExpanded,
+                onExpandedChange = { providerExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = aiProvider.displayName,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("AI Provider") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = providerExpanded,
+                    onDismissRequest = { providerExpanded = false }
+                ) {
+                    AiProvider.entries.forEach { provider ->
+                        DropdownMenuItem(
+                            text = { Text(provider.displayName) },
+                            onClick = {
+                                onAiProviderChange(provider)
+                                providerExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = aiApiKey,
+                onValueChange = onAiApiKeyChange,
+                label = { Text("API Key") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(12.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    "• Claude: anthropic.com에서 API Key 발급\n• Gemini: aistudio.google.com에서 API Key 발급\n• 권장: Claude Haiku (가장 저렴, 월 ~₩1,100)",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+        }
 
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
             Text("저장")
@@ -1065,21 +1068,25 @@ private fun EtfTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("ETF 키워드 필터", style = MaterialTheme.typography.titleMedium)
-
-        Text("포함 키워드", style = MaterialTheme.typography.bodyMedium)
-        KeywordChipRow(
-            keywords = includeKeywords,
-            onRemove = onIncludeRemove,
-            onAdd = onShowAddInclude
-        )
-
-        Text("제외 키워드", style = MaterialTheme.typography.bodyMedium)
-        KeywordChipRow(
-            keywords = excludeKeywords,
-            onRemove = onExcludeRemove,
-            onAdd = onShowAddExclude
-        )
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("ETF 키워드 필터", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            Text("포함 키워드", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
+            KeywordChipRow(
+                keywords = includeKeywords,
+                onRemove = onIncludeRemove,
+                onAdd = onShowAddInclude
+            )
+            Spacer(Modifier.height(12.dp))
+            Text("제외 키워드", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
+            KeywordChipRow(
+                keywords = excludeKeywords,
+                onRemove = onExcludeRemove,
+                onAdd = onShowAddExclude
+            )
+        }
 
         if (showAddIncludeDialog) {
             AddKeywordDialog(
@@ -1097,11 +1104,10 @@ private fun EtfTab(
             )
         }
 
-        HorizontalDivider()
-
-        Text("데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
-
-        var isWeekUnit by remember { mutableStateOf(etfCollectionDays % 7 == 0 && etfCollectionDays / 7 <= 4) }
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            var isWeekUnit by remember { mutableStateOf(etfCollectionDays % 7 == 0 && etfCollectionDays / 7 <= 4) }
         var periodValue by remember {
             mutableStateOf(
                 if (etfCollectionDays % 7 == 0 && etfCollectionDays / 7 <= 4)
@@ -1180,17 +1186,20 @@ private fun EtfTab(
             }
         }
 
-        Text(
-            "앱 첫 실행 시 또는 전체 새로고침 시 수집할 기간입니다.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        etfCollectProgress?.let { progress ->
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth()
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "앱 첫 실행 시 또는 전체 새로고침 시 수집할 기간입니다.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            etfCollectProgress?.let { progress ->
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
         saveMessage?.let { msg ->
@@ -1221,7 +1230,7 @@ private fun ScheduleSection(
     isCollecting: Boolean = false
 ) {
     Text(title, style = MaterialTheme.typography.titleMedium)
-
+    Spacer(Modifier.height(8.dp))
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -1232,6 +1241,7 @@ private fun ScheduleSection(
     }
 
     if (enabled) {
+        Spacer(Modifier.height(8.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1266,7 +1276,7 @@ private fun ScheduleSection(
             )
         }
     }
-
+    Spacer(Modifier.height(8.dp))
     OutlinedButton(
         onClick = onManualCollect,
         modifier = Modifier.fillMaxWidth(),
@@ -1331,54 +1341,54 @@ private fun ScheduleTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        ScheduleSection(
-            title = "ETF 자동 업데이트",
-            enabled = etfScheduleEnabled,
-            onEnabledChange = onEtfScheduleEnabledChange,
-            hour = scheduleHour,
-            onHourChange = onScheduleHourChange,
-            minute = scheduleMinute,
-            onMinuteChange = onScheduleMinuteChange,
-            manualButtonText = "지금 ETF 데이터 수집",
-            onManualCollect = onManualCollect,
-            message = manualCollectMessage,
-            progress = etfCollectProgress,
-            isCollecting = isEtfCollecting
-        )
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            ScheduleSection(
+                title = "ETF 자동 업데이트",
+                enabled = etfScheduleEnabled,
+                onEnabledChange = onEtfScheduleEnabledChange,
+                hour = scheduleHour,
+                onHourChange = onScheduleHourChange,
+                minute = scheduleMinute,
+                onMinuteChange = onScheduleMinuteChange,
+                manualButtonText = "지금 ETF 데이터 수집",
+                onManualCollect = onManualCollect,
+                message = manualCollectMessage,
+                progress = etfCollectProgress,
+                isCollecting = isEtfCollecting
+            )
+        }
 
-        HorizontalDivider()
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            ScheduleSection(
+                title = "과매수/과매도 자동 업데이트",
+                enabled = oscScheduleEnabled,
+                onEnabledChange = onOscScheduleEnabledChange,
+                hour = oscScheduleHour,
+                onHourChange = onOscScheduleHourChange,
+                minute = oscScheduleMinute,
+                onMinuteChange = onOscScheduleMinuteChange,
+                manualButtonText = "지금 과매수/과매도 업데이트",
+                onManualCollect = onOscManualCollect,
+                message = oscManualMessage,
+                isCollecting = isOscCollecting
+            )
+        }
 
-        ScheduleSection(
-            title = "과매수/과매도 자동 업데이트",
-            enabled = oscScheduleEnabled,
-            onEnabledChange = onOscScheduleEnabledChange,
-            hour = oscScheduleHour,
-            onHourChange = onOscScheduleHourChange,
-            minute = oscScheduleMinute,
-            onMinuteChange = onOscScheduleMinuteChange,
-            manualButtonText = "지금 과매수/과매도 업데이트",
-            onManualCollect = onOscManualCollect,
-            message = oscManualMessage,
-            isCollecting = isOscCollecting
-        )
-
-        HorizontalDivider()
-
-        ScheduleSection(
-            title = "자금 동향 자동 업데이트",
-            enabled = depositScheduleEnabled,
-            onEnabledChange = onDepositScheduleEnabledChange,
-            hour = depositScheduleHour,
-            onHourChange = onDepositScheduleHourChange,
-            minute = depositScheduleMinute,
-            onMinuteChange = onDepositScheduleMinuteChange,
-            manualButtonText = "지금 자금 동향 업데이트",
-            onManualCollect = onDepositManualCollect,
-            message = depositManualMessage,
-            isCollecting = isDepositCollecting
-        )
-
-        HorizontalDivider()
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            ScheduleSection(
+                title = "자금 동향 자동 업데이트",
+                enabled = depositScheduleEnabled,
+                onEnabledChange = onDepositScheduleEnabledChange,
+                hour = depositScheduleHour,
+                onHourChange = onDepositScheduleHourChange,
+                minute = depositScheduleMinute,
+                onMinuteChange = onDepositScheduleMinuteChange,
+                manualButtonText = "지금 자금 동향 업데이트",
+                onManualCollect = onDepositManualCollect,
+                message = depositManualMessage,
+                isCollecting = isDepositCollecting
+            )
+        }
 
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
             Text("저장")
@@ -1549,186 +1559,191 @@ private fun BackupTab(db: AppDatabase) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // === API 키 백업 ===
-        Text("API 키 백업/복원", style = MaterialTheme.typography.titleMedium)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = {
-                    pendingApiExportType = "kiwoom"
-                    showExportPasswordDialog = true
-                },
-                enabled = !isProcessing,
-                modifier = Modifier.weight(1f)
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("API 키 백업/복원", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Kiwoom", style = MaterialTheme.typography.labelSmall)
+                OutlinedButton(
+                    onClick = {
+                        pendingApiExportType = "kiwoom"
+                        showExportPasswordDialog = true
+                    },
+                    enabled = !isProcessing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Kiwoom", style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(
+                    onClick = {
+                        pendingApiExportType = "kis"
+                        showExportPasswordDialog = true
+                    },
+                    enabled = !isProcessing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("KIS", style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(
+                    onClick = {
+                        pendingApiExportType = "krx"
+                        showExportPasswordDialog = true
+                    },
+                    enabled = !isProcessing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("KRX", style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(
+                    onClick = {
+                        pendingApiExportType = "ai"
+                        showExportPasswordDialog = true
+                    },
+                    enabled = !isProcessing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("AI", style = MaterialTheme.typography.labelSmall)
+                }
             }
-            OutlinedButton(
+            Spacer(Modifier.height(8.dp))
+            Button(
                 onClick = {
-                    pendingApiExportType = "kis"
+                    pendingApiExportType = "all_api"
                     showExportPasswordDialog = true
                 },
                 enabled = !isProcessing,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("KIS", style = MaterialTheme.typography.labelSmall)
+                Text("전체 API 백업")
             }
+            Spacer(Modifier.height(8.dp))
             OutlinedButton(
-                onClick = {
-                    pendingApiExportType = "krx"
-                    showExportPasswordDialog = true
-                },
+                onClick = { apiImportLauncher.launch(arrayOf("application/octet-stream", "application/json")) },
                 enabled = !isProcessing,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("KRX", style = MaterialTheme.typography.labelSmall)
-            }
-            OutlinedButton(
-                onClick = {
-                    pendingApiExportType = "ai"
-                    showExportPasswordDialog = true
-                },
-                enabled = !isProcessing,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("AI", style = MaterialTheme.typography.labelSmall)
+                Text("API 백업 복원")
             }
         }
-
-        Button(
-            onClick = {
-                pendingApiExportType = "all_api"
-                showExportPasswordDialog = true
-            },
-            enabled = !isProcessing,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("전체 API 백업")
-        }
-
-        OutlinedButton(
-            onClick = { apiImportLauncher.launch(arrayOf("application/octet-stream", "application/json")) },
-            enabled = !isProcessing,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("API 백업 복원")
-        }
-
-        HorizontalDivider()
 
         // === ETF 데이터 백업 ===
-        Text("ETF 데이터 백업/복원", style = MaterialTheme.typography.titleMedium)
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("ETF 데이터 백업/복원", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            if (availableDates.isNotEmpty()) {
+                Text(
+                    "DB 저장 기간: ${availableDates.last()} ~ ${availableDates.first()} (${availableDates.size}일)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+            }
 
-        if (availableDates.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("기간 지정", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = etfDateRangeEnabled,
+                    onCheckedChange = { etfDateRangeEnabled = it }
+                )
+            }
+
+            if (etfDateRangeEnabled) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = etfStartDate,
+                        onValueChange = { etfStartDate = it },
+                        label = { Text("시작일") },
+                        placeholder = { Text("yyyy-MM-dd") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("~")
+                    OutlinedTextField(
+                        value = etfEndDate,
+                        onValueChange = { etfEndDate = it },
+                        label = { Text("종료일") },
+                        placeholder = { Text("yyyy-MM-dd") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    val fileName = if (etfDateRangeEnabled) {
+                        "etf_backup_${etfStartDate}_${etfEndDate}.json"
+                    } else {
+                        "etf_backup_all.json"
+                    }
+                    etfExportLauncher.launch(fileName)
+                },
+                enabled = !isProcessing,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (etfDateRangeEnabled) "기간 ETF 백업" else "전체 ETF 백업")
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { etfImportLauncher.launch(arrayOf("application/json")) },
+                enabled = !isProcessing,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("ETF 백업 복원")
+            }
+        }
+
+        // === 포트폴리오 데이터 백업 ===
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("포트폴리오 백업/복원", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = { portfolioExportLauncher.launch("portfolio_backup.json") },
+                enabled = !isProcessing,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("포트폴리오 내보내기")
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { portfolioImportLauncher.launch(arrayOf("application/json")) },
+                enabled = !isProcessing,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("포트폴리오 가져오기")
+            }
+        }
+
+        // === 전체 데이터 내보내기 (분석용) ===
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("전체 데이터 내보내기", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
             Text(
-                "DB 저장 기간: ${availableDates.last()} ~ ${availableDates.first()} (${availableDates.size}일)",
+                "모든 DB 데이터를 TSV 형식으로 내보냅니다. Claude 등 AI 분석에 활용할 수 있습니다.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("기간 지정", style = MaterialTheme.typography.bodyMedium)
-            Switch(
-                checked = etfDateRangeEnabled,
-                onCheckedChange = { etfDateRangeEnabled = it }
-            )
-        }
-
-        if (etfDateRangeEnabled) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = {
+                    val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+                    dataExportLauncher.launch("tinyoscillator_data_$date.txt")
+                },
+                enabled = !isProcessing,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                OutlinedTextField(
-                    value = etfStartDate,
-                    onValueChange = { etfStartDate = it },
-                    label = { Text("시작일") },
-                    placeholder = { Text("yyyy-MM-dd") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Text("~")
-                OutlinedTextField(
-                    value = etfEndDate,
-                    onValueChange = { etfEndDate = it },
-                    label = { Text("종료일") },
-                    placeholder = { Text("yyyy-MM-dd") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
+                Text("전체 데이터 내보내기 (TSV)")
             }
-        }
-
-        Button(
-            onClick = {
-                val fileName = if (etfDateRangeEnabled) {
-                    "etf_backup_${etfStartDate}_${etfEndDate}.json"
-                } else {
-                    "etf_backup_all.json"
-                }
-                etfExportLauncher.launch(fileName)
-            },
-            enabled = !isProcessing,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (etfDateRangeEnabled) "기간 ETF 백업" else "전체 ETF 백업")
-        }
-
-        OutlinedButton(
-            onClick = { etfImportLauncher.launch(arrayOf("application/json")) },
-            enabled = !isProcessing,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("ETF 백업 복원")
-        }
-
-        HorizontalDivider()
-
-        // === 포트폴리오 데이터 백업 ===
-        Text("포트폴리오 백업/복원", style = MaterialTheme.typography.titleMedium)
-
-        Button(
-            onClick = { portfolioExportLauncher.launch("portfolio_backup.json") },
-            enabled = !isProcessing,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("포트폴리오 내보내기")
-        }
-
-        OutlinedButton(
-            onClick = { portfolioImportLauncher.launch(arrayOf("application/json")) },
-            enabled = !isProcessing,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("포트폴리오 가져오기")
-        }
-
-        HorizontalDivider()
-
-        // === 전체 데이터 내보내기 (분석용) ===
-        Text("전체 데이터 내보내기", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "모든 DB 데이터를 TSV 형식으로 내보냅니다. Claude 등 AI 분석에 활용할 수 있습니다.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Button(
-            onClick = {
-                val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
-                dataExportLauncher.launch("tinyoscillator_data_$date.txt")
-            },
-            enabled = !isProcessing,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("전체 데이터 내보내기 (TSV)")
         }
 
         if (isProcessing) {
