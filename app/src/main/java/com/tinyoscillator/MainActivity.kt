@@ -71,6 +71,8 @@ import com.tinyoscillator.presentation.settings.SettingsScreen
 import com.tinyoscillator.presentation.viewmodel.OscillatorUiState
 import com.tinyoscillator.presentation.viewmodel.OscillatorViewModel
 import com.tinyoscillator.presentation.viewmodel.StockMasterStatus
+import com.tinyoscillator.presentation.common.ThemeToggleIcon
+import com.tinyoscillator.ui.theme.LocalThemeModeState
 import com.tinyoscillator.ui.theme.TinyOscillatorTheme
 import dagger.hilt.android.AndroidEntryPoint
 import java.text.SimpleDateFormat
@@ -180,7 +182,8 @@ private fun MainScaffold(
                 BottomNavItem.STOCK_ANALYSIS -> {
                     OscillatorScreen(
                         viewModel = viewModel,
-                        onSettingsClick = onSettingsClick
+                        onSettingsClick = onSettingsClick,
+                        windowType = windowType
                     )
                 }
                 BottomNavItem.ETF_ANALYSIS -> {
@@ -231,13 +234,7 @@ private fun MainScaffold(
     } else {
         // 폴더블/태블릿: Navigation Rail + 넓은 콘텐츠
         Row(modifier = Modifier.fillMaxSize()) {
-            NavigationRail(
-                header = {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "설정")
-                    }
-                }
-            ) {
+            NavigationRail {
                 Spacer(modifier = Modifier.weight(1f))
                 BottomNavItem.entries.forEach { item ->
                     NavigationRailItem(
@@ -266,7 +263,8 @@ private enum class MainTab(val label: String) {
 @Composable
 fun OscillatorScreen(
     viewModel: OscillatorViewModel,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    windowType: WindowType = WindowType.COMPACT
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
@@ -286,11 +284,14 @@ fun OscillatorScreen(
         (uiState as? OscillatorUiState.Success)?.chartData?.stockName
     }
 
+    val themeModeState = LocalThemeModeState.current
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("종목분석") },
                 actions = {
+                    ThemeToggleIcon(themeModeState)
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "설정")
                     }
@@ -401,8 +402,10 @@ fun OscillatorScreen(
                             }
                         },
                         colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f)
                         ),
                         modifier = Modifier
                             .fillMaxWidth()

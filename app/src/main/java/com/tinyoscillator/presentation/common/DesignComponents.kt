@@ -1,5 +1,6 @@
 package com.tinyoscillator.presentation.common
 
+import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -8,17 +9,28 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BrightnessAuto
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.tinyoscillator.ui.theme.ThemeMode
+import com.tinyoscillator.ui.theme.ThemeModeState
 
 /**
  * Stitch 디자인 시스템 기반 공통 컴포넌트.
@@ -27,11 +39,16 @@ import androidx.compose.ui.unit.dp
  * - TopAppBar: 깔끔한 타이틀 + 액션
  */
 
-/** Stitch 스타일 카드: 12dp 라운드 코너, 미세 그림자 */
+/**
+ * Stitch 스타일 카드: 12dp 라운드 코너, Tonal Layering.
+ * Dark: surfaceContainerHigh (#262A31) — "No-Line Rule" 에 따라 배경색 차이로 깊이감 표현
+ * Light: surface (#FFFFFF) + 미세 그림자
+ */
 @Composable
 fun FinanceCard(
     modifier: Modifier = Modifier,
     elevation: Dp = 2.dp,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
@@ -44,7 +61,7 @@ fun FinanceCard(
             ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = containerColor
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -179,5 +196,145 @@ fun SectionHeader(
             color = MaterialTheme.colorScheme.onBackground
         )
         action?.invoke()
+    }
+}
+
+/**
+ * Glassmorphism 카드: 반투명 배경 + 블러 + 그라디언트 오버레이.
+ * Android 12+ 에서는 blur 효과 적용, 이하에서는 반투명 배경만 사용.
+ */
+@Composable
+fun GlassCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val glassColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+    val gradientOverlay = Brush.linearGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+        )
+    )
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .then(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                    Modifier.blur(20.dp)
+                else Modifier
+            )
+    ) {
+        // 블러 배경 레이어 (API 31 미만에서는 단순 반투명)
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(glassColor)
+                .background(gradientOverlay)
+        )
+    }
+    // 실제 콘텐츠는 블러 없이 렌더링
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box {
+            // 그라디언트 오버레이
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(gradientOverlay)
+            )
+            Column(
+                modifier = Modifier.padding(16.dp),
+                content = content
+            )
+        }
+    }
+}
+
+/**
+ * Carved 스타일 입력 필드: 어두운 배경(surfaceContainerLowest)에 ghost border.
+ * Obsidian Ledger 디자인 시스템의 "Carved Look" 구현.
+ */
+@Composable
+fun CarvedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    singleLine: Boolean = true
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        leadingIcon = leadingIcon?.let { { Icon(it, contentDescription = null) } },
+        visualTransformation = visualTransformation,
+        keyboardOptions = keyboardOptions,
+        singleLine = singleLine,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f)
+        ),
+        modifier = modifier.fillMaxWidth()
+    )
+}
+
+/** 카테고리 뱃지 (ETF 테마 태그 등) */
+@Composable
+fun CategoryBadge(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.secondary
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.15f)
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = color
+        )
+    }
+}
+
+/** 라이트/다크/시스템 테마 순환 토글 아이콘 */
+@Composable
+fun ThemeToggleIcon(themeModeState: ThemeModeState) {
+    IconButton(onClick = {
+        val next = when (themeModeState.mode) {
+            ThemeMode.SYSTEM -> ThemeMode.LIGHT
+            ThemeMode.LIGHT -> ThemeMode.DARK
+            ThemeMode.DARK -> ThemeMode.SYSTEM
+        }
+        themeModeState.setThemeMode(next)
+    }) {
+        Icon(
+            imageVector = when (themeModeState.mode) {
+                ThemeMode.LIGHT -> Icons.Default.LightMode
+                ThemeMode.DARK -> Icons.Default.DarkMode
+                ThemeMode.SYSTEM -> Icons.Default.BrightnessAuto
+            },
+            contentDescription = when (themeModeState.mode) {
+                ThemeMode.LIGHT -> "라이트 모드"
+                ThemeMode.DARK -> "다크 모드"
+                ThemeMode.SYSTEM -> "시스템 설정"
+            }
+        )
     }
 }

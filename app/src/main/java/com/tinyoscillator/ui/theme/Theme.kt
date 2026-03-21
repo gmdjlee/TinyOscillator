@@ -1,13 +1,13 @@
 package com.tinyoscillator.ui.theme
 
+import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.edit
 
 data class FinanceColors(
     val positive: Color,
@@ -21,6 +21,37 @@ val LocalFinanceColors = staticCompositionLocalOf {
         negative = Negative,
         neutral = Neutral
     )
+}
+
+/** Theme mode preference: SYSTEM / LIGHT / DARK */
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/** Composable state holder for theme mode with SharedPreferences persistence */
+class ThemeModeState(
+    private val context: Context,
+    initial: ThemeMode
+) {
+    var mode by mutableStateOf(initial)
+        private set
+
+    fun setThemeMode(newMode: ThemeMode) {
+        mode = newMode
+        context.getSharedPreferences("theme_prefs", Context.MODE_PRIVATE)
+            .edit { putString("theme_mode", newMode.name) }
+    }
+
+    companion object {
+        fun load(context: Context): ThemeModeState {
+            val prefs = context.getSharedPreferences("theme_prefs", Context.MODE_PRIVATE)
+            val name = prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
+            val mode = try { ThemeMode.valueOf(name) } catch (_: Exception) { ThemeMode.SYSTEM }
+            return ThemeModeState(context, mode)
+        }
+    }
+}
+
+val LocalThemeModeState = staticCompositionLocalOf<ThemeModeState> {
+    error("ThemeModeState not provided")
 }
 
 private val DarkColorScheme = darkColorScheme(
@@ -47,7 +78,17 @@ private val DarkColorScheme = darkColorScheme(
     surfaceVariant = DarkSurfaceVariant,
     onSurfaceVariant = DarkOnSurfaceVariant,
     outline = DarkOutline,
-    outlineVariant = DarkOutlineVariant
+    outlineVariant = DarkOutlineVariant,
+    surfaceContainerLowest = DarkSurfaceContainerLowest,
+    surfaceContainerLow = DarkSurfaceContainerLow,
+    surfaceContainer = DarkSurfaceContainer,
+    surfaceContainerHigh = DarkSurfaceContainerHigh,
+    surfaceContainerHighest = DarkSurfaceContainerHighest,
+    surfaceBright = DarkSurfaceBright,
+    surfaceDim = DarkSurfaceDim,
+    inverseSurface = DarkInverseSurface,
+    inverseOnSurface = DarkInverseOnSurface,
+    inversePrimary = DarkInversePrimary
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -74,7 +115,16 @@ private val LightColorScheme = lightColorScheme(
     surfaceVariant = LightSurfaceVariant,
     onSurfaceVariant = LightOnSurfaceVariant,
     outline = LightOutline,
-    outlineVariant = LightOutlineVariant
+    outlineVariant = LightOutlineVariant,
+    surfaceContainerLowest = LightSurfaceContainerLowest,
+    surfaceContainerLow = LightSurfaceContainerLow,
+    surfaceContainer = LightSurfaceContainer,
+    surfaceContainerHigh = LightSurfaceContainerHigh,
+    surfaceContainerHighest = LightSurfaceContainerHighest,
+    surfaceBright = LightSurfaceBright,
+    inverseSurface = LightInverseSurface,
+    inverseOnSurface = LightInverseOnSurface,
+    inversePrimary = LightInversePrimary
 )
 
 @Composable
@@ -83,16 +133,24 @@ fun TinyOscillatorTheme(
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val context = LocalContext.current
+    val themeModeState = remember { ThemeModeState.load(context) }
+
+    val resolvedDarkTheme = when (themeModeState.mode) {
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+        ThemeMode.SYSTEM -> darkTheme
+    }
+
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (resolvedDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColorScheme
+        resolvedDarkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
 
-    val financeColors = if (darkTheme) {
+    val financeColors = if (resolvedDarkTheme) {
         FinanceColors(
             positive = PositiveDark,
             negative = NegativeDark,
@@ -106,7 +164,10 @@ fun TinyOscillatorTheme(
         )
     }
 
-    CompositionLocalProvider(LocalFinanceColors provides financeColors) {
+    CompositionLocalProvider(
+        LocalFinanceColors provides financeColors,
+        LocalThemeModeState provides themeModeState
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = AppTypography,

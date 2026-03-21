@@ -6,6 +6,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
+import com.tinyoscillator.presentation.common.ThemeToggleIcon
+import com.tinyoscillator.ui.theme.LocalThemeModeState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -20,6 +22,7 @@ fun PortfolioScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     var showSettingsDialog by remember { mutableStateOf(false) }
+    val themeModeState = LocalThemeModeState.current
 
     Scaffold(
         topBar = {
@@ -42,6 +45,7 @@ fun PortfolioScreen(
                     IconButton(onClick = { showSettingsDialog = true }) {
                         Icon(Icons.Default.Tune, contentDescription = "포트폴리오 설정")
                     }
+                    ThemeToggleIcon(themeModeState)
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "앱 설정")
                     }

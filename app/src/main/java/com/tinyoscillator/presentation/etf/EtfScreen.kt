@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
+import com.tinyoscillator.presentation.common.ThemeToggleIcon
+import com.tinyoscillator.ui.theme.LocalThemeModeState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -25,12 +27,14 @@ fun EtfScreen(
     onStockTrendClick: (String, String) -> Unit = { _, _ -> }
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(EtfTab.THEME_LIST) }
+    val themeModeState = LocalThemeModeState.current
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("ETF분석") },
                 actions = {
+                    ThemeToggleIcon(themeModeState)
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "설정")
                     }

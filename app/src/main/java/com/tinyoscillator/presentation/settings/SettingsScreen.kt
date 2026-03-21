@@ -14,6 +14,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import com.tinyoscillator.presentation.common.CarvedTextField
+import com.tinyoscillator.presentation.common.ScrollablePillTabRow
+import com.tinyoscillator.presentation.common.ThemeToggleIcon
+import com.tinyoscillator.ui.theme.LocalThemeModeState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -463,6 +467,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
+    val themeModeState = LocalThemeModeState.current
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -471,6 +477,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로")
                     }
+                },
+                actions = {
+                    ThemeToggleIcon(themeModeState)
                 }
             )
         }
@@ -480,15 +489,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            TabRow(selectedTabIndex = selectedTab) {
-                TAB_TITLES.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = { Text(title) }
-                    )
-                }
-            }
+            ScrollablePillTabRow(
+                tabs = TAB_TITLES.indices.toList(),
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it },
+                tabLabel = { TAB_TITLES[it] }
+            )
 
             when (selectedTab) {
                 0 -> ApiTab(
@@ -883,23 +889,20 @@ private fun ApiTab(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // === Kiwoom API ===
-        Text("Kiwoom API", style = MaterialTheme.typography.titleMedium)
+        Text("Kiwoom API", style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.secondary)
 
-        OutlinedTextField(
+        CarvedTextField(
             value = kiwoomAppKey,
             onValueChange = onKiwoomAppKeyChange,
-            label = { Text("App Key") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            label = "App Key"
         )
 
-        OutlinedTextField(
+        CarvedTextField(
             value = kiwoomSecretKey,
             onValueChange = onKiwoomSecretKeyChange,
-            label = { Text("Secret Key") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            label = "Secret Key",
+            visualTransformation = PasswordVisualTransformation()
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -915,23 +918,20 @@ private fun ApiTab(
         HorizontalDivider()
 
         // === KIS API ===
-        Text("KIS API (한국투자증권)", style = MaterialTheme.typography.titleMedium)
+        Text("KIS API (한국투자증권)", style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.secondary)
 
-        OutlinedTextField(
+        CarvedTextField(
             value = kisAppKey,
             onValueChange = onKisAppKeyChange,
-            label = { Text("App Key") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            label = "App Key"
         )
 
-        OutlinedTextField(
+        CarvedTextField(
             value = kisAppSecret,
             onValueChange = onKisAppSecretChange,
-            label = { Text("App Secret") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            label = "App Secret",
+            visualTransformation = PasswordVisualTransformation()
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -947,29 +947,27 @@ private fun ApiTab(
         HorizontalDivider()
 
         // === KRX API ===
-        Text("KRX 데이터 (ETF분석용)", style = MaterialTheme.typography.titleMedium)
+        Text("KRX 데이터 (ETF분석용)", style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.secondary)
 
-        OutlinedTextField(
+        CarvedTextField(
             value = krxId,
             onValueChange = onKrxIdChange,
-            label = { Text("KRX ID") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            label = "KRX ID"
         )
 
-        OutlinedTextField(
+        CarvedTextField(
             value = krxPassword,
             onValueChange = onKrxPasswordChange,
-            label = { Text("KRX 비밀번호") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            label = "KRX 비밀번호",
+            visualTransformation = PasswordVisualTransformation()
         )
 
         HorizontalDivider()
 
         // === AI API ===
-        Text("AI 분석 (Claude / Gemini)", style = MaterialTheme.typography.titleMedium)
+        Text("AI 분석 (Claude / Gemini)", style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.secondary)
 
         var providerExpanded by remember { mutableStateOf(false) }
         ExposedDropdownMenuBox(

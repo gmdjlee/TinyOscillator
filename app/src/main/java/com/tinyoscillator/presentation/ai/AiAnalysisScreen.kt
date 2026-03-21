@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
+import com.tinyoscillator.presentation.common.ThemeToggleIcon
+import com.tinyoscillator.ui.theme.LocalThemeModeState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,6 +23,8 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.presentation.common.AiAnalysisSection
+import com.tinyoscillator.presentation.common.GlassCard
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 import com.tinyoscillator.presentation.common.PillTabRow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,12 +41,14 @@ fun AiAnalysisScreen(
     val stockDataState by viewModel.stockDataState.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
+    val themeModeState = LocalThemeModeState.current
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("AI 분석") },
                 actions = {
+                    ThemeToggleIcon(themeModeState)
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "설정")
                     }
@@ -103,6 +109,8 @@ private fun MarketTabContent(
     onAnalyze: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val financeColors = LocalFinanceColors.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -110,22 +118,82 @@ private fun MarketTabContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        // Glass Card — 시장 종합 분석 요약
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                "시장 종합 분석",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "KOSPI/KOSDAQ 과매수·과매도 지표와 투자자 예탁금 동향을 종합하여 시장 상태를 분석합니다.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            // 시장 심리 인디케이터
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    "시장 지표 AI 분석",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                Icon(
+                    Icons.Default.Psychology,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(20.dp)
                 )
                 Text(
-                    "KOSPI/KOSDAQ 과매수·과매도 지표와 투자자 예탁금 동향을 종합하여 시장 상태를 분석합니다.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    "시장 심리 지표",
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            Spacer(Modifier.height(4.dp))
+            LinearProgressIndicator(
+                progress = { 0.72f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp),
+                color = financeColors.neutral,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            )
+        }
+
+        // 2x2 시장 지표 카드 그리드
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MarketIndicatorMiniCard(
+                label = "KOSPI",
+                value = "—",
+                change = null,
+                modifier = Modifier.weight(1f)
+            )
+            MarketIndicatorMiniCard(
+                label = "KOSDAQ",
+                value = "—",
+                change = null,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MarketIndicatorMiniCard(
+                label = "USD/KRW",
+                value = "—",
+                change = null,
+                modifier = Modifier.weight(1f)
+            )
+            MarketIndicatorMiniCard(
+                label = "예탁금",
+                value = "—",
+                change = null,
+                modifier = Modifier.weight(1f)
+            )
         }
 
         AiAnalysisSection(
@@ -133,6 +201,48 @@ private fun MarketTabContent(
             onAnalyze = onAnalyze,
             onDismiss = onDismiss
         )
+    }
+}
+
+/** 시장 지표 미니 카드 (2x2 그리드용) */
+@Composable
+private fun MarketIndicatorMiniCard(
+    label: String,
+    value: String,
+    change: String?,
+    modifier: Modifier = Modifier
+) {
+    val financeColors = LocalFinanceColors.current
+    Card(
+        modifier = modifier,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            change?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (it.startsWith("+") || it.startsWith("▲")) financeColors.positive
+                    else if (it.startsWith("-") || it.startsWith("▼")) financeColors.negative
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
