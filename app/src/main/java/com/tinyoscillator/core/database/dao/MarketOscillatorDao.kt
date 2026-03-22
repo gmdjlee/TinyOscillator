@@ -32,6 +32,9 @@ interface MarketOscillatorDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(data: List<MarketOscillatorEntity>)
 
+    @Query("DELETE FROM market_oscillator WHERE date = :date")
+    suspend fun deleteByDate(date: String)
+
     @Query("DELETE FROM market_oscillator WHERE market = :market AND date < date('now', '-' || :keepDays || ' days')")
     suspend fun deleteOldData(market: String, keepDays: Int)
 

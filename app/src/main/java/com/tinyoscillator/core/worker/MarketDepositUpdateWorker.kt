@@ -45,16 +45,21 @@ class MarketDepositUpdateWorker @AssistedInject constructor(
             Timber.d("자금 동향 업데이트 완료: $msg")
             updateProgress(msg, STATUS_SUCCESS, 1f)
             showCompletion(msg)
+            saveLog(LABEL, STATUS_SUCCESS, msg)
             Result.success()
         } else if (runAttemptCount < 3) {
-            Timber.w("자금 동향 업데이트 실패, 재시도 예정")
-            updateProgress("자금 동향 업데이트 실패, 재시도 예정", STATUS_ERROR)
+            val msg = "자금 동향 업데이트 실패, 재시도 예정"
+            Timber.w(msg)
+            updateProgress(msg, STATUS_ERROR)
             showCompletion("자금 동향 업데이트 실패, 재시도합니다.", isError = true)
+            saveLog(LABEL, STATUS_ERROR, msg)
             Result.retry()
         } else {
-            Timber.e("자금 동향 업데이트 최종 실패")
-            updateProgress("자금 동향 업데이트 최종 실패", STATUS_ERROR)
-            showCompletion("자금 동향 업데이트 최종 실패", isError = true)
+            val msg = "자금 동향 업데이트 최종 실패"
+            Timber.e(msg)
+            updateProgress(msg, STATUS_ERROR)
+            showCompletion(msg, isError = true)
+            saveLog(LABEL, STATUS_ERROR, msg)
             Result.failure()
         }
     }
@@ -63,5 +68,6 @@ class MarketDepositUpdateWorker @AssistedInject constructor(
         const val WORK_NAME = "market_deposit_daily_update"
         const val MANUAL_WORK_NAME = "market_deposit_manual_update"
         const val TAG = "collection_deposit"
+        const val LABEL = "자금 동향"
     }
 }

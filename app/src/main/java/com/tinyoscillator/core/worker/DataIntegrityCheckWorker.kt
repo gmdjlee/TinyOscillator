@@ -99,6 +99,7 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
         Timber.i("데이터 무결성 검사 완료: $summary")
         updateProgress(summary, STATUS_SUCCESS, 1f)
         showCompletion(if (totalFixed > 0) "${totalFixed}건 데이터 수정 완료" else "모든 데이터 정상")
+        saveLog(LABEL, STATUS_SUCCESS, summary)
         return Result.success()
     }
 
@@ -234,6 +235,7 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
     companion object {
         const val WORK_NAME = "data_integrity_check"
         const val TAG = "integrity_check"
+        const val LABEL = "무결성 검사"
         private const val KRX_RATE_LIMIT_MS = 5000L
     }
 }

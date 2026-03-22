@@ -29,6 +29,12 @@ interface AnalysisCacheDao {
     @Query("SELECT MIN(date) FROM analysis_cache WHERE ticker = :ticker")
     suspend fun getEarliestDate(ticker: String): String?
 
+    @Query("SELECT DISTINCT ticker FROM analysis_cache WHERE date = :date")
+    suspend fun getTickersForDate(date: String): List<String>
+
+    @Query("DELETE FROM analysis_cache WHERE date = :date")
+    suspend fun deleteByDate(date: String)
+
     @Query("SELECT * FROM analysis_cache ORDER BY ticker, date")
     suspend fun getAll(): List<AnalysisCacheEntity>
 

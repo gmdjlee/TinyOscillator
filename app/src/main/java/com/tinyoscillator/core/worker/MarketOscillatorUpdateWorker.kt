@@ -32,6 +32,7 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
             Timber.w("KRX 자격증명 미설정, 시장지표 업데이트 건너뜀")
             updateProgress("KRX 자격증명 미설정", STATUS_ERROR)
             showCompletion("KRX 자격증명이 설정되지 않았습니다.", isError = true)
+            saveLog(LABEL, STATUS_ERROR, "KRX 자격증명 미설정")
             return Result.failure()
         }
 
@@ -47,6 +48,7 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
             Timber.e(msg)
             updateProgress(msg, STATUS_ERROR)
             showCompletion(msg, isError = true)
+            saveLog(LABEL, STATUS_ERROR, msg, kospiResult.exceptionOrNull()?.stackTraceToString())
             return if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
 
@@ -63,6 +65,7 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
             Timber.e(msg)
             updateProgress(msg, STATUS_ERROR)
             showCompletion(msg, isError = true)
+            saveLog(LABEL, STATUS_ERROR, msg, kosdaqResult.exceptionOrNull()?.stackTraceToString())
             return if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
 
@@ -72,6 +75,7 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
         Timber.d("시장지표 업데이트 완료: $msg")
         updateProgress(msg, STATUS_SUCCESS, 1f)
         showCompletion(msg)
+        saveLog(LABEL, STATUS_SUCCESS, msg)
         return Result.success()
     }
 
@@ -79,6 +83,7 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
         const val WORK_NAME = "market_oscillator_daily_update"
         const val MANUAL_WORK_NAME = "market_oscillator_manual_update"
         const val TAG = "collection_oscillator"
+        const val LABEL = "시장지표"
         private const val KRX_RATE_LIMIT_MS = 5000L
     }
 }

@@ -114,6 +114,17 @@ object WorkManagerHelper {
     fun runDepositUpdateNow(context: Context) =
         runWorkerNow<MarketDepositUpdateWorker>(context, MarketDepositUpdateWorker.MANUAL_WORK_NAME, MarketDepositUpdateWorker.TAG, "자금 동향")
 
+    // ===== 장 마감 데이터 교체 =====
+
+    fun scheduleMarketCloseRefresh(context: Context, hour: Int = 19, minute: Int = 0) =
+        scheduleDailyWorker<MarketCloseRefreshWorker>(context, MarketCloseRefreshWorker.WORK_NAME, MarketCloseRefreshWorker.TAG, "장 마감 교체", hour, minute)
+
+    fun cancelMarketCloseRefresh(context: Context) =
+        cancelWorker(context, MarketCloseRefreshWorker.WORK_NAME, "장 마감 교체")
+
+    fun runMarketCloseRefreshNow(context: Context) =
+        runWorkerNow<MarketCloseRefreshWorker>(context, MarketCloseRefreshWorker.MANUAL_WORK_NAME, MarketCloseRefreshWorker.TAG, "장 마감 교체")
+
     // ===== 데이터 무결성 검사 =====
 
     fun runIntegrityCheckNow(context: Context) =

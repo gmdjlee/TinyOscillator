@@ -29,7 +29,9 @@ import com.tinyoscillator.core.worker.KEY_PROGRESS
 import com.tinyoscillator.core.worker.MarketDepositUpdateWorker
 import com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker
 import com.tinyoscillator.core.worker.DataIntegrityCheckWorker
+import com.tinyoscillator.core.worker.MarketCloseRefreshWorker
 import com.tinyoscillator.core.worker.WorkManagerHelper
+import com.tinyoscillator.core.database.entity.WorkerLogEntity
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -65,6 +67,9 @@ internal object PrefsKeys {
     const val DEPOSIT_SCHEDULE_HOUR = "deposit_schedule_hour"
     const val DEPOSIT_SCHEDULE_MINUTE = "deposit_schedule_minute"
     const val DEPOSIT_SCHEDULE_ENABLED = "deposit_schedule_enabled"
+    const val MARKET_CLOSE_REFRESH_HOUR = "market_close_refresh_hour"
+    const val MARKET_CLOSE_REFRESH_MINUTE = "market_close_refresh_minute"
+    const val MARKET_CLOSE_REFRESH_ENABLED = "market_close_refresh_enabled"
 }
 
 // KrxCredentials and EtfKeywordFilter moved to domain.model.EtfModels.kt
@@ -77,6 +82,8 @@ data class EtfScheduleTime(val hour: Int = 0, val minute: Int = 30, val enabled:
 data class OscillatorScheduleTime(val hour: Int = 1, val minute: Int = 0, val enabled: Boolean = false)
 
 data class DepositScheduleTime(val hour: Int = 2, val minute: Int = 0, val enabled: Boolean = false)
+
+data class MarketCloseRefreshScheduleTime(val hour: Int = 19, val minute: Int = 0, val enabled: Boolean = false)
 
 data class EtfCollectionPeriod(val daysBack: Int = 14)
 
@@ -177,6 +184,23 @@ suspend fun saveDepositScheduleTime(context: Context, schedule: DepositScheduleT
         .putInt(PrefsKeys.DEPOSIT_SCHEDULE_HOUR, schedule.hour)
         .putInt(PrefsKeys.DEPOSIT_SCHEDULE_MINUTE, schedule.minute)
         .putBoolean(PrefsKeys.DEPOSIT_SCHEDULE_ENABLED, schedule.enabled)
+        .apply()
+}
+
+suspend fun loadMarketCloseRefreshScheduleTime(context: Context): MarketCloseRefreshScheduleTime = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    MarketCloseRefreshScheduleTime(
+        hour = prefs.getInt(PrefsKeys.MARKET_CLOSE_REFRESH_HOUR, 19),
+        minute = prefs.getInt(PrefsKeys.MARKET_CLOSE_REFRESH_MINUTE, 0),
+        enabled = prefs.getBoolean(PrefsKeys.MARKET_CLOSE_REFRESH_ENABLED, false)
+    )
+}
+
+suspend fun saveMarketCloseRefreshScheduleTime(context: Context, schedule: MarketCloseRefreshScheduleTime) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putInt(PrefsKeys.MARKET_CLOSE_REFRESH_HOUR, schedule.hour)
+        .putInt(PrefsKeys.MARKET_CLOSE_REFRESH_MINUTE, schedule.minute)
+        .putBoolean(PrefsKeys.MARKET_CLOSE_REFRESH_ENABLED, schedule.enabled)
         .apply()
 }
 
@@ -288,6 +312,7 @@ suspend fun saveAiConfig(context: Context, config: AiApiKeyConfig) = withContext
 @InstallIn(SingletonComponent::class)
 interface SettingsEntryPoint {
     fun appDatabase(): AppDatabase
+    fun workerLogDao(): com.tinyoscillator.core.database.dao.WorkerLogDao
 }
 
 data class CollectionState(
@@ -376,10 +401,22 @@ fun SettingsScreen(onBack: () -> Unit) {
     var depositScheduleHour by remember { mutableIntStateOf(2) }
     var depositScheduleMinute by remember { mutableIntStateOf(0) }
 
+    var marketCloseRefreshEnabled by remember { mutableStateOf(false) }
+    var marketCloseRefreshHour by remember { mutableIntStateOf(19) }
+    var marketCloseRefreshMinute by remember { mutableIntStateOf(0) }
+
     var marketOscCollectionDays by remember { mutableIntStateOf(30) }
     var marketDepositCollectionDays by remember { mutableIntStateOf(365) }
 
     var saveMessage by remember { mutableStateOf<String?>(null) }
+
+    // Worker execution logs
+    var lastEtfLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
+    var lastOscLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
+    var lastDepositLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
+    var lastMarketCloseLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
+    var lastIntegrityLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
+    var errorLogs by remember { mutableStateOf<List<WorkerLogEntity>>(emptyList()) }
 
     val entryPoint = remember {
         EntryPointAccessors.fromApplication(context.applicationContext, SettingsEntryPoint::class.java)
@@ -395,11 +432,14 @@ fun SettingsScreen(onBack: () -> Unit) {
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val integrityWorkInfos by workManager.getWorkInfosByTagFlow(DataIntegrityCheckWorker.TAG)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+    val marketCloseRefreshWorkInfos by workManager.getWorkInfosByTagFlow(MarketCloseRefreshWorker.TAG)
+        .collectAsStateWithLifecycle(initialValue = emptyList())
 
     val etfCollectionState = rememberCollectionState(etfWorkInfos)
     val oscCollectionState = rememberCollectionState(oscWorkInfos)
     val depositCollectionState = rememberCollectionState(depositWorkInfos)
     val integrityCheckState = rememberCollectionState(integrityWorkInfos)
+    val marketCloseRefreshState = rememberCollectionState(marketCloseRefreshWorkInfos)
 
     LaunchedEffect(Unit) {
         try {
@@ -448,6 +488,20 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             val depositPeriod = loadMarketDepositCollectionPeriod(context)
             marketDepositCollectionDays = depositPeriod.daysBack
+
+            val mcRefreshSchedule = loadMarketCloseRefreshScheduleTime(context)
+            marketCloseRefreshEnabled = mcRefreshSchedule.enabled
+            marketCloseRefreshHour = mcRefreshSchedule.hour
+            marketCloseRefreshMinute = mcRefreshSchedule.minute
+
+            // Worker execution logs
+            val logDao = entryPoint.workerLogDao()
+            lastEtfLog = logDao.getLatestLog(com.tinyoscillator.core.worker.EtfUpdateWorker.LABEL)
+            lastOscLog = logDao.getLatestLog(com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker.LABEL)
+            lastDepositLog = logDao.getLatestLog(com.tinyoscillator.core.worker.MarketDepositUpdateWorker.LABEL)
+            lastMarketCloseLog = logDao.getLatestLog(MarketCloseRefreshWorker.LABEL)
+            lastIntegrityLog = logDao.getLatestLog(com.tinyoscillator.core.worker.DataIntegrityCheckWorker.LABEL)
+            errorLogs = logDao.getRecentErrors(50)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -592,17 +646,34 @@ fun SettingsScreen(onBack: () -> Unit) {
                     depositManualMessage = depositCollectionState.message,
                     isDepositCollecting = depositCollectionState.isCollecting,
                     onDepositManualCollect = { WorkManagerHelper.runDepositUpdateNow(context) },
+                    marketCloseRefreshEnabled = marketCloseRefreshEnabled,
+                    onMarketCloseRefreshEnabledChange = { marketCloseRefreshEnabled = it },
+                    marketCloseRefreshHour = marketCloseRefreshHour,
+                    onMarketCloseRefreshHourChange = { marketCloseRefreshHour = it },
+                    marketCloseRefreshMinute = marketCloseRefreshMinute,
+                    onMarketCloseRefreshMinuteChange = { marketCloseRefreshMinute = it },
+                    marketCloseRefreshMessage = marketCloseRefreshState.message,
+                    marketCloseRefreshProgress = marketCloseRefreshState.progress,
+                    isMarketCloseRefreshing = marketCloseRefreshState.isCollecting,
+                    onMarketCloseRefreshManual = { WorkManagerHelper.runMarketCloseRefreshNow(context) },
                     integrityCheckMessage = integrityCheckState.message,
                     integrityCheckProgress = integrityCheckState.progress,
                     isIntegrityChecking = integrityCheckState.isCollecting,
                     onIntegrityCheck = { WorkManagerHelper.runIntegrityCheckNow(context) },
+                    lastEtfLog = lastEtfLog,
+                    lastOscLog = lastOscLog,
+                    lastDepositLog = lastDepositLog,
+                    lastMarketCloseLog = lastMarketCloseLog,
+                    lastIntegrityLog = lastIntegrityLog,
+                    errorLogs = errorLogs,
                     saveMessage = saveMessage,
                     onSave = {
                         scope.launch {
                             saveMessage = saveScheduleSettings(
                                 context, etfScheduleEnabled, scheduleHour, scheduleMinute,
                                 oscScheduleEnabled, oscScheduleHour, oscScheduleMinute,
-                                depositScheduleEnabled, depositScheduleHour, depositScheduleMinute
+                                depositScheduleEnabled, depositScheduleHour, depositScheduleMinute,
+                                marketCloseRefreshEnabled, marketCloseRefreshHour, marketCloseRefreshMinute
                             )
                         }
                     }
@@ -661,12 +732,14 @@ private suspend fun saveScheduleSettings(
     context: Context,
     etfScheduleEnabled: Boolean, scheduleHour: Int, scheduleMinute: Int,
     oscScheduleEnabled: Boolean, oscScheduleHour: Int, oscScheduleMinute: Int,
-    depositScheduleEnabled: Boolean, depositScheduleHour: Int, depositScheduleMinute: Int
+    depositScheduleEnabled: Boolean, depositScheduleHour: Int, depositScheduleMinute: Int,
+    marketCloseRefreshEnabled: Boolean = false, marketCloseRefreshHour: Int = 19, marketCloseRefreshMinute: Int = 0
 ): String {
     return try {
         saveEtfScheduleTime(context, EtfScheduleTime(scheduleHour, scheduleMinute, etfScheduleEnabled))
         saveOscillatorScheduleTime(context, OscillatorScheduleTime(oscScheduleHour, oscScheduleMinute, oscScheduleEnabled))
         saveDepositScheduleTime(context, DepositScheduleTime(depositScheduleHour, depositScheduleMinute, depositScheduleEnabled))
+        saveMarketCloseRefreshScheduleTime(context, MarketCloseRefreshScheduleTime(marketCloseRefreshHour, marketCloseRefreshMinute, marketCloseRefreshEnabled))
         if (etfScheduleEnabled) {
             WorkManagerHelper.scheduleEtfUpdate(context, scheduleHour, scheduleMinute)
         } else {
@@ -681,6 +754,11 @@ private suspend fun saveScheduleSettings(
             WorkManagerHelper.scheduleDepositUpdate(context, depositScheduleHour, depositScheduleMinute)
         } else {
             WorkManagerHelper.cancelDepositUpdate(context)
+        }
+        if (marketCloseRefreshEnabled) {
+            WorkManagerHelper.scheduleMarketCloseRefresh(context, marketCloseRefreshHour, marketCloseRefreshMinute)
+        } else {
+            WorkManagerHelper.cancelMarketCloseRefresh(context)
         }
         "저장되었습니다"
     } catch (e: CancellationException) {

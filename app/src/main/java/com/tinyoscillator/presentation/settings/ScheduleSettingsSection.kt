@@ -1,14 +1,22 @@
 package com.tinyoscillator.presentation.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.tinyoscillator.core.database.entity.WorkerLogEntity
+import com.tinyoscillator.core.worker.STATUS_ERROR
 import com.tinyoscillator.presentation.common.GlassCard
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 internal fun ScheduleSection(
@@ -23,7 +31,8 @@ internal fun ScheduleSection(
     onManualCollect: () -> Unit,
     message: String?,
     progress: Float? = null,
-    isCollecting: Boolean = false
+    isCollecting: Boolean = false,
+    lastResult: WorkerLogEntity? = null
 ) {
     Text(title, style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
@@ -95,6 +104,145 @@ internal fun ScheduleSection(
             style = MaterialTheme.typography.bodySmall
         )
     }
+
+    // 마지막 실행 결과 영구 표시
+    lastResult?.let { log ->
+        LastResultDisplay(log)
+    }
+}
+
+@Composable
+private fun LastResultDisplay(log: WorkerLogEntity) {
+    val isError = log.status == STATUS_ERROR
+    val dateStr = remember(log.executedAt) {
+        SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(Date(log.executedAt))
+    }
+    var showDetail by remember { mutableStateOf(false) }
+
+    Spacer(Modifier.height(4.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (isError) "✗ 실패 ($dateStr)" else "✓ 완료 ($dateStr)",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = log.message.take(60),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.weight(1f)
+        )
+        if (isError && !log.errorDetail.isNullOrBlank()) {
+            TextButton(onClick = { showDetail = true }) {
+                Text("상세", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+
+    if (showDetail && !log.errorDetail.isNullOrBlank()) {
+        AlertDialog(
+            onDismissRequest = { showDetail = false },
+            title = { Text("에러 상세 — ${log.workerName}") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text("시간: $dateStr", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(4.dp))
+                    Text("메시지: ${log.message}", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(8.dp))
+                    Text(log.errorDetail, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDetail = false }) { Text("닫기") }
+            }
+        )
+    }
+}
+
+@Composable
+internal fun ErrorLogDialog(
+    logs: List<WorkerLogEntity>,
+    onDismiss: () -> Unit
+) {
+    var selectedLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
+    val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("에러 로그") },
+        text = {
+            if (logs.isEmpty()) {
+                Text("에러 기록이 없습니다.", style = MaterialTheme.typography.bodyMedium)
+            } else {
+                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                    items(logs) { log ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedLog = log }
+                                .padding(vertical = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = log.workerName,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = dateFormat.format(Date(log.executedAt)),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                text = log.message,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 2,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("닫기") }
+        }
+    )
+
+    // 선택된 로그 상세 보기
+    selectedLog?.let { log ->
+        AlertDialog(
+            onDismissRequest = { selectedLog = null },
+            title = { Text("에러 상세 — ${log.workerName}") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        "시간: ${dateFormat.format(Date(log.executedAt))}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text("메시지: ${log.message}", style = MaterialTheme.typography.bodySmall)
+                    if (!log.errorDetail.isNullOrBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(log.errorDetail, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedLog = null }) { Text("닫기") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -127,13 +275,31 @@ internal fun ScheduleTab(
     depositManualMessage: String?,
     isDepositCollecting: Boolean,
     onDepositManualCollect: () -> Unit,
+    marketCloseRefreshEnabled: Boolean = false,
+    onMarketCloseRefreshEnabledChange: (Boolean) -> Unit = {},
+    marketCloseRefreshHour: Int = 19,
+    onMarketCloseRefreshHourChange: (Int) -> Unit = {},
+    marketCloseRefreshMinute: Int = 0,
+    onMarketCloseRefreshMinuteChange: (Int) -> Unit = {},
+    marketCloseRefreshMessage: String? = null,
+    marketCloseRefreshProgress: Float? = null,
+    isMarketCloseRefreshing: Boolean = false,
+    onMarketCloseRefreshManual: () -> Unit = {},
     integrityCheckMessage: String?,
     integrityCheckProgress: Float? = null,
     isIntegrityChecking: Boolean = false,
     onIntegrityCheck: () -> Unit = {},
+    lastEtfLog: WorkerLogEntity? = null,
+    lastOscLog: WorkerLogEntity? = null,
+    lastDepositLog: WorkerLogEntity? = null,
+    lastMarketCloseLog: WorkerLogEntity? = null,
+    lastIntegrityLog: WorkerLogEntity? = null,
+    errorLogs: List<WorkerLogEntity> = emptyList(),
     saveMessage: String?,
     onSave: () -> Unit
 ) {
+    var showErrorLogDialog by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -154,7 +320,8 @@ internal fun ScheduleTab(
                 onManualCollect = onManualCollect,
                 message = manualCollectMessage,
                 progress = etfCollectProgress,
-                isCollecting = isEtfCollecting
+                isCollecting = isEtfCollecting,
+                lastResult = lastEtfLog
             )
         }
 
@@ -170,7 +337,8 @@ internal fun ScheduleTab(
                 manualButtonText = "지금 과매수/과매도 업데이트",
                 onManualCollect = onOscManualCollect,
                 message = oscManualMessage,
-                isCollecting = isOscCollecting
+                isCollecting = isOscCollecting,
+                lastResult = lastOscLog
             )
         }
 
@@ -186,7 +354,32 @@ internal fun ScheduleTab(
                 manualButtonText = "지금 자금 동향 업데이트",
                 onManualCollect = onDepositManualCollect,
                 message = depositManualMessage,
-                isCollecting = isDepositCollecting
+                isCollecting = isDepositCollecting,
+                lastResult = lastDepositLog
+            )
+        }
+
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            ScheduleSection(
+                title = "장 마감 데이터 교체",
+                enabled = marketCloseRefreshEnabled,
+                onEnabledChange = onMarketCloseRefreshEnabledChange,
+                hour = marketCloseRefreshHour,
+                onHourChange = onMarketCloseRefreshHourChange,
+                minute = marketCloseRefreshMinute,
+                onMinuteChange = onMarketCloseRefreshMinuteChange,
+                manualButtonText = "지금 장 마감 데이터 교체",
+                onManualCollect = onMarketCloseRefreshManual,
+                message = marketCloseRefreshMessage,
+                progress = marketCloseRefreshProgress,
+                isCollecting = isMarketCloseRefreshing,
+                lastResult = lastMarketCloseLog
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "장중 수집된 데이터를 장 마감 확정 데이터로 교체합니다. (종목분석, ETF, 시장지표)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
@@ -221,6 +414,18 @@ internal fun ScheduleTab(
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+
+            lastIntegrityLog?.let { log ->
+                LastResultDisplay(log)
+            }
+        }
+
+        // 에러 로그 보기 버튼
+        OutlinedButton(
+            onClick = { showErrorLogDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("에러 로그 보기")
         }
 
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
@@ -236,5 +441,12 @@ internal fun ScheduleTab(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    if (showErrorLogDialog) {
+        ErrorLogDialog(
+            logs = errorLogs,
+            onDismiss = { showErrorLogDialog = false }
+        )
     }
 }

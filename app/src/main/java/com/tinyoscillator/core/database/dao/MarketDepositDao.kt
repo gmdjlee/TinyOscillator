@@ -38,6 +38,9 @@ interface MarketDepositDao {
     @Query("SELECT COUNT(*) FROM market_deposits")
     suspend fun getCount(): Int
 
+    @Query("DELETE FROM market_deposits WHERE date = :date")
+    suspend fun deleteByDate(date: String)
+
     @Query("DELETE FROM market_deposits WHERE date < :cutoffDate")
     suspend fun deleteOldData(cutoffDate: String)
 

@@ -6,6 +6,12 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.tinyoscillator.core.database.dao.WorkerLogDao
+import com.tinyoscillator.core.database.entity.WorkerLogEntity
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 
 /**
  * Base class for data collection workers that share notification and progress reporting logic.
@@ -56,5 +62,38 @@ abstract class BaseCollectionWorker(
             notification.build(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         )
+    }
+
+    /**
+     * 워커 실행 결과를 Room DB에 저장합니다.
+     * 로그 저장 실패 시 워커 동작에 영향을 주지 않습니다.
+     */
+    protected suspend fun saveLog(
+        workerLabel: String,
+        status: String,
+        message: String,
+        errorDetail: String? = null
+    ) {
+        try {
+            val dao = EntryPointAccessors.fromApplication(
+                applicationContext, WorkerLogEntryPoint::class.java
+            ).workerLogDao()
+            dao.insertAndCleanup(
+                WorkerLogEntity(
+                    workerName = workerLabel,
+                    status = status,
+                    message = message,
+                    errorDetail = errorDetail
+                )
+            )
+        } catch (_: Exception) {
+            // 로그 저장 실패 시 무시 — 워커 동작에 영향 없음
+        }
+    }
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface WorkerLogEntryPoint {
+        fun workerLogDao(): WorkerLogDao
     }
 }

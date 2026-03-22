@@ -33,6 +33,7 @@ class EtfUpdateWorker @AssistedInject constructor(
             Timber.w("KRX 자격증명 미설정 → 워커 건너뜀")
             updateProgress("KRX 자격증명 미설정", STATUS_ERROR)
             showCompletion("KRX 자격증명이 설정되지 않았습니다.", isError = true)
+            saveLog(LABEL, STATUS_ERROR, "KRX 자격증명 미설정")
             return Result.success()
         }
 
@@ -47,12 +48,14 @@ class EtfUpdateWorker @AssistedInject constructor(
                     val msg = "완료: ETF ${progress.etfCount}개, 보유종목 ${progress.holdingCount}건"
                     updateProgress(msg, STATUS_SUCCESS, 1f)
                     showCompletion(msg)
+                    saveLog(LABEL, STATUS_SUCCESS, msg)
                     lastResult = Result.success()
                 }
                 is EtfDataProgress.Error -> {
                     Timber.e("ETF 업데이트 실패: ${progress.message}")
                     updateProgress(progress.message, STATUS_ERROR)
                     showCompletion("오류: ${progress.message}", isError = true)
+                    saveLog(LABEL, STATUS_ERROR, progress.message)
                     lastResult = if (runAttemptCount < 3) Result.retry() else Result.failure()
                 }
                 is EtfDataProgress.Loading -> {
@@ -70,5 +73,6 @@ class EtfUpdateWorker @AssistedInject constructor(
         const val WORK_NAME = "etf_daily_update"
         const val MANUAL_WORK_NAME = "etf_manual_update"
         const val TAG = "collection_etf"
+        const val LABEL = "ETF"
     }
 }

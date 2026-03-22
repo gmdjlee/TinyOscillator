@@ -6,6 +6,7 @@ import com.tinyoscillator.core.worker.CollectionNotificationHelper
 import com.tinyoscillator.core.worker.WorkManagerHelper
 import com.tinyoscillator.presentation.settings.loadDepositScheduleTime
 import com.tinyoscillator.presentation.settings.loadEtfScheduleTime
+import com.tinyoscillator.presentation.settings.loadMarketCloseRefreshScheduleTime
 import com.tinyoscillator.presentation.settings.loadOscillatorScheduleTime
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -46,6 +47,11 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
             val depositSchedule = loadDepositScheduleTime(this@TinyOscillatorApp)
             if (depositSchedule.enabled) {
                 WorkManagerHelper.scheduleDepositUpdate(this@TinyOscillatorApp, depositSchedule.hour, depositSchedule.minute)
+            }
+
+            val mcRefreshSchedule = loadMarketCloseRefreshScheduleTime(this@TinyOscillatorApp)
+            if (mcRefreshSchedule.enabled) {
+                WorkManagerHelper.scheduleMarketCloseRefresh(this@TinyOscillatorApp, mcRefreshSchedule.hour, mcRefreshSchedule.minute)
             }
         }
     }

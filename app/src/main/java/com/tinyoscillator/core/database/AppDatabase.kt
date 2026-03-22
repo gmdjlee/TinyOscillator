@@ -11,6 +11,7 @@ import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
+import com.tinyoscillator.core.database.dao.WorkerLogDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.core.database.entity.EtfEntity
@@ -23,6 +24,7 @@ import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
 import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
+import com.tinyoscillator.core.database.entity.WorkerLogEntity
 
 @Database(
     entities = [
@@ -37,9 +39,10 @@ import com.tinyoscillator.core.database.entity.StockMasterEntity
         PortfolioEntity::class,
         PortfolioHoldingEntity::class,
         PortfolioTransactionEntity::class,
-        FundamentalCacheEntity::class
+        FundamentalCacheEntity::class,
+        WorkerLogEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -52,4 +55,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun marketDepositDao(): MarketDepositDao
     abstract fun portfolioDao(): PortfolioDao
     abstract fun fundamentalCacheDao(): FundamentalCacheDao
+    abstract fun workerLogDao(): WorkerLogDao
 }

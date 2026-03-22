@@ -40,6 +40,12 @@ class StockRepository @Inject constructor(
     private val lastFetchTime = ConcurrentHashMap<String, Long>()
     private val realtimeCache = ConcurrentHashMap<String, Pair<Long, RealtimeSupplyData>>()
 
+    /** 특정 종목의 API 쿨다운 초기화 */
+    fun clearCooldown(ticker: String) { lastFetchTime.remove(ticker) }
+
+    /** 모든 종목의 API 쿨다운 초기화 */
+    fun clearAllCooldowns() { lastFetchTime.clear() }
+
     /**
      * 일별 거래 데이터 수집 (incremental cache 지원).
      *
