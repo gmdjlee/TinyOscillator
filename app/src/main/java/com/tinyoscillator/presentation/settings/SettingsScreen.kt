@@ -361,7 +361,7 @@ private fun rememberCollectionState(workInfos: List<WorkInfo>): CollectionState 
     }
 }
 
-private val TAB_TITLES = listOf("API", "ETF", "시장지표", "Schedule", "Backup")
+private val TAB_TITLES = listOf("API", "ETF", "시장지표", "Schedule", "로그", "Backup")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -416,7 +416,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     var lastDepositLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastMarketCloseLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastIntegrityLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
-    var errorLogs by remember { mutableStateOf<List<WorkerLogEntity>>(emptyList()) }
+    var allLogs by remember { mutableStateOf<List<WorkerLogEntity>>(emptyList()) }
+    var logFilter by remember { mutableStateOf(LogFilter.ALL) }
 
     val entryPoint = remember {
         EntryPointAccessors.fromApplication(context.applicationContext, SettingsEntryPoint::class.java)
@@ -501,7 +502,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             lastDepositLog = logDao.getLatestLog(com.tinyoscillator.core.worker.MarketDepositUpdateWorker.LABEL)
             lastMarketCloseLog = logDao.getLatestLog(MarketCloseRefreshWorker.LABEL)
             lastIntegrityLog = logDao.getLatestLog(com.tinyoscillator.core.worker.DataIntegrityCheckWorker.LABEL)
-            errorLogs = logDao.getRecentErrors(50)
+            allLogs = logDao.getAllRecentLogs(200)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -665,7 +666,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                     lastDepositLog = lastDepositLog,
                     lastMarketCloseLog = lastMarketCloseLog,
                     lastIntegrityLog = lastIntegrityLog,
-                    errorLogs = errorLogs,
                     saveMessage = saveMessage,
                     onSave = {
                         scope.launch {
@@ -678,7 +678,31 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     }
                 )
-                4 -> BackupTab(db = entryPoint.appDatabase())
+                4 -> {
+                    val logContext = LocalContext.current
+                    LogTab(
+                        logs = allLogs,
+                        logFilter = logFilter,
+                        onFilterChange = { logFilter = it },
+                        onExport = { exportLogs(logContext, allLogs) },
+                        onClearLogs = {
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    entryPoint.workerLogDao().deleteAllLogs()
+                                }
+                                allLogs = emptyList()
+                            }
+                        },
+                        onRefresh = {
+                            scope.launch {
+                                allLogs = withContext(Dispatchers.IO) {
+                                    entryPoint.workerLogDao().getAllRecentLogs(200)
+                                }
+                            }
+                        }
+                    )
+                }
+                5 -> BackupTab(db = entryPoint.appDatabase())
             }
         }
     }

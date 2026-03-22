@@ -1,9 +1,6 @@
 package com.tinyoscillator.presentation.settings
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -165,87 +162,6 @@ private fun LastResultDisplay(log: WorkerLogEntity) {
 }
 
 @Composable
-internal fun ErrorLogDialog(
-    logs: List<WorkerLogEntity>,
-    onDismiss: () -> Unit
-) {
-    var selectedLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
-    val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("에러 로그") },
-        text = {
-            if (logs.isEmpty()) {
-                Text("에러 기록이 없습니다.", style = MaterialTheme.typography.bodyMedium)
-            } else {
-                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                    items(logs) { log ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedLog = log }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = log.workerName,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                                Text(
-                                    text = dateFormat.format(Date(log.executedAt)),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Text(
-                                text = log.message,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        HorizontalDivider()
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("닫기") }
-        }
-    )
-
-    // 선택된 로그 상세 보기
-    selectedLog?.let { log ->
-        AlertDialog(
-            onDismissRequest = { selectedLog = null },
-            title = { Text("에러 상세 — ${log.workerName}") },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text(
-                        "시간: ${dateFormat.format(Date(log.executedAt))}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text("메시지: ${log.message}", style = MaterialTheme.typography.bodySmall)
-                    if (!log.errorDetail.isNullOrBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(log.errorDetail, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { selectedLog = null }) { Text("닫기") }
-            }
-        )
-    }
-}
-
-@Composable
 internal fun ScheduleTab(
     etfScheduleEnabled: Boolean,
     onEtfScheduleEnabledChange: (Boolean) -> Unit,
@@ -294,11 +210,9 @@ internal fun ScheduleTab(
     lastDepositLog: WorkerLogEntity? = null,
     lastMarketCloseLog: WorkerLogEntity? = null,
     lastIntegrityLog: WorkerLogEntity? = null,
-    errorLogs: List<WorkerLogEntity> = emptyList(),
     saveMessage: String?,
     onSave: () -> Unit
 ) {
-    var showErrorLogDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -420,14 +334,6 @@ internal fun ScheduleTab(
             }
         }
 
-        // 에러 로그 보기 버튼
-        OutlinedButton(
-            onClick = { showErrorLogDialog = true },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("에러 로그 보기")
-        }
-
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
             Text("저장")
         }
@@ -443,10 +349,4 @@ internal fun ScheduleTab(
         Spacer(modifier = Modifier.height(32.dp))
     }
 
-    if (showErrorLogDialog) {
-        ErrorLogDialog(
-            logs = errorLogs,
-            onDismiss = { showErrorLogDialog = false }
-        )
-    }
 }

@@ -21,8 +21,20 @@ interface WorkerLogDao {
     @Query("SELECT * FROM worker_logs ORDER BY executed_at DESC LIMIT :limit")
     suspend fun getAllRecentLogs(limit: Int = 50): List<WorkerLogEntity>
 
+    @Query("SELECT * FROM worker_logs WHERE status = :status ORDER BY executed_at DESC LIMIT :limit")
+    suspend fun getLogsByStatus(status: String, limit: Int = 100): List<WorkerLogEntity>
+
+    @Query("SELECT * FROM worker_logs WHERE worker_name = :name ORDER BY executed_at DESC LIMIT :limit")
+    suspend fun getLogsByWorkerName(name: String, limit: Int = 100): List<WorkerLogEntity>
+
+    @Query("SELECT COUNT(*) FROM worker_logs")
+    suspend fun getLogCount(): Int
+
     @Insert
     suspend fun insert(log: WorkerLogEntity)
+
+    @Query("DELETE FROM worker_logs")
+    suspend fun deleteAllLogs()
 
     @Query("DELETE FROM worker_logs WHERE executed_at < :cutoffTime")
     suspend fun deleteOlderThan(cutoffTime: Long)
