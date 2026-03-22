@@ -127,6 +127,10 @@ internal fun ScheduleTab(
     depositManualMessage: String?,
     isDepositCollecting: Boolean,
     onDepositManualCollect: () -> Unit,
+    integrityCheckMessage: String?,
+    integrityCheckProgress: Float? = null,
+    isIntegrityChecking: Boolean = false,
+    onIntegrityCheck: () -> Unit = {},
     saveMessage: String?,
     onSave: () -> Unit
 ) {
@@ -184,6 +188,39 @@ internal fun ScheduleTab(
                 message = depositManualMessage,
                 isCollecting = isDepositCollecting
             )
+        }
+
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("데이터 무결성 검사", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "ETF, 과매수/과매도, 자금 동향 데이터를 최신 데이터와 비교하여 불일치 항목을 수정합니다.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onIntegrityCheck,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isIntegrityChecking
+            ) {
+                Text("무결성 검사 실행")
+            }
+
+            integrityCheckProgress?.let { p ->
+                LinearProgressIndicator(
+                    progress = { p },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            integrityCheckMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
 
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {

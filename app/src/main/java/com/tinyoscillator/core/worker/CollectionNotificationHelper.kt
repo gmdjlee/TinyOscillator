@@ -20,6 +20,7 @@ object CollectionNotificationHelper {
     const val ETF_NOTIFICATION_ID = 1001
     const val OSCILLATOR_NOTIFICATION_ID = 1002
     const val DEPOSIT_NOTIFICATION_ID = 1003
+    const val INTEGRITY_CHECK_NOTIFICATION_ID = 1004
 
     fun createChannel(context: Context) {
         val channel = NotificationChannel(

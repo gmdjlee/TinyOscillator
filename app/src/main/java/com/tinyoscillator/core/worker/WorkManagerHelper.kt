@@ -114,4 +114,9 @@ object WorkManagerHelper {
     fun runDepositUpdateNow(context: Context) =
         runWorkerNow<MarketDepositUpdateWorker>(context, MarketDepositUpdateWorker.MANUAL_WORK_NAME, MarketDepositUpdateWorker.TAG, "자금 동향")
 
+    // ===== 데이터 무결성 검사 =====
+
+    fun runIntegrityCheckNow(context: Context) =
+        runWorkerNow<DataIntegrityCheckWorker>(context, DataIntegrityCheckWorker.WORK_NAME, DataIntegrityCheckWorker.TAG, "데이터 무결성 검사")
+
 }

@@ -28,6 +28,7 @@ import com.tinyoscillator.core.worker.KEY_MESSAGE
 import com.tinyoscillator.core.worker.KEY_PROGRESS
 import com.tinyoscillator.core.worker.MarketDepositUpdateWorker
 import com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker
+import com.tinyoscillator.core.worker.DataIntegrityCheckWorker
 import com.tinyoscillator.core.worker.WorkManagerHelper
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -392,10 +393,13 @@ fun SettingsScreen(onBack: () -> Unit) {
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val depositWorkInfos by workManager.getWorkInfosByTagFlow(MarketDepositUpdateWorker.TAG)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+    val integrityWorkInfos by workManager.getWorkInfosByTagFlow(DataIntegrityCheckWorker.TAG)
+        .collectAsStateWithLifecycle(initialValue = emptyList())
 
     val etfCollectionState = rememberCollectionState(etfWorkInfos)
     val oscCollectionState = rememberCollectionState(oscWorkInfos)
     val depositCollectionState = rememberCollectionState(depositWorkInfos)
+    val integrityCheckState = rememberCollectionState(integrityWorkInfos)
 
     LaunchedEffect(Unit) {
         try {
@@ -588,6 +592,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     depositManualMessage = depositCollectionState.message,
                     isDepositCollecting = depositCollectionState.isCollecting,
                     onDepositManualCollect = { WorkManagerHelper.runDepositUpdateNow(context) },
+                    integrityCheckMessage = integrityCheckState.message,
+                    integrityCheckProgress = integrityCheckState.progress,
+                    isIntegrityChecking = integrityCheckState.isCollecting,
+                    onIntegrityCheck = { WorkManagerHelper.runIntegrityCheckNow(context) },
                     saveMessage = saveMessage,
                     onSave = {
                         scope.launch {
