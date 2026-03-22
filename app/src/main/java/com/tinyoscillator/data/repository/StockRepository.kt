@@ -18,8 +18,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import com.tinyoscillator.core.util.DateFormats
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,7 +36,7 @@ class StockRepository @Inject constructor(
     private val json: Json,
     private val analysisCacheDao: AnalysisCacheDao
 ) {
-    private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val fmt = DateFormats.yyyyMMdd
     private val lastFetchTime = ConcurrentHashMap<String, Long>()
     private val realtimeCache = ConcurrentHashMap<String, Pair<Long, RealtimeSupplyData>>()
 

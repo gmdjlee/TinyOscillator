@@ -1,10 +1,9 @@
 package com.tinyoscillator.presentation.portfolio
 
 import android.app.Application
-import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.tinyoscillator.core.api.KiwoomApiKeyConfig
+import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
@@ -12,10 +11,8 @@ import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
 import com.tinyoscillator.data.repository.PortfolioRepository
 import com.tinyoscillator.domain.model.PortfolioUiState
 import com.tinyoscillator.domain.model.TransactionItem
-import com.tinyoscillator.presentation.settings.loadKiwoomConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,9 +22,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -36,7 +30,7 @@ class PortfolioViewModel @Inject constructor(
     application: Application,
     private val portfolioRepository: PortfolioRepository,
     private val stockMasterDao: StockMasterDao,
-    @ApplicationContext private val appContext: Context
+    private val apiConfigProvider: ApiConfigProvider
 ) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow<PortfolioUiState>(PortfolioUiState.Idle)
@@ -76,11 +70,6 @@ class PortfolioViewModel @Inject constructor(
     private val _selectedHoldingCurrentPrice = MutableStateFlow(0L)
     val selectedHoldingCurrentPrice: StateFlow<Long> = _selectedHoldingCurrentPrice.asStateFlow()
 
-    // API config
-    @Volatile
-    private var cachedApiConfig: KiwoomApiKeyConfig? = null
-    private val configMutex = Mutex()
-
     init {
         loadDefaultPortfolio()
     }
@@ -92,6 +81,8 @@ class PortfolioViewModel @Inject constructor(
                 _portfolioId.value = id
                 _portfolio.value = portfolioRepository.getPortfolio(id)
                 loadPortfolio()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "기본 포트폴리오 로딩 실패")
                 _uiState.value = PortfolioUiState.Error("포트폴리오 로딩 실패: ${e.message}")
@@ -121,8 +112,8 @@ class PortfolioViewModel @Inject constructor(
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                val config = getApiConfig()
-                if (config == null || !config.isValid()) {
+                val config = apiConfigProvider.getKiwoomConfig()
+                if (!config.isValid()) {
                     _uiState.value = PortfolioUiState.Error("Kiwoom API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요.")
                     _isRefreshing.value = false
                     return@launch
@@ -180,8 +171,8 @@ class PortfolioViewModel @Inject constructor(
                 loadPortfolio()
                 // Auto-fetch current price for the newly added holding
                 try {
-                    val config = getApiConfig()
-                    if (config != null && config.isValid()) {
+                    val config = apiConfigProvider.getKiwoomConfig()
+                    if (config.isValid()) {
                         portfolioRepository.fetchAndUpdatePrice(holdingId, ticker, config)
                         loadPortfolio()
                     }
@@ -324,12 +315,4 @@ class PortfolioViewModel @Inject constructor(
         }
     }
 
-    private suspend fun getApiConfig(): KiwoomApiKeyConfig? = configMutex.withLock {
-        cachedApiConfig?.let { return@withLock it }
-        val config = withContext(Dispatchers.IO) { loadKiwoomConfig(appContext) }
-        if (config.isValid()) {
-            cachedApiConfig = config
-            config
-        } else null
-    }
 }

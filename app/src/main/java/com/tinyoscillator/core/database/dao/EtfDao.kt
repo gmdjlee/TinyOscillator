@@ -26,6 +26,11 @@ data class EtfDatePair(
     val date: String
 )
 
+data class EtfTickerName(
+    val ticker: String,
+    val name: String
+)
+
 @Dao
 interface EtfDao {
 
@@ -49,6 +54,12 @@ interface EtfDao {
 
     @Query("SELECT DISTINCT etf_ticker, date FROM etf_holdings")
     suspend fun getExistingHoldingPairs(): List<EtfDatePair>
+
+    @Query("SELECT DISTINCT etf_ticker || '|' || date FROM etf_holdings WHERE date IN (:dates)")
+    suspend fun getExistingPairsForDates(dates: List<String>): List<String>
+
+    @Query("SELECT ticker, name FROM etfs WHERE ticker IN (:tickers)")
+    suspend fun getEtfsByTickers(tickers: List<String>): List<EtfTickerName>
 
     @Query("DELETE FROM etf_holdings WHERE date = :date")
     suspend fun deleteHoldingsForDate(date: String)

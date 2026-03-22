@@ -1,8 +1,7 @@
 package com.tinyoscillator.presentation.portfolio
 
 import android.app.Application
-import android.content.Context
-import android.content.SharedPreferences
+import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
@@ -30,7 +29,7 @@ class PortfolioViewModelTest {
     private lateinit var application: Application
     private lateinit var portfolioRepository: PortfolioRepository
     private lateinit var stockMasterDao: StockMasterDao
-    private lateinit var context: Context
+    private lateinit var apiConfigProvider: ApiConfigProvider
     private lateinit var viewModel: PortfolioViewModel
 
     private val testDispatcher = StandardTestDispatcher()
@@ -44,12 +43,7 @@ class PortfolioViewModelTest {
         application = mockk(relaxed = true)
         portfolioRepository = mockk(relaxed = true)
         stockMasterDao = mockk(relaxed = true)
-        context = mockk(relaxed = true)
-
-        // Mock encrypted shared preferences for API config loading
-        val prefs = mockk<SharedPreferences>(relaxed = true)
-        every { prefs.getString(any(), any()) } returns ""
-        every { context.applicationContext } returns context
+        apiConfigProvider = mockk(relaxed = true)
 
         // Default repository behavior
         coEvery { portfolioRepository.ensureDefaultPortfolio() } returns 1L
@@ -63,7 +57,7 @@ class PortfolioViewModelTest {
     }
 
     private fun createViewModel(): PortfolioViewModel {
-        return PortfolioViewModel(application, portfolioRepository, stockMasterDao, context)
+        return PortfolioViewModel(application, portfolioRepository, stockMasterDao, apiConfigProvider)
     }
 
     @Test

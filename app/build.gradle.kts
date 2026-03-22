@@ -88,9 +88,6 @@ dependencies {
     // === Navigation ===
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
-    // === DataStore (API key storage) ===
-    implementation("androidx.datastore:datastore-preferences:1.0.0")
-
     // === Room ===
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

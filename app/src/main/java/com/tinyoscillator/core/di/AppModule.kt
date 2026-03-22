@@ -95,7 +95,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideNaverFinanceScraper(): NaverFinanceScraper = NaverFinanceScraper()
+    fun provideNaverFinanceScraper(httpClient: OkHttpClient): NaverFinanceScraper = NaverFinanceScraper(httpClient)
 
     @Provides
     @Singleton

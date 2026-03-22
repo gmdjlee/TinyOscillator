@@ -13,8 +13,8 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.tinyoscillator.core.util.DateFormats
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FundamentalHistoryRepositoryTest {
@@ -24,7 +24,7 @@ class FundamentalHistoryRepositoryTest {
     private lateinit var krxStock: KrxStock
     private lateinit var repository: FundamentalHistoryRepository
     private val testDispatcher = StandardTestDispatcher()
-    private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val fmt = DateFormats.yyyyMMdd
 
     private val testTicker = "005930"
     private val today = LocalDate.now().format(fmt)

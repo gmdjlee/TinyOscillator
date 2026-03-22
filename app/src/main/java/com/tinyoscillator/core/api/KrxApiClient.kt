@@ -76,6 +76,12 @@ class KrxApiClient {
 
     fun getKrxStock(): KrxStock? = krxStock
 
+    /**
+     * Close the KRX client and release resources.
+     * Note: This is intentionally non-suspend and does not acquire the mutex.
+     * It is called from finally blocks where suspension may not be appropriate.
+     * Callers must ensure no concurrent API operations are in progress.
+     */
     fun close() {
         closeInternal()
     }

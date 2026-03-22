@@ -10,13 +10,12 @@ import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.data.repository.StockRepository
 import com.tinyoscillator.domain.model.*
+import com.tinyoscillator.core.config.ApiConfigProvider
+import com.tinyoscillator.core.util.DateFormats
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.domain.usecase.SearchStocksUseCase
-import com.tinyoscillator.presentation.settings.loadAiConfig
-import com.tinyoscillator.presentation.settings.loadKisConfig
-import com.tinyoscillator.presentation.settings.loadKiwoomConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -27,7 +26,6 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeout
 import timber.log.Timber
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 enum class AiTab(val label: String) {
@@ -67,10 +65,11 @@ class AiAnalysisViewModel @Inject constructor(
     private val calcDemarkTD: CalcDemarkTDUseCase,
     private val searchStocksUseCase: SearchStocksUseCase,
     private val aiApiClient: AiApiClient,
-    private val aiPreparer: AiAnalysisPreparer
+    private val aiPreparer: AiAnalysisPreparer,
+    private val apiConfigProvider: ApiConfigProvider
 ) : AndroidViewModel(application) {
 
-    private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val fmt = DateFormats.yyyyMMdd
 
     private val _selectedTab = MutableStateFlow(AiTab.MARKET)
     val selectedTab: StateFlow<AiTab> = _selectedTab.asStateFlow()
@@ -118,7 +117,7 @@ class AiAnalysisViewModel @Inject constructor(
 
                         // 1. Daily trading data (needed for oscillator + demark)
                         val kiwoomConfig = try {
-                            loadKiwoomConfig(getApplication())
+                            apiConfigProvider.getKiwoomConfig()
                         } catch (e: Exception) {
                             null
                         }
@@ -143,7 +142,7 @@ class AiAnalysisViewModel @Inject constructor(
                         // 2. Financial data
                         val financialDeferred = async {
                             try {
-                                val kisConfig = loadKisConfig(getApplication())
+                                val kisConfig = apiConfigProvider.getKisConfig()
                                 if (kisConfig.isValid()) {
                                     financialRepository.getFinancialData(ticker, name, kisConfig).getOrNull()
                                 } else null
@@ -213,7 +212,7 @@ class AiAnalysisViewModel @Inject constructor(
         if (loaded.oscillatorRows.isEmpty()) return
 
         viewModelScope.launch {
-            val aiConfig = loadAiConfig(getApplication())
+            val aiConfig = apiConfigProvider.getAiConfig()
             if (!aiConfig.isValid()) {
                 _stockAiState.value = AiAnalysisState.NoApiKey
                 return@launch
@@ -252,7 +251,7 @@ class AiAnalysisViewModel @Inject constructor(
 
     fun analyzeMarketWithAi() {
         viewModelScope.launch {
-            val aiConfig = loadAiConfig(getApplication())
+            val aiConfig = apiConfigProvider.getAiConfig()
             if (!aiConfig.isValid()) {
                 _marketAiState.value = AiAnalysisState.NoApiKey
                 return@launch

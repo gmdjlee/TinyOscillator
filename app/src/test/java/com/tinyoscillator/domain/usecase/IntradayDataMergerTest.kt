@@ -4,8 +4,8 @@ import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.RealtimeSupplyData
 import org.junit.Assert.*
 import org.junit.Test
+import com.tinyoscillator.core.util.DateFormats
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 /**
  * IntradayDataMerger 단위 테스트
@@ -14,7 +14,7 @@ import java.time.format.DateTimeFormatter
  */
 class IntradayDataMergerTest {
 
-    private val dateFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val dateFormatter = DateFormats.yyyyMMdd
     private val todayStr = LocalDate.now().format(dateFormatter)
     private val yesterdayStr = LocalDate.now().minusDays(1).format(dateFormatter)
 

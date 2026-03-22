@@ -1,13 +1,30 @@
 package com.tinyoscillator.presentation.etf
 
+import android.content.Context
+import com.tinyoscillator.core.database.dao.StockMasterDao
+import com.tinyoscillator.core.database.dao.TickerMarketPair
+import com.tinyoscillator.core.database.dao.TickerSectorPair
+import com.tinyoscillator.data.repository.EtfRepository
+import com.tinyoscillator.domain.model.AmountRankingItem
+import com.tinyoscillator.domain.model.StockSearchResult
+import com.tinyoscillator.domain.model.WeightTrend
+import com.tinyoscillator.presentation.settings.EtfKeywordFilter
+import io.mockk.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.*
+import org.junit.After
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 
 /**
  * EtfStatsViewModel 비즈니스 로직 단위 테스트
  *
- * groupDatesByWeek, WeekInfo, ComparisonMode 검증
+ * groupDatesByWeek, WeekInfo, ComparisonMode 검증 + ViewModel 상호작용 테스트
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class EtfStatsViewModelTest {
 
     // ==========================================================
@@ -189,5 +206,315 @@ class EtfStatsViewModelTest {
         val selectedWeek = weeks[0]
         val manualComparisonWeek = weeks.last()
         assertNotEquals(selectedWeek, manualComparisonWeek)
+    }
+
+    // ==========================================================
+    // ViewModel 상호작용 테스트 (MockK + coroutines)
+    // ==========================================================
+
+    private lateinit var etfRepository: EtfRepository
+    private lateinit var stockMasterDao: StockMasterDao
+    private lateinit var context: Context
+    private val testDispatcher = StandardTestDispatcher()
+
+    private val defaultKeywordFilter = EtfKeywordFilter(
+        includeKeywords = emptyList(),
+        excludeKeywords = emptyList()
+    )
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        context = mockk(relaxed = true)
+        etfRepository = mockk(relaxed = true)
+        stockMasterDao = mockk(relaxed = true)
+
+        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
+        coEvery { com.tinyoscillator.presentation.settings.loadEtfKeywordFilter(any()) } returns defaultKeywordFilter
+        coEvery { etfRepository.getExcludedTickers(any()) } returns emptyList()
+        coEvery { stockMasterDao.getTickerMarketMap() } returns emptyList()
+        coEvery { stockMasterDao.getTickerSectorMap() } returns emptyList()
+        coEvery { etfRepository.getAllDates() } returns emptyList()
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+        unmockkAll()
+    }
+
+    private fun createViewModel(): EtfStatsViewModel {
+        return EtfStatsViewModel(etfRepository, stockMasterDao, context)
+    }
+
+    // ==========================================================
+    // selectDate 테스트
+    // ==========================================================
+
+    @Test
+    fun `selectDate - 날짜 선택 시 selectedDate가 업데이트된다`() = runTest {
+        coEvery { etfRepository.getAllDates() } returns listOf("20260320", "20260319", "20260318")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.selectDate("20260319")
+        advanceUntilIdle()
+
+        assertEquals("20260319", viewModel.selectedDate.value)
+    }
+
+    @Test
+    fun `selectDate - 날짜 선택 시 loadAllStats가 호출된다`() = runTest {
+        coEvery { etfRepository.getAllDates() } returns listOf("20260320", "20260319", "20260318")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.selectDate("20260319")
+        advanceUntilIdle()
+
+        // loadAllStats 호출 시 getEnrichedAmountRanking이 호출됨
+        coVerify(atLeast = 1) { etfRepository.getEnrichedAmountRanking(any(), any(), any()) }
+    }
+
+    // ==========================================================
+    // setComparisonMode 테스트
+    // ==========================================================
+
+    @Test
+    fun `setComparisonMode - WEEKLY 모드로 변경된다`() = runTest {
+        coEvery { etfRepository.getAllDates() } returns listOf("20260320", "20260319")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setComparisonMode(ComparisonMode.WEEKLY)
+        advanceUntilIdle()
+
+        assertEquals(ComparisonMode.WEEKLY, viewModel.comparisonMode.value)
+    }
+
+    @Test
+    fun `setComparisonMode - DAILY 모드로 변경된다`() = runTest {
+        coEvery { etfRepository.getAllDates() } returns listOf("20260320", "20260319")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setComparisonMode(ComparisonMode.WEEKLY)
+        viewModel.setComparisonMode(ComparisonMode.DAILY)
+        advanceUntilIdle()
+
+        assertEquals(ComparisonMode.DAILY, viewModel.comparisonMode.value)
+    }
+
+    // ==========================================================
+    // searchStock 테스트
+    // ==========================================================
+
+    @Test
+    fun `searchStock - 쿼리가 2자 미만이면 결과가 비워진다`() = runTest {
+        coEvery { etfRepository.getAllDates() } returns listOf("20260320")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.searchStock("삼")
+        advanceUntilIdle()
+
+        assertTrue(viewModel.stockSearchResults.value.isEmpty())
+        // repository의 searchStocksInHoldings가 호출되지 않아야 함
+        coVerify(exactly = 0) { etfRepository.searchStocksInHoldings(any(), any(), any()) }
+    }
+
+    @Test
+    fun `searchStock - 빈 쿼리면 결과가 비워진다`() = runTest {
+        coEvery { etfRepository.getAllDates() } returns listOf("20260320")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.searchStock("")
+        advanceUntilIdle()
+
+        assertTrue(viewModel.stockSearchResults.value.isEmpty())
+    }
+
+    @Test
+    fun `searchStock - 2자 이상 쿼리면 검색이 수행된다`() = runTest {
+        coEvery { etfRepository.getAllDates() } returns listOf("20260320")
+        val searchResults = listOf(
+            StockSearchResult(stock_ticker = "005930", stock_name = "삼성전자")
+        )
+        coEvery { etfRepository.searchStocksInHoldings(any(), eq("삼성"), any()) } returns searchResults
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.searchStock("삼성")
+        advanceUntilIdle()
+
+        coVerify { etfRepository.searchStocksInHoldings(any(), eq("삼성"), any()) }
+    }
+
+    // ==========================================================
+    // 필터 테스트 (market, sector, weightTrend)
+    // ==========================================================
+
+    @Test
+    fun `setMarketFilter - 시장 필터 설정 시 값이 업데이트된다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setMarketFilter("KOSPI")
+
+        assertEquals("KOSPI", viewModel.selectedMarketFilter.value)
+    }
+
+    @Test
+    fun `setMarketFilter - 시장 필터 설정 시 업종 필터가 초기화된다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setSectorFilter("반도체")
+        viewModel.setMarketFilter("KOSPI")
+
+        assertNull(viewModel.selectedSectorFilter.value)
+    }
+
+    @Test
+    fun `setMarketFilter - null 설정 시 전체 시장으로 변경된다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setMarketFilter("KOSPI")
+        viewModel.setMarketFilter(null)
+
+        assertNull(viewModel.selectedMarketFilter.value)
+    }
+
+    @Test
+    fun `setSectorFilter - 업종 필터 설정 시 값이 업데이트된다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setSectorFilter("반도체")
+
+        assertEquals("반도체", viewModel.selectedSectorFilter.value)
+    }
+
+    @Test
+    fun `setWeightTrendFilter - 비중추이 필터 설정 시 값이 업데이트된다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setWeightTrendFilter(WeightTrend.UP)
+
+        assertEquals(WeightTrend.UP, viewModel.selectedWeightTrendFilter.value)
+    }
+
+    @Test
+    fun `setWeightTrendFilter - null 설정 시 전체로 변경된다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.setWeightTrendFilter(WeightTrend.DOWN)
+        viewModel.setWeightTrendFilter(null)
+
+        assertNull(viewModel.selectedWeightTrendFilter.value)
+    }
+
+    // ==========================================================
+    // loadAllStats 테스트
+    // ==========================================================
+
+    @Test
+    fun `loadAllStats - 날짜가 있으면 repository와 상호작용한다`() = runTest {
+        coEvery { etfRepository.getAllDates() } returns listOf("20260320", "20260319")
+        coEvery { etfRepository.getEnrichedAmountRanking(any(), any(), any()) } returns emptyList()
+        coEvery { etfRepository.getCashDepositTrend(any()) } returns emptyList()
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // init에서 loadExcludedTickersAndDates → loadDates → loadAllStats 호출됨
+        coVerify { etfRepository.getEnrichedAmountRanking("20260320", any(), any()) }
+        coVerify { etfRepository.getCashDepositTrend(any()) }
+    }
+
+    @Test
+    fun `loadAllStats - 완료 후 isLoading이 false가 된다`() = runTest {
+        coEvery { etfRepository.getAllDates() } returns listOf("20260320", "20260319")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertFalse(viewModel.isLoading.value)
+    }
+
+    @Test
+    fun `loadAllStats - 날짜가 없으면 호출되지 않는다`() = runTest {
+        coEvery { etfRepository.getAllDates() } returns emptyList()
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { etfRepository.getEnrichedAmountRanking(any(), any(), any()) }
+    }
+
+    // ==========================================================
+    // updateAmountRankingSort 테스트
+    // ==========================================================
+
+    @Test
+    fun `updateAmountRankingSort - 정렬 인코딩이 업데이트된다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.updateAmountRankingSort("AMOUNT:DESC,WEIGHT:ASC")
+
+        assertEquals("AMOUNT:DESC,WEIGHT:ASC", viewModel.amountRankingSortEncoded.value)
+    }
+
+    @Test
+    fun `updateAmountRankingSort - 빈 문자열로 초기화된다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.updateAmountRankingSort("AMOUNT:DESC")
+        viewModel.updateAmountRankingSort("")
+
+        assertEquals("", viewModel.amountRankingSortEncoded.value)
+    }
+
+    // ==========================================================
+    // filteredAmountRanking 결합 필터 테스트
+    // ==========================================================
+
+    @Test
+    fun `filteredAmountRanking - 시장 필터 적용 시 해당 시장만 반환된다`() = runTest {
+        val items = listOf(
+            AmountRankingItem(rank = 1, stockTicker = "005930", stockName = "삼성전자", totalAmountBillion = 100.0, etfCount = 10, market = "KOSPI"),
+            AmountRankingItem(rank = 2, stockTicker = "035720", stockName = "카카오", totalAmountBillion = 50.0, etfCount = 5, market = "KOSPI"),
+            AmountRankingItem(rank = 3, stockTicker = "263750", stockName = "펄어비스", totalAmountBillion = 10.0, etfCount = 2, market = "KOSDAQ")
+        )
+        coEvery { etfRepository.getAllDates() } returns listOf("20260320", "20260319")
+        coEvery { etfRepository.getEnrichedAmountRanking(any(), any(), any()) } returns items
+        coEvery { stockMasterDao.getTickerMarketMap() } returns emptyList()
+        coEvery { stockMasterDao.getTickerSectorMap() } returns emptyList()
+
+        val viewModel = createViewModel()
+        val collectJob = launch { viewModel.filteredAmountRanking.collect {} }
+        advanceUntilIdle()
+
+        viewModel.setMarketFilter("KOSDAQ")
+        advanceUntilIdle()
+
+        val filtered = viewModel.filteredAmountRanking.value
+        assertTrue(filtered.all { it.market == "KOSDAQ" })
+        assertEquals(1, filtered.size)
+
+        collectJob.cancel()
     }
 }

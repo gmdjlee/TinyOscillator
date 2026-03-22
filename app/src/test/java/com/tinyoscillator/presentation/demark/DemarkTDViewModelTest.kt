@@ -5,6 +5,7 @@ import com.tinyoscillator.data.repository.StockRepository
 import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.DemarkPeriodType
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
+import com.tinyoscillator.core.config.ApiConfigProvider
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,6 +21,7 @@ class DemarkTDViewModelTest {
     private lateinit var application: Application
     private lateinit var repository: StockRepository
     private lateinit var calcDemarkTD: CalcDemarkTDUseCase
+    private lateinit var apiConfigProvider: ApiConfigProvider
     private lateinit var viewModel: DemarkTDViewModel
     private val testDispatcher = StandardTestDispatcher()
 
@@ -44,6 +46,7 @@ class DemarkTDViewModelTest {
         application = mockk(relaxed = true)
         repository = mockk(relaxed = true)
         calcDemarkTD = CalcDemarkTDUseCase() // 실제 계산 로직 사용
+        apiConfigProvider = mockk(relaxed = true)
 
         mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
         coEvery {
@@ -59,7 +62,7 @@ class DemarkTDViewModelTest {
             com.tinyoscillator.core.network.NetworkUtils.isNetworkAvailable(any())
         } returns true
 
-        viewModel = DemarkTDViewModel(application, repository, calcDemarkTD)
+        viewModel = DemarkTDViewModel(application, repository, calcDemarkTD, apiConfigProvider)
     }
 
     @After

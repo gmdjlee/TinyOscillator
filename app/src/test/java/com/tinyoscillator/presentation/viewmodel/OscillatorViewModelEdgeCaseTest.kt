@@ -11,6 +11,7 @@ import com.tinyoscillator.domain.model.OscillatorConfig
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.domain.usecase.SaveAnalysisHistoryUseCase
 import com.tinyoscillator.domain.usecase.SearchStocksUseCase
+import com.tinyoscillator.core.config.ApiConfigProvider
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -37,6 +38,7 @@ class OscillatorViewModelEdgeCaseTest {
     private lateinit var calcOscillator: CalcOscillatorUseCase
     private lateinit var analysisHistoryDao: AnalysisHistoryDao
     private lateinit var financialRepository: FinancialRepository
+    private lateinit var apiConfigProvider: ApiConfigProvider
     private lateinit var viewModel: OscillatorViewModel
     private val testDispatcher = StandardTestDispatcher()
 
@@ -57,6 +59,7 @@ class OscillatorViewModelEdgeCaseTest {
         calcOscillator = CalcOscillatorUseCase(OscillatorConfig())
         analysisHistoryDao = mockk(relaxed = true)
         financialRepository = mockk(relaxed = true)
+        apiConfigProvider = mockk(relaxed = true)
 
         mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
         coEvery {
@@ -76,7 +79,8 @@ class OscillatorViewModelEdgeCaseTest {
         viewModel = OscillatorViewModel(
             application, repository, stockMasterRepository,
             searchStocksUseCase, saveAnalysisHistoryUseCase,
-            calcOscillator, analysisHistoryDao, financialRepository
+            calcOscillator, analysisHistoryDao, financialRepository,
+            apiConfigProvider
         )
     }
 

@@ -5,10 +5,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tinyoscillator.core.api.ApiError
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
+import com.tinyoscillator.core.api.toUserMessage
+import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
 import com.tinyoscillator.core.network.NetworkUtils
+import com.tinyoscillator.core.util.DateFormats
 import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.data.repository.StockMasterRepository
 import com.tinyoscillator.data.repository.StockRepository
@@ -17,8 +20,6 @@ import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.domain.usecase.IntradayDataMerger
 import com.tinyoscillator.domain.usecase.SaveAnalysisHistoryUseCase
 import com.tinyoscillator.domain.usecase.SearchStocksUseCase
-import com.tinyoscillator.presentation.settings.loadKisConfig
-import com.tinyoscillator.presentation.settings.loadKiwoomConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -27,10 +28,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -55,11 +53,12 @@ class OscillatorViewModel @Inject constructor(
     private val saveAnalysisHistoryUseCase: SaveAnalysisHistoryUseCase,
     private val calcOscillator: CalcOscillatorUseCase,
     private val analysisHistoryDao: AnalysisHistoryDao,
-    private val financialRepository: FinancialRepository
+    private val financialRepository: FinancialRepository,
+    private val apiConfigProvider: ApiConfigProvider
 ) : AndroidViewModel(application) {
 
     private val config = OscillatorConfig()
-    private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val fmt = DateFormats.yyyyMMdd
 
     private val _uiState = MutableStateFlow<OscillatorUiState>(OscillatorUiState.Idle)
     val uiState: StateFlow<OscillatorUiState> = _uiState.asStateFlow()
@@ -87,10 +86,6 @@ class OscillatorViewModel @Inject constructor(
     private val _stockMasterStatus = MutableStateFlow<StockMasterStatus>(StockMasterStatus.Unknown)
     val stockMasterStatus: StateFlow<StockMasterStatus> = _stockMasterStatus.asStateFlow()
 
-    @Volatile
-    private var cachedApiConfig: KiwoomApiKeyConfig? = null
-    private val configMutex = Mutex()
-
     // 실시간 폴링 관련
     private var autoRefreshJob: Job? = null
     private var currentAnalysisTicker: String? = null
@@ -102,7 +97,7 @@ class OscillatorViewModel @Inject constructor(
         // 앱 시작시 종목 마스터 DB 채우기
         viewModelScope.launch {
             try {
-                val apiConfig = getApiConfig()
+                val apiConfig = apiConfigProvider.getKiwoomConfig()
                 _stockMasterStatus.value = StockMasterStatus.Loading
                 stockMasterRepository.populateIfEmpty(apiConfig)
                 val count = stockMasterRepository.getCount()
@@ -116,24 +111,13 @@ class OscillatorViewModel @Inject constructor(
         }
     }
 
-    /** API 키 설정 로드 (Mutex-protected to prevent race conditions) */
-    private suspend fun getApiConfig(): KiwoomApiKeyConfig {
-        cachedApiConfig?.let { return it }
-        return configMutex.withLock {
-            cachedApiConfig?.let { return@withLock it }
-            val config = loadKiwoomConfig(getApplication())
-            cachedApiConfig = config
-            config
-        }
-    }
-
     /** API 키 캐시 초기화 (설정 변경 후) */
     fun invalidateApiConfig() {
-        cachedApiConfig = null
+        apiConfigProvider.invalidateKiwoom()
         // 설정 변경 후 종목 마스터 재시도
         viewModelScope.launch {
             try {
-                val apiConfig = getApiConfig()
+                val apiConfig = apiConfigProvider.getKiwoomConfig()
                 stockMasterRepository.populateIfEmpty(apiConfig)
                 val count = stockMasterRepository.getCount()
                 _stockMasterStatus.value = StockMasterStatus.Ready(count)
@@ -150,7 +134,7 @@ class OscillatorViewModel @Inject constructor(
         viewModelScope.launch {
             _stockMasterStatus.value = StockMasterStatus.Loading
             try {
-                val apiConfig = getApiConfig()
+                val apiConfig = apiConfigProvider.getKiwoomConfig()
                 stockMasterRepository.forceRefresh(apiConfig)
                 val count = stockMasterRepository.getCount()
                 _stockMasterStatus.value = StockMasterStatus.Ready(count)
@@ -202,7 +186,7 @@ class OscillatorViewModel @Inject constructor(
                     return@launch
                 }
 
-                val apiConfig = getApiConfig()
+                val apiConfig = apiConfigProvider.getKiwoomConfig()
 
                 // 기간 설정
                 val endDate = LocalDate.now()
@@ -247,7 +231,7 @@ class OscillatorViewModel @Inject constructor(
                 // Step 8: 재무정보 비동기 수집 (오실레이터 결과와 독립)
                 launch {
                     try {
-                        val kisConfig = loadKisConfig(getApplication())
+                        val kisConfig = apiConfigProvider.getKisConfig()
                         if (kisConfig.isValid()) {
                             financialRepository.getFinancialData(ticker, stockName, kisConfig)
                             Timber.d("재무정보 수집 완료: %s", ticker)
@@ -261,15 +245,7 @@ class OscillatorViewModel @Inject constructor(
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val errorMsg = when (e) {
-                    is ApiError.NoApiKeyError -> "API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요."
-                    is ApiError.NetworkError -> "네트워크 연결을 확인해주세요."
-                    is ApiError.TimeoutError -> "서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요."
-                    is ApiError.AuthError -> "API 인증에 실패했습니다. API 키를 확인해주세요."
-                    is kotlinx.coroutines.TimeoutCancellationException -> "분석 시간이 초과되었습니다. 잠시 후 다시 시도해주세요."
-                    else -> "분석 실패: ${e.message ?: "알 수 없는 오류"}"
-                }
-                _uiState.value = OscillatorUiState.Error(errorMsg)
+                _uiState.value = OscillatorUiState.Error(e.toUserMessage())
             }
         }
     }
@@ -353,7 +329,7 @@ class OscillatorViewModel @Inject constructor(
                 }
 
                 try {
-                    val apiConfig = getApiConfig()
+                    val apiConfig = apiConfigProvider.getKiwoomConfig()
                     val dailyData = currentDailyData ?: continue
                     val mergedData = mergeIntradayIfAvailable(dailyData, ticker, apiConfig)
                     val name = currentAnalysisName ?: continue

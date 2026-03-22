@@ -15,7 +15,9 @@ import java.util.concurrent.TimeUnit
 /**
  * Naver Finance 증시 자금 동향 데이터 스크래퍼
  */
-class NaverFinanceScraper {
+class NaverFinanceScraper(
+    httpClient: OkHttpClient = OkHttpClient()
+) {
 
     companion object {
         private const val BASE_URL = "https://finance.naver.com/sise/sise_deposit.naver"
@@ -24,7 +26,7 @@ class NaverFinanceScraper {
         private const val TIMEOUT_SECONDS = 15L
     }
 
-    private val httpClient = OkHttpClient.Builder()
+    private val httpClient: OkHttpClient = httpClient.newBuilder()
         .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)

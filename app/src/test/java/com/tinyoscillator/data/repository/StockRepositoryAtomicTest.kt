@@ -17,8 +17,8 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.tinyoscillator.core.util.DateFormats
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 /**
  * StockRepository atomic operation and cooldown eviction tests.
@@ -43,7 +43,7 @@ class StockRepositoryAtomicTest {
         secretKey = "test-secret-key"
     )
 
-    private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val fmt = DateFormats.yyyyMMdd
     private val today = LocalDate.now().format(fmt)
     private val startDate = LocalDate.now().minusDays(365).format(fmt)
 

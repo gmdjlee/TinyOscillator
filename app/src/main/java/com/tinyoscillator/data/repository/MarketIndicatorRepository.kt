@@ -18,8 +18,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import com.tinyoscillator.core.util.DateFormats
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 private const val DEPOSIT_KEEP_DAYS = 365L
 
@@ -93,7 +93,7 @@ class MarketIndicatorRepository(
 
             val endDate = LocalDate.now()
             val startDate = endDate.minusDays(days.toLong())
-            val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+            val formatter = DateFormats.yyyyMMdd
 
             onProgress?.invoke("$market 시장 지수 데이터 수집 중...", 30)
             val result = calculator.analyze(market, startDate.format(formatter), endDate.format(formatter))
@@ -147,7 +147,7 @@ class MarketIndicatorRepository(
 
             val endDate = LocalDate.now()
             val startDate = endDate.minusDays(days.toLong())
-            val formatter = DateTimeFormatter.ofPattern("yyyyMMdd")
+            val formatter = DateFormats.yyyyMMdd
 
             val result = calculator.analyze(market, startDate.format(formatter), endDate.format(formatter))
             if (result == null || result.dates.isEmpty()) {
@@ -198,6 +198,16 @@ class MarketIndicatorRepository(
 
             onProgress?.invoke("데이터 처리 중...", 70)
 
+            val size = marketData.dates.size
+            if (size == 0 ||
+                marketData.depositAmounts.size != size ||
+                marketData.depositChanges.size != size ||
+                marketData.creditAmounts.size != size ||
+                marketData.creditChanges.size != size
+            ) {
+                return@withContext Result.failure(Exception("데이터가 비어있거나 리스트 크기가 일치하지 않습니다"))
+            }
+
             val deposits = marketData.dates.mapIndexed { index, date ->
                 MarketDepositEntity(
                     date = date,
@@ -206,10 +216,6 @@ class MarketIndicatorRepository(
                     creditAmount = marketData.creditAmounts[index],
                     creditChange = marketData.creditChanges[index]
                 )
-            }
-
-            if (deposits.isEmpty()) {
-                return@withContext Result.failure(Exception("데이터가 비어있습니다"))
             }
 
             onProgress?.invoke("데이터베이스 저장 중...", 90)
@@ -268,6 +274,17 @@ class MarketIndicatorRepository(
                 }
 
                 onProgress?.invoke("데이터 처리 중...", 70)
+                val size = latestData.dates.size
+                if (size == 0 ||
+                    latestData.depositAmounts.size != size ||
+                    latestData.depositChanges.size != size ||
+                    latestData.creditAmounts.size != size ||
+                    latestData.creditChanges.size != size
+                ) {
+                    Timber.w("스크래핑 데이터 리스트 크기 불일치 → 기존 캐시로 fallback")
+                    return@withContext if (existingDeposits.isNotEmpty()) convertToChartData(existingDeposits) else null
+                }
+
                 val newDeposits = latestData.dates.mapIndexed { index, date ->
                     MarketDepositEntity(
                         date = date,

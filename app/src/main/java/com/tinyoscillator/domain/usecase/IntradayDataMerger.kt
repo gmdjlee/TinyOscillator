@@ -2,8 +2,8 @@ package com.tinyoscillator.domain.usecase
 
 import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.RealtimeSupplyData
+import com.tinyoscillator.core.util.DateFormats
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 /**
  * 장중 실시간 수급 데이터를 DailyTrading 리스트에 병합.
@@ -23,7 +23,7 @@ import java.time.format.DateTimeFormatter
  */
 object IntradayDataMerger {
 
-    private val KRX_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val KRX_DATE_FORMATTER = DateFormats.yyyyMMdd
 
     /**
      * 장중 데이터를 DailyTrading 리스트에 병합.

@@ -15,21 +15,22 @@ import com.tinyoscillator.domain.model.StockAggregatedTimePoint
 import com.tinyoscillator.domain.model.StockChange
 import com.tinyoscillator.domain.model.StockInEtfRow
 import com.tinyoscillator.domain.model.StockSearchResult
-import com.tinyoscillator.presentation.settings.EtfKeywordFilter
-import com.tinyoscillator.presentation.settings.KrxCredentials
+import com.tinyoscillator.domain.model.EtfKeywordFilter
+import com.tinyoscillator.domain.model.KrxCredentials
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import com.tinyoscillator.core.util.DateFormats
 import timber.log.Timber
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
+import java.time.DayOfWeek
+import java.time.LocalDate
 
 class EtfRepository(
     private val etfDao: EtfDao,
     private val krxApiClient: KrxApiClient
 ) {
-    private val dateFormat = SimpleDateFormat("yyyyMMdd", Locale.KOREA)
+    private val dateFormat = DateFormats.yyyyMMdd
 
     suspend fun login(id: String, pw: String): Boolean = krxApiClient.login(id, pw)
 
@@ -49,6 +50,7 @@ class EtfRepository(
         keywords: EtfKeywordFilter,
         daysBack: Int = 14
     ): Flow<EtfDataProgress> = flow {
+        require(daysBack in 1..365) { "daysBack must be 1-365, got $daysBack" }
         try {
             emit(EtfDataProgress.Loading("KRX 로그인 중...", 0f))
             val loggedIn = login(creds.id, creds.password)
@@ -104,9 +106,8 @@ class EtfRepository(
             etfDao.insertEtfs(etfEntities)
 
             // Pair-based incremental logic:
-            // Check which (etf_ticker, date) pairs already exist in DB
-            val existingPairs = etfDao.getExistingHoldingPairs()
-                .map { "${it.etfTicker}|${it.date}" }.toSet()
+            // Check which (etf_ticker, date) pairs already exist in DB (scoped to target dates)
+            val existingPairs = etfDao.getExistingPairsForDates(dates).toSet()
 
             data class WorkItem(val ticker: String, val name: String, val date: String)
             val workItems = mutableListOf<WorkItem>()
@@ -159,6 +160,8 @@ class EtfRepository(
                         etfDao.insertHoldings(holdings)
                         totalHoldings += holdings.size
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     failedOps++
                     Timber.w(e, "구성종목 수집 실패: ${item.ticker} / ${item.date}")
@@ -185,6 +188,8 @@ class EtfRepository(
             etfDao.deleteHoldingsBeforeDate(cutoffDate)
 
             emit(EtfDataProgress.Success(filteredEtfs.size, totalHoldings))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Timber.e(e, "ETF 데이터 수집 실패")
             emit(EtfDataProgress.Error("데이터 수집 실패: ${e.message ?: e.javaClass.simpleName}"))
@@ -228,12 +233,10 @@ class EtfRepository(
         val oldMap = oldHoldings.associateBy { "${it.etfTicker}|${it.stockTicker}" }
         val newMap = newHoldings.associateBy { "${it.etfTicker}|${it.stockTicker}" }
 
-        // ETF name lookup
-        val etfNames = mutableMapOf<String, String>()
+        // ETF name lookup (batch query)
         val allEtfTickers = (oldHoldings.map { it.etfTicker } + newHoldings.map { it.etfTicker }).toSet()
-        for (ticker in allEtfTickers) {
-            etfDao.getEtf(ticker)?.let { etfNames[ticker] = it.name }
-        }
+        val etfNames = etfDao.getEtfsByTickers(allEtfTickers.toList())
+            .associate { it.ticker to it.name }
 
         val changes = mutableListOf<StockChange>()
         val allKeys = (oldMap.keys + newMap.keys)
@@ -327,22 +330,21 @@ class EtfRepository(
     suspend fun getStockName(stockTicker: String): String? = etfDao.getStockName(stockTicker)
 
     private fun getBusinessDates(daysBack: Int): List<String> {
+        require(daysBack > 0) { "daysBack must be > 0" }
         val dates = mutableListOf<String>()
-        val calendar = Calendar.getInstance()
+        var date = LocalDate.now()
         for (i in 0 until daysBack * 2) { // Iterate extra to account for weekends
             if (dates.size >= daysBack) break
-            calendar.add(Calendar.DAY_OF_YEAR, if (i == 0) 0 else -1)
-            val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
-            if (dayOfWeek != Calendar.SATURDAY && dayOfWeek != Calendar.SUNDAY) {
-                dates.add(dateFormat.format(calendar.time))
+            if (i > 0) date = date.minusDays(1)
+            val dayOfWeek = date.dayOfWeek
+            if (dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY) {
+                dates.add(date.format(dateFormat))
             }
         }
         return dates.reversed() // oldest first
     }
 
     private fun getCutoffDate(daysBack: Int): String {
-        val calendar = Calendar.getInstance()
-        calendar.add(Calendar.DAY_OF_YEAR, -daysBack)
-        return dateFormat.format(calendar.time)
+        return LocalDate.now().minusDays(daysBack.toLong()).format(dateFormat)
     }
 }

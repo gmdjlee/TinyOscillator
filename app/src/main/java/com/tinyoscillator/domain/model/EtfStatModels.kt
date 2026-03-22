@@ -84,5 +84,11 @@ enum class DateRange(val label: String, val days: Int) {
     MONTH_3("3개월", 90),
     MONTH_6("6개월", 180),
     YEAR_1("1년", 365),
-    ALL("전체", Int.MAX_VALUE)
+    ALL("전체", Int.MAX_VALUE);
+
+    fun getCutoffDate(): String {
+        if (days == Int.MAX_VALUE) return "19700101"
+        return java.time.LocalDate.now().minusDays(days.toLong())
+            .format(com.tinyoscillator.core.util.DateFormats.yyyyMMdd)
+    }
 }

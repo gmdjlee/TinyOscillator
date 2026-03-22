@@ -16,6 +16,7 @@ import com.tinyoscillator.presentation.etf.stats.normalizeMarketCode
 import com.tinyoscillator.presentation.settings.loadEtfKeywordFilter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,7 +27,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import com.tinyoscillator.core.util.DateFormats
 import java.time.temporal.WeekFields
 import javax.inject.Inject
 
@@ -233,6 +234,8 @@ class EtfStatsViewModel @Inject constructor(
                     .associate { it.ticker to (normalizeMarketCode(it.market) ?: it.market) }
                 sectorMap = stockMasterDao.getTickerSectorMap()
                     .associate { it.ticker to it.sector }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "Failed to load excluded tickers")
             }
@@ -252,6 +255,8 @@ class EtfStatsViewModel @Inject constructor(
                     autoSelectComparisonIfNeeded()
                     loadAllStats()
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "Failed to load dates")
             }
@@ -338,7 +343,7 @@ class EtfStatsViewModel @Inject constructor(
     }
 }
 
-private val DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd")
+private val DATE_FMT = DateFormats.yyyyMMdd
 
 private fun buildWeekLabel(weekNumber: Int, dateRange: Pair<String, String>): String {
     fun shortDate(d: String) = "${d.substring(4, 6)}.${d.substring(6, 8)}"

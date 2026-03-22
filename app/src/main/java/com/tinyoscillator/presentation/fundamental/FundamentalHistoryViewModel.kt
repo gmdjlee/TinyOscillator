@@ -5,9 +5,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.network.NetworkUtils
+import com.tinyoscillator.core.config.ApiConfigProvider
+import com.tinyoscillator.core.util.DateFormats
 import com.tinyoscillator.data.repository.FundamentalHistoryRepository
 import com.tinyoscillator.domain.model.FundamentalHistoryState
-import com.tinyoscillator.presentation.settings.loadKrxCredentials
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,14 +18,14 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 @HiltViewModel
 class FundamentalHistoryViewModel @Inject constructor(
     application: Application,
     private val fundamentalHistoryRepository: FundamentalHistoryRepository,
-    private val krxApiClient: KrxApiClient
+    private val krxApiClient: KrxApiClient,
+    private val apiConfigProvider: ApiConfigProvider
 ) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow<FundamentalHistoryState>(FundamentalHistoryState.NoStock)
@@ -38,7 +39,7 @@ class FundamentalHistoryViewModel @Inject constructor(
     @Volatile
     private var loginAttempted = false
 
-    private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val fmt = DateFormats.yyyyMMdd
 
     fun loadForStock(ticker: String, name: String) {
         if (ticker == currentTicker && _state.value is FundamentalHistoryState.Loading) return
@@ -121,7 +122,7 @@ class FundamentalHistoryViewModel @Inject constructor(
             if (loginAttempted) return@withLock false
 
             loginAttempted = true
-            val creds = loadKrxCredentials(getApplication())
+            val creds = apiConfigProvider.getKrxCredentials()
             if (creds.id.isBlank() || creds.password.isBlank()) {
                 Timber.w("KRX credentials 미설정")
                 return@withLock false

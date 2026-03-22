@@ -8,7 +8,10 @@ import com.tinyoscillator.presentation.settings.loadDepositScheduleTime
 import com.tinyoscillator.presentation.settings.loadEtfScheduleTime
 import com.tinyoscillator.presentation.settings.loadOscillatorScheduleTime
 import dagger.hilt.android.HiltAndroidApp
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -29,19 +32,21 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
 
         CollectionNotificationHelper.createChannel(this)
 
-        val etfSchedule = runBlocking { loadEtfScheduleTime(this@TinyOscillatorApp) }
-        if (etfSchedule.enabled) {
-            WorkManagerHelper.scheduleEtfUpdate(this, etfSchedule.hour, etfSchedule.minute)
-        }
+        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+            val etfSchedule = loadEtfScheduleTime(this@TinyOscillatorApp)
+            if (etfSchedule.enabled) {
+                WorkManagerHelper.scheduleEtfUpdate(this@TinyOscillatorApp, etfSchedule.hour, etfSchedule.minute)
+            }
 
-        val oscSchedule = runBlocking { loadOscillatorScheduleTime(this@TinyOscillatorApp) }
-        if (oscSchedule.enabled) {
-            WorkManagerHelper.scheduleOscillatorUpdate(this, oscSchedule.hour, oscSchedule.minute)
-        }
+            val oscSchedule = loadOscillatorScheduleTime(this@TinyOscillatorApp)
+            if (oscSchedule.enabled) {
+                WorkManagerHelper.scheduleOscillatorUpdate(this@TinyOscillatorApp, oscSchedule.hour, oscSchedule.minute)
+            }
 
-        val depositSchedule = runBlocking { loadDepositScheduleTime(this@TinyOscillatorApp) }
-        if (depositSchedule.enabled) {
-            WorkManagerHelper.scheduleDepositUpdate(this, depositSchedule.hour, depositSchedule.minute)
+            val depositSchedule = loadDepositScheduleTime(this@TinyOscillatorApp)
+            if (depositSchedule.enabled) {
+                WorkManagerHelper.scheduleDepositUpdate(this@TinyOscillatorApp, depositSchedule.hour, depositSchedule.minute)
+            }
         }
     }
 }

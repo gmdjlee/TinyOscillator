@@ -7,6 +7,7 @@ import com.tinyoscillator.data.repository.FundamentalHistoryRepository
 import com.tinyoscillator.domain.model.FundamentalHistoryData
 import com.tinyoscillator.domain.model.FundamentalHistoryState
 import com.tinyoscillator.presentation.settings.KrxCredentials
+import com.tinyoscillator.core.config.ApiConfigProvider
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,6 +23,7 @@ class FundamentalHistoryViewModelTest {
     private lateinit var application: Application
     private lateinit var repository: FundamentalHistoryRepository
     private lateinit var krxApiClient: KrxApiClient
+    private lateinit var apiConfigProvider: ApiConfigProvider
     private lateinit var viewModel: FundamentalHistoryViewModel
     private val testDispatcher = StandardTestDispatcher()
 
@@ -34,6 +36,7 @@ class FundamentalHistoryViewModelTest {
         application = mockk(relaxed = true)
         repository = mockk(relaxed = true)
         krxApiClient = mockk(relaxed = true)
+        apiConfigProvider = mockk(relaxed = true)
 
         mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
         coEvery {
@@ -42,7 +45,7 @@ class FundamentalHistoryViewModelTest {
 
         every { krxApiClient.getKrxStock() } returns mockk()
 
-        viewModel = FundamentalHistoryViewModel(application, repository, krxApiClient)
+        viewModel = FundamentalHistoryViewModel(application, repository, krxApiClient, apiConfigProvider)
     }
 
     @After
@@ -123,7 +126,7 @@ class FundamentalHistoryViewModelTest {
             com.tinyoscillator.presentation.settings.loadKrxCredentials(any())
         } returns KrxCredentials(id = "test", password = "test")
 
-        viewModel = FundamentalHistoryViewModel(application, repository, krxApiClient)
+        viewModel = FundamentalHistoryViewModel(application, repository, krxApiClient, apiConfigProvider)
 
         viewModel.state.test {
             assertEquals(FundamentalHistoryState.NoStock, awaitItem())

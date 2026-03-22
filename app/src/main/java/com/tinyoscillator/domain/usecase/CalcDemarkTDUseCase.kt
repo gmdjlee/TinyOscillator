@@ -4,8 +4,8 @@ import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.DemarkPeriodType
 import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.OscillatorConfig.Companion.MARKET_CAP_DIVISOR
+import com.tinyoscillator.core.util.DateFormats
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.time.temporal.IsoFields
 
 /**
@@ -20,7 +20,7 @@ import java.time.temporal.IsoFields
  */
 class CalcDemarkTDUseCase {
 
-    private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val fmt = DateFormats.yyyyMMdd
 
     fun execute(dailyData: List<DailyTrading>, periodType: DemarkPeriodType): List<DemarkTDRow> {
         require(dailyData.isNotEmpty()) { "일별 데이터가 비어있습니다" }

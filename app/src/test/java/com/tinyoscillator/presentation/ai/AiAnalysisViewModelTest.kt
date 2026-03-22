@@ -13,6 +13,7 @@ import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.domain.usecase.SearchStocksUseCase
+import com.tinyoscillator.core.config.ApiConfigProvider
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -36,6 +37,7 @@ class AiAnalysisViewModelTest {
     private lateinit var searchStocksUseCase: SearchStocksUseCase
     private lateinit var aiApiClient: AiApiClient
     private lateinit var aiPreparer: AiAnalysisPreparer
+    private lateinit var apiConfigProvider: ApiConfigProvider
     private lateinit var viewModel: AiAnalysisViewModel
     private val testDispatcher = StandardTestDispatcher()
 
@@ -56,6 +58,7 @@ class AiAnalysisViewModelTest {
         searchStocksUseCase = mockk(relaxed = true)
         aiApiClient = mockk(relaxed = true)
         aiPreparer = AiAnalysisPreparer()
+        apiConfigProvider = mockk(relaxed = true)
 
         mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
         coEvery { com.tinyoscillator.presentation.settings.loadKiwoomConfig(any()) } returns validKiwoomConfig
@@ -68,7 +71,7 @@ class AiAnalysisViewModelTest {
         viewModel = AiAnalysisViewModel(
             application, stockRepository, financialRepository, etfRepository,
             marketIndicatorRepository, calcOscillator, calcDemarkTD,
-            searchStocksUseCase, aiApiClient, aiPreparer
+            searchStocksUseCase, aiApiClient, aiPreparer, apiConfigProvider
         )
     }
 

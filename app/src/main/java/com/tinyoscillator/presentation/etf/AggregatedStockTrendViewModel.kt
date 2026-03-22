@@ -13,11 +13,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
@@ -54,6 +52,8 @@ class AggregatedStockTrendViewModel @Inject constructor(
                 val data = etfRepository.getStockAggregatedTrend(stockTicker, excludedTickers)
                 _allData.value = data
                 applyFilter()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "Failed to load aggregated stock trend")
             }
@@ -71,16 +71,9 @@ class AggregatedStockTrendViewModel @Inject constructor(
         if (range == DateRange.ALL) {
             _filteredData.value = all
         } else {
-            val cutoff = getCutoffDate(range.days)
+            val cutoff = range.getCutoffDate()
             _filteredData.value = all.filter { it.date >= cutoff }
         }
-    }
-
-    private fun getCutoffDate(daysBack: Int): String {
-        val sdf = SimpleDateFormat("yyyyMMdd", Locale.KOREA)
-        val cal = Calendar.getInstance()
-        cal.add(Calendar.DAY_OF_YEAR, -daysBack)
-        return sdf.format(cal.time)
     }
 
     fun getStockTicker(): String = stockTicker

@@ -8,8 +8,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.tinyoscillator.core.util.DateFormats
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 @Composable
 fun AddTransactionDialog(
@@ -19,7 +19,7 @@ fun AddTransactionDialog(
 ) {
     var shares by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))) }
+    var date by remember { mutableStateOf(LocalDate.now().format(DateFormats.yyyyMMdd)) }
     var memo by remember { mutableStateOf("") }
 
     AlertDialog(

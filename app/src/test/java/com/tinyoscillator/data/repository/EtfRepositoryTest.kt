@@ -454,7 +454,7 @@ class EtfRepositoryTest {
             cal.add(java.util.Calendar.DAY_OF_YEAR, -i)
             val dayOfWeek = cal.get(java.util.Calendar.DAY_OF_WEEK)
             if (dayOfWeek != java.util.Calendar.SATURDAY && dayOfWeek != java.util.Calendar.SUNDAY) {
-                EtfDatePair("ETF001", java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.KOREA).format(cal.time))
+                EtfDatePair("ETF001", com.tinyoscillator.core.util.DateFormats.yyyyMMdd.format(java.time.LocalDate.of(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH))))
             } else null
         }
         coEvery { etfDao.getExistingHoldingPairs() } returns allPairs

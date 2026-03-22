@@ -20,8 +20,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.core.database.entity.StockMasterEntity
 import com.tinyoscillator.presentation.etf.stats.MarketBadge
 import com.tinyoscillator.presentation.etf.stats.SectorBadge
+import com.tinyoscillator.core.util.DateFormats
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,7 +36,7 @@ fun AddHoldingDialog(
     var query by remember { mutableStateOf("") }
     var shares by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))) }
+    var date by remember { mutableStateOf(LocalDate.now().format(DateFormats.yyyyMMdd)) }
     var memo by remember { mutableStateOf("") }
     var targetPrice by remember { mutableStateOf("") }
 

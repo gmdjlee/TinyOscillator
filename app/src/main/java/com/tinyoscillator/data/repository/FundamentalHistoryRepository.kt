@@ -7,8 +7,8 @@ import com.tinyoscillator.domain.model.FundamentalHistoryData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import com.tinyoscillator.core.util.DateFormats
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,12 +18,13 @@ class FundamentalHistoryRepository @Inject constructor(
     private val fundamentalCacheDao: FundamentalCacheDao,
     private val krxApiClient: KrxApiClient
 ) {
-    private val fmt = DateTimeFormatter.ofPattern("yyyyMMdd")
+    private val fmt = DateFormats.yyyyMMdd
     private val lastFetchTime = ConcurrentHashMap<String, Long>()
 
     companion object {
         private const val COOLDOWN_MS = 3_600_000L // 1시간
         private const val TTL_DAYS = 730L
+        private const val MAX_COOLDOWN_ENTRIES = 50
     }
 
     suspend fun getFundamentalHistory(
@@ -83,6 +84,10 @@ class FundamentalHistoryRepository @Inject constructor(
         }
 
         lastFetchTime[ticker] = System.currentTimeMillis()
+        if (lastFetchTime.size > MAX_COOLDOWN_ENTRIES) {
+            val oldest = lastFetchTime.entries.minByOrNull { it.value }?.key
+            if (oldest != null) lastFetchTime.remove(oldest)
+        }
 
         if (newData.isNotEmpty()) {
             val entities = newData.map { item ->

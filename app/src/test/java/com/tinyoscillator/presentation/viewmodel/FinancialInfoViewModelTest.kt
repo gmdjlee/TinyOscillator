@@ -3,6 +3,7 @@ package com.tinyoscillator.presentation.viewmodel
 import android.app.Application
 import app.cash.turbine.test
 import com.tinyoscillator.core.api.ApiError
+import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.domain.model.*
 import com.tinyoscillator.presentation.financial.FinancialInfoViewModel
@@ -20,6 +21,7 @@ class FinancialInfoViewModelTest {
 
     private lateinit var application: Application
     private lateinit var financialRepository: FinancialRepository
+    private lateinit var apiConfigProvider: ApiConfigProvider
     private lateinit var viewModel: FinancialInfoViewModel
     private val testDispatcher = StandardTestDispatcher()
 
@@ -31,6 +33,7 @@ class FinancialInfoViewModelTest {
         Dispatchers.setMain(testDispatcher)
         application = mockk(relaxed = true)
         financialRepository = mockk(relaxed = true)
+        apiConfigProvider = mockk(relaxed = true)
         // Mock loadKisConfig - returns empty config (invalid)
         mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
         coEvery {
@@ -39,7 +42,7 @@ class FinancialInfoViewModelTest {
             appKey = "test-key",
             appSecret = "test-secret"
         )
-        viewModel = FinancialInfoViewModel(application, financialRepository)
+        viewModel = FinancialInfoViewModel(application, financialRepository, apiConfigProvider)
     }
 
     @After

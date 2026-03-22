@@ -23,7 +23,8 @@ class CircuitBreaker(
             if (opened == 0L) return false
             if (System.currentTimeMillis() - opened > cooldownMs) {
                 // Cooldown expired → half-open (allow next attempt)
-                openedAt.set(0L)
+                // Use compareAndSet to prevent multiple threads entering half-open
+                openedAt.compareAndSet(opened, 0L)
                 return false
             }
             return true
