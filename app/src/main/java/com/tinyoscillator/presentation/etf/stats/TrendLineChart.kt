@@ -16,6 +16,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+import com.tinyoscillator.presentation.financial.FinancialMarkerView
 
 @Composable
 fun TrendLineChart(
@@ -66,6 +67,12 @@ fun TrendLineChart(
                 }
 
                 this.data = LineData(dataSet)
+
+                marker = FinancialMarkerView(
+                    context, labels
+                ) { value -> "%.2f".format(value) }
+                isHighlightPerTapEnabled = true
+
                 invalidate()
             }
         },
@@ -93,6 +100,9 @@ fun TrendLineChart(
                 }
 
                 chart.data = LineData(dataSet)
+                chart.marker = FinancialMarkerView(
+                    chart.context, labels
+                ) { value -> "%.2f".format(value) }
                 lastBound[0] = boundKey
             }
             chart.invalidate()

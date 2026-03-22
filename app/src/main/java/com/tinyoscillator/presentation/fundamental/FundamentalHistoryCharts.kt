@@ -1,6 +1,8 @@
 package com.tinyoscillator.presentation.fundamental
 
+import android.content.Context
 import android.graphics.Color as AndroidColor
+import android.widget.TextView
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,12 +15,16 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.MarkerView
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.github.mikephil.charting.formatter.ValueFormatter
+import com.github.mikephil.charting.highlight.Highlight
+import com.github.mikephil.charting.utils.MPPointF
+import com.tinyoscillator.R
 import com.tinyoscillator.domain.model.FundamentalHistoryData
 import com.tinyoscillator.presentation.financial.ChartCard
 import com.tinyoscillator.presentation.financial.FinancialMarkerView
@@ -339,6 +345,11 @@ fun FundamentalHistoryCharts(
                             }
                         }
                         chart.axisRight.isEnabled = false
+
+                        chart.marker = PbrRoeMarkerView(chart.context)
+                        (chart.marker as MarkerView).chartView = chart
+                        chart.isHighlightPerTapEnabled = true
+
                         chart.invalidate()
                     }
                 )
@@ -453,5 +464,24 @@ private fun setupXAxis(chart: LineChart, labels: List<String>, chartTextColor: I
         setDrawGridLines(false)
         textColor = chartTextColor
         labelRotationAngle = -45f
+    }
+}
+
+/** PBR vs ROE 산점도 마커 — Entry.data에 분기 라벨이 저장되어 있음 */
+private class PbrRoeMarkerView(
+    context: Context
+) : MarkerView(context, R.layout.chart_marker_view) {
+    private val tvContent: TextView = findViewById(R.id.marker_text)
+
+    override fun refreshContent(e: Entry?, highlight: Highlight?) {
+        if (e != null) {
+            val quarter = e.data as? String ?: ""
+            tvContent.text = "$quarter\nPBR: ${"%.2f".format(e.x)}\nROE: ${"%.1f%%".format(e.y)}"
+        }
+        super.refreshContent(e, highlight)
+    }
+
+    override fun getOffset(): MPPointF {
+        return MPPointF(-(width / 2f), -height.toFloat())
     }
 }

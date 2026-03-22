@@ -22,6 +22,7 @@ import com.github.mikephil.charting.formatter.ValueFormatter
 import com.tinyoscillator.domain.model.DateRangeOption
 import com.tinyoscillator.domain.model.MarketDepositChartData
 import com.tinyoscillator.domain.model.MarketDepositState
+import com.tinyoscillator.presentation.financial.FinancialMarkerView
 
 @Composable
 fun MarketDepositTab(
@@ -354,6 +355,12 @@ private fun ChartSection(data: MarketDepositChartData) {
                     val lineData = LineData(depositDataSet, creditDataSet)
                     val combinedData = CombinedData().apply { setData(lineData) }
                     chart.data = combinedData
+
+                    chart.marker = FinancialMarkerView(
+                        chart.context, data.dates
+                    ) { value -> String.format("%.0f억원", value) }
+                    chart.isHighlightPerTapEnabled = true
+
                     chart.invalidate()
                 },
                 modifier = Modifier.fillMaxWidth().height(250.dp)

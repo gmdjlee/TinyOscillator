@@ -50,7 +50,20 @@ class FinancialMarkerView(
             val xIndex = e.x.toInt()
             val date = dates.getOrElse(xIndex) { "" }
             val value = formatter(e.y)
-            tvContent.text = "$date\n$value"
+
+            // Show dataset label when chart has multiple datasets
+            val dataSetLabel = highlight?.let { h ->
+                val chartData = chartView?.data ?: return@let null
+                if (chartData.dataSetCount > 1) {
+                    chartData.getDataSetByIndex(h.dataSetIndex)?.label
+                } else null
+            }
+
+            tvContent.text = if (dataSetLabel != null) {
+                "$date\n$dataSetLabel: $value"
+            } else {
+                "$date\n$value"
+            }
         } catch (_: Exception) {
             tvContent.text = ""
         }
