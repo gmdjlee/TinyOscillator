@@ -33,16 +33,16 @@ import com.tinyoscillator.ui.theme.ThemeMode
 import com.tinyoscillator.ui.theme.ThemeModeState
 
 /**
- * Stitch 디자인 시스템 기반 공통 컴포넌트.
- * - 카드: 12dp 라운드, 미세한 그림자, 보더 없음
+ * Organic 디자인 시스템 기반 공통 컴포넌트.
+ * - 카드: 16dp 라운드, 미세한 그림자, 보더 없음
  * - 탭: Pill 스타일 선택 인디케이터
  * - TopAppBar: 깔끔한 타이틀 + 액션
  */
 
 /**
- * Stitch 스타일 카드: 12dp 라운드 코너, Tonal Layering.
- * Dark: surfaceContainerHigh (#262A31) — "No-Line Rule" 에 따라 배경색 차이로 깊이감 표현
- * Light: surface (#FFFFFF) + 미세 그림자
+ * Organic 스타일 카드: 16dp 라운드 코너, Tonal Layering.
+ * Dark: surfaceContainerHigh (#292B26) — 배경색 차이로 깊이감 표현
+ * Light: surfaceContainerHigh (#E7E9DB) + 미세 그림자
  */
 @Composable
 fun FinanceCard(
@@ -55,11 +55,11 @@ fun FinanceCard(
         modifier = modifier
             .shadow(
                 elevation = elevation,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
                 ambientColor = Color.Black.copy(alpha = 0.05f),
                 spotColor = Color.Black.copy(alpha = 0.03f)
             ),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = containerColor
         ),
@@ -218,7 +218,7 @@ fun GlassCard(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
             .then(
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
                     Modifier.blur(20.dp)
@@ -236,7 +236,7 @@ fun GlassCard(
     // 실제 콘텐츠는 블러 없이 렌더링
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
         ),
@@ -280,7 +280,7 @@ fun CarvedTextField(
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
         singleLine = singleLine,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
@@ -300,7 +300,7 @@ fun CategoryBadge(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         color = color.copy(alpha = 0.15f)
     ) {
         Text(

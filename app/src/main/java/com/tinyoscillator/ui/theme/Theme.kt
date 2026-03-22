@@ -122,6 +122,7 @@ private val LightColorScheme = lightColorScheme(
     surfaceContainerHigh = LightSurfaceContainerHigh,
     surfaceContainerHighest = LightSurfaceContainerHighest,
     surfaceBright = LightSurfaceBright,
+    surfaceDim = LightSurfaceDim,
     inverseSurface = LightInverseSurface,
     inverseOnSurface = LightInverseOnSurface,
     inversePrimary = LightInversePrimary

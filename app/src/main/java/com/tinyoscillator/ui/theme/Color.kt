@@ -2,91 +2,92 @@ package com.tinyoscillator.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// === Light Theme Colors (Primary: Soft Blue, Accent: Teal) ===
-val LightPrimary = Color(0xFF1565C0)
+// === Light Theme (Organic Modern — Botanical Finance) ===
+val LightPrimary = Color(0xFF345519)          // Olive Green
 val LightOnPrimary = Color(0xFFFFFFFF)
-val LightPrimaryContainer = Color(0xFFD4E3FF)
-val LightOnPrimaryContainer = Color(0xFF001C3A)
+val LightPrimaryContainer = Color(0xFF4B6E2F)
+val LightOnPrimaryContainer = Color(0xFFC5EFA1)
 
-val LightSecondary = Color(0xFF00897B)
+val LightSecondary = Color(0xFF5C614D)        // Muted Olive
 val LightOnSecondary = Color(0xFFFFFFFF)
-val LightSecondaryContainer = Color(0xFFB2DFDB)
-val LightOnSecondaryContainer = Color(0xFF002019)
+val LightSecondaryContainer = Color(0xFFDEE2C9)
+val LightOnSecondaryContainer = Color(0xFF606551)
 
-val LightTertiary = Color(0xFF5C6BC0)
+val LightTertiary = Color(0xFF2A5353)          // Teal
 val LightOnTertiary = Color(0xFFFFFFFF)
-val LightTertiaryContainer = Color(0xFFDDE1FF)
-val LightOnTertiaryContainer = Color(0xFF001356)
+val LightTertiaryContainer = Color(0xFF436B6B)
+val LightOnTertiaryContainer = Color(0xFFBFEAE9)
 
-val LightError = Color(0xFFC62828)
+val LightError = Color(0xFFBA1A1A)
 val LightOnError = Color(0xFFFFFFFF)
 val LightErrorContainer = Color(0xFFFFDAD6)
-val LightOnErrorContainer = Color(0xFF410002)
+val LightOnErrorContainer = Color(0xFF93000A)
 
-val LightBackground = Color(0xFFF8F9FA)
-val LightOnBackground = Color(0xFF1A1A2E)
-val LightSurface = Color(0xFFF8F9FA)
-val LightOnSurface = Color(0xFF1A1A2E)
-val LightSurfaceVariant = Color(0xFFE7E8EC)
-val LightOnSurfaceVariant = Color(0xFF44474F)
-val LightOutline = Color(0xFF74777F)
-val LightOutlineVariant = Color(0xFFC4C6D0)
-val LightSurfaceContainer = Color(0xFFFFFFFF)
-val LightSurfaceContainerLow = Color(0xFFF1F3F5)
-val LightSurfaceContainerHigh = Color(0xFFEBEDF0)
-val LightSurfaceContainerHighest = Color(0xFFE1E3E6)
+val LightBackground = Color(0xFFF9FBEC)        // Warm Ivory
+val LightOnBackground = Color(0xFF1A1D14)
+val LightSurface = Color(0xFFF9FBEC)
+val LightOnSurface = Color(0xFF1A1D14)
+val LightSurfaceVariant = Color(0xFFE2E4D6)
+val LightOnSurfaceVariant = Color(0xFF43493D)
+val LightOutline = Color(0xFF74796C)
+val LightOutlineVariant = Color(0xFFC3C8B9)
+val LightSurfaceContainer = Color(0xFFEDEFE1)
+val LightSurfaceContainerLow = Color(0xFFF3F5E7)
+val LightSurfaceContainerHigh = Color(0xFFE7E9DB)
+val LightSurfaceContainerHighest = Color(0xFFE2E4D6)
 val LightSurfaceContainerLowest = Color(0xFFFFFFFF)
-val LightSurfaceBright = Color(0xFFF8F9FA)
-val LightInverseSurface = Color(0xFF2D3137)
-val LightInverseOnSurface = Color(0xFFF0F0F5)
-val LightInversePrimary = Color(0xFFBDC2FF)
+val LightSurfaceBright = Color(0xFFF9FBEC)
+val LightSurfaceDim = Color(0xFFD9DBCD)
+val LightInverseSurface = Color(0xFF2E3228)
+val LightInverseOnSurface = Color(0xFFF0F2E4)
+val LightInversePrimary = Color(0xFFAAD388)
 
-// === Dark Theme Colors (Obsidian Ledger — "Digital Vault") ===
-val DarkPrimary = Color(0xFFDFE0FF)
-val DarkOnPrimary = Color(0xFF262B5E)
-val DarkPrimaryContainer = Color(0xFFBDC2FF)
-val DarkOnPrimaryContainer = Color(0xFF494E83)
+// === Dark Theme (Organic Dark — Botanical Night) ===
+val DarkPrimary = Color(0xFFAAD388)            // Soft Green
+val DarkOnPrimary = Color(0xFF193800)
+val DarkPrimaryContainer = Color(0xFF4B6E2F)
+val DarkOnPrimaryContainer = Color(0xFFC5EFA1)
 
-val DarkSecondary = Color(0xFF44D8F1)
-val DarkOnSecondary = Color(0xFF00363E)
-val DarkSecondaryContainer = Color(0xFF00BCD4)
-val DarkOnSecondaryContainer = Color(0xFF004651)
+val DarkSecondary = Color(0xFFBBCCA8)          // Muted Sage
+val DarkOnSecondary = Color(0xFF27341B)
+val DarkSecondaryContainer = Color(0xFF3F4D32)
+val DarkOnSecondaryContainer = Color(0xFFD7E8C3)
 
-val DarkTertiary = Color(0xFF94F990)
-val DarkOnTertiary = Color(0xFF00390A)
-val DarkTertiaryContainer = Color(0xFF78DC77)
-val DarkOnTertiaryContainer = Color(0xFF006018)
+val DarkTertiary = Color(0xFFFDAFDE)           // Pink accent
+val DarkOnTertiary = Color(0xFF521B42)
+val DarkTertiaryContainer = Color(0xFF8F4F79)
+val DarkOnTertiaryContainer = Color(0xFFFFD8ED)
 
 val DarkError = Color(0xFFFFB4AB)
 val DarkOnError = Color(0xFF690005)
 val DarkErrorContainer = Color(0xFF93000A)
 val DarkOnErrorContainer = Color(0xFFFFDAD6)
 
-val DarkBackground = Color(0xFF10141A)
-val DarkOnBackground = Color(0xFFDFE2EB)
-val DarkSurface = Color(0xFF10141A)
-val DarkOnSurface = Color(0xFFDFE2EB)
-val DarkSurfaceVariant = Color(0xFF31353C)
-val DarkOnSurfaceVariant = Color(0xFFC7C5D0)
-val DarkOutline = Color(0xFF91909A)
-val DarkOutlineVariant = Color(0xFF46464F)
+val DarkBackground = Color(0xFF121410)          // Dark Olive
+val DarkOnBackground = Color(0xFFE3E3DC)
+val DarkSurface = Color(0xFF121410)
+val DarkOnSurface = Color(0xFFE3E3DC)
+val DarkSurfaceVariant = Color(0xFF43493D)
+val DarkOnSurfaceVariant = Color(0xFFC3C8B9)
+val DarkOutline = Color(0xFF8D9385)
+val DarkOutlineVariant = Color(0xFF43493D)
 
-// Obsidian Ledger: Tonal Surface Container Hierarchy (No-Line Rule)
-val DarkSurfaceContainer = Color(0xFF1C2026)
-val DarkSurfaceContainerLow = Color(0xFF181C22)
-val DarkSurfaceContainerHigh = Color(0xFF262A31)
-val DarkSurfaceContainerHighest = Color(0xFF31353C)
-val DarkSurfaceContainerLowest = Color(0xFF0A0E14)
-val DarkSurfaceBright = Color(0xFF353940)
-val DarkSurfaceDim = Color(0xFF10141A)
-val DarkInverseSurface = Color(0xFFDFE2EB)
-val DarkInverseOnSurface = Color(0xFF2D3137)
-val DarkInversePrimary = Color(0xFF555A90)
+// Organic Dark: Tonal Surface Container Hierarchy
+val DarkSurfaceContainer = Color(0xFF1E201C)
+val DarkSurfaceContainerLow = Color(0xFF1A1C18)
+val DarkSurfaceContainerHigh = Color(0xFF292B26)
+val DarkSurfaceContainerHighest = Color(0xFF333531)
+val DarkSurfaceContainerLowest = Color(0xFF0D0F0B)
+val DarkSurfaceBright = Color(0xFF383A35)
+val DarkSurfaceDim = Color(0xFF121410)
+val DarkInverseSurface = Color(0xFFE3E3DC)
+val DarkInverseOnSurface = Color(0xFF2F312C)
+val DarkInversePrimary = Color(0xFF345519)
 
 // === Semantic Colors (Finance) ===
-val Positive = Color(0xFF2E7D32)
-val Negative = Color(0xFFC62828)
-val Neutral = Color(0xFFF9A825)
-val PositiveDark = Color(0xFF78DC77)
-val NegativeDark = Color(0xFFFFB4AB)
-val NeutralDark = Color(0xFFFFD54F)
+val Positive = Color(0xFF345519)       // Organic green
+val Negative = Color(0xFFBA1A1A)       // Standard error red
+val Neutral = Color(0xFF5C614D)        // Olive neutral
+val PositiveDark = Color(0xFFAAD388)   // Organic soft green
+val NegativeDark = Color(0xFFFFB4AB)   // Soft red
+val NeutralDark = Color(0xFFBBCCA8)    // Sage neutral
