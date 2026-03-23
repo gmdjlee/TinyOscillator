@@ -5,13 +5,16 @@ import com.tinyoscillator.core.api.KisApiClient
 import com.tinyoscillator.core.api.KiwoomApiClient
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
+import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.FundamentalCacheDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
+import com.tinyoscillator.core.scraper.EquityReportScraper
 import com.tinyoscillator.core.scraper.NaverFinanceScraper
+import com.tinyoscillator.data.repository.ConsensusRepository
 import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.data.repository.FundamentalHistoryRepository
@@ -114,6 +117,19 @@ object AppModule {
         scraper: NaverFinanceScraper,
         krxApiClient: KrxApiClient
     ): MarketIndicatorRepository = MarketIndicatorRepository(oscillatorDao, depositDao, calculator, scraper, krxApiClient)
+
+    @Provides
+    @Singleton
+    fun provideEquityReportScraper(httpClient: OkHttpClient): EquityReportScraper =
+        EquityReportScraper(httpClient)
+
+    @Provides
+    @Singleton
+    fun provideConsensusRepository(
+        consensusReportDao: ConsensusReportDao,
+        scraper: EquityReportScraper,
+        analysisCacheDao: AnalysisCacheDao
+    ): ConsensusRepository = ConsensusRepository(consensusReportDao, scraper, analysisCacheDao)
 
     @Provides
     @Singleton

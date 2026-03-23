@@ -28,6 +28,7 @@ import com.tinyoscillator.core.worker.KEY_MESSAGE
 import com.tinyoscillator.core.worker.KEY_PROGRESS
 import com.tinyoscillator.core.worker.MarketDepositUpdateWorker
 import com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker
+import com.tinyoscillator.core.worker.ConsensusUpdateWorker
 import com.tinyoscillator.core.worker.DataIntegrityCheckWorker
 import com.tinyoscillator.core.worker.MarketCloseRefreshWorker
 import com.tinyoscillator.core.worker.WorkManagerHelper
@@ -70,6 +71,9 @@ internal object PrefsKeys {
     const val MARKET_CLOSE_REFRESH_HOUR = "market_close_refresh_hour"
     const val MARKET_CLOSE_REFRESH_MINUTE = "market_close_refresh_minute"
     const val MARKET_CLOSE_REFRESH_ENABLED = "market_close_refresh_enabled"
+    const val CONSENSUS_SCHEDULE_HOUR = "consensus_schedule_hour"
+    const val CONSENSUS_SCHEDULE_MINUTE = "consensus_schedule_minute"
+    const val CONSENSUS_SCHEDULE_ENABLED = "consensus_schedule_enabled"
 }
 
 // KrxCredentials and EtfKeywordFilter moved to domain.model.EtfModels.kt
@@ -84,6 +88,8 @@ data class OscillatorScheduleTime(val hour: Int = 1, val minute: Int = 0, val en
 data class DepositScheduleTime(val hour: Int = 2, val minute: Int = 0, val enabled: Boolean = false)
 
 data class MarketCloseRefreshScheduleTime(val hour: Int = 19, val minute: Int = 0, val enabled: Boolean = false)
+
+data class ConsensusScheduleTime(val hour: Int = 3, val minute: Int = 0, val enabled: Boolean = false)
 
 data class EtfCollectionPeriod(val daysBack: Int = 14)
 
@@ -201,6 +207,23 @@ suspend fun saveMarketCloseRefreshScheduleTime(context: Context, schedule: Marke
         .putInt(PrefsKeys.MARKET_CLOSE_REFRESH_HOUR, schedule.hour)
         .putInt(PrefsKeys.MARKET_CLOSE_REFRESH_MINUTE, schedule.minute)
         .putBoolean(PrefsKeys.MARKET_CLOSE_REFRESH_ENABLED, schedule.enabled)
+        .apply()
+}
+
+suspend fun loadConsensusScheduleTime(context: Context): ConsensusScheduleTime = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    ConsensusScheduleTime(
+        hour = prefs.getInt(PrefsKeys.CONSENSUS_SCHEDULE_HOUR, 3),
+        minute = prefs.getInt(PrefsKeys.CONSENSUS_SCHEDULE_MINUTE, 0),
+        enabled = prefs.getBoolean(PrefsKeys.CONSENSUS_SCHEDULE_ENABLED, false)
+    )
+}
+
+suspend fun saveConsensusScheduleTime(context: Context, schedule: ConsensusScheduleTime) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putInt(PrefsKeys.CONSENSUS_SCHEDULE_HOUR, schedule.hour)
+        .putInt(PrefsKeys.CONSENSUS_SCHEDULE_MINUTE, schedule.minute)
+        .putBoolean(PrefsKeys.CONSENSUS_SCHEDULE_ENABLED, schedule.enabled)
         .apply()
 }
 
@@ -405,6 +428,10 @@ fun SettingsScreen(onBack: () -> Unit) {
     var marketCloseRefreshHour by remember { mutableIntStateOf(19) }
     var marketCloseRefreshMinute by remember { mutableIntStateOf(0) }
 
+    var consensusScheduleEnabled by remember { mutableStateOf(false) }
+    var consensusScheduleHour by remember { mutableIntStateOf(3) }
+    var consensusScheduleMinute by remember { mutableIntStateOf(0) }
+
     var marketOscCollectionDays by remember { mutableIntStateOf(30) }
     var marketDepositCollectionDays by remember { mutableIntStateOf(365) }
 
@@ -415,6 +442,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var lastOscLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastDepositLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastMarketCloseLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
+    var lastConsensusLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastIntegrityLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var allLogs by remember { mutableStateOf<List<WorkerLogEntity>>(emptyList()) }
     var logFilter by remember { mutableStateOf(LogFilter.ALL) }
@@ -435,12 +463,15 @@ fun SettingsScreen(onBack: () -> Unit) {
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val marketCloseRefreshWorkInfos by workManager.getWorkInfosByTagFlow(MarketCloseRefreshWorker.TAG)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+    val consensusWorkInfos by workManager.getWorkInfosByTagFlow(ConsensusUpdateWorker.TAG)
+        .collectAsStateWithLifecycle(initialValue = emptyList())
 
     val etfCollectionState = rememberCollectionState(etfWorkInfos)
     val oscCollectionState = rememberCollectionState(oscWorkInfos)
     val depositCollectionState = rememberCollectionState(depositWorkInfos)
     val integrityCheckState = rememberCollectionState(integrityWorkInfos)
     val marketCloseRefreshState = rememberCollectionState(marketCloseRefreshWorkInfos)
+    val consensusCollectionState = rememberCollectionState(consensusWorkInfos)
 
     LaunchedEffect(Unit) {
         try {
@@ -495,12 +526,18 @@ fun SettingsScreen(onBack: () -> Unit) {
             marketCloseRefreshHour = mcRefreshSchedule.hour
             marketCloseRefreshMinute = mcRefreshSchedule.minute
 
+            val consensusSchedule = loadConsensusScheduleTime(context)
+            consensusScheduleEnabled = consensusSchedule.enabled
+            consensusScheduleHour = consensusSchedule.hour
+            consensusScheduleMinute = consensusSchedule.minute
+
             // Worker execution logs
             val logDao = entryPoint.workerLogDao()
             lastEtfLog = logDao.getLatestLog(com.tinyoscillator.core.worker.EtfUpdateWorker.LABEL)
             lastOscLog = logDao.getLatestLog(com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker.LABEL)
             lastDepositLog = logDao.getLatestLog(com.tinyoscillator.core.worker.MarketDepositUpdateWorker.LABEL)
             lastMarketCloseLog = logDao.getLatestLog(MarketCloseRefreshWorker.LABEL)
+            lastConsensusLog = logDao.getLatestLog(ConsensusUpdateWorker.LABEL)
             lastIntegrityLog = logDao.getLatestLog(com.tinyoscillator.core.worker.DataIntegrityCheckWorker.LABEL)
             allLogs = logDao.getAllRecentLogs(200)
         } catch (e: CancellationException) {
@@ -661,10 +698,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                     integrityCheckProgress = integrityCheckState.progress,
                     isIntegrityChecking = integrityCheckState.isCollecting,
                     onIntegrityCheck = { WorkManagerHelper.runIntegrityCheckNow(context) },
+                    consensusScheduleEnabled = consensusScheduleEnabled,
+                    onConsensusScheduleEnabledChange = { consensusScheduleEnabled = it },
+                    consensusScheduleHour = consensusScheduleHour,
+                    onConsensusScheduleHourChange = { consensusScheduleHour = it },
+                    consensusScheduleMinute = consensusScheduleMinute,
+                    onConsensusScheduleMinuteChange = { consensusScheduleMinute = it },
+                    consensusManualMessage = consensusCollectionState.message,
+                    isConsensusCollecting = consensusCollectionState.isCollecting,
+                    onConsensusManualCollect = { WorkManagerHelper.runConsensusUpdateNow(context) },
                     lastEtfLog = lastEtfLog,
                     lastOscLog = lastOscLog,
                     lastDepositLog = lastDepositLog,
                     lastMarketCloseLog = lastMarketCloseLog,
+                    lastConsensusLog = lastConsensusLog,
                     lastIntegrityLog = lastIntegrityLog,
                     saveMessage = saveMessage,
                     onSave = {
@@ -673,7 +720,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 context, etfScheduleEnabled, scheduleHour, scheduleMinute,
                                 oscScheduleEnabled, oscScheduleHour, oscScheduleMinute,
                                 depositScheduleEnabled, depositScheduleHour, depositScheduleMinute,
-                                marketCloseRefreshEnabled, marketCloseRefreshHour, marketCloseRefreshMinute
+                                marketCloseRefreshEnabled, marketCloseRefreshHour, marketCloseRefreshMinute,
+                                consensusScheduleEnabled, consensusScheduleHour, consensusScheduleMinute
                             )
                         }
                     }
@@ -757,13 +805,15 @@ private suspend fun saveScheduleSettings(
     etfScheduleEnabled: Boolean, scheduleHour: Int, scheduleMinute: Int,
     oscScheduleEnabled: Boolean, oscScheduleHour: Int, oscScheduleMinute: Int,
     depositScheduleEnabled: Boolean, depositScheduleHour: Int, depositScheduleMinute: Int,
-    marketCloseRefreshEnabled: Boolean = false, marketCloseRefreshHour: Int = 19, marketCloseRefreshMinute: Int = 0
+    marketCloseRefreshEnabled: Boolean = false, marketCloseRefreshHour: Int = 19, marketCloseRefreshMinute: Int = 0,
+    consensusScheduleEnabled: Boolean = false, consensusScheduleHour: Int = 3, consensusScheduleMinute: Int = 0
 ): String {
     return try {
         saveEtfScheduleTime(context, EtfScheduleTime(scheduleHour, scheduleMinute, etfScheduleEnabled))
         saveOscillatorScheduleTime(context, OscillatorScheduleTime(oscScheduleHour, oscScheduleMinute, oscScheduleEnabled))
         saveDepositScheduleTime(context, DepositScheduleTime(depositScheduleHour, depositScheduleMinute, depositScheduleEnabled))
         saveMarketCloseRefreshScheduleTime(context, MarketCloseRefreshScheduleTime(marketCloseRefreshHour, marketCloseRefreshMinute, marketCloseRefreshEnabled))
+        saveConsensusScheduleTime(context, ConsensusScheduleTime(consensusScheduleHour, consensusScheduleMinute, consensusScheduleEnabled))
         if (etfScheduleEnabled) {
             WorkManagerHelper.scheduleEtfUpdate(context, scheduleHour, scheduleMinute)
         } else {
@@ -783,6 +833,11 @@ private suspend fun saveScheduleSettings(
             WorkManagerHelper.scheduleMarketCloseRefresh(context, marketCloseRefreshHour, marketCloseRefreshMinute)
         } else {
             WorkManagerHelper.cancelMarketCloseRefresh(context)
+        }
+        if (consensusScheduleEnabled) {
+            WorkManagerHelper.scheduleConsensusUpdate(context, consensusScheduleHour, consensusScheduleMinute)
+        } else {
+            WorkManagerHelper.cancelConsensusUpdate(context)
         }
         "저장되었습니다"
     } catch (e: CancellationException) {

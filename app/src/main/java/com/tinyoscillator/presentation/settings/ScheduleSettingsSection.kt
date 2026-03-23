@@ -201,6 +201,15 @@ internal fun ScheduleTab(
     marketCloseRefreshProgress: Float? = null,
     isMarketCloseRefreshing: Boolean = false,
     onMarketCloseRefreshManual: () -> Unit = {},
+    consensusScheduleEnabled: Boolean = false,
+    onConsensusScheduleEnabledChange: (Boolean) -> Unit = {},
+    consensusScheduleHour: Int = 3,
+    onConsensusScheduleHourChange: (Int) -> Unit = {},
+    consensusScheduleMinute: Int = 0,
+    onConsensusScheduleMinuteChange: (Int) -> Unit = {},
+    consensusManualMessage: String? = null,
+    isConsensusCollecting: Boolean = false,
+    onConsensusManualCollect: () -> Unit = {},
     integrityCheckMessage: String?,
     integrityCheckProgress: Float? = null,
     isIntegrityChecking: Boolean = false,
@@ -209,6 +218,7 @@ internal fun ScheduleTab(
     lastOscLog: WorkerLogEntity? = null,
     lastDepositLog: WorkerLogEntity? = null,
     lastMarketCloseLog: WorkerLogEntity? = null,
+    lastConsensusLog: WorkerLogEntity? = null,
     lastIntegrityLog: WorkerLogEntity? = null,
     saveMessage: String?,
     onSave: () -> Unit
@@ -294,6 +304,23 @@ internal fun ScheduleTab(
                 "장중 수집된 데이터를 장 마감 확정 데이터로 교체합니다. (종목분석, ETF, 시장지표)",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            ScheduleSection(
+                title = "리포트 자동 업데이트",
+                enabled = consensusScheduleEnabled,
+                onEnabledChange = onConsensusScheduleEnabledChange,
+                hour = consensusScheduleHour,
+                onHourChange = onConsensusScheduleHourChange,
+                minute = consensusScheduleMinute,
+                onMinuteChange = onConsensusScheduleMinuteChange,
+                manualButtonText = "지금 리포트 데이터 수집",
+                onManualCollect = onConsensusManualCollect,
+                message = consensusManualMessage,
+                isCollecting = isConsensusCollecting,
+                lastResult = lastConsensusLog
             )
         }
 

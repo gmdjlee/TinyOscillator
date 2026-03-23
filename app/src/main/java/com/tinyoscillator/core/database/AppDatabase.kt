@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
+import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.FundamentalCacheDao
@@ -14,6 +15,7 @@ import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.dao.WorkerLogDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
+import com.tinyoscillator.core.database.entity.ConsensusReportEntity
 import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.core.database.entity.FinancialCacheEntity
@@ -40,9 +42,10 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         PortfolioHoldingEntity::class,
         PortfolioTransactionEntity::class,
         FundamentalCacheEntity::class,
-        WorkerLogEntity::class
+        WorkerLogEntity::class,
+        ConsensusReportEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -56,4 +59,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun portfolioDao(): PortfolioDao
     abstract fun fundamentalCacheDao(): FundamentalCacheDao
     abstract fun workerLogDao(): WorkerLogDao
+    abstract fun consensusReportDao(): ConsensusReportDao
 }

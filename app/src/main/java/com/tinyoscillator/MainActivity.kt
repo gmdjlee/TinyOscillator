@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -61,12 +62,14 @@ import com.tinyoscillator.presentation.demark.DemarkTDContent
 import com.tinyoscillator.presentation.etf.AggregatedStockTrendScreen
 import com.tinyoscillator.presentation.etf.EtfScreen
 import com.tinyoscillator.presentation.etf.StockTrendScreen
+import com.tinyoscillator.presentation.consensus.ConsensusContent
 import com.tinyoscillator.presentation.financial.DuPontContent
 import com.tinyoscillator.presentation.financial.FinancialInfoContent
 import com.tinyoscillator.presentation.fundamental.FundamentalHistoryContent
 import com.tinyoscillator.presentation.ai.AiAnalysisScreen
 import com.tinyoscillator.presentation.market.MarketIndicatorScreen
 import com.tinyoscillator.presentation.portfolio.PortfolioScreen
+import com.tinyoscillator.presentation.report.ReportScreen
 import com.tinyoscillator.presentation.settings.SettingsScreen
 import com.tinyoscillator.presentation.viewmodel.OscillatorUiState
 import com.tinyoscillator.presentation.viewmodel.OscillatorViewModel
@@ -115,6 +118,7 @@ class MainActivity : ComponentActivity() {
 private enum class BottomNavItem(val label: String, val icon: ImageVector) {
     STOCK_ANALYSIS("종목분석", Icons.AutoMirrored.Filled.ShowChart),
     ETF_ANALYSIS("ETF분석", Icons.Default.PieChart),
+    REPORT("리포트", Icons.Default.Description),
     MARKET_INDICATOR("시장지표", Icons.AutoMirrored.Filled.TrendingUp),
     AI_ANALYSIS("AI분석", Icons.Default.Psychology),
     PORTFOLIO("포트폴리오", Icons.Default.AccountBalance)
@@ -195,6 +199,11 @@ private fun MainScaffold(
                         windowType = windowType
                     )
                 }
+                BottomNavItem.REPORT -> {
+                    ReportScreen(
+                        onSettingsClick = onSettingsClick
+                    )
+                }
                 BottomNavItem.MARKET_INDICATOR -> {
                     MarketIndicatorScreen(
                         onSettingsClick = onSettingsClick
@@ -256,6 +265,7 @@ private enum class MainTab(val label: String) {
     OSCILLATOR("오실레이터"),
     DEMARK("DeMark"),
     FINANCIAL("재무정보"),
+    CONSENSUS("컨센서스"),
     INDICATOR("지표"),
     DUPONT("DuPont")
 }
@@ -566,6 +576,14 @@ fun OscillatorScreen(
 
                     MainTab.FINANCIAL -> {
                         FinancialInfoContent(
+                            ticker = currentTicker,
+                            stockName = currentStockName,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    MainTab.CONSENSUS -> {
+                        ConsensusContent(
                             ticker = currentTicker,
                             stockName = currentStockName,
                             modifier = Modifier.fillMaxSize()

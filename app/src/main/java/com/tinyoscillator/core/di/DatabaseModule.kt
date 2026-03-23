@@ -8,6 +8,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
+import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.FundamentalCacheDao
@@ -256,6 +257,37 @@ object DatabaseModule {
         }
     }
 
+    /** Migration v10→v11: added consensus_reports table */
+    private val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `consensus_reports` (" +
+                        "`write_date` TEXT NOT NULL, " +
+                        "`category` TEXT NOT NULL, " +
+                        "`prev_opinion` TEXT NOT NULL, " +
+                        "`opinion` TEXT NOT NULL, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`stock_ticker` TEXT NOT NULL, " +
+                        "`author` TEXT NOT NULL, " +
+                        "`institution` TEXT NOT NULL, " +
+                        "`target_price` INTEGER NOT NULL, " +
+                        "`current_price` INTEGER NOT NULL, " +
+                        "`divergence_rate` REAL NOT NULL, " +
+                        "PRIMARY KEY(`stock_ticker`, `write_date`, `author`, `institution`))"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_consensus_reports_write_date` ON `consensus_reports` (`write_date`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_consensus_reports_stock_ticker_write_date` ON `consensus_reports` (`stock_ticker`, `write_date`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_consensus_reports_institution` ON `consensus_reports` (`institution`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_consensus_reports_category` ON `consensus_reports` (`category`)")
+                Timber.d("Migration v10→v11 성공: consensus_reports 테이블 생성")
+            } catch (e: Exception) {
+                Timber.e(e, "Migration v10→v11 실패")
+                throw e
+            }
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -265,7 +297,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
@@ -282,7 +314,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .build()
         }
     }
@@ -316,4 +348,7 @@ object DatabaseModule {
 
     @Provides
     fun provideWorkerLogDao(db: AppDatabase): WorkerLogDao = db.workerLogDao()
+
+    @Provides
+    fun provideConsensusReportDao(db: AppDatabase): ConsensusReportDao = db.consensusReportDao()
 }
