@@ -650,6 +650,7 @@ object BackupManager {
             val etfs = db.etfDao().getAllEtfsList()
             val etfHoldings = db.etfDao().getAllHoldings()
             val portfolios = db.portfolioDao().getAllPortfoliosList()
+            val consensusReports = db.consensusReportDao().getAll()
 
             onProgress("파일 쓰기 중...")
             context.contentResolver.openOutputStream(uri)?.use { os ->
@@ -663,7 +664,7 @@ object BackupManager {
                     w.write("analysis_history=${analysisHistory.size}, fundamental_cache=${fundamentalCache.size}, ")
                     w.write("financial_cache=${financialCache.size}, market_oscillator=${oscillators.size}, ")
                     w.write("market_deposits=${deposits.size}, etfs=${etfs.size}, etf_holdings=${etfHoldings.size}, ")
-                    w.write("portfolios=${portfolios.size}\n\n")
+                    w.write("portfolios=${portfolios.size}, consensus_reports=${consensusReports.size}\n\n")
 
                     // stock_master
                     w.write("## stock_master\n")
@@ -832,6 +833,15 @@ object BackupManager {
                     }
                     totalRecords += txCount
                     onProgress("portfolio: ${portfolios.size}개, holdings $holdingCount, tx $txCount")
+
+                    // consensus_reports
+                    w.write("\n## consensus_reports\n")
+                    w.write("writeDate${t}category${t}stockTicker${t}stockName${t}prevOpinion${t}opinion${t}title${t}author${t}institution${t}targetPrice${t}currentPrice${t}divergenceRate\n")
+                    for (cr in consensusReports) {
+                        w.write("${cr.writeDate}$t${cr.category}$t${cr.stockTicker}$t${cr.stockName}$t${cr.prevOpinion}$t${cr.opinion}$t${cr.title}$t${cr.author}$t${cr.institution}$t${cr.targetPrice}$t${cr.currentPrice}$t${cr.divergenceRate}\n")
+                    }
+                    totalRecords += consensusReports.size
+                    onProgress("consensus_reports: ${consensusReports.size}건")
                 }
             }
 

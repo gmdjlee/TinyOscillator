@@ -1,13 +1,12 @@
 package com.tinyoscillator.presentation.report
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -20,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,6 +26,10 @@ import com.tinyoscillator.domain.model.ConsensusFilter
 import com.tinyoscillator.domain.model.ConsensusFilterOptions
 import com.tinyoscillator.domain.model.ConsensusReport
 import java.text.NumberFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,7 +88,6 @@ fun ReportScreen(
                     CircularProgressIndicator()
                 }
             } else if (reports.isEmpty()) {
-                // Show header even when empty so user can clear filters
                 ReportTable(
                     reports = emptyList(),
                     filter = filter,
@@ -115,6 +116,20 @@ fun ReportScreen(
     }
 }
 
+// 컬럼 weight 비율 정의
+private object ColWeights {
+    const val DATE = 0.8f
+    const val TICKER = 0.7f
+    const val NAME = 0.9f
+    const val TITLE = 2.2f
+    const val OPINION = 0.6f
+    const val TARGET = 0.9f
+    const val CURRENT = 0.9f
+    const val DIV = 0.6f
+    const val INST = 0.9f
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReportTable(
     reports: List<ConsensusReport>,
@@ -125,65 +140,39 @@ private fun ReportTable(
     val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
     val financeColors = LocalFinanceColors.current
 
-    // 컬럼 너비 정의 (폴드 오픈 ~690dp에 맞춤)
-    val colDate = 60.dp
-    val colTicker = 54.dp
-    val colName = 68.dp
-    val colTitle = 148.dp
-    val colOpinion = 52.dp
-    val colTarget = 68.dp
-    val colCurrent = 68.dp
-    val colDiv = 52.dp
-    val colInst = 68.dp
-
-    // 작성일 필터용 표시값 변환
-    val selectedDateDisplay = filter.dateRange?.first?.let { formatShortDate(it) }
-
-    val headerScrollState = rememberScrollState()
+    // 날짜 필터 — DatePicker 다이얼로그
+    var showDatePicker by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header row with filters
+        // Header row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(headerScrollState)
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            FilterableHeaderCell(
+            DateHeaderCell(
                 label = "작성일",
-                width = colDate,
-                selectedValue = selectedDateDisplay,
-                options = filterOptions.dates.map { formatShortDate(it) },
-                onSelected = { displayDate ->
-                    if (displayDate == null) {
-                        onFilterChanged(filter.copy(dateRange = null))
-                    } else {
-                        // "26/03/23" → "2026-03-23"로 역변환하여 필터에 저장
-                        val idx = filterOptions.dates.indexOfFirst { formatShortDate(it) == displayDate }
-                        if (idx >= 0) {
-                            val isoDate = filterOptions.dates[idx]
-                            onFilterChanged(filter.copy(dateRange = Pair(isoDate, isoDate)))
-                        }
-                    }
-                }
+                selectedDate = filter.dateRange?.first,
+                modifier = Modifier.weight(ColWeights.DATE),
+                onClick = { showDatePicker = true }
             )
-            HeaderCell("종목코드", colTicker)
-            HeaderCell("종목명", colName)
-            HeaderCell("제목", colTitle)
+            HeaderCell("종목코드", Modifier.weight(ColWeights.TICKER))
+            HeaderCell("종목명", Modifier.weight(ColWeights.NAME))
+            HeaderCell("제목", Modifier.weight(ColWeights.TITLE))
             FilterableHeaderCell(
                 label = "의견",
-                width = colOpinion,
+                modifier = Modifier.weight(ColWeights.OPINION),
                 selectedValue = filter.opinion,
                 options = filterOptions.opinions,
                 onSelected = { onFilterChanged(filter.copy(opinion = it)) }
             )
-            HeaderCell("목표가", colTarget)
-            HeaderCell("현재가", colCurrent)
-            HeaderCell("괴리율", colDiv)
+            HeaderCell("목표가", Modifier.weight(ColWeights.TARGET))
+            HeaderCell("현재가", Modifier.weight(ColWeights.CURRENT))
+            HeaderCell("괴리율", Modifier.weight(ColWeights.DIV))
             FilterableHeaderCell(
                 label = "작성기관",
-                width = colInst,
+                modifier = Modifier.weight(ColWeights.INST),
                 selectedValue = filter.institution,
                 options = filterOptions.institutions,
                 onSelected = { onFilterChanged(filter.copy(institution = it)) }
@@ -197,31 +186,31 @@ private fun ReportTable(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                        .padding(horizontal = 2.dp, vertical = 1.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
                 ) {
                     Row(
                         modifier = Modifier
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 6.dp, vertical = 8.dp),
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        DataCell(formatShortDate(report.writeDate), colDate)
-                        DataCell(report.stockTicker, colTicker)
-                        DataCell(report.stockName, colName)
-                        DataCell(report.title, colTitle, maxLines = 2)
-                        DataCell(report.opinion, colOpinion)
+                        DataCell(formatShortDate(report.writeDate), Modifier.weight(ColWeights.DATE))
+                        DataCell(report.stockTicker, Modifier.weight(ColWeights.TICKER))
+                        DataCell(report.stockName, Modifier.weight(ColWeights.NAME))
+                        DataCell(report.title, Modifier.weight(ColWeights.TITLE), maxLines = 2)
+                        DataCell(report.opinion, Modifier.weight(ColWeights.OPINION))
                         DataCell(
                             text = if (report.targetPrice > 0) numberFormat.format(report.targetPrice) else "-",
-                            width = colTarget,
+                            modifier = Modifier.weight(ColWeights.TARGET),
                             textAlign = TextAlign.End
                         )
                         DataCell(
                             text = if (report.currentPrice > 0) numberFormat.format(report.currentPrice) else "-",
-                            width = colCurrent,
+                            modifier = Modifier.weight(ColWeights.CURRENT),
                             textAlign = TextAlign.End
                         )
 
@@ -232,7 +221,7 @@ private fun ReportTable(
                         }
                         Text(
                             text = if (report.targetPrice > 0) String.format("%.1f", report.divergenceRate) else "-",
-                            modifier = Modifier.width(colDiv),
+                            modifier = Modifier.weight(ColWeights.DIV),
                             style = MaterialTheme.typography.bodySmall,
                             color = divergenceColor,
                             textAlign = TextAlign.End,
@@ -240,11 +229,160 @@ private fun ReportTable(
                             maxLines = 1
                         )
 
-                        DataCell(report.institution, colInst)
+                        DataCell(report.institution, Modifier.weight(ColWeights.INST))
                     }
                 }
             }
         }
+    }
+
+    // DatePicker 다이얼로그
+    if (showDatePicker) {
+        ReportDatePickerDialog(
+            selectedDate = filter.dateRange?.first,
+            availableDates = filterOptions.dates,
+            onDateSelected = { isoDate ->
+                if (isoDate == null) {
+                    onFilterChanged(filter.copy(dateRange = null))
+                } else {
+                    onFilterChanged(filter.copy(dateRange = Pair(isoDate, isoDate)))
+                }
+            },
+            onDismiss = { showDatePicker = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReportDatePickerDialog(
+    selectedDate: String?,
+    availableDates: List<String>,
+    onDateSelected: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isoFormatter = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd") }
+    val initialMillis = remember(selectedDate) {
+        selectedDate?.let {
+            try {
+                LocalDate.parse(it, isoFormatter)
+                    .atStartOfDay(ZoneId.of("UTC"))
+                    .toInstant()
+                    .toEpochMilli()
+            } catch (_: Exception) { null }
+        }
+    }
+
+    // 날짜 범위 제한: availableDates의 min ~ max
+    val (minMillis, maxMillis) = remember(availableDates) {
+        if (availableDates.isEmpty()) Pair(null, null)
+        else {
+            val sorted = availableDates.sorted()
+            val min = LocalDate.parse(sorted.first(), isoFormatter)
+                .atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+            val max = LocalDate.parse(sorted.last(), isoFormatter)
+                .atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+            Pair(min, max)
+        }
+    }
+
+    // 데이터 있는 날짜만 선택 가능
+    val availableMillisSet = remember(availableDates) {
+        availableDates.mapNotNull { dateStr ->
+            try {
+                LocalDate.parse(dateStr, isoFormatter)
+                    .atStartOfDay(ZoneId.of("UTC"))
+                    .toInstant()
+                    .toEpochMilli()
+            } catch (_: Exception) { null }
+        }.toSet()
+    }
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initialMillis,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                return availableMillisSet.contains(utcTimeMillis)
+            }
+
+            override fun isSelectableYear(year: Int): Boolean {
+                return true
+            }
+        }
+    )
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                val millis = datePickerState.selectedDateMillis
+                if (millis != null) {
+                    val date = Instant.ofEpochMilli(millis)
+                        .atZone(ZoneId.of("UTC"))
+                        .toLocalDate()
+                        .format(isoFormatter)
+                    onDateSelected(date)
+                }
+                onDismiss()
+            }) {
+                Text("확인")
+            }
+        },
+        dismissButton = {
+            Row {
+                if (selectedDate != null) {
+                    TextButton(onClick = {
+                        onDateSelected(null)
+                        onDismiss()
+                    }) {
+                        Text("전체")
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("취소")
+                }
+            }
+        }
+    ) {
+        DatePicker(state = datePickerState)
+    }
+}
+
+@Composable
+private fun DateHeaderCell(
+    label: String,
+    selectedDate: String?,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    val isFiltered = selectedDate != null
+    val headerColor = if (isFiltered) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Row(
+        modifier = modifier
+            .clickable { onClick() }
+            .padding(horizontal = 2.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (selectedDate != null) formatShortDate(selectedDate) else label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = headerColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Icon(
+            Icons.Default.CalendarMonth,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = headerColor
+        )
     }
 }
 
@@ -254,7 +392,7 @@ private fun ReportTable(
 @Composable
 private fun FilterableHeaderCell(
     label: String,
-    width: Dp,
+    modifier: Modifier,
     selectedValue: String?,
     options: List<String>,
     onSelected: (String?) -> Unit
@@ -267,11 +405,12 @@ private fun FilterableHeaderCell(
         MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Box(modifier = Modifier.width(width)) {
+    Box(modifier = modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = true },
+                .clickable { expanded = true }
+                .padding(horizontal = 2.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -326,7 +465,7 @@ private fun FilterableHeaderCell(
 }
 
 /**
- * "2026-03-23" → "26/03/23"
+ * "2026-03-23" -> "26/03/23"
  */
 private fun formatShortDate(date: String): String {
     if (date.length != 10) return date
@@ -334,10 +473,10 @@ private fun formatShortDate(date: String): String {
 }
 
 @Composable
-private fun HeaderCell(text: String, width: Dp) {
+private fun HeaderCell(text: String, modifier: Modifier) {
     Text(
         text = text,
-        modifier = Modifier.width(width),
+        modifier = modifier.padding(horizontal = 2.dp),
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -349,13 +488,13 @@ private fun HeaderCell(text: String, width: Dp) {
 @Composable
 private fun DataCell(
     text: String,
-    width: Dp,
+    modifier: Modifier,
     textAlign: TextAlign = TextAlign.Start,
     maxLines: Int = 1
 ) {
     Text(
         text = text,
-        modifier = Modifier.width(width),
+        modifier = modifier.padding(horizontal = 2.dp),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurface,
         textAlign = textAlign,

@@ -45,8 +45,6 @@ fun ConsensusChart(
     val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val chartTextColor = if (isDarkTheme) Color.WHITE else Color.DKGRAY
 
-    val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
-    val tertiaryColor = MaterialTheme.colorScheme.tertiary.toArgb()
     val gridColor = MaterialTheme.colorScheme.surfaceVariant.toArgb()
     val surfaceColor = MaterialTheme.colorScheme.surface.toArgb()
 
@@ -77,7 +75,7 @@ fun ConsensusChart(
                     chart.axisLeft.gridColor = gridColor
                     chart.axisRight.gridColor = gridColor
                     if (chartData != lastBound[0]) {
-                        bindConsensusData(chart, chartData, primaryColor, tertiaryColor, surfaceColor)
+                        bindConsensusData(chart, chartData, surfaceColor)
                         lastBound[0] = chartData
                     }
                     chart.invalidate()
@@ -158,8 +156,6 @@ private fun setupConsensusChart(chart: CombinedChart, chartTextColor: Int, gridC
 private fun bindConsensusData(
     chart: CombinedChart,
     chartData: ConsensusChartData,
-    primaryColor: Int,
-    tertiaryColor: Int,
     surfaceColor: Int
 ) {
     val dates = chartData.dates
@@ -176,14 +172,15 @@ private fun bindConsensusData(
     val mcapEntries = chartData.marketCaps.mapIndexed { i, cap ->
         Entry(i.toFloat(), (cap / 1_000_000_000_000.0).toFloat())
     }
+    val mcapColor = Color.parseColor("#1976D2")
     val mcapDataSet = LineDataSet(mcapEntries, "${chartData.stockName} 시가총액(조)").apply {
-        color = primaryColor
+        color = mcapColor
         lineWidth = 2f
         setDrawCircles(false)
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.LEFT
         isHighlightEnabled = true
-        highLightColor = primaryColor
+        highLightColor = mcapColor
     }
 
     // 왼쪽 Y축 범위를 데이터에 맞게 fitting
@@ -206,14 +203,15 @@ private fun bindConsensusData(
             Entry(xIndex.toFloat(), chartData.reportTargetPrices[i].toFloat())
         } else null
     }
+    val targetColor = Color.parseColor("#D32F2F")
     val scatterDataSet = ScatterDataSet(scatterEntries, "목표가(원)").apply {
-        color = tertiaryColor
+        color = targetColor
         setScatterShape(com.github.mikephil.charting.charts.ScatterChart.ScatterShape.CIRCLE)
-        scatterShapeSize = 10f
+        scatterShapeSize = 16f
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.RIGHT
         isHighlightEnabled = true
-        highLightColor = tertiaryColor
+        highLightColor = targetColor
     }
 
     // 오른쪽 Y축 범위
