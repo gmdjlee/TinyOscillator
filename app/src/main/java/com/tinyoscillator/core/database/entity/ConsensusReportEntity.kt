@@ -33,6 +33,9 @@ data class ConsensusReportEntity(
     @ColumnInfo(name = "stock_ticker")
     val stockTicker: String,         // 종목코드
 
+    @ColumnInfo(name = "stock_name", defaultValue = "")
+    val stockName: String,           // 종목명
+
     @ColumnInfo(name = "author")
     val author: String,              // 작성자
 

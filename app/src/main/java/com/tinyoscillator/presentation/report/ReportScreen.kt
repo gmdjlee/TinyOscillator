@@ -1,11 +1,13 @@
 package com.tinyoscillator.presentation.report
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -18,8 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.ConsensusFilter
@@ -28,7 +30,7 @@ import com.tinyoscillator.domain.model.ConsensusReport
 import java.text.NumberFormat
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportScreen(
     onSettingsClick: () -> Unit,
@@ -40,6 +42,9 @@ fun ReportScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val reportCount by viewModel.reportCount.collectAsStateWithLifecycle()
     val themeModeState = LocalThemeModeState.current
+
+    val hasActiveFilter = filter.dateRange != null || filter.opinion != null ||
+        filter.institution != null
 
     Scaffold(
         topBar = {
@@ -55,6 +60,11 @@ fun ReportScreen(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                     }
+                    if (hasActiveFilter) {
+                        IconButton(onClick = { viewModel.clearFilter() }) {
+                            Icon(Icons.Default.Clear, contentDescription = "필터 초기화")
+                        }
+                    }
                     ThemeToggleIcon(themeModeState)
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "설정")
@@ -68,13 +78,6 @@ fun ReportScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            ReportFilterSection(
-                filter = filter,
-                filterOptions = filterOptions,
-                onFilterChanged = { viewModel.updateFilter(it) },
-                onClearFilter = { viewModel.clearFilter() }
-            )
-
             if (isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -83,6 +86,13 @@ fun ReportScreen(
                     CircularProgressIndicator()
                 }
             } else if (reports.isEmpty()) {
+                // Show header even when empty so user can clear filters
+                ReportTable(
+                    reports = emptyList(),
+                    filter = filter,
+                    filterOptions = filterOptions,
+                    onFilterChanged = { viewModel.updateFilter(it) }
+                )
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -94,145 +104,90 @@ fun ReportScreen(
                     )
                 }
             } else {
-                ReportTable(reports = reports)
+                ReportTable(
+                    reports = reports,
+                    filter = filter,
+                    filterOptions = filterOptions,
+                    onFilterChanged = { viewModel.updateFilter(it) }
+                )
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun ReportFilterSection(
+private fun ReportTable(
+    reports: List<ConsensusReport>,
     filter: ConsensusFilter,
     filterOptions: ConsensusFilterOptions,
-    onFilterChanged: (ConsensusFilter) -> Unit,
-    onClearFilter: () -> Unit
+    onFilterChanged: (ConsensusFilter) -> Unit
 ) {
-    val hasActiveFilter = filter.category != null || filter.prevOpinion != null ||
-        filter.opinion != null || filter.stockTicker != null ||
-        filter.author != null || filter.institution != null ||
-        filter.dateRange != null
+    val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
+    val financeColors = LocalFinanceColors.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+    // 컬럼 너비 정의 (폴드 오픈 ~690dp에 맞춤)
+    val colDate = 60.dp
+    val colTicker = 54.dp
+    val colName = 68.dp
+    val colTitle = 148.dp
+    val colOpinion = 52.dp
+    val colTarget = 68.dp
+    val colCurrent = 68.dp
+    val colDiv = 52.dp
+    val colInst = 68.dp
+
+    // 작성일 필터용 표시값 변환
+    val selectedDateDisplay = filter.dateRange?.first?.let { formatShortDate(it) }
+
+    val headerScrollState = rememberScrollState()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Header row with filters
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(headerScrollState)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            FilterDropdownChip(
-                label = "분류",
-                selectedValue = filter.category,
-                options = filterOptions.categories,
-                onSelected = { onFilterChanged(filter.copy(category = it)) }
+            FilterableHeaderCell(
+                label = "작성일",
+                width = colDate,
+                selectedValue = selectedDateDisplay,
+                options = filterOptions.dates.map { formatShortDate(it) },
+                onSelected = { displayDate ->
+                    if (displayDate == null) {
+                        onFilterChanged(filter.copy(dateRange = null))
+                    } else {
+                        // "26/03/23" → "2026-03-23"로 역변환하여 필터에 저장
+                        val idx = filterOptions.dates.indexOfFirst { formatShortDate(it) == displayDate }
+                        if (idx >= 0) {
+                            val isoDate = filterOptions.dates[idx]
+                            onFilterChanged(filter.copy(dateRange = Pair(isoDate, isoDate)))
+                        }
+                    }
+                }
             )
-            FilterDropdownChip(
-                label = "이전의견",
-                selectedValue = filter.prevOpinion,
-                options = filterOptions.prevOpinions,
-                onSelected = { onFilterChanged(filter.copy(prevOpinion = it)) }
-            )
-            FilterDropdownChip(
-                label = "투자의견",
+            HeaderCell("종목코드", colTicker)
+            HeaderCell("종목명", colName)
+            HeaderCell("제목", colTitle)
+            FilterableHeaderCell(
+                label = "의견",
+                width = colOpinion,
                 selectedValue = filter.opinion,
                 options = filterOptions.opinions,
                 onSelected = { onFilterChanged(filter.copy(opinion = it)) }
             )
-            FilterDropdownChip(
-                label = "작성자",
-                selectedValue = filter.author,
-                options = filterOptions.authors,
-                onSelected = { onFilterChanged(filter.copy(author = it)) }
-            )
-            FilterDropdownChip(
+            HeaderCell("목표가", colTarget)
+            HeaderCell("현재가", colCurrent)
+            HeaderCell("괴리율", colDiv)
+            FilterableHeaderCell(
                 label = "작성기관",
+                width = colInst,
                 selectedValue = filter.institution,
                 options = filterOptions.institutions,
                 onSelected = { onFilterChanged(filter.copy(institution = it)) }
             )
-
-            if (hasActiveFilter) {
-                FilterChip(
-                    selected = true,
-                    onClick = onClearFilter,
-                    label = { Text("초기화") },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Clear,
-                            contentDescription = "필터 초기화",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FilterDropdownChip(
-    label: String,
-    selectedValue: String?,
-    options: List<String>,
-    onSelected: (String?) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box {
-        FilterChip(
-            selected = selectedValue != null,
-            onClick = { expanded = true },
-            label = { Text(selectedValue ?: label) }
-        )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            DropdownMenuItem(
-                text = { Text("전체") },
-                onClick = {
-                    onSelected(null)
-                    expanded = false
-                }
-            )
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onSelected(option)
-                        expanded = false
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReportTable(reports: List<ConsensusReport>) {
-    val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
-    val financeColors = LocalFinanceColors.current
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Header row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            HeaderCell("작성일", 88.dp)
-            HeaderCell("종목코드", 80.dp)
-            HeaderCell("제목", 180.dp)
-            HeaderCell("투자의견", 72.dp)
-            HeaderCell("목표가", 88.dp)
-            HeaderCell("현재가", 88.dp)
-            HeaderCell("괴리율(%)", 80.dp)
-            HeaderCell("작성기관", 88.dp)
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -242,7 +197,7 @@ private fun ReportTable(reports: List<ConsensusReport>) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
@@ -251,21 +206,22 @@ private fun ReportTable(reports: List<ConsensusReport>) {
                     Row(
                         modifier = Modifier
                             .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                            .padding(horizontal = 6.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        DataCell(report.writeDate, 88.dp)
-                        DataCell(report.stockTicker, 80.dp)
-                        DataCell(report.title, 180.dp, maxLines = 2)
-                        DataCell(report.opinion, 72.dp)
+                        DataCell(formatShortDate(report.writeDate), colDate)
+                        DataCell(report.stockTicker, colTicker)
+                        DataCell(report.stockName, colName)
+                        DataCell(report.title, colTitle, maxLines = 2)
+                        DataCell(report.opinion, colOpinion)
                         DataCell(
                             text = if (report.targetPrice > 0) numberFormat.format(report.targetPrice) else "-",
-                            width = 88.dp,
+                            width = colTarget,
                             textAlign = TextAlign.End
                         )
                         DataCell(
                             text = if (report.currentPrice > 0) numberFormat.format(report.currentPrice) else "-",
-                            width = 88.dp,
+                            width = colCurrent,
                             textAlign = TextAlign.End
                         )
 
@@ -276,7 +232,7 @@ private fun ReportTable(reports: List<ConsensusReport>) {
                         }
                         Text(
                             text = if (report.targetPrice > 0) String.format("%.1f", report.divergenceRate) else "-",
-                            modifier = Modifier.width(80.dp),
+                            modifier = Modifier.width(colDiv),
                             style = MaterialTheme.typography.bodySmall,
                             color = divergenceColor,
                             textAlign = TextAlign.End,
@@ -284,7 +240,7 @@ private fun ReportTable(reports: List<ConsensusReport>) {
                             maxLines = 1
                         )
 
-                        DataCell(report.institution, 88.dp)
+                        DataCell(report.institution, colInst)
                     }
                 }
             }
@@ -292,8 +248,93 @@ private fun ReportTable(reports: List<ConsensusReport>) {
     }
 }
 
+/**
+ * 필터 가능한 컬럼 헤더. 클릭하면 드롭다운 메뉴를 표시.
+ */
 @Composable
-private fun HeaderCell(text: String, width: androidx.compose.ui.unit.Dp) {
+private fun FilterableHeaderCell(
+    label: String,
+    width: Dp,
+    selectedValue: String?,
+    options: List<String>,
+    onSelected: (String?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val isFiltered = selectedValue != null
+    val headerColor = if (isFiltered) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Box(modifier = Modifier.width(width)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = true },
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = selectedValue ?: label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = headerColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            Icon(
+                Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = headerColor
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        "전체",
+                        fontWeight = if (!isFiltered) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
+                onClick = {
+                    onSelected(null)
+                    expanded = false
+                }
+            )
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            option,
+                            fontWeight = if (option == selectedValue) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    onClick = {
+                        onSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * "2026-03-23" → "26/03/23"
+ */
+private fun formatShortDate(date: String): String {
+    if (date.length != 10) return date
+    return "${date.substring(2, 4)}/${date.substring(5, 7)}/${date.substring(8, 10)}"
+}
+
+@Composable
+private fun HeaderCell(text: String, width: Dp) {
     Text(
         text = text,
         modifier = Modifier.width(width),
@@ -308,7 +349,7 @@ private fun HeaderCell(text: String, width: androidx.compose.ui.unit.Dp) {
 @Composable
 private fun DataCell(
     text: String,
-    width: androidx.compose.ui.unit.Dp,
+    width: Dp,
     textAlign: TextAlign = TextAlign.Start,
     maxLines: Int = 1
 ) {

@@ -21,6 +21,9 @@ interface ConsensusReportDao {
     @Query("SELECT * FROM consensus_reports ORDER BY write_date DESC, stock_ticker ASC")
     suspend fun getAll(): List<ConsensusReportEntity>
 
+    @Query("SELECT DISTINCT write_date FROM consensus_reports ORDER BY write_date DESC")
+    suspend fun getDistinctDates(): List<String>
+
     @Query("SELECT DISTINCT category FROM consensus_reports ORDER BY category")
     suspend fun getDistinctCategories(): List<String>
 

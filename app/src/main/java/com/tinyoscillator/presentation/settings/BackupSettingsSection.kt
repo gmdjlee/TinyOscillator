@@ -109,6 +109,39 @@ internal fun BackupTab(db: AppDatabase) {
         }
     }
 
+    // Consensus report backup launchers
+    val consensusExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                isProcessing = true
+                val result = BackupManager.exportConsensusData(context, it, db)
+                backupMessage = result.fold(
+                    onSuccess = { count -> "리포트 백업 완료 (${count}건)" },
+                    onFailure = { e -> "백업 실패: ${e.message}" }
+                )
+                isProcessing = false
+            }
+        }
+    }
+
+    val consensusImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                isProcessing = true
+                val result = BackupManager.importConsensusData(context, it, db)
+                backupMessage = result.fold(
+                    onSuccess = { msg -> msg },
+                    onFailure = { e -> "복원 실패: ${e.message}" }
+                )
+                isProcessing = false
+            }
+        }
+    }
+
     // Data export launcher
     val dataExportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain")
@@ -334,6 +367,27 @@ internal fun BackupTab(db: AppDatabase) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("포트폴리오 가져오기")
+            }
+        }
+
+        // === 리포트 데이터 백업 ===
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("리포트 백업/복원", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = { consensusExportLauncher.launch("consensus_report_backup.json") },
+                enabled = !isProcessing,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("리포트 내보내기")
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { consensusImportLauncher.launch(arrayOf("application/json")) },
+                enabled = !isProcessing,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("리포트 가져오기")
             }
         }
 

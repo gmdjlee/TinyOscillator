@@ -78,6 +78,8 @@ class EquityReportScraperTest {
         assertEquals("IT", report.category)
         assertEquals("Buy", report.opinion)
         assertEquals("005930", report.stockTicker)
+        assertEquals("삼성전자", report.stockName)
+        assertEquals("목표가 상향", report.title)
         assertEquals("홍길동", report.author)
         assertEquals("미래에셋", report.institution)
         assertEquals(300000L, report.targetPrice)

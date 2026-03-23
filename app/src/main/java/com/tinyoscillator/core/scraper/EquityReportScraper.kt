@@ -211,6 +211,10 @@ class EquityReportScraper(
             val stockTicker = codeMatch?.groupValues?.get(1) ?: ""
             if (stockTicker.isBlank()) continue
 
+            // 종목명 추출 및 제목에서 "종목명(종목코드)" 제거
+            val stockName = title.substring(0, codeMatch!!.range.first).trim()
+            val cleanTitle = title.replace(Regex(".*\\(\\d{6}\\)\\s*"), "").trim()
+
             val author = tds[6].text().trim()
             val institution = tds[7].text().trim()
             val targetPrice = parsePrice(tds[9].text().trim())
@@ -228,8 +232,9 @@ class EquityReportScraper(
                     category = category,
                     prevOpinion = prevOpinion,
                     opinion = opinion,
-                    title = title,
+                    title = cleanTitle,
                     stockTicker = stockTicker,
+                    stockName = stockName,
                     author = author,
                     institution = institution,
                     targetPrice = targetPrice,

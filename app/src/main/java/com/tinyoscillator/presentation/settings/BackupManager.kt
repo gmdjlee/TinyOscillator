@@ -5,6 +5,7 @@ import android.net.Uri
 import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
+import com.tinyoscillator.core.database.entity.ConsensusReportEntity
 import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
 import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
@@ -147,6 +148,33 @@ data class PortfolioDataBackup(
     val type: String = "portfolio",
     val portfolio: PortfolioBackupEntry,
     val holdings: List<PortfolioHoldingWithTransactions>
+)
+
+// endregion
+
+// region Consensus Report Backup Models
+
+@Serializable
+data class ConsensusReportBackupEntry(
+    val writeDate: String,
+    val category: String,
+    val prevOpinion: String,
+    val opinion: String,
+    val title: String,
+    val stockTicker: String,
+    val stockName: String = "",
+    val author: String,
+    val institution: String,
+    val targetPrice: Long,
+    val currentPrice: Long,
+    val divergenceRate: Double
+)
+
+@Serializable
+data class ConsensusDataBackup(
+    val version: Int = 1,
+    val type: String = "consensus_reports",
+    val reports: List<ConsensusReportBackupEntry>
 )
 
 // endregion
@@ -491,6 +519,93 @@ object BackupManager {
             }
 
             Result.success("포트폴리오 복원 완료 (종목 ${backup.holdings.size}개, 거래 ${totalTx}건)")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // endregion
+
+    // region Consensus Report Backup/Restore
+
+    suspend fun exportConsensusData(
+        context: Context,
+        uri: Uri,
+        db: AppDatabase
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val dao = db.consensusReportDao()
+            val entities = dao.getAll()
+            if (entities.isEmpty()) {
+                return@withContext Result.failure(Exception("리포트 데이터가 없습니다"))
+            }
+
+            val backup = ConsensusDataBackup(
+                reports = entities.map {
+                    ConsensusReportBackupEntry(
+                        writeDate = it.writeDate,
+                        category = it.category,
+                        prevOpinion = it.prevOpinion,
+                        opinion = it.opinion,
+                        title = it.title,
+                        stockTicker = it.stockTicker,
+                        stockName = it.stockName,
+                        author = it.author,
+                        institution = it.institution,
+                        targetPrice = it.targetPrice,
+                        currentPrice = it.currentPrice,
+                        divergenceRate = it.divergenceRate
+                    )
+                }
+            )
+
+            val json = backupJson.encodeToString(backup)
+            context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+            Result.success(entities.size)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun importConsensusData(
+        context: Context,
+        uri: Uri,
+        db: AppDatabase
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val json = context.contentResolver.openInputStream(uri)?.use {
+                it.bufferedReader().readText()
+            } ?: return@withContext Result.failure(Exception("파일을 읽을 수 없습니다"))
+
+            val backup = backupJson.decodeFromString<ConsensusDataBackup>(json)
+            val dao = db.consensusReportDao()
+
+            val entities = backup.reports.map {
+                ConsensusReportEntity(
+                    writeDate = it.writeDate,
+                    category = it.category,
+                    prevOpinion = it.prevOpinion,
+                    opinion = it.opinion,
+                    title = it.title,
+                    stockTicker = it.stockTicker,
+                    stockName = it.stockName,
+                    author = it.author,
+                    institution = it.institution,
+                    targetPrice = it.targetPrice,
+                    currentPrice = it.currentPrice,
+                    divergenceRate = it.divergenceRate
+                )
+            }
+
+            entities.chunked(500).forEach { chunk ->
+                dao.insertAll(chunk)
+            }
+
+            Result.success("리포트 ${entities.size}건 복원 완료")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

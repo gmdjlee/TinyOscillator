@@ -91,6 +91,7 @@ class ConsensusRepository(
      */
     suspend fun getFilterOptions(): ConsensusFilterOptions = withContext(Dispatchers.IO) {
         ConsensusFilterOptions(
+            dates = dao.getDistinctDates(),
             categories = dao.getDistinctCategories(),
             prevOpinions = dao.getDistinctPrevOpinions(),
             opinions = dao.getDistinctOpinions(),
@@ -174,9 +175,16 @@ class ConsensusRepository(
     private fun parseJsonReport(obj: JsonObject): ConsensusReportEntity? {
         val rawDate = obj["작성일"]?.jsonPrimitive?.content ?: return null
         val writeDate = parseDate(rawDate) ?: return null
-        val title = obj["제목"]?.jsonPrimitive?.content ?: ""
+        val rawTitle = obj["제목"]?.jsonPrimitive?.content ?: ""
         val stockTicker = obj["종목코드"]?.jsonPrimitive?.content ?: ""
         if (stockTicker.isBlank()) return null
+
+        // 종목명 추출 및 제목에서 "종목명(종목코드)" 제거
+        val codeMatch = Regex("\\((\\d{6})\\)").find(rawTitle)
+        val stockName = codeMatch?.let {
+            rawTitle.substring(0, it.range.first).trim()
+        } ?: ""
+        val title = rawTitle.replace(Regex(".*\\(\\d{6}\\)\\s*"), "").trim()
 
         val targetPrice = parsePrice(obj["목표가"]?.jsonPrimitive?.content ?: "0")
         val currentPrice = parsePrice(obj["현재가"]?.jsonPrimitive?.content ?: "0")
@@ -193,6 +201,7 @@ class ConsensusRepository(
             opinion = obj["투자의견"]?.jsonPrimitive?.content ?: "",
             title = title,
             stockTicker = stockTicker,
+            stockName = stockName,
             author = obj["작성자"]?.jsonPrimitive?.content ?: "",
             institution = obj["작성기관"]?.jsonPrimitive?.content ?: "",
             targetPrice = targetPrice,
@@ -223,6 +232,7 @@ class ConsensusRepository(
         opinion = opinion,
         title = title,
         stockTicker = stockTicker,
+        stockName = stockName,
         author = author,
         institution = institution,
         targetPrice = targetPrice,

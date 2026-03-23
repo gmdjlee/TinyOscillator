@@ -7,6 +7,7 @@ data class ConsensusReport(
     val opinion: String,
     val title: String,
     val stockTicker: String,
+    val stockName: String,
     val author: String,
     val institution: String,
     val targetPrice: Long,
@@ -25,6 +26,7 @@ data class ConsensusFilter(
 )
 
 data class ConsensusFilterOptions(
+    val dates: List<String> = emptyList(),
     val categories: List<String> = emptyList(),
     val prevOpinions: List<String> = emptyList(),
     val opinions: List<String> = emptyList(),

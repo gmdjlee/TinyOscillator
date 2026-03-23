@@ -45,7 +45,7 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         WorkerLogEntity::class,
         ConsensusReportEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

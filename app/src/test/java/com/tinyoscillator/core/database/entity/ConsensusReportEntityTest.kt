@@ -19,8 +19,9 @@ class ConsensusReportEntityTest {
             category = "IT",
             prevOpinion = "Hold",
             opinion = "Buy",
-            title = "삼성전자(005930) 목표가 상향",
+            title = "목표가 상향",
             stockTicker = "005930",
+            stockName = "삼성전자",
             author = "홍길동",
             institution = "미래에셋",
             targetPrice = targetPrice,
@@ -36,7 +37,8 @@ class ConsensusReportEntityTest {
         assertEquals("IT", entity.category)
         assertEquals("Hold", entity.prevOpinion)
         assertEquals("Buy", entity.opinion)
-        assertEquals("삼성전자(005930) 목표가 상향", entity.title)
+        assertEquals("목표가 상향", entity.title)
+        assertEquals("삼성전자", entity.stockName)
         assertEquals("005930", entity.stockTicker)
         assertEquals("홍길동", entity.author)
         assertEquals("미래에셋", entity.institution)
