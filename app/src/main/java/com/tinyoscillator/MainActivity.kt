@@ -62,6 +62,7 @@ import com.tinyoscillator.presentation.demark.DemarkTDContent
 import com.tinyoscillator.presentation.etf.AggregatedStockTrendScreen
 import com.tinyoscillator.presentation.etf.EtfScreen
 import com.tinyoscillator.presentation.etf.StockTrendScreen
+import com.tinyoscillator.domain.model.ConsensusReport
 import com.tinyoscillator.presentation.consensus.ConsensusContent
 import com.tinyoscillator.presentation.financial.DuPontContent
 import com.tinyoscillator.presentation.financial.FinancialInfoContent
@@ -69,6 +70,7 @@ import com.tinyoscillator.presentation.fundamental.FundamentalHistoryContent
 import com.tinyoscillator.presentation.ai.AiAnalysisScreen
 import com.tinyoscillator.presentation.market.MarketIndicatorScreen
 import com.tinyoscillator.presentation.portfolio.PortfolioScreen
+import com.tinyoscillator.presentation.report.ReportDetailScreen
 import com.tinyoscillator.presentation.report.ReportScreen
 import com.tinyoscillator.presentation.settings.SettingsScreen
 import com.tinyoscillator.presentation.viewmodel.OscillatorUiState
@@ -139,7 +141,10 @@ fun AppNavigation() {
                 onSettingsClick = { navController.navigate("settings") },
                 onEtfDetailClick = { ticker -> navController.navigate("etf_detail/$ticker") },
                 onStockClick = { stockTicker -> navController.navigate("stock_aggregated/$stockTicker") },
-                onStockTrendClick = { etfTicker, stockTicker -> navController.navigate("stock_trend/$etfTicker/$stockTicker") }
+                onStockTrendClick = { etfTicker, stockTicker -> navController.navigate("stock_trend/$etfTicker/$stockTicker") },
+                onReportDetailClick = { report ->
+                    navController.navigate("report_detail/${report.stockTicker}/${report.writeDate}")
+                }
             )
         }
         composable("settings") {
@@ -166,6 +171,9 @@ fun AppNavigation() {
         composable("stock_aggregated/{stockTicker}") {
             AggregatedStockTrendScreen(onBack = { navController.popBackStack() })
         }
+        composable("report_detail/{ticker}/{writeDate}") {
+            ReportDetailScreen(onBack = { navController.popBackStack() })
+        }
     }
 }
 
@@ -176,7 +184,8 @@ private fun MainScaffold(
     onSettingsClick: () -> Unit,
     onEtfDetailClick: (String) -> Unit,
     onStockClick: (String) -> Unit = {},
-    onStockTrendClick: (String, String) -> Unit = { _, _ -> }
+    onStockTrendClick: (String, String) -> Unit = { _, _ -> },
+    onReportDetailClick: (ConsensusReport) -> Unit = {}
 ) {
     var selectedNav by rememberSaveable { mutableStateOf(BottomNavItem.STOCK_ANALYSIS) }
 
@@ -201,7 +210,8 @@ private fun MainScaffold(
                 }
                 BottomNavItem.REPORT -> {
                     ReportScreen(
-                        onSettingsClick = onSettingsClick
+                        onSettingsClick = onSettingsClick,
+                        onReportClick = onReportDetailClick
                     )
                 }
                 BottomNavItem.MARKET_INDICATOR -> {

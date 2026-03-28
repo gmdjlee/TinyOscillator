@@ -5,6 +5,7 @@ import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
 import com.tinyoscillator.core.scraper.EquityReportScraper
+import com.tinyoscillator.core.scraper.FnGuideReportScraper
 import com.tinyoscillator.domain.model.ConsensusFilter
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -18,6 +19,7 @@ class ConsensusRepositoryTest {
 
     private lateinit var dao: ConsensusReportDao
     private lateinit var scraper: EquityReportScraper
+    private lateinit var fnGuideScraper: FnGuideReportScraper
     private lateinit var analysisCacheDao: AnalysisCacheDao
     private lateinit var repository: ConsensusRepository
 
@@ -25,8 +27,9 @@ class ConsensusRepositoryTest {
     fun setUp() {
         dao = mockk(relaxed = true)
         scraper = mockk(relaxed = true)
+        fnGuideScraper = mockk(relaxed = true)
         analysisCacheDao = mockk(relaxed = true)
-        repository = ConsensusRepository(dao, scraper, analysisCacheDao)
+        repository = ConsensusRepository(dao, scraper, fnGuideScraper, analysisCacheDao)
     }
 
     private fun createEntity(

@@ -12,7 +12,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
-import com.tinyoscillator.ui.theme.LocalFinanceColors
 import com.tinyoscillator.ui.theme.LocalThemeModeState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +37,7 @@ import java.util.Locale
 @Composable
 fun ReportScreen(
     onSettingsClick: () -> Unit,
+    onReportClick: (ConsensusReport) -> Unit = {},
     viewModel: ReportViewModel = hiltViewModel()
 ) {
     val reports by viewModel.reports.collectAsStateWithLifecycle()
@@ -94,7 +94,8 @@ fun ReportScreen(
                     reports = emptyList(),
                     filter = filter,
                     filterOptions = filterOptions,
-                    onFilterChanged = { viewModel.updateFilter(it) }
+                    onFilterChanged = { viewModel.updateFilter(it) },
+                    onReportClick = onReportClick
                 )
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -111,7 +112,8 @@ fun ReportScreen(
                     reports = reports,
                     filter = filter,
                     filterOptions = filterOptions,
-                    onFilterChanged = { viewModel.updateFilter(it) }
+                    onFilterChanged = { viewModel.updateFilter(it) },
+                    onReportClick = onReportClick
                 )
             }
         }
@@ -120,14 +122,12 @@ fun ReportScreen(
 
 // 컬럼 weight 비율 정의
 private object ColWeights {
-    const val DATE = 0.8f
-    const val NAME = 1.0f
-    const val TITLE = 2.5f
-    const val OPINION = 0.6f
-    const val TARGET = 0.9f
-    const val CURRENT = 0.9f
-    const val DIV = 0.6f
-    const val INST = 0.9f
+    const val DATE = 0.9f
+    const val NAME = 1.1f
+    const val TITLE = 2.8f
+    const val OPINION = 0.7f
+    const val TARGET = 1.0f
+    const val INST = 1.0f
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -136,10 +136,10 @@ private fun ReportTable(
     reports: List<ConsensusReport>,
     filter: ConsensusFilter,
     filterOptions: ConsensusFilterOptions,
-    onFilterChanged: (ConsensusFilter) -> Unit
+    onFilterChanged: (ConsensusFilter) -> Unit,
+    onReportClick: (ConsensusReport) -> Unit = {}
 ) {
     val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
-    val financeColors = LocalFinanceColors.current
 
     // 날짜 필터 — DatePicker 다이얼로그
     var showDatePicker by remember { mutableStateOf(false) }
@@ -174,8 +174,6 @@ private fun ReportTable(
                 onSelected = { onFilterChanged(filter.copy(opinion = it)) }
             )
             HeaderCell("목표가", Modifier.weight(ColWeights.TARGET))
-            HeaderCell("현재가", Modifier.weight(ColWeights.CURRENT))
-            HeaderCell("괴리율", Modifier.weight(ColWeights.DIV))
             FilterableHeaderCell(
                 label = "작성기관",
                 modifier = Modifier.weight(ColWeights.INST),
@@ -192,7 +190,8 @@ private fun ReportTable(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 2.dp, vertical = 1.dp),
+                        .padding(horizontal = 2.dp, vertical = 1.dp)
+                        .clickable { onReportClick(report) },
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
@@ -213,27 +212,6 @@ private fun ReportTable(
                             modifier = Modifier.weight(ColWeights.TARGET),
                             textAlign = TextAlign.End
                         )
-                        DataCell(
-                            text = if (report.currentPrice > 0) numberFormat.format(report.currentPrice) else "-",
-                            modifier = Modifier.weight(ColWeights.CURRENT),
-                            textAlign = TextAlign.End
-                        )
-
-                        val divergenceColor = when {
-                            report.divergenceRate > 0 -> financeColors.positive
-                            report.divergenceRate < 0 -> financeColors.negative
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-                        Text(
-                            text = if (report.targetPrice > 0) String.format("%.1f", report.divergenceRate) else "-",
-                            modifier = Modifier.weight(ColWeights.DIV),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = divergenceColor,
-                            textAlign = TextAlign.End,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1
-                        )
-
                         DataCell(report.institution, Modifier.weight(ColWeights.INST))
                     }
                 }
