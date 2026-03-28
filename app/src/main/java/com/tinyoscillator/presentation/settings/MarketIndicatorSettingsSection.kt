@@ -1,79 +1,13 @@
 package com.tinyoscillator.presentation.settings
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.tinyoscillator.presentation.common.GlassCard
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun MarketIndicatorTab(
-    marketOscCollectionDays: Int,
-    onMarketOscCollectionDaysChange: (Int) -> Unit,
-    marketDepositCollectionDays: Int,
-    onMarketDepositCollectionDaysChange: (Int) -> Unit,
-    saveMessage: String?,
-    onSave: (oscDays: Int, depositDays: Int) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // === 과매수/과매도 수집 기간 ===
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("과매수/과매도 데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(12.dp))
-            CollectionPeriodRow(
-                daysBack = marketOscCollectionDays,
-                onDaysBackChange = onMarketOscCollectionDaysChange,
-                onSave = { onSave(marketOscCollectionDays, marketDepositCollectionDays) }
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "초기 수집 또는 전체 새로고침 시 수집할 기간입니다.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        // === 자금 동향 수집 기간 ===
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("자금 동향 데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(12.dp))
-            CollectionPeriodRow(
-                daysBack = marketDepositCollectionDays,
-                onDaysBackChange = onMarketDepositCollectionDaysChange,
-                onSave = { onSave(marketOscCollectionDays, marketDepositCollectionDays) }
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "초기 수집 또는 전체 새로고침 시 수집할 기간입니다.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        saveMessage?.let { msg ->
-            Text(
-                text = msg,
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

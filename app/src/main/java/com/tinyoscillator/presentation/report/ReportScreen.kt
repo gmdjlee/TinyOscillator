@@ -15,6 +15,7 @@ import com.tinyoscillator.presentation.common.ThemeToggleIcon
 import com.tinyoscillator.ui.theme.LocalThemeModeState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -46,6 +47,12 @@ fun ReportScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val reportCount by viewModel.reportCount.collectAsStateWithLifecycle()
     val themeModeState = LocalThemeModeState.current
+
+    // 화면 재진입 시 데이터 새로고침 (수집 후 최신 데이터 반영)
+    LifecycleResumeEffect(Unit) {
+        viewModel.refresh()
+        onPauseOrDispose { }
+    }
 
     val hasActiveFilter = filter.dateRange != null || filter.opinion != null ||
         filter.institution != null || filter.stockName != null

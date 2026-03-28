@@ -74,6 +74,7 @@ internal object PrefsKeys {
     const val CONSENSUS_SCHEDULE_HOUR = "consensus_schedule_hour"
     const val CONSENSUS_SCHEDULE_MINUTE = "consensus_schedule_minute"
     const val CONSENSUS_SCHEDULE_ENABLED = "consensus_schedule_enabled"
+    const val CONSENSUS_COLLECTION_DAYS = "consensus_collection_days"
 }
 
 // KrxCredentials and EtfKeywordFilter moved to domain.model.EtfModels.kt
@@ -95,6 +96,7 @@ data class EtfCollectionPeriod(val daysBack: Int = 14)
 
 data class MarketOscillatorCollectionPeriod(val daysBack: Int = 30)
 data class MarketDepositCollectionPeriod(val daysBack: Int = 365)
+data class ConsensusCollectionPeriod(val daysBack: Int = 30)
 
 suspend fun loadKrxCredentials(context: Context): KrxCredentials = withContext(Dispatchers.IO) {
     val prefs = getEncryptedPrefs(context)
@@ -266,6 +268,19 @@ suspend fun saveMarketDepositCollectionPeriod(context: Context, period: MarketDe
         .apply()
 }
 
+suspend fun loadConsensusCollectionPeriod(context: Context): ConsensusCollectionPeriod = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    ConsensusCollectionPeriod(
+        daysBack = prefs.getInt(PrefsKeys.CONSENSUS_COLLECTION_DAYS, 30)
+    )
+}
+
+suspend fun saveConsensusCollectionPeriod(context: Context, period: ConsensusCollectionPeriod) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putInt(PrefsKeys.CONSENSUS_COLLECTION_DAYS, period.daysBack)
+        .apply()
+}
+
 @Volatile
 private var cachedEncryptedPrefs: SharedPreferences? = null
 private val prefsLock = Any()
@@ -384,7 +399,7 @@ private fun rememberCollectionState(workInfos: List<WorkInfo>): CollectionState 
     }
 }
 
-private val TAB_TITLES = listOf("API", "ETF", "시장지표", "Schedule", "로그", "Backup")
+private val TAB_TITLES = listOf("API", "ETF", "수집설정", "Schedule", "로그", "Backup")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -434,6 +449,8 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     var marketOscCollectionDays by remember { mutableIntStateOf(30) }
     var marketDepositCollectionDays by remember { mutableIntStateOf(365) }
+    var consensusCollectionDays by remember { mutableIntStateOf(30) }
+    var showResetConfirmDialog by remember { mutableStateOf<String?>(null) }
 
     var saveMessage by remember { mutableStateOf<String?>(null) }
 
@@ -531,6 +548,9 @@ fun SettingsScreen(onBack: () -> Unit) {
             consensusScheduleHour = consensusSchedule.hour
             consensusScheduleMinute = consensusSchedule.minute
 
+            val consensusPeriod = loadConsensusCollectionPeriod(context)
+            consensusCollectionDays = consensusPeriod.daysBack
+
             // Worker execution logs
             val logDao = entryPoint.workerLogDao()
             lastEtfLog = logDao.getLatestLog(com.tinyoscillator.core.worker.EtfUpdateWorker.LABEL)
@@ -612,8 +632,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 1 -> EtfTab(
                     includeKeywords = includeKeywords,
                     excludeKeywords = excludeKeywords,
-                    etfCollectionDays = etfCollectionDays,
-                    onEtfCollectionDaysChange = { etfCollectionDays = it },
                     showAddIncludeDialog = showAddIncludeDialog,
                     showAddExcludeDialog = showAddExcludeDialog,
                     onIncludeRemove = { kw -> includeKeywords = includeKeywords - kw },
@@ -635,25 +653,54 @@ fun SettingsScreen(onBack: () -> Unit) {
                     },
                     onDismissExclude = { showAddExcludeDialog = false },
                     saveMessage = saveMessage,
-                    etfCollectProgress = etfCollectionState.progress,
-                    isEtfCollecting = etfCollectionState.isCollecting,
                     onSave = {
                         scope.launch {
-                            saveMessage = saveEtfSettings(context, includeKeywords, excludeKeywords, etfCollectionDays)
+                            saveMessage = saveEtfKeywordSettings(context, includeKeywords, excludeKeywords)
                         }
                     }
                 )
-                2 -> MarketIndicatorTab(
+                2 -> CollectionSettingsTab(
+                    etfCollectionDays = etfCollectionDays,
+                    onEtfCollectionDaysChange = { etfCollectionDays = it },
                     marketOscCollectionDays = marketOscCollectionDays,
                     onMarketOscCollectionDaysChange = { marketOscCollectionDays = it },
                     marketDepositCollectionDays = marketDepositCollectionDays,
                     onMarketDepositCollectionDaysChange = { marketDepositCollectionDays = it },
+                    consensusCollectionDays = consensusCollectionDays,
+                    onConsensusCollectionDaysChange = { consensusCollectionDays = it },
                     saveMessage = saveMessage,
-                    onSave = { oscDays, depositDays ->
+                    onSave = {
                         scope.launch {
-                            saveMessage = saveMarketIndicatorSettings(context, oscDays, depositDays)
+                            saveMessage = saveCollectionSettings(
+                                context, etfCollectionDays, marketOscCollectionDays,
+                                marketDepositCollectionDays, consensusCollectionDays
+                            )
                         }
-                    }
+                    },
+                    onResetData = { type ->
+                        scope.launch {
+                            val db = entryPoint.appDatabase()
+                            withContext(Dispatchers.IO) {
+                                when (type) {
+                                    "etf" -> { db.etfDao().deleteAllHoldings(); db.etfDao().deleteAllEtfs() }
+                                    "oscillator" -> db.marketOscillatorDao().deleteAll()
+                                    "deposit" -> db.marketDepositDao().deleteAll()
+                                    "consensus" -> db.consensusReportDao().deleteAll()
+                                }
+                            }
+                            val label = when (type) {
+                                "etf" -> "ETF"
+                                "oscillator" -> "과매수/과매도"
+                                "deposit" -> "자금 동향"
+                                "consensus" -> "리포트"
+                                else -> type
+                            }
+                            saveMessage = "$label 데이터가 초기화되었습니다"
+                        }
+                    },
+                    showResetConfirmDialog = showResetConfirmDialog,
+                    onShowResetConfirm = { showResetConfirmDialog = it },
+                    onDismissResetConfirm = { showResetConfirmDialog = null }
                 )
                 3 -> ScheduleTab(
                     etfScheduleEnabled = etfScheduleEnabled,
@@ -783,15 +830,13 @@ private suspend fun saveApiSettings(
     }
 }
 
-private suspend fun saveEtfSettings(
+private suspend fun saveEtfKeywordSettings(
     context: Context,
     includeKeywords: List<String>,
-    excludeKeywords: List<String>,
-    collectionDays: Int
+    excludeKeywords: List<String>
 ): String {
     return try {
         saveEtfKeywordFilter(context, EtfKeywordFilter(includeKeywords, excludeKeywords))
-        saveEtfCollectionPeriod(context, EtfCollectionPeriod(collectionDays))
         "저장되었습니다"
     } catch (e: CancellationException) {
         throw e
@@ -847,14 +892,18 @@ private suspend fun saveScheduleSettings(
     }
 }
 
-private suspend fun saveMarketIndicatorSettings(
+private suspend fun saveCollectionSettings(
     context: Context,
+    etfDays: Int,
     oscDays: Int,
-    depositDays: Int
+    depositDays: Int,
+    consensusDays: Int
 ): String {
     return try {
+        saveEtfCollectionPeriod(context, EtfCollectionPeriod(etfDays))
         saveMarketOscillatorCollectionPeriod(context, MarketOscillatorCollectionPeriod(oscDays))
         saveMarketDepositCollectionPeriod(context, MarketDepositCollectionPeriod(depositDays))
+        saveConsensusCollectionPeriod(context, ConsensusCollectionPeriod(consensusDays))
         "저장되었습니다"
     } catch (e: CancellationException) {
         throw e

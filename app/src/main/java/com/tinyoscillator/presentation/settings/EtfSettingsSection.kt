@@ -10,19 +10,15 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.presentation.common.GlassCard
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun EtfTab(
     includeKeywords: List<String>,
     excludeKeywords: List<String>,
-    etfCollectionDays: Int,
-    onEtfCollectionDaysChange: (Int) -> Unit,
     showAddIncludeDialog: Boolean,
     showAddExcludeDialog: Boolean,
     onIncludeRemove: (String) -> Unit,
@@ -34,8 +30,6 @@ internal fun EtfTab(
     onAddExclude: (String) -> Unit,
     onDismissExclude: () -> Unit,
     saveMessage: String?,
-    etfCollectProgress: Float?,
-    isEtfCollecting: Boolean,
     onSave: () -> Unit
 ) {
     Column(
@@ -79,104 +73,6 @@ internal fun EtfTab(
                 onDismiss = onDismissExclude,
                 onConfirm = onAddExclude
             )
-        }
-
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("데이터 수집 기간", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(12.dp))
-            var isWeekUnit by remember { mutableStateOf(etfCollectionDays % 7 == 0 && etfCollectionDays / 7 <= 4) }
-        var periodValue by remember {
-            mutableStateOf(
-                if (etfCollectionDays % 7 == 0 && etfCollectionDays / 7 <= 4)
-                    (etfCollectionDays / 7).toString()
-                else
-                    (etfCollectionDays / 30).coerceAtLeast(1).toString()
-            )
-        }
-        val unitOptions = listOf("주" to true, "월" to false)
-        var unitExpanded by remember { mutableStateOf(false) }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = periodValue,
-                onValueChange = { v ->
-                    val filtered = v.filter { it.isDigit() }.take(2)
-                    periodValue = filtered
-                    filtered.toIntOrNull()?.let { num ->
-                        if (num > 0) {
-                            val days = if (isWeekUnit) num * 7 else num * 30
-                            onEtfCollectionDaysChange(days)
-                        }
-                    }
-                },
-                label = { Text("기간") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                    imeAction = ImeAction.Done
-                ),
-                modifier = Modifier.weight(1f)
-            )
-
-            ExposedDropdownMenuBox(
-                expanded = unitExpanded,
-                onExpandedChange = { unitExpanded = it },
-                modifier = Modifier.weight(1f)
-            ) {
-                OutlinedTextField(
-                    value = if (isWeekUnit) "주" else "월",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("단위") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
-                    modifier = Modifier.menuAnchor().fillMaxWidth()
-                )
-                ExposedDropdownMenu(
-                    expanded = unitExpanded,
-                    onDismissRequest = { unitExpanded = false }
-                ) {
-                    unitOptions.forEach { (label, isWeek) ->
-                        DropdownMenuItem(
-                            text = { Text(label) },
-                            onClick = {
-                                isWeekUnit = isWeek
-                                unitExpanded = false
-                                periodValue.toIntOrNull()?.let { num ->
-                                    if (num > 0) onEtfCollectionDaysChange(if (isWeek) num * 7 else num * 30)
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            Button(
-                onClick = onSave,
-                modifier = Modifier.weight(1f),
-                enabled = !isEtfCollecting
-            ) {
-                Text("저장")
-            }
-        }
-
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "앱 첫 실행 시 또는 전체 새로고침 시 수집할 기간입니다.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            etfCollectProgress?.let { progress ->
-                Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
         }
 
         saveMessage?.let { msg ->

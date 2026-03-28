@@ -76,6 +76,12 @@ interface EtfDao {
     @Query("DELETE FROM etf_holdings WHERE date < :beforeDate")
     suspend fun deleteHoldingsBeforeDate(beforeDate: String)
 
+    @Query("DELETE FROM etf_holdings")
+    suspend fun deleteAllHoldings()
+
+    @Query("DELETE FROM etfs")
+    suspend fun deleteAllEtfs()
+
     @Query("SELECT DISTINCT date FROM etf_holdings ORDER BY date DESC")
     suspend fun getAllDates(): List<String>
 

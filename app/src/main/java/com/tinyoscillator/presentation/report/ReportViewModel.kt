@@ -59,6 +59,18 @@ class ReportViewModel @Inject constructor(
         updateFilter(ConsensusFilter())
     }
 
+    /**
+     * 외부에서 데이터 갱신 요청 (수집 완료 후 또는 화면 재진입 시)
+     */
+    fun refresh() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            loadFilterOptions()
+            loadReports()
+            _isLoading.value = false
+        }
+    }
+
     private suspend fun loadReports() {
         val result = consensusRepository.getReports(_filter.value)
         _reports.value = result

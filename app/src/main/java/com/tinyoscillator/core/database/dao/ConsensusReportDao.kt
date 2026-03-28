@@ -53,4 +53,7 @@ interface ConsensusReportDao {
 
     @Query("DELETE FROM consensus_reports WHERE write_date < :beforeDate")
     suspend fun deleteBeforeDate(beforeDate: String)
+
+    @Query("DELETE FROM consensus_reports")
+    suspend fun deleteAll()
 }
