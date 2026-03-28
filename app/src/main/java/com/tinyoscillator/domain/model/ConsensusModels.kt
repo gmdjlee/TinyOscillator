@@ -21,6 +21,7 @@ data class ConsensusFilter(
     val prevOpinion: String? = null,
     val opinion: String? = null,
     val stockTicker: String? = null,
+    val stockName: String? = null,
     val author: String? = null,
     val institution: String? = null
 )
@@ -30,6 +31,7 @@ data class ConsensusFilterOptions(
     val categories: List<String> = emptyList(),
     val prevOpinions: List<String> = emptyList(),
     val opinions: List<String> = emptyList(),
+    val stockNames: List<String> = emptyList(),
     val authors: List<String> = emptyList(),
     val institutions: List<String> = emptyList()
 )

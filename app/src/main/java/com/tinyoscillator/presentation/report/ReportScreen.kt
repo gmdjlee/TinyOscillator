@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.ConsensusFilter
@@ -46,7 +48,7 @@ fun ReportScreen(
     val themeModeState = LocalThemeModeState.current
 
     val hasActiveFilter = filter.dateRange != null || filter.opinion != null ||
-        filter.institution != null
+        filter.institution != null || filter.stockName != null
 
     Scaffold(
         topBar = {
@@ -119,9 +121,8 @@ fun ReportScreen(
 // 컬럼 weight 비율 정의
 private object ColWeights {
     const val DATE = 0.8f
-    const val TICKER = 0.7f
-    const val NAME = 0.9f
-    const val TITLE = 2.2f
+    const val NAME = 1.0f
+    const val TITLE = 2.5f
     const val OPINION = 0.6f
     const val TARGET = 0.9f
     const val CURRENT = 0.9f
@@ -142,6 +143,7 @@ private fun ReportTable(
 
     // 날짜 필터 — DatePicker 다이얼로그
     var showDatePicker by remember { mutableStateOf(false) }
+    var showStockNameSearch by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Header row
@@ -157,8 +159,12 @@ private fun ReportTable(
                 modifier = Modifier.weight(ColWeights.DATE),
                 onClick = { showDatePicker = true }
             )
-            HeaderCell("종목코드", Modifier.weight(ColWeights.TICKER))
-            HeaderCell("종목명", Modifier.weight(ColWeights.NAME))
+            SearchableHeaderCell(
+                label = "종목명",
+                modifier = Modifier.weight(ColWeights.NAME),
+                selectedValue = filter.stockName,
+                onClick = { showStockNameSearch = true }
+            )
             HeaderCell("제목", Modifier.weight(ColWeights.TITLE))
             FilterableHeaderCell(
                 label = "의견",
@@ -199,7 +205,6 @@ private fun ReportTable(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         DataCell(formatShortDate(report.writeDate), Modifier.weight(ColWeights.DATE))
-                        DataCell(report.stockTicker, Modifier.weight(ColWeights.TICKER))
                         DataCell(report.stockName, Modifier.weight(ColWeights.NAME))
                         DataCell(report.title, Modifier.weight(ColWeights.TITLE), maxLines = 2)
                         DataCell(report.opinion, Modifier.weight(ColWeights.OPINION))
@@ -249,6 +254,18 @@ private fun ReportTable(
                 }
             },
             onDismiss = { showDatePicker = false }
+        )
+    }
+
+    // 종목명 검색 다이얼로그
+    if (showStockNameSearch) {
+        StockNameSearchDialog(
+            selectedValue = filter.stockName,
+            stockNames = filterOptions.stockNames,
+            onSelected = { name ->
+                onFilterChanged(filter.copy(stockName = name))
+            },
+            onDismiss = { showStockNameSearch = false }
         )
     }
 }
@@ -384,6 +401,167 @@ private fun DateHeaderCell(
             tint = headerColor
         )
     }
+}
+
+/**
+ * 검색 가능한 컬럼 헤더. 클릭하면 검색 다이얼로그를 표시.
+ */
+@Composable
+private fun SearchableHeaderCell(
+    label: String,
+    modifier: Modifier,
+    selectedValue: String?,
+    onClick: () -> Unit
+) {
+    val isFiltered = selectedValue != null
+    val headerColor = if (isFiltered) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Row(
+        modifier = modifier
+            .clickable { onClick() }
+            .padding(horizontal = 2.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = selectedValue ?: label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = headerColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false)
+        )
+        Icon(
+            Icons.Default.Search,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = headerColor
+        )
+    }
+}
+
+/**
+ * 종목명 검색 다이얼로그. 검색창 + 필터링된 목록.
+ */
+@Composable
+private fun StockNameSearchDialog(
+    selectedValue: String?,
+    stockNames: List<String>,
+    onSelected: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredNames = remember(searchQuery, stockNames) {
+        if (searchQuery.isBlank()) stockNames
+        else stockNames.filter { it.contains(searchQuery, ignoreCase = true) }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = 360.dp)
+            .heightIn(max = 480.dp),
+        title = { Text("종목명 검색") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("종목명 입력") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = null)
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "지우기")
+                            }
+                        }
+                    },
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // "전체" 선택 항목
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onSelected(null)
+                            onDismiss()
+                        },
+                    color = if (selectedValue == null) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    }
+                ) {
+                    Text(
+                        text = "전체",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        fontWeight = if (selectedValue == null) FontWeight.Bold else FontWeight.Normal,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                HorizontalDivider()
+
+                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                    items(filteredNames) { name ->
+                        val isSelected = name == selectedValue
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onSelected(name)
+                                    onDismiss()
+                                },
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            }
+                        ) {
+                            Text(
+                                text = name,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+
+                    if (filteredNames.isEmpty()) {
+                        item {
+                            Text(
+                                text = "검색 결과 없음",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("닫기")
+            }
+        }
+    )
 }
 
 /**

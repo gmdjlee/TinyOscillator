@@ -45,6 +45,9 @@ interface ConsensusReportDao {
     @Query("SELECT MIN(write_date) FROM consensus_reports")
     suspend fun getEarliestDate(): String?
 
+    @Query("SELECT DISTINCT stock_name FROM consensus_reports WHERE stock_name != '' ORDER BY stock_name")
+    suspend fun getDistinctStockNames(): List<String>
+
     @Query("SELECT COUNT(*) FROM consensus_reports")
     suspend fun getCount(): Int
 

@@ -13,6 +13,7 @@ import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
 import com.tinyoscillator.core.scraper.EquityReportScraper
+import com.tinyoscillator.core.scraper.FnGuideReportScraper
 import com.tinyoscillator.core.scraper.NaverFinanceScraper
 import com.tinyoscillator.data.repository.ConsensusRepository
 import com.tinyoscillator.data.repository.EtfRepository
@@ -125,11 +126,17 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideFnGuideReportScraper(httpClient: OkHttpClient): FnGuideReportScraper =
+        FnGuideReportScraper(httpClient)
+
+    @Provides
+    @Singleton
     fun provideConsensusRepository(
         consensusReportDao: ConsensusReportDao,
-        scraper: EquityReportScraper,
+        equityScraper: EquityReportScraper,
+        fnGuideScraper: FnGuideReportScraper,
         analysisCacheDao: AnalysisCacheDao
-    ): ConsensusRepository = ConsensusRepository(consensusReportDao, scraper, analysisCacheDao)
+    ): ConsensusRepository = ConsensusRepository(consensusReportDao, equityScraper, fnGuideScraper, analysisCacheDao)
 
     @Provides
     @Singleton

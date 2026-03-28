@@ -3,11 +3,14 @@ package com.tinyoscillator.core.worker
 import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.WorkerParameters
+import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.entity.MarketDepositEntity
 import com.tinyoscillator.core.database.entity.MarketOscillatorEntity
+import com.tinyoscillator.core.scraper.EquityReportScraper
+import com.tinyoscillator.core.scraper.FnGuideReportScraper
 import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.domain.model.EtfDataProgress
@@ -20,6 +23,8 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.delay
 import timber.log.Timber
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
 @HiltWorker
@@ -30,7 +35,10 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
     private val marketIndicatorRepository: MarketIndicatorRepository,
     private val oscillatorDao: MarketOscillatorDao,
     private val depositDao: MarketDepositDao,
-    private val etfDao: EtfDao
+    private val etfDao: EtfDao,
+    private val consensusReportDao: ConsensusReportDao,
+    private val equityReportScraper: EquityReportScraper,
+    private val fnGuideReportScraper: FnGuideReportScraper
 ) : BaseCollectionWorker(context, workerParams) {
 
     override val notificationTitle = "데이터 무결성 검사"
@@ -80,14 +88,25 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
         }
 
         // 3. 자금 동향 데이터 무결성 검사
-        updateProgress("자금 동향 데이터 검사 중...", STATUS_RUNNING, 0.65f)
-        updateNotification("자금 동향 데이터 검사 중...", 65)
+        updateProgress("자금 동향 데이터 검사 중...", STATUS_RUNNING, 0.50f)
+        updateNotification("자금 동향 데이터 검사 중...", 50)
 
         val depositResult = checkDepositIntegrity()
         totalChecked++
         if (depositResult != null) {
             results.add(depositResult.first)
             totalFixed += depositResult.second
+        }
+
+        // 4. 리포트 데이터 무결성 검사
+        updateProgress("리포트 데이터 검사 중...", STATUS_RUNNING, 0.75f)
+        updateNotification("리포트 데이터 검사 중...", 75)
+
+        val reportResult = checkReportIntegrity()
+        totalChecked++
+        if (reportResult != null) {
+            results.add(reportResult.first)
+            totalFixed += reportResult.second
         }
 
         val summary = if (totalFixed > 0) {
@@ -232,10 +251,72 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
         }
     }
 
+    private suspend fun checkReportIntegrity(): Pair<String, Int>? {
+        return try {
+            val reportCount = consensusReportDao.getCount()
+            if (reportCount == 0) {
+                return Pair("리포트: 데이터 없음 (건너뜀)", 0)
+            }
+
+            val latestDate = consensusReportDao.getLatestDate()
+                ?: return Pair("리포트: 최신 날짜 조회 실패", 0)
+
+            // 최근 7일 범위 재수집하여 누락 데이터 확인
+            val endDate = latestDate
+            val startDate = LocalDate.parse(latestDate, DateTimeFormatter.ISO_LOCAL_DATE)
+                .minusDays(REPORT_CHECK_DAYS)
+                .format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+            // 기존 DB 데이터 조회
+            val existingReports = consensusReportDao.getByDateRange(startDate, endDate)
+            val existingKeys = existingReports.map { report ->
+                "${report.stockTicker}|${report.writeDate}|${report.author}|${report.institution}"
+            }.toSet()
+
+            // 양쪽 소스에서 재수집
+            val equityReports = try {
+                equityReportScraper.collectReports(startDate, endDate)
+            } catch (e: Exception) {
+                Timber.w(e, "equity.co.kr 무결성 검사 수집 실패")
+                emptyList()
+            }
+
+            val fnGuideReports = try {
+                fnGuideReportScraper.collectReports(startDate, endDate)
+            } catch (e: Exception) {
+                Timber.w(e, "FnGuide 무결성 검사 수집 실패")
+                emptyList()
+            }
+
+            val scrapedReports = (equityReports + fnGuideReports)
+                .distinctBy { "${it.writeDate}|${it.stockName}|${it.institution}" }
+
+            // 누락된 리포트 찾기
+            val missingReports = scrapedReports.filter { report ->
+                val key = "${report.stockTicker}|${report.writeDate}|${report.author}|${report.institution}"
+                key !in existingKeys
+            }
+
+            if (missingReports.isNotEmpty()) {
+                // 누락 데이터 삽입
+                missingReports.chunked(500).forEach { batch ->
+                    consensusReportDao.insertAll(batch)
+                }
+                Pair("리포트: ${missingReports.size}건 누락 데이터 보충", missingReports.size)
+            } else {
+                Pair("리포트: 정상 (${existingReports.size}건 검사)", 0)
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "리포트 무결성 검사 오류")
+            Pair("리포트: 오류 (${e.message})", 0)
+        }
+    }
+
     companion object {
         const val WORK_NAME = "data_integrity_check"
         const val TAG = "integrity_check"
         const val LABEL = "무결성 검사"
         private const val KRX_RATE_LIMIT_MS = 5000L
+        private const val REPORT_CHECK_DAYS = 7L
     }
 }

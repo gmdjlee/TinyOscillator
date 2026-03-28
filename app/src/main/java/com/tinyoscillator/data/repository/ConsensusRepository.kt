@@ -5,6 +5,7 @@ import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
 import com.tinyoscillator.core.scraper.EquityReportScraper
+import com.tinyoscillator.core.scraper.FnGuideReportScraper
 import com.tinyoscillator.domain.model.ConsensusChartData
 import com.tinyoscillator.domain.model.ConsensusDataProgress
 import com.tinyoscillator.domain.model.ConsensusFilter
@@ -25,37 +26,92 @@ import timber.log.Timber
 
 class ConsensusRepository(
     private val dao: ConsensusReportDao,
-    private val scraper: EquityReportScraper,
+    private val equityScraper: EquityReportScraper,
+    private val fnGuideScraper: FnGuideReportScraper,
     private val analysisCacheDao: AnalysisCacheDao
 ) {
 
     /**
-     * 웹에서 리포트 수집 후 DB 저장
+     * equity.co.kr + FnGuide에서 리포트를 수집하고 병합 후 DB 저장
      */
     fun collectReports(startDate: String, endDate: String): Flow<ConsensusDataProgress> = flow {
         emit(ConsensusDataProgress.Loading("리포트 수집 시작...", 0f))
 
         try {
-            val reports = scraper.collectReports(startDate, endDate)
+            // 1. equity.co.kr 수집
+            emit(ConsensusDataProgress.Loading("equity.co.kr 수집 중...", 0.1f))
+            val equityReports = try {
+                equityScraper.collectReports(startDate, endDate)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Timber.w(e, "equity.co.kr 수집 실패, FnGuide만 사용")
+                emptyList()
+            }
+            Timber.d("equity.co.kr: ${equityReports.size}건")
 
-            if (reports.isEmpty()) {
+            // 2. FnGuide 수집
+            emit(ConsensusDataProgress.Loading("FnGuide 수집 중...", 0.5f))
+            val fnGuideReports = try {
+                fnGuideScraper.collectReports(startDate, endDate)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Timber.w(e, "FnGuide 수집 실패, equity만 사용")
+                emptyList()
+            }
+            Timber.d("FnGuide: ${fnGuideReports.size}건")
+
+            // 3. 병합 및 중복 제거
+            emit(ConsensusDataProgress.Loading("데이터 병합 중...", 0.9f))
+            val merged = mergeReports(equityReports, fnGuideReports)
+
+            if (merged.isEmpty()) {
                 emit(ConsensusDataProgress.Success(0))
                 return@flow
             }
 
-            // 500건 배치 insert
-            reports.chunked(500).forEach { batch ->
+            // 500건 배치 insert (REPLACE on conflict)
+            merged.chunked(500).forEach { batch ->
                 dao.insertAll(batch)
             }
 
-            emit(ConsensusDataProgress.Success(reports.size))
-            Timber.d("리포트 수집 완료: ${reports.size}건 ($startDate ~ $endDate)")
+            emit(ConsensusDataProgress.Success(merged.size))
+            Timber.d("리포트 수집 완료: ${merged.size}건 (equity: ${equityReports.size}, FnGuide: ${fnGuideReports.size}) ($startDate ~ $endDate)")
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Timber.e(e, "리포트 수집 실패")
             emit(ConsensusDataProgress.Error("수집 실패: ${e.message}"))
         }
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * 두 소스의 리포트를 병합하고 중복을 제거한다.
+     * 중복 기준:
+     *  1차: 작성일 + 종목명 + 제목 동일
+     *  2차: 작성일 + 종목명 + 작성기관 동일
+     */
+    private fun mergeReports(
+        equityReports: List<ConsensusReportEntity>,
+        fnGuideReports: List<ConsensusReportEntity>
+    ): List<ConsensusReportEntity> {
+        val combined = equityReports + fnGuideReports
+
+        // 1차 중복 제거: 작성일 + 종목명 + 제목
+        val afterTitleDedup = combined.distinctBy { report ->
+            "${report.writeDate}|${report.stockName}|${report.title}"
+        }
+
+        // 2차 중복 제거: 작성일 + 종목명 + 작성기관
+        val afterInstitutionDedup = afterTitleDedup.distinctBy { report ->
+            "${report.writeDate}|${report.stockName}|${report.institution}"
+        }
+
+        val removed = combined.size - afterInstitutionDedup.size
+        if (removed > 0) {
+            Timber.d("병합 중복 제거: ${combined.size} → ${afterInstitutionDedup.size} (${removed}건 제거)")
+        }
+
+        return afterInstitutionDedup
+    }
 
     /**
      * 필터 적용하여 리포트 조회
@@ -73,6 +129,7 @@ class ConsensusRepository(
                 (filter.prevOpinion == null || e.prevOpinion == filter.prevOpinion) &&
                 (filter.opinion == null || e.opinion == filter.opinion) &&
                 (filter.stockTicker == null || e.stockTicker == filter.stockTicker) &&
+                (filter.stockName == null || e.stockName == filter.stockName) &&
                 (filter.author == null || e.author == filter.author) &&
                 (filter.institution == null || e.institution == filter.institution)
             }
@@ -95,6 +152,7 @@ class ConsensusRepository(
             categories = dao.getDistinctCategories(),
             prevOpinions = dao.getDistinctPrevOpinions(),
             opinions = dao.getDistinctOpinions(),
+            stockNames = dao.getDistinctStockNames(),
             authors = dao.getDistinctAuthors(),
             institutions = dao.getDistinctInstitutions()
         )
