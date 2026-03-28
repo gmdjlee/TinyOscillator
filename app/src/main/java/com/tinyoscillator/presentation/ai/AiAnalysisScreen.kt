@@ -1,8 +1,10 @@
 package com.tinyoscillator.presentation.ai
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -448,15 +450,15 @@ private fun DataChip(label: String, available: Boolean) {
         label = {
             Text(
                 if (available) "$label ✓" else "$label ✗",
-                style = MaterialTheme.typography.labelSmall
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (available) FontWeight.Bold else FontWeight.Normal,
+                color = if (available) Color(0xFF1B5E20) else Color(0xFF9E9E9E)
             )
         },
         colors = SuggestionChipDefaults.suggestionChipColors(
-            containerColor = if (available)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = if (available) Color(0xFFE8F5E9) else Color(0xFFF5F5F5)
+        ),
+        border = if (available) BorderStroke(1.dp, Color(0xFF66BB6A)) else null
     )
 }
 
@@ -568,12 +570,12 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
                 fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
 
-            // Bayes 확률 요약
+            // Bayes 확률 요약 (한국 주식 관례: 상승=빨강, 하락=파랑, 횡보=회색)
             result.bayesResult?.let { bayes ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ProbChip("상승", bayes.upProbability, financeColors.positive)
-                    ProbChip("하락", bayes.downProbability, financeColors.negative)
-                    ProbChip("횡보", bayes.sidewaysProbability, financeColors.neutral)
+                    ProbChip("상승", bayes.upProbability, Color(0xFFEF5350))
+                    ProbChip("하락", bayes.downProbability, Color(0xFF42A5F5))
+                    ProbChip("횡보", bayes.sidewaysProbability, Color(0xFF9E9E9E))
                 }
             }
 
@@ -705,11 +707,21 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
 }
 
 @Composable
-private fun ProbChip(label: String, probability: Double, color: androidx.compose.ui.graphics.Color) {
+private fun ProbChip(label: String, probability: Double, color: Color) {
     SuggestionChip(
         onClick = {},
-        label = { Text("$label ${pctFmt(probability)}", style = MaterialTheme.typography.labelSmall) },
-        colors = SuggestionChipDefaults.suggestionChipColors(containerColor = color.copy(alpha = 0.2f))
+        label = {
+            Text(
+                "$label ${pctFmt(probability)}",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        },
+        colors = SuggestionChipDefaults.suggestionChipColors(
+            containerColor = color.copy(alpha = 0.3f)
+        ),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.7f))
     )
 }
 

@@ -63,7 +63,7 @@ internal fun CollectionSettingsTab(
         )
 
         CollectionPeriodCard(
-            title = "리포�� 데이터 수집 기간",
+            title = "리포트 데이터 수집 기간",
             daysBack = consensusCollectionDays,
             onDaysBackChange = onConsensusCollectionDaysChange,
             onSave = onSave,
@@ -133,7 +133,7 @@ private fun CollectionPeriodCard(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "초기 수집 ��는 전체 새로고침 시 수집할 기간입니다.",
+            "초기 수집 또는 전체 새로고침 시 수집할 기간입니다.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

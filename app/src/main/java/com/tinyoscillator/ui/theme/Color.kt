@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.Color
 val LightPrimary = Color(0xFF345519)          // Olive Green
 val LightOnPrimary = Color(0xFFFFFFFF)
 val LightPrimaryContainer = Color(0xFF4B6E2F)
-val LightOnPrimaryContainer = Color(0xFFC5EFA1)
+val LightOnPrimaryContainer = Color(0xFFFFFFFF)
 
 val LightSecondary = Color(0xFF5C614D)        // Muted Olive
 val LightOnSecondary = Color(0xFFFFFFFF)
@@ -46,7 +46,7 @@ val LightInversePrimary = Color(0xFFAAD388)
 val DarkPrimary = Color(0xFFAAD388)            // Soft Green
 val DarkOnPrimary = Color(0xFF193800)
 val DarkPrimaryContainer = Color(0xFF4B6E2F)
-val DarkOnPrimaryContainer = Color(0xFFC5EFA1)
+val DarkOnPrimaryContainer = Color(0xFFE8FFD0)
 
 val DarkSecondary = Color(0xFFBBCCA8)          // Muted Sage
 val DarkOnSecondary = Color(0xFF27341B)
