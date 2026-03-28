@@ -185,18 +185,37 @@ class ReportDetailViewModelTest {
     }
 
     @Test
-    fun `divergenceRate calculation - zero when no price data`() = runTest {
+    fun `divergenceRate fallback - uses report price when no cache`() = runTest {
         val report = createReport(targetPrice = 100000L)
         coEvery { consensusRepository.getReportsByTicker(testTicker) } returns listOf(report)
 
         val vm = createViewModel()
         advanceUntilIdle()
 
-        assertEquals(0.0, vm.uiState.value.divergenceRate, 0.01)
+        val state = vm.uiState.value
+        // 캐시 없으면 리포트 현재가(212000) 사용: (100000-212000)/212000*100 = -52.83
+        assertEquals(212000, state.currentPrice)
+        assertEquals(-52.83, state.divergenceRate, 0.01)
     }
 
     @Test
-    fun `financial data failure - shows null profitability and stability`() = runTest {
+    fun `divergenceRate - uses report divergenceRate when no prices available`() = runTest {
+        val report = ConsensusReport(
+            writeDate = testWriteDate, category = "IT", prevOpinion = "", opinion = "Buy",
+            title = "테스트", stockTicker = testTicker, stockName = "삼성전자",
+            author = "홍길동", institution = "미래에셋",
+            targetPrice = 0L, currentPrice = 0L, divergenceRate = 15.5
+        )
+        coEvery { consensusRepository.getReportsByTicker(testTicker) } returns listOf(report)
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(15.5, vm.uiState.value.divergenceRate, 0.01)
+    }
+
+    @Test
+    fun `financial data failure - shows null financialSummary`() = runTest {
         coEvery { consensusRepository.getReportsByTicker(testTicker) } returns listOf(createReport())
         coEvery { apiConfigProvider.getKisConfig() } returns KisApiKeyConfig("key", "secret", InvestmentMode.MOCK)
         coEvery { financialRepository.getFinancialData(any(), any(), any(), any()) } returns
@@ -206,8 +225,8 @@ class ReportDetailViewModelTest {
         advanceUntilIdle()
 
         val state = vm.uiState.value
-        assertNull(state.profitability)
-        assertNull(state.stability)
+        assertNull(state.financialSummary)
+        assertNull(state.latestStability)
         assertNull(state.error) // should not set error for partial failure
     }
 

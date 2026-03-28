@@ -15,7 +15,7 @@ interface ConsensusReportDao {
     @Query("SELECT * FROM consensus_reports WHERE write_date BETWEEN :startDate AND :endDate ORDER BY write_date DESC, stock_ticker ASC")
     suspend fun getByDateRange(startDate: String, endDate: String): List<ConsensusReportEntity>
 
-    @Query("SELECT * FROM consensus_reports WHERE stock_ticker = :ticker ORDER BY write_date ASC")
+    @Query("SELECT * FROM consensus_reports WHERE stock_ticker = :ticker ORDER BY write_date DESC")
     suspend fun getByTicker(ticker: String): List<ConsensusReportEntity>
 
     @Query("SELECT * FROM consensus_reports ORDER BY write_date DESC, stock_ticker ASC")

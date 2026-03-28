@@ -48,11 +48,13 @@ data class ReportDetailUiState(
     val marketCap: Long = 0,
     val divergenceRate: Double = 0.0,
     val chartData: ChartData? = null,
-    val profitability: ProfitabilityRatios? = null,
-    val stability: StabilityRatios? = null,
-    val etfHoldingCount: Int = 0,
+    val financialSummary: FinancialSummary? = null,
+    val latestStability: StabilityRatios? = null,
+    val etfHoldings: List<StockInEtfRow> = emptyList(),
     val error: String? = null
-)
+) {
+    val etfHoldingCount: Int get() = etfHoldings.size
+}
 
 @HiltViewModel
 class ReportDetailViewModel @Inject constructor(
@@ -89,21 +91,28 @@ class ReportDetailViewModel @Inject constructor(
                     val reportDeferred = async { loadReport() }
                     val priceDeferred = async { loadPriceData() }
                     val chartDeferred = async { loadChartData() }
-                    val financialDeferred = async { loadFinancialData() }
-                    val etfDeferred = async { loadEtfHoldingCount() }
+                    val financialDeferred = async { loadFinancialSummary() }
+                    val etfDeferred = async { loadEtfHoldings() }
 
                     val report = reportDeferred.await()
-                    val (currentPrice, marketCap) = priceDeferred.await()
+                    val (cachedPrice, cachedMarketCap) = priceDeferred.await()
                     val chartData = chartDeferred.await()
-                    val (profitability, stability) = financialDeferred.await()
-                    val etfCount = etfDeferred.await()
+                    val (financialSummary, latestStability) = financialDeferred.await()
+                    val etfHoldings = etfDeferred.await()
 
+                    // 캐시 가격 우선, 없으면 리포트의 현재가 사용
+                    val currentPrice = if (cachedPrice > 0) cachedPrice
+                        else report?.currentPrice?.toInt() ?: 0
                     val targetPrice = report?.targetPrice ?: 0L
                     val divergenceRate = if (currentPrice > 0 && targetPrice > 0) {
                         (targetPrice - currentPrice).toDouble() / currentPrice * 100.0
                     } else {
-                        0.0
+                        report?.divergenceRate ?: 0.0
                     }
+
+                    // 시가총액: 캐시 → 차트 데이터(최신 오실레이터 행)
+                    val marketCap = if (cachedMarketCap > 0) cachedMarketCap
+                        else chartData?.rows?.lastOrNull()?.marketCap ?: 0L
 
                     _uiState.value = ReportDetailUiState(
                         isLoading = false,
@@ -112,9 +121,9 @@ class ReportDetailViewModel @Inject constructor(
                         marketCap = marketCap,
                         divergenceRate = divergenceRate,
                         chartData = chartData,
-                        profitability = profitability,
-                        stability = stability,
-                        etfHoldingCount = etfCount
+                        financialSummary = financialSummary,
+                        latestStability = latestStability,
+                        etfHoldings = etfHoldings
                     )
                 }
             } catch (e: Exception) {
@@ -184,7 +193,7 @@ class ReportDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadFinancialData(): Pair<ProfitabilityRatios?, StabilityRatios?> {
+    private suspend fun loadFinancialSummary(): Pair<FinancialSummary?, StabilityRatios?> {
         return try {
             val kisConfig = apiConfigProvider.getKisConfig()
             if (!kisConfig.isValid()) return Pair(null, null)
@@ -194,11 +203,12 @@ class ReportDetailViewModel @Inject constructor(
 
             val result = financialRepository.getFinancialData(ticker, stockName, kisConfig)
             val data = result.getOrNull() ?: return Pair(null, null)
-
-            val latestPeriod = data.periods.lastOrNull()
-            val profitability = latestPeriod?.let { data.profitabilityRatios[it] }
-            val stability = latestPeriod?.let { data.stabilityRatios[it] }
-            Pair(profitability, stability)
+            val summary = data.toSummary()
+            // 이자보상배율 등은 FinancialSummary에 없으므로 원본 StabilityRatios도 함께 반환
+            val latestPeriod = data.periods.sorted().lastOrNull()
+            val latestStability = latestPeriod?.let { data.stabilityRatios[it] }
+            if (summary.periods.isEmpty()) Pair(null, null)
+            else Pair(summary, latestStability)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Timber.w(e, "재무 데이터 로딩 실패: $ticker")
@@ -206,14 +216,14 @@ class ReportDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadEtfHoldingCount(): Int {
+    private suspend fun loadEtfHoldings(): List<StockInEtfRow> {
         return try {
-            val latestDate = etfRepository.getLatestDate() ?: return 0
-            etfRepository.getEtfsHoldingStock(ticker, latestDate).size
+            val latestDate = etfRepository.getLatestDate() ?: return emptyList()
+            etfRepository.getEtfsHoldingStock(ticker, latestDate)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            Timber.w(e, "ETF 보유 수 로딩 실패: $ticker")
-            0
+            Timber.w(e, "ETF 보유 목록 로딩 실패: $ticker")
+            emptyList()
         }
     }
 }
@@ -312,14 +322,14 @@ fun ReportDetailScreen(
             // 수익성/안정성 요약
             item {
                 FinancialSummarySection(
-                    profitability = state.profitability,
-                    stability = state.stability
+                    summary = state.financialSummary,
+                    latestStability = state.latestStability
                 )
             }
 
-            // ETF 보유 수
+            // ETF 보유
             item {
-                EtfHoldingSection(count = state.etfHoldingCount)
+                EtfHoldingSection(holdings = state.etfHoldings)
             }
 
             // 하단 여백
@@ -460,12 +470,21 @@ private fun SectionTitle(title: String) {
 
 @Composable
 private fun FinancialSummarySection(
-    profitability: ProfitabilityRatios?,
-    stability: StabilityRatios?
+    summary: FinancialSummary?,
+    latestStability: StabilityRatios? = null
 ) {
     SectionTitle("수익성 / 안정성")
 
-    if (profitability == null && stability == null) {
+    if (summary == null || summary.periods.isEmpty()) {
+        EmptyDataCard("재무 데이터가 없습니다.")
+        return
+    }
+
+    val latestPeriod = summary.displayPeriods.lastOrNull() ?: ""
+    val hasProfitability = summary.hasProfitabilityData || summary.hasDuPontData
+    val hasStability = summary.hasStabilityData || latestStability != null
+
+    if (!hasProfitability && !hasStability) {
         EmptyDataCard("재무 데이터가 없습니다.")
         return
     }
@@ -475,9 +494,9 @@ private fun FinancialSummarySection(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (profitability != null) {
+            if (hasProfitability) {
                 Text(
-                    "수익성 (${profitability.period.toDisplayString()})",
+                    "수익성 ($latestPeriod)",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -485,20 +504,24 @@ private fun FinancialSummarySection(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    RatioItem("ROE", profitability.roe)
-                    RatioItem("ROA", profitability.roa)
-                    RatioItem("영업이익률", profitability.operatingMargin)
-                    RatioItem("순이익률", profitability.netMargin)
+                    RatioItem("ROE", summary.roes.lastOrNull())
+                    // ROA: NPM × Asset Turnover (DuPont)
+                    val roa = summary.netProfitMargins.lastOrNull()?.let { npm ->
+                        summary.assetTurnovers.lastOrNull()?.let { at -> npm * at }
+                    }
+                    RatioItem("ROA", roa)
+                    RatioItem("영업이익률", computeOperatingMargin(summary))
+                    RatioItem("순이익률", summary.netProfitMargins.lastOrNull())
                 }
             }
 
-            if (profitability != null && stability != null) {
+            if (hasProfitability && hasStability) {
                 HorizontalDivider()
             }
 
-            if (stability != null) {
+            if (hasStability) {
                 Text(
-                    "안정성 (${stability.period.toDisplayString()})",
+                    "안정성 ($latestPeriod)",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -506,14 +529,24 @@ private fun FinancialSummarySection(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    RatioItem("부채비율", stability.debtRatio)
-                    RatioItem("유동비율", stability.currentRatio)
-                    RatioItem("당좌비율", stability.quickRatio)
-                    RatioItem("이자보상", stability.interestCoverageRatio)
+                    RatioItem("부채비율", summary.debtRatios.lastOrNull().takeIf { it != 0.0 }
+                        ?: latestStability?.debtRatio)
+                    RatioItem("유동비율", summary.currentRatios.lastOrNull().takeIf { it != 0.0 }
+                        ?: latestStability?.currentRatio)
+                    RatioItem("당좌비율", latestStability?.quickRatio)
+                    RatioItem("이자보상", latestStability?.interestCoverageRatio)
                 }
             }
         }
     }
+}
+
+/** 영업이익률: operatingProfit / revenue * 100 (최신 분기) */
+private fun computeOperatingMargin(summary: FinancialSummary): Double? {
+    val revenue = summary.revenues.lastOrNull() ?: return null
+    val operatingProfit = summary.operatingProfits.lastOrNull() ?: return null
+    if (revenue == 0L) return null
+    return operatingProfit.toDouble() / revenue * 100.0
 }
 
 @Composable
@@ -535,30 +568,56 @@ private fun RatioItem(label: String, value: Double?) {
 }
 
 @Composable
-private fun EtfHoldingSection(count: Int) {
+private fun EtfHoldingSection(holdings: List<StockInEtfRow>) {
+    val count = holdings.size
     Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                "ETF 보유",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Badge(
-                containerColor = if (count > 0) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = if (count > 0) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "${count}개 ETF에 보유됨",
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    "ETF 보유",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
                 )
+                Badge(
+                    containerColor = if (count > 0) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (count > 0) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                ) {
+                    Text(
+                        "${count}개 ETF에 보유됨",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            if (holdings.isNotEmpty()) {
+                HorizontalDivider()
+                holdings.forEach { etf ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            etf.etfName,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (etf.weight != null) {
+                            Text(
+                                String.format("%.2f%%", etf.weight),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }
