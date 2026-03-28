@@ -75,7 +75,7 @@ class OscillatorViewModelTest {
         every { searchStocksUseCase(any()) } returns flowOf(emptyList())
 
         // Mock stock master
-        coEvery { stockMasterRepository.populateIfEmpty(any()) } just Runs
+        coEvery { stockMasterRepository.populateIfEmpty(any()) } returns -1
         coEvery { stockMasterRepository.getCount() } returns 100
 
         viewModel = OscillatorViewModel(
@@ -159,7 +159,7 @@ class OscillatorViewModelTest {
     fun `refreshStockMaster 호출 시 Loading에서 Ready로 전이된다`() = runTest {
         advanceUntilIdle()
 
-        coEvery { stockMasterRepository.forceRefresh(any()) } just Runs
+        coEvery { stockMasterRepository.forceRefresh(any()) } returns 2500
         coEvery { stockMasterRepository.getCount() } returns 2500
 
         viewModel.refreshStockMaster()

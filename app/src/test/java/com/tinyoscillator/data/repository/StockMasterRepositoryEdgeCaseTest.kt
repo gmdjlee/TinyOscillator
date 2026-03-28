@@ -18,7 +18,7 @@ import org.junit.Test
 /**
  * StockMasterRepository edge case tests.
  *
- * Tests for error handling, boundary conditions, and new error logging behavior.
+ * Tests for error handling, boundary conditions, and error propagation.
  */
 class StockMasterRepositoryEdgeCaseTest {
 
@@ -42,7 +42,7 @@ class StockMasterRepositoryEdgeCaseTest {
     }
 
     @Test
-    fun `populateIfEmpty - insertAll 예외 발생 시 크래시하지 않는다`() = runTest {
+    fun `populateIfEmpty - insertAll 예외 발생 시 전파된다`() = runTest {
         coEvery { stockMasterDao.getCount() } returns 0
         coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
                 Result.success(StockListResponse(stkList = listOf(
@@ -50,8 +50,12 @@ class StockMasterRepositoryEdgeCaseTest {
                 )))
         coEvery { stockMasterDao.insertAll(any()) } throws RuntimeException("DB write error")
 
-        // Should not throw despite insertAll failure
-        repository.populateIfEmpty(validConfig)
+        try {
+            repository.populateIfEmpty(validConfig)
+            fail("Should throw exception")
+        } catch (e: RuntimeException) {
+            assertEquals("DB write error", e.message)
+        }
 
         coVerify(exactly = 1) { stockMasterDao.insertAll(any()) }
     }
@@ -67,8 +71,9 @@ class StockMasterRepositoryEdgeCaseTest {
                     StockListItem(stkCd = "  ", stkNm = "공백코드", mrktNm = "KOSPI")
                 )))
 
-        repository.populateIfEmpty(validConfig)
+        val count = repository.populateIfEmpty(validConfig)
 
+        assertEquals(0, count)
         coVerify(exactly = 0) { stockMasterDao.insertAll(any()) }
     }
 
@@ -87,10 +92,6 @@ class StockMasterRepositoryEdgeCaseTest {
 
         repository.populateIfEmpty(validConfig)
 
-        val entitiesSlot = slot<List<StockMasterEntity>>()
-        coEvery { stockMasterDao.insertAll(capture(entitiesSlot)) } just Runs
-
-        // Verify the call was made
         coVerify(exactly = 1) { stockMasterDao.insertAll(any()) }
     }
 
@@ -146,5 +147,36 @@ class StockMasterRepositoryEdgeCaseTest {
         assertEquals(2, entitiesSlot.captured.size)
         assertEquals("005930", entitiesSlot.captured[0].ticker)
         assertEquals("000660", entitiesSlot.captured[1].ticker)
+    }
+
+    @Test
+    fun `forceRefresh - API 실패 시 기존 데이터를 보존한다`() = runTest {
+        coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
+                Result.failure(RuntimeException("Network error"))
+
+        try {
+            repository.forceRefresh(validConfig)
+            fail("Should throw")
+        } catch (e: RuntimeException) {
+            assertTrue(e.message!!.contains("종목 조회 실패"))
+        }
+
+        // deleteAll이 호출되지 않아 기존 데이터 보존
+        coVerify(exactly = 0) { stockMasterDao.deleteAll() }
+    }
+
+    @Test
+    fun `forceRefresh - API 성공 후 deleteAll과 insertAll이 순서대로 호출된다`() = runTest {
+        coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
+                Result.success(StockListResponse(stkList = listOf(
+                    StockListItem(stkCd = "005930", stkNm = "삼성전자", mrktNm = "KOSPI")
+                )))
+
+        repository.forceRefresh(validConfig)
+
+        coVerifyOrder {
+            stockMasterDao.deleteAll()
+            stockMasterDao.insertAll(any())
+        }
     }
 }

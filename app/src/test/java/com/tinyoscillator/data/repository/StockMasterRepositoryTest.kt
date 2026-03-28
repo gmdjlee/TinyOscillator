@@ -46,16 +46,22 @@ class StockMasterRepositoryTest {
     fun `populateIfEmpty - DB에 데이터가 있으면 API를 호출하지 않는다`() = runTest {
         coEvery { stockMasterDao.getCount() } returns 100
 
-        repository.populateIfEmpty(validConfig)
+        val result = repository.populateIfEmpty(validConfig)
 
+        assertEquals(-1, result)
         coVerify(exactly = 0) { apiClient.call<Any>(any(), any(), any(), any(), any()) }
     }
 
     @Test
-    fun `populateIfEmpty - API 키가 유효하지 않으면 API를 호출하지 않는다`() = runTest {
+    fun `populateIfEmpty - API 키가 유효하지 않으면 예외를 던진다`() = runTest {
         coEvery { stockMasterDao.getCount() } returns 0
 
-        repository.populateIfEmpty(invalidConfig)
+        try {
+            repository.populateIfEmpty(invalidConfig)
+            fail("Should throw IllegalStateException")
+        } catch (e: IllegalStateException) {
+            assertTrue(e.message!!.contains("API 키"))
+        }
 
         coVerify(exactly = 0) { apiClient.call<Any>(any(), any(), any(), any(), any()) }
     }
@@ -68,8 +74,9 @@ class StockMasterRepositoryTest {
                     StockListItem(stkCd = "005930", stkNm = "삼성전자", mrktNm = "KOSPI")
                 )))
 
-        repository.populateIfEmpty(validConfig)
+        val count = repository.populateIfEmpty(validConfig)
 
+        assertTrue(count > 0)
         coVerify(exactly = 2) { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) }
         coVerify(exactly = 1) { stockMasterDao.insertAll(any()) }
     }
@@ -115,13 +122,17 @@ class StockMasterRepositoryTest {
     }
 
     @Test
-    fun `populateIfEmpty - 양쪽 시장 모두 API 실패 시 예외를 전파하지 않는다`() = runTest {
+    fun `populateIfEmpty - 양쪽 시장 모두 API 실패 시 예외를 던진다`() = runTest {
         coEvery { stockMasterDao.getCount() } returns 0
         coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
                 Result.failure(RuntimeException("API error"))
 
-        // Should not throw
-        repository.populateIfEmpty(validConfig)
+        try {
+            repository.populateIfEmpty(validConfig)
+            fail("Should throw RuntimeException")
+        } catch (e: RuntimeException) {
+            assertTrue(e.message!!.contains("종목 조회 실패"))
+        }
 
         coVerify(exactly = 0) { stockMasterDao.insertAll(any()) }
     }
@@ -132,8 +143,9 @@ class StockMasterRepositoryTest {
         coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
                 Result.success(StockListResponse(stkList = emptyList()))
 
-        repository.populateIfEmpty(validConfig)
+        val count = repository.populateIfEmpty(validConfig)
 
+        assertEquals(0, count)
         coVerify(exactly = 0) { stockMasterDao.insertAll(any()) }
     }
 
@@ -143,8 +155,9 @@ class StockMasterRepositoryTest {
         coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
                 Result.success(StockListResponse(stkList = null))
 
-        repository.populateIfEmpty(validConfig)
+        val count = repository.populateIfEmpty(validConfig)
 
+        assertEquals(0, count)
         coVerify(exactly = 0) { stockMasterDao.insertAll(any()) }
     }
 
@@ -225,8 +238,7 @@ class StockMasterRepositoryTest {
     // ==========================================================
 
     @Test
-    fun `forceRefresh - deleteAll 후 populateIfEmpty를 호출한다`() = runTest {
-        coEvery { stockMasterDao.getCount() } returns 0
+    fun `forceRefresh - API 성공 시 deleteAll 후 insertAll을 호출한다`() = runTest {
         coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
                 Result.success(StockListResponse(stkList = listOf(
                     StockListItem(stkCd = "005930", stkNm = "삼성전자", mrktNm = "KOSPI")
@@ -236,31 +248,52 @@ class StockMasterRepositoryTest {
 
         coVerifyOrder {
             stockMasterDao.deleteAll()
-            stockMasterDao.getCount() // populateIfEmpty 내부에서 호출
+            stockMasterDao.insertAll(any())
         }
     }
 
     @Test
     fun `forceRefresh - 삭제 후 새 데이터가 저장된다`() = runTest {
-        coEvery { stockMasterDao.getCount() } returns 0
         coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
                 Result.success(StockListResponse(stkList = listOf(
                     StockListItem(stkCd = "005930", stkNm = "삼성전자", mrktNm = "KOSPI")
                 )))
 
-        repository.forceRefresh(validConfig)
+        val count = repository.forceRefresh(validConfig)
 
+        assertTrue(count > 0)
         coVerify(exactly = 1) { stockMasterDao.deleteAll() }
         coVerify(exactly = 1) { stockMasterDao.insertAll(any()) }
     }
 
     @Test
-    fun `forceRefresh - API 키가 유효하지 않으면 삭제만 되고 데이터는 저장되지 않는다`() = runTest {
-        coEvery { stockMasterDao.getCount() } returns 0
+    fun `forceRefresh - API 키가 유효하지 않으면 예외를 던지고 기존 데이터를 보존한다`() = runTest {
+        try {
+            repository.forceRefresh(invalidConfig)
+            fail("Should throw IllegalStateException")
+        } catch (e: IllegalStateException) {
+            assertTrue(e.message!!.contains("API 키"))
+        }
 
-        repository.forceRefresh(invalidConfig)
+        // 기존 데이터 보존: deleteAll이 호출되지 않음
+        coVerify(exactly = 0) { stockMasterDao.deleteAll() }
+        coVerify(exactly = 0) { stockMasterDao.insertAll(any()) }
+    }
 
-        coVerify(exactly = 1) { stockMasterDao.deleteAll() }
+    @Test
+    fun `forceRefresh - API 실패 시 예외를 던지고 기존 데이터를 보존한다`() = runTest {
+        coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
+                Result.failure(RuntimeException("API error"))
+
+        try {
+            repository.forceRefresh(validConfig)
+            fail("Should throw RuntimeException")
+        } catch (e: RuntimeException) {
+            assertTrue(e.message!!.contains("종목 조회 실패"))
+        }
+
+        // API 실패 시 기존 데이터 보존: deleteAll이 호출되지 않음
+        coVerify(exactly = 0) { stockMasterDao.deleteAll() }
         coVerify(exactly = 0) { stockMasterDao.insertAll(any()) }
     }
 

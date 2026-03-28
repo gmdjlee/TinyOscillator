@@ -73,7 +73,7 @@ class OscillatorViewModelEdgeCaseTest {
         )
         every { analysisHistoryDao.getRecent(any()) } returns flowOf(emptyList())
         every { searchStocksUseCase(any()) } returns flowOf(emptyList())
-        coEvery { stockMasterRepository.populateIfEmpty(any()) } just Runs
+        coEvery { stockMasterRepository.populateIfEmpty(any()) } returns -1
         coEvery { stockMasterRepository.getCount() } returns 100
 
         viewModel = OscillatorViewModel(

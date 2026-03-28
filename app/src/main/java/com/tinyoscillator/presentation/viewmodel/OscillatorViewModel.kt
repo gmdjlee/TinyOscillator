@@ -117,6 +117,7 @@ class OscillatorViewModel @Inject constructor(
         // 설정 변경 후 종목 마스터 재시도
         viewModelScope.launch {
             try {
+                _stockMasterStatus.value = StockMasterStatus.Loading
                 val apiConfig = apiConfigProvider.getKiwoomConfig()
                 stockMasterRepository.populateIfEmpty(apiConfig)
                 val count = stockMasterRepository.getCount()
@@ -125,6 +126,7 @@ class OscillatorViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Timber.w("설정 변경 후 종목 마스터 재시도 실패: %s", e.message)
+                _stockMasterStatus.value = StockMasterStatus.Error(e.message ?: "알 수 없는 오류")
             }
         }
     }

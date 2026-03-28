@@ -66,7 +66,7 @@ class ViewModelConfigMutexTest {
     @Test
     fun `OscillatorViewModel은 ApiConfigProvider를 주입받아 생성된다`() {
         val stockMasterRepository = mockk<StockMasterRepository>(relaxed = true)
-        coEvery { stockMasterRepository.populateIfEmpty(any()) } just Runs
+        coEvery { stockMasterRepository.populateIfEmpty(any()) } returns -1
         coEvery { stockMasterRepository.getCount() } returns 100
 
         val analysisHistoryDao = mockk<AnalysisHistoryDao>(relaxed = true)
