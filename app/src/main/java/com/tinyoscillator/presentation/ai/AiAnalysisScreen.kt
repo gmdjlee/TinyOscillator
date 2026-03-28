@@ -1,5 +1,6 @@
 package com.tinyoscillator.presentation.ai
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -7,6 +8,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -22,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tinyoscillator.domain.model.*
 import com.tinyoscillator.presentation.common.AiAnalysisSection
 import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.ui.theme.LocalFinanceColors
@@ -39,6 +42,7 @@ fun AiAnalysisScreen(
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val selectedStock by viewModel.selectedStock.collectAsStateWithLifecycle()
     val stockDataState by viewModel.stockDataState.collectAsStateWithLifecycle()
+    val probabilityState by viewModel.probabilityState.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
     val themeModeState = LocalThemeModeState.current
@@ -96,6 +100,16 @@ fun AiAnalysisScreen(
                         stockAiState = stockAiState,
                         onAnalyze = { viewModel.analyzeStockWithAi() },
                         onDismiss = { viewModel.dismissStockAi() }
+                    )
+                }
+
+                AiTab.PROBABILITY -> {
+                    ProbabilityTabContent(
+                        selectedStock = selectedStock,
+                        probabilityState = probabilityState,
+                        onAnalyze = { viewModel.analyzeProbability() },
+                        onDismiss = { viewModel.dismissProbability() },
+                        onSelectStock = { viewModel.selectTab(AiTab.STOCK) }
                     )
                 }
             }
@@ -445,3 +459,271 @@ private fun DataChip(label: String, available: Boolean) {
         )
     )
 }
+
+// ─── 확률 분석 탭 ───
+
+@Composable
+private fun ProbabilityTabContent(
+    selectedStock: SelectedStockInfo?,
+    probabilityState: ProbabilityAnalysisState,
+    onAnalyze: () -> Unit,
+    onDismiss: () -> Unit,
+    onSelectStock: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 설명 카드
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("확률적 기대값 분석", style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text("7개 통계 알고리즘을 병렬 실행하여 상승/하락 확률을 산출합니다. API 키 없이 로컬에서 실행됩니다.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        if (selectedStock == null) {
+            // 종목 미선택
+            Spacer(Modifier.height(24.dp))
+            Text("종목을 먼저 선택하세요",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally))
+            OutlinedButton(
+                onClick = onSelectStock,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) { Text("종목 탭으로 이동") }
+        } else {
+            // 종목 정보
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(selectedStock.name, style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold)
+                    Text("${selectedStock.ticker} | ${selectedStock.market ?: "-"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // 분석 버튼
+            Button(
+                onClick = onAnalyze,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = probabilityState is ProbabilityAnalysisState.Idle ||
+                        probabilityState is ProbabilityAnalysisState.Success ||
+                        probabilityState is ProbabilityAnalysisState.Error
+            ) {
+                Icon(Icons.Default.Analytics, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("확률 분석 실행")
+            }
+
+            // 상태 표시
+            when (val state = probabilityState) {
+                is ProbabilityAnalysisState.Idle -> {}
+
+                is ProbabilityAnalysisState.Computing -> {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text(state.message)
+                        }
+                    }
+                }
+
+                is ProbabilityAnalysisState.Error -> {
+                    Card(modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                        Text(state.message, modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                }
+
+                is ProbabilityAnalysisState.Success -> {
+                    ProbabilityResultContent(state.result)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProbabilityResultContent(result: StatisticalResult) {
+    val financeColors = LocalFinanceColors.current
+
+    // 종합 요약 카드
+    Card(modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("분석 완료", style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+
+            // Bayes 확률 요약
+            result.bayesResult?.let { bayes ->
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ProbChip("상승", bayes.upProbability, financeColors.positive)
+                    ProbChip("하락", bayes.downProbability, financeColors.negative)
+                    ProbChip("횡보", bayes.sidewaysProbability, financeColors.neutral)
+                }
+            }
+
+            // Signal Score
+            result.signalScoringResult?.let { signal ->
+                Spacer(Modifier.height(8.dp))
+                Text("신호 점수: ${signal.totalScore}/100 (${signal.dominantDirection})",
+                    style = MaterialTheme.typography.bodyMedium)
+            }
+
+            // Bayesian Posterior
+            result.bayesianUpdateResult?.let { bu ->
+                Text("베이지안 확률: ${pctFmt(bu.priorProbability)} → ${pctFmt(bu.finalPosterior)}",
+                    style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+
+    // 개별 엔진 결과 (Expandable)
+    result.bayesResult?.let { bayes ->
+        ProbExpandableCard("나이브 베이즈 (샘플 ${bayes.sampleCount}건)") {
+            Text("상승: ${pctFmt(bayes.upProbability)} | 하락: ${pctFmt(bayes.downProbability)} | 횡보: ${pctFmt(bayes.sidewaysProbability)}")
+            if (bayes.dominantFeatures.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text("주요 피처:", style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold)
+                bayes.dominantFeatures.take(5).forEach { f ->
+                    Text("  · ${f.featureName}: ${String.format("%.2f", f.likelihoodRatio)}x",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+
+    result.logisticResult?.let { lr ->
+        ProbExpandableCard("로지스틱 회귀: ${lr.score0to100}/100") {
+            Text("상승 확률: ${pctFmt(lr.probability)}")
+            Spacer(Modifier.height(4.dp))
+            lr.featureValues.forEach { (name, value) ->
+                Text("  · $name: ${String.format("%.3f", value)}",
+                    style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+
+    result.hmmResult?.let { hmm ->
+        ProbExpandableCard("HMM 레짐: ${hmm.regimeDescription}") {
+            Text("R0(저변동↑): ${pctFmt(hmm.regimeProbabilities[0])}")
+            Text("R1(저변동→): ${pctFmt(hmm.regimeProbabilities[1])}")
+            Text("R2(고변동↑): ${pctFmt(hmm.regimeProbabilities[2])}")
+            Text("R3(고변동↓): ${pctFmt(hmm.regimeProbabilities[3])}")
+            if (hmm.recentRegimePath.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text("최근 경로: ${hmm.recentRegimePath.takeLast(10).joinToString("→")}",
+                    style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+
+    result.patternAnalysis?.let { pa ->
+        ProbExpandableCard("패턴 분석 (활성 ${pa.activePatterns.size}/${pa.allPatterns.size})") {
+            if (pa.activePatterns.isEmpty()) {
+                Text("현재 활성 패턴 없음", style = MaterialTheme.typography.bodySmall)
+            } else {
+                pa.activePatterns.forEach { p ->
+                    Text("${p.patternDescription}", fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodySmall)
+                    Text("  20일 승률: ${pctFmt(p.winRate20d)} | 평균수익: ${pctFmt(p.avgReturn20d)} | 발생: ${p.totalOccurrences}회",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+
+    result.signalScoringResult?.let { ss ->
+        ProbExpandableCard("신호 점수: ${ss.totalScore}/100") {
+            ss.contributions.filter { it.signal > 0 }.forEach { c ->
+                val dir = if (c.direction > 0) "매수" else if (c.direction < 0) "매도" else "중립"
+                Text("  · ${c.name}: $dir (기여 ${String.format("%.1f", c.contributionPercent)}%)",
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            if (ss.conflictingSignals.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                ss.conflictingSignals.forEach { c ->
+                    Text("⚠ ${c.description}", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+
+    result.correlationAnalysis?.let { ca ->
+        if (ca.correlations.isNotEmpty()) {
+            ProbExpandableCard("상관 분석 (${ca.correlations.size}쌍)") {
+                ca.correlations.forEach { c ->
+                    Text("${c.indicator1} ↔ ${c.indicator2}: r=${String.format("%.2f", c.pearsonR)} (${c.strength.label})",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                if (ca.leadLagResults.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("선행-후행:", fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelMedium)
+                    ca.leadLagResults.forEach { ll ->
+                        Text("  · ${ll.interpretation}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+    }
+
+    result.bayesianUpdateResult?.let { bu ->
+        ProbExpandableCard("베이지안 갱신 (${bu.updateHistory.size}단계)") {
+            Text("사전: ${pctFmt(bu.priorProbability)} → 사후: ${pctFmt(bu.finalPosterior)}")
+            Spacer(Modifier.height(4.dp))
+            bu.updateHistory.forEach { u ->
+                val arrow = if (u.deltaProb > 0) "↑" else "↓"
+                Text("  · ${u.signalName} $arrow${pctFmt(kotlin.math.abs(u.deltaProb))}",
+                    style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+
+    // 메타데이터
+    Text("실행: ${result.executionMetadata.totalTimeMs}ms" +
+            if (result.executionMetadata.failedEngines.isNotEmpty())
+                " | 실패: ${result.executionMetadata.failedEngines.joinToString()}" else "",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun ProbChip(label: String, probability: Double, color: androidx.compose.ui.graphics.Color) {
+    SuggestionChip(
+        onClick = {},
+        label = { Text("$label ${pctFmt(probability)}", style = MaterialTheme.typography.labelSmall) },
+        colors = SuggestionChipDefaults.suggestionChipColors(containerColor = color.copy(alpha = 0.2f))
+    )
+}
+
+@Composable
+private fun ProbExpandableCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Card(modifier = Modifier.fillMaxWidth(), onClick = { expanded = !expanded }) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(top = 8.dp)) { content() }
+            }
+        }
+    }
+}
+
+private fun pctFmt(value: Double): String = "${String.format("%.1f", value * 100)}%"

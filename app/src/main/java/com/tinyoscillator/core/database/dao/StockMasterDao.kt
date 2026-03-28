@@ -38,6 +38,14 @@ interface StockMasterDao {
 
     @Query("SELECT ticker, sector FROM stock_master WHERE sector != ''")
     suspend fun getTickerSectorMap(): List<TickerSectorPair>
+
+    /** 종목명 조회 — 통계 엔진용 */
+    @Query("SELECT name FROM stock_master WHERE ticker = :ticker")
+    suspend fun getStockName(ticker: String): String?
+
+    /** 종목의 섹터 조회 */
+    @Query("SELECT sector FROM stock_master WHERE ticker = :ticker")
+    suspend fun getSector(ticker: String): String?
 }
 
 data class TickerMarketPair(val ticker: String, val market: String)

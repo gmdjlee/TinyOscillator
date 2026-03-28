@@ -228,4 +228,12 @@ interface EtfDao {
         LIMIT 1
     """)
     suspend fun getStockName(stockTicker: String): String?
+
+    /** 종목의 ETF 보유 수 (최신 날짜 기준) — 통계 엔진용 */
+    @Query("""
+        SELECT COUNT(DISTINCT etf_ticker) FROM etf_holdings
+        WHERE stock_ticker = :stockTicker
+          AND date = (SELECT MAX(date) FROM etf_holdings)
+    """)
+    suspend fun getEtfCountForStock(stockTicker: String): Int
 }

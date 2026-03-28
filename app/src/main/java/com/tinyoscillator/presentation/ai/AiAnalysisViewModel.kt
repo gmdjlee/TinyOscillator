@@ -12,6 +12,7 @@ import com.tinyoscillator.data.repository.StockRepository
 import com.tinyoscillator.domain.model.*
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.util.DateFormats
+import com.tinyoscillator.data.engine.StatisticalAnalysisEngine
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
@@ -30,7 +31,8 @@ import javax.inject.Inject
 
 enum class AiTab(val label: String) {
     MARKET("시장지표"),
-    STOCK("종목")
+    STOCK("종목"),
+    PROBABILITY("확률분석")
 }
 
 data class SelectedStockInfo(
@@ -53,6 +55,14 @@ sealed class StockDataState {
     data class Error(val message: String) : StockDataState()
 }
 
+/** 확률 분석 상태 */
+sealed class ProbabilityAnalysisState {
+    data object Idle : ProbabilityAnalysisState()
+    data class Computing(val message: String) : ProbabilityAnalysisState()
+    data class Success(val result: StatisticalResult) : ProbabilityAnalysisState()
+    data class Error(val message: String) : ProbabilityAnalysisState()
+}
+
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class AiAnalysisViewModel @Inject constructor(
@@ -66,7 +76,8 @@ class AiAnalysisViewModel @Inject constructor(
     private val searchStocksUseCase: SearchStocksUseCase,
     private val aiApiClient: AiApiClient,
     private val aiPreparer: AiAnalysisPreparer,
-    private val apiConfigProvider: ApiConfigProvider
+    private val apiConfigProvider: ApiConfigProvider,
+    private val statisticalAnalysisEngine: StatisticalAnalysisEngine
 ) : AndroidViewModel(application) {
 
     private val fmt = DateFormats.yyyyMMdd
@@ -91,6 +102,10 @@ class AiAnalysisViewModel @Inject constructor(
 
     private val _stockAiState = MutableStateFlow<AiAnalysisState>(AiAnalysisState.Idle)
     val stockAiState: StateFlow<AiAnalysisState> = _stockAiState.asStateFlow()
+
+    // 확률 분석 상태
+    private val _probabilityState = MutableStateFlow<ProbabilityAnalysisState>(ProbabilityAnalysisState.Idle)
+    val probabilityState: StateFlow<ProbabilityAnalysisState> = _probabilityState.asStateFlow()
 
     fun selectTab(tab: AiTab) {
         _selectedTab.value = tab
@@ -284,6 +299,27 @@ class AiAnalysisViewModel @Inject constructor(
                 _marketAiState.value = AiAnalysisState.Error(e.message ?: "AI 분석 실패")
             }
         }
+    }
+
+    /** 확률 분석 실행 — 7개 통계 엔진 병렬 실행 (API 키 불필요) */
+    fun analyzeProbability() {
+        val stock = _selectedStock.value ?: return
+
+        viewModelScope.launch {
+            _probabilityState.value = ProbabilityAnalysisState.Computing("7개 통계 알고리즘 실행 중...")
+            try {
+                val result = statisticalAnalysisEngine.analyze(stock.ticker)
+                _probabilityState.value = ProbabilityAnalysisState.Success(result)
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _probabilityState.value = ProbabilityAnalysisState.Error(e.message ?: "확률 분석 실패")
+            }
+        }
+    }
+
+    fun dismissProbability() {
+        _probabilityState.value = ProbabilityAnalysisState.Idle
     }
 
     fun dismissMarketAi() {

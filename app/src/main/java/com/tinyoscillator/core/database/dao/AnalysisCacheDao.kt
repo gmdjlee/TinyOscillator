@@ -47,6 +47,17 @@ interface AnalysisCacheDao {
     @Query("DELETE FROM analysis_cache WHERE ticker = :ticker")
     suspend fun deleteByTicker(ticker: String)
 
+    /** 최근 N건의 일별 데이터 조회 (날짜 오름차순) — 통계 엔진용 */
+    @Query(
+        """
+        SELECT * FROM analysis_cache
+        WHERE ticker = :ticker
+        ORDER BY date DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun getRecentByTicker(ticker: String, limit: Int): List<AnalysisCacheEntity>
+
     /** Atomically insert new entries and clean up old ones. */
     @Transaction
     suspend fun insertAndCleanup(entries: List<AnalysisCacheEntity>, ticker: String, cutoffDate: String) {
