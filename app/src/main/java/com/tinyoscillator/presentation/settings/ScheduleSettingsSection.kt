@@ -163,6 +163,16 @@ private fun LastResultDisplay(log: WorkerLogEntity) {
 
 @Composable
 internal fun ScheduleTab(
+    fgScheduleEnabled: Boolean = false,
+    onFgScheduleEnabledChange: (Boolean) -> Unit = {},
+    fgScheduleHour: Int = 4,
+    onFgScheduleHourChange: (Int) -> Unit = {},
+    fgScheduleMinute: Int = 0,
+    onFgScheduleMinuteChange: (Int) -> Unit = {},
+    fgManualMessage: String? = null,
+    isFgCollecting: Boolean = false,
+    onFgManualCollect: () -> Unit = {},
+    lastFearGreedLog: WorkerLogEntity? = null,
     etfScheduleEnabled: Boolean,
     onEtfScheduleEnabledChange: (Boolean) -> Unit,
     scheduleHour: Int,
@@ -231,6 +241,23 @@ internal fun ScheduleTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            ScheduleSection(
+                title = "Fear & Greed 자동 업데이트",
+                enabled = fgScheduleEnabled,
+                onEnabledChange = onFgScheduleEnabledChange,
+                hour = fgScheduleHour,
+                onHourChange = onFgScheduleHourChange,
+                minute = fgScheduleMinute,
+                onMinuteChange = onFgScheduleMinuteChange,
+                manualButtonText = "지금 Fear & Greed 업데이트",
+                onManualCollect = onFgManualCollect,
+                message = fgManualMessage,
+                isCollecting = isFgCollecting,
+                lastResult = lastFearGreedLog
+            )
+        }
+
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             ScheduleSection(
                 title = "ETF 자동 업데이트",
@@ -328,7 +355,7 @@ internal fun ScheduleTab(
             Text("데이터 무결성 검사", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
             Text(
-                "ETF, 과매수/과매도, 자금 동향 데이터를 최신 데이터와 비교하여 불일치 항목을 수정합니다.",
+                "Fear & Greed, ETF, 과매수/과매도, 자금 동향 데이터를 최신 데이터와 비교하여 불일치 항목을 수정합니다.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

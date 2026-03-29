@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Psychology
@@ -69,6 +70,7 @@ import com.tinyoscillator.presentation.financial.FinancialInfoContent
 import com.tinyoscillator.presentation.fundamental.FundamentalHistoryContent
 import com.tinyoscillator.presentation.ai.AiAnalysisScreen
 import com.tinyoscillator.presentation.market.MarketIndicatorScreen
+import com.tinyoscillator.presentation.marketanalysis.MarketAnalysisScreen
 import com.tinyoscillator.presentation.portfolio.PortfolioScreen
 import com.tinyoscillator.presentation.report.ReportDetailScreen
 import com.tinyoscillator.presentation.report.ReportScreen
@@ -118,10 +120,11 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class BottomNavItem(val label: String, val icon: ImageVector) {
+    MARKET_ANALYSIS("시장분석", Icons.AutoMirrored.Filled.TrendingUp),
     STOCK_ANALYSIS("종목분석", Icons.AutoMirrored.Filled.ShowChart),
     ETF_ANALYSIS("ETF분석", Icons.Default.PieChart),
     REPORT("리포트", Icons.Default.Description),
-    MARKET_INDICATOR("시장지표", Icons.AutoMirrored.Filled.TrendingUp),
+    MARKET_INDICATOR("시장지표", Icons.Default.BarChart),
     AI_ANALYSIS("AI분석", Icons.Default.Psychology),
     PORTFOLIO("포트폴리오", Icons.Default.AccountBalance)
 }
@@ -187,11 +190,16 @@ private fun MainScaffold(
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
     onReportDetailClick: (ConsensusReport) -> Unit = {}
 ) {
-    var selectedNav by rememberSaveable { mutableStateOf(BottomNavItem.STOCK_ANALYSIS) }
+    var selectedNav by rememberSaveable { mutableStateOf(BottomNavItem.MARKET_ANALYSIS) }
 
     val screenContent: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier = modifier) {
             when (selectedNav) {
+                BottomNavItem.MARKET_ANALYSIS -> {
+                    MarketAnalysisScreen(
+                        onSettingsClick = onSettingsClick
+                    )
+                }
                 BottomNavItem.STOCK_ANALYSIS -> {
                     OscillatorScreen(
                         viewModel = viewModel,

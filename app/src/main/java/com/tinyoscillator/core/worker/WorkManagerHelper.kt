@@ -136,6 +136,17 @@ object WorkManagerHelper {
     fun runConsensusUpdateNow(context: Context) =
         runWorkerNow<ConsensusUpdateWorker>(context, ConsensusUpdateWorker.MANUAL_WORK_NAME, ConsensusUpdateWorker.TAG, "리포트")
 
+    // ===== Fear & Greed =====
+
+    fun scheduleFearGreedUpdate(context: Context, hour: Int = 4, minute: Int = 0) =
+        scheduleDailyWorker<FearGreedUpdateWorker>(context, FearGreedUpdateWorker.WORK_NAME, FearGreedUpdateWorker.TAG, "Fear & Greed", hour, minute)
+
+    fun cancelFearGreedUpdate(context: Context) =
+        cancelWorker(context, FearGreedUpdateWorker.WORK_NAME, "Fear & Greed")
+
+    fun runFearGreedUpdateNow(context: Context) =
+        runWorkerNow<FearGreedUpdateWorker>(context, FearGreedUpdateWorker.MANUAL_WORK_NAME, FearGreedUpdateWorker.TAG, "Fear & Greed")
+
     // ===== 데이터 무결성 검사 =====
 
     fun runIntegrityCheckNow(context: Context) =

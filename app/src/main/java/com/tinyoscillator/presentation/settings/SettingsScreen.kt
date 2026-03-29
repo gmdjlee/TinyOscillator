@@ -75,6 +75,10 @@ internal object PrefsKeys {
     const val CONSENSUS_SCHEDULE_MINUTE = "consensus_schedule_minute"
     const val CONSENSUS_SCHEDULE_ENABLED = "consensus_schedule_enabled"
     const val CONSENSUS_COLLECTION_DAYS = "consensus_collection_days"
+    const val FEAR_GREED_COLLECTION_DAYS = "fear_greed_collection_days"
+    const val FEAR_GREED_SCHEDULE_HOUR = "fear_greed_schedule_hour"
+    const val FEAR_GREED_SCHEDULE_MINUTE = "fear_greed_schedule_minute"
+    const val FEAR_GREED_SCHEDULE_ENABLED = "fear_greed_schedule_enabled"
 }
 
 // KrxCredentials and EtfKeywordFilter moved to domain.model.EtfModels.kt
@@ -97,6 +101,9 @@ data class EtfCollectionPeriod(val daysBack: Int = 14)
 data class MarketOscillatorCollectionPeriod(val daysBack: Int = 30)
 data class MarketDepositCollectionPeriod(val daysBack: Int = 365)
 data class ConsensusCollectionPeriod(val daysBack: Int = 30)
+
+data class FearGreedCollectionPeriod(val daysBack: Int = 365)
+data class FearGreedScheduleTime(val hour: Int = 4, val minute: Int = 0, val enabled: Boolean = false)
 
 suspend fun loadKrxCredentials(context: Context): KrxCredentials = withContext(Dispatchers.IO) {
     val prefs = getEncryptedPrefs(context)
@@ -281,6 +288,36 @@ suspend fun saveConsensusCollectionPeriod(context: Context, period: ConsensusCol
         .apply()
 }
 
+suspend fun loadFearGreedCollectionPeriod(context: Context): FearGreedCollectionPeriod = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    FearGreedCollectionPeriod(
+        daysBack = prefs.getInt(PrefsKeys.FEAR_GREED_COLLECTION_DAYS, 365)
+    )
+}
+
+suspend fun saveFearGreedCollectionPeriod(context: Context, period: FearGreedCollectionPeriod) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putInt(PrefsKeys.FEAR_GREED_COLLECTION_DAYS, period.daysBack)
+        .apply()
+}
+
+suspend fun loadFearGreedScheduleTime(context: Context): FearGreedScheduleTime = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    FearGreedScheduleTime(
+        hour = prefs.getInt(PrefsKeys.FEAR_GREED_SCHEDULE_HOUR, 4),
+        minute = prefs.getInt(PrefsKeys.FEAR_GREED_SCHEDULE_MINUTE, 0),
+        enabled = prefs.getBoolean(PrefsKeys.FEAR_GREED_SCHEDULE_ENABLED, false)
+    )
+}
+
+suspend fun saveFearGreedScheduleTime(context: Context, schedule: FearGreedScheduleTime) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putInt(PrefsKeys.FEAR_GREED_SCHEDULE_HOUR, schedule.hour)
+        .putInt(PrefsKeys.FEAR_GREED_SCHEDULE_MINUTE, schedule.minute)
+        .putBoolean(PrefsKeys.FEAR_GREED_SCHEDULE_ENABLED, schedule.enabled)
+        .apply()
+}
+
 @Volatile
 private var cachedEncryptedPrefs: SharedPreferences? = null
 private val prefsLock = Any()
@@ -447,6 +484,11 @@ fun SettingsScreen(onBack: () -> Unit) {
     var consensusScheduleHour by remember { mutableIntStateOf(3) }
     var consensusScheduleMinute by remember { mutableIntStateOf(0) }
 
+    var fgScheduleEnabled by remember { mutableStateOf(false) }
+    var fgScheduleHour by remember { mutableIntStateOf(4) }
+    var fgScheduleMinute by remember { mutableIntStateOf(0) }
+    var fearGreedCollectionDays by remember { mutableIntStateOf(365) }
+
     var marketOscCollectionDays by remember { mutableIntStateOf(30) }
     var marketDepositCollectionDays by remember { mutableIntStateOf(365) }
     var consensusCollectionDays by remember { mutableIntStateOf(30) }
@@ -460,6 +502,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var lastDepositLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastMarketCloseLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastConsensusLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
+    var lastFearGreedLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastIntegrityLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var allLogs by remember { mutableStateOf<List<WorkerLogEntity>>(emptyList()) }
     var logFilter by remember { mutableStateOf(LogFilter.ALL) }
@@ -482,6 +525,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val consensusWorkInfos by workManager.getWorkInfosByTagFlow(ConsensusUpdateWorker.TAG)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+    val fgWorkInfos by workManager.getWorkInfosByTagFlow(com.tinyoscillator.core.worker.FearGreedUpdateWorker.TAG)
+        .collectAsStateWithLifecycle(initialValue = emptyList())
 
     val etfCollectionState = rememberCollectionState(etfWorkInfos)
     val oscCollectionState = rememberCollectionState(oscWorkInfos)
@@ -489,6 +534,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val integrityCheckState = rememberCollectionState(integrityWorkInfos)
     val marketCloseRefreshState = rememberCollectionState(marketCloseRefreshWorkInfos)
     val consensusCollectionState = rememberCollectionState(consensusWorkInfos)
+    val fgCollectionState = rememberCollectionState(fgWorkInfos)
 
     LaunchedEffect(Unit) {
         try {
@@ -551,6 +597,14 @@ fun SettingsScreen(onBack: () -> Unit) {
             val consensusPeriod = loadConsensusCollectionPeriod(context)
             consensusCollectionDays = consensusPeriod.daysBack
 
+            val fgSchedule = loadFearGreedScheduleTime(context)
+            fgScheduleEnabled = fgSchedule.enabled
+            fgScheduleHour = fgSchedule.hour
+            fgScheduleMinute = fgSchedule.minute
+
+            val fgPeriod = loadFearGreedCollectionPeriod(context)
+            fearGreedCollectionDays = fgPeriod.daysBack
+
             // Worker execution logs
             val logDao = entryPoint.workerLogDao()
             lastEtfLog = logDao.getLatestLog(com.tinyoscillator.core.worker.EtfUpdateWorker.LABEL)
@@ -558,6 +612,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             lastDepositLog = logDao.getLatestLog(com.tinyoscillator.core.worker.MarketDepositUpdateWorker.LABEL)
             lastMarketCloseLog = logDao.getLatestLog(MarketCloseRefreshWorker.LABEL)
             lastConsensusLog = logDao.getLatestLog(ConsensusUpdateWorker.LABEL)
+            lastFearGreedLog = logDao.getLatestLog(com.tinyoscillator.core.worker.FearGreedUpdateWorker.LABEL)
             lastIntegrityLog = logDao.getLatestLog(com.tinyoscillator.core.worker.DataIntegrityCheckWorker.LABEL)
             allLogs = logDao.getAllRecentLogs(200)
         } catch (e: CancellationException) {
@@ -660,6 +715,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                 )
                 2 -> CollectionSettingsTab(
+                    fearGreedCollectionDays = fearGreedCollectionDays,
+                    onFearGreedCollectionDaysChange = { fearGreedCollectionDays = it },
                     etfCollectionDays = etfCollectionDays,
                     onEtfCollectionDaysChange = { etfCollectionDays = it },
                     marketOscCollectionDays = marketOscCollectionDays,
@@ -673,7 +730,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                         scope.launch {
                             saveMessage = saveCollectionSettings(
                                 context, etfCollectionDays, marketOscCollectionDays,
-                                marketDepositCollectionDays, consensusCollectionDays
+                                marketDepositCollectionDays, consensusCollectionDays,
+                                fearGreedCollectionDays
                             )
                         }
                     },
@@ -682,6 +740,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             val db = entryPoint.appDatabase()
                             withContext(Dispatchers.IO) {
                                 when (type) {
+                                    "feargreed" -> db.fearGreedDao().deleteAll()
                                     "etf" -> { db.etfDao().deleteAllHoldings(); db.etfDao().deleteAllEtfs() }
                                     "oscillator" -> db.marketOscillatorDao().deleteAll()
                                     "deposit" -> db.marketDepositDao().deleteAll()
@@ -689,6 +748,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 }
                             }
                             val label = when (type) {
+                                "feargreed" -> "Fear & Greed"
                                 "etf" -> "ETF"
                                 "oscillator" -> "과매수/과매도"
                                 "deposit" -> "자금 동향"
@@ -703,6 +763,16 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onDismissResetConfirm = { showResetConfirmDialog = null }
                 )
                 3 -> ScheduleTab(
+                    fgScheduleEnabled = fgScheduleEnabled,
+                    onFgScheduleEnabledChange = { fgScheduleEnabled = it },
+                    fgScheduleHour = fgScheduleHour,
+                    onFgScheduleHourChange = { fgScheduleHour = it },
+                    fgScheduleMinute = fgScheduleMinute,
+                    onFgScheduleMinuteChange = { fgScheduleMinute = it },
+                    fgManualMessage = fgCollectionState.message,
+                    isFgCollecting = fgCollectionState.isCollecting,
+                    onFgManualCollect = { WorkManagerHelper.runFearGreedUpdateNow(context) },
+                    lastFearGreedLog = lastFearGreedLog,
                     etfScheduleEnabled = etfScheduleEnabled,
                     onEtfScheduleEnabledChange = { etfScheduleEnabled = it },
                     scheduleHour = scheduleHour,
@@ -768,7 +838,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 oscScheduleEnabled, oscScheduleHour, oscScheduleMinute,
                                 depositScheduleEnabled, depositScheduleHour, depositScheduleMinute,
                                 marketCloseRefreshEnabled, marketCloseRefreshHour, marketCloseRefreshMinute,
-                                consensusScheduleEnabled, consensusScheduleHour, consensusScheduleMinute
+                                consensusScheduleEnabled, consensusScheduleHour, consensusScheduleMinute,
+                                fgScheduleEnabled, fgScheduleHour, fgScheduleMinute
                             )
                         }
                     }
@@ -851,7 +922,8 @@ private suspend fun saveScheduleSettings(
     oscScheduleEnabled: Boolean, oscScheduleHour: Int, oscScheduleMinute: Int,
     depositScheduleEnabled: Boolean, depositScheduleHour: Int, depositScheduleMinute: Int,
     marketCloseRefreshEnabled: Boolean = false, marketCloseRefreshHour: Int = 19, marketCloseRefreshMinute: Int = 0,
-    consensusScheduleEnabled: Boolean = false, consensusScheduleHour: Int = 3, consensusScheduleMinute: Int = 0
+    consensusScheduleEnabled: Boolean = false, consensusScheduleHour: Int = 3, consensusScheduleMinute: Int = 0,
+    fgScheduleEnabled: Boolean = false, fgScheduleHour: Int = 4, fgScheduleMinute: Int = 0
 ): String {
     return try {
         saveEtfScheduleTime(context, EtfScheduleTime(scheduleHour, scheduleMinute, etfScheduleEnabled))
@@ -859,6 +931,7 @@ private suspend fun saveScheduleSettings(
         saveDepositScheduleTime(context, DepositScheduleTime(depositScheduleHour, depositScheduleMinute, depositScheduleEnabled))
         saveMarketCloseRefreshScheduleTime(context, MarketCloseRefreshScheduleTime(marketCloseRefreshHour, marketCloseRefreshMinute, marketCloseRefreshEnabled))
         saveConsensusScheduleTime(context, ConsensusScheduleTime(consensusScheduleHour, consensusScheduleMinute, consensusScheduleEnabled))
+        saveFearGreedScheduleTime(context, FearGreedScheduleTime(fgScheduleHour, fgScheduleMinute, fgScheduleEnabled))
         if (etfScheduleEnabled) {
             WorkManagerHelper.scheduleEtfUpdate(context, scheduleHour, scheduleMinute)
         } else {
@@ -884,6 +957,11 @@ private suspend fun saveScheduleSettings(
         } else {
             WorkManagerHelper.cancelConsensusUpdate(context)
         }
+        if (fgScheduleEnabled) {
+            WorkManagerHelper.scheduleFearGreedUpdate(context, fgScheduleHour, fgScheduleMinute)
+        } else {
+            WorkManagerHelper.cancelFearGreedUpdate(context)
+        }
         "저장되었습니다"
     } catch (e: CancellationException) {
         throw e
@@ -897,13 +975,15 @@ private suspend fun saveCollectionSettings(
     etfDays: Int,
     oscDays: Int,
     depositDays: Int,
-    consensusDays: Int
+    consensusDays: Int,
+    fearGreedDays: Int = 365
 ): String {
     return try {
         saveEtfCollectionPeriod(context, EtfCollectionPeriod(etfDays))
         saveMarketOscillatorCollectionPeriod(context, MarketOscillatorCollectionPeriod(oscDays))
         saveMarketDepositCollectionPeriod(context, MarketDepositCollectionPeriod(depositDays))
         saveConsensusCollectionPeriod(context, ConsensusCollectionPeriod(consensusDays))
+        saveFearGreedCollectionPeriod(context, FearGreedCollectionPeriod(fearGreedDays))
         "저장되었습니다"
     } catch (e: CancellationException) {
         throw e

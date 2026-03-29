@@ -144,4 +144,12 @@ object AppModule {
         fundamentalCacheDao: FundamentalCacheDao,
         krxApiClient: KrxApiClient
     ): FundamentalHistoryRepository = FundamentalHistoryRepository(fundamentalCacheDao, krxApiClient)
+
+    @Provides
+    @Singleton
+    fun provideFearGreedRepository(
+        fearGreedDao: com.tinyoscillator.core.database.dao.FearGreedDao,
+        krxApiClient: KrxApiClient
+    ): com.tinyoscillator.data.repository.FearGreedRepository =
+        com.tinyoscillator.data.repository.FearGreedRepository(fearGreedDao, krxApiClient)
 }

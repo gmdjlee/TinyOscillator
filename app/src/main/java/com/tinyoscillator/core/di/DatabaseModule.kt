@@ -288,6 +288,36 @@ object DatabaseModule {
         }
     }
 
+    /** Migration v12→v13: Fear & Greed 지수 테이블 추가 */
+    private val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `fear_greed_index` (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `market` TEXT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `indexValue` REAL NOT NULL,
+                        `fearGreedValue` REAL NOT NULL,
+                        `oscillator` REAL NOT NULL,
+                        `rsi` REAL NOT NULL,
+                        `momentum` REAL NOT NULL,
+                        `putCallRatio` REAL NOT NULL,
+                        `volatility` REAL NOT NULL,
+                        `spread` REAL NOT NULL,
+                        `lastUpdated` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_fear_greed_index_date` ON `fear_greed_index` (`date`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_fear_greed_index_market_date` ON `fear_greed_index` (`market`, `date`)")
+                Timber.d("Migration v12→v13 성공: fear_greed_index 테이블 생성")
+            } catch (e: Exception) {
+                Timber.e(e, "Migration v12→v13 실패")
+                throw e
+            }
+        }
+    }
+
     /** Migration v11→v12: added stock_name column to consensus_reports */
     private val MIGRATION_11_12 = object : Migration(11, 12) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -312,7 +342,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
@@ -329,7 +359,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .build()
         }
     }
@@ -366,4 +396,7 @@ object DatabaseModule {
 
     @Provides
     fun provideConsensusReportDao(db: AppDatabase): ConsensusReportDao = db.consensusReportDao()
+
+    @Provides
+    fun provideFearGreedDao(db: AppDatabase): com.tinyoscillator.core.database.dao.FearGreedDao = db.fearGreedDao()
 }

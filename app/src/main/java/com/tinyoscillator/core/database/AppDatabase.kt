@@ -12,11 +12,13 @@ import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
+import com.tinyoscillator.core.database.dao.FearGreedDao
 import com.tinyoscillator.core.database.dao.WorkerLogDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
 import com.tinyoscillator.core.database.entity.EtfEntity
+import com.tinyoscillator.core.database.entity.FearGreedEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.core.database.entity.FinancialCacheEntity
 import com.tinyoscillator.core.database.entity.FundamentalCacheEntity
@@ -43,9 +45,10 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         PortfolioTransactionEntity::class,
         FundamentalCacheEntity::class,
         WorkerLogEntity::class,
-        ConsensusReportEntity::class
+        ConsensusReportEntity::class,
+        FearGreedEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -60,4 +63,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun fundamentalCacheDao(): FundamentalCacheDao
     abstract fun workerLogDao(): WorkerLogDao
     abstract fun consensusReportDao(): ConsensusReportDao
+    abstract fun fearGreedDao(): FearGreedDao
 }

@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
+import com.tinyoscillator.core.database.dao.FearGreedDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.entity.MarketDepositEntity
 import com.tinyoscillator.core.database.entity.MarketOscillatorEntity
@@ -17,6 +18,7 @@ import com.tinyoscillator.domain.model.EtfDataProgress
 import com.tinyoscillator.presentation.settings.loadEtfCollectionPeriod
 import com.tinyoscillator.presentation.settings.loadEtfKeywordFilter
 import com.tinyoscillator.presentation.settings.loadKrxCredentials
+import com.tinyoscillator.presentation.settings.loadFearGreedCollectionPeriod
 import com.tinyoscillator.presentation.settings.loadMarketDepositCollectionPeriod
 import com.tinyoscillator.presentation.settings.loadMarketOscillatorCollectionPeriod
 import dagger.assisted.Assisted
@@ -33,6 +35,8 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
     @Assisted workerParams: WorkerParameters,
     private val etfRepository: EtfRepository,
     private val marketIndicatorRepository: MarketIndicatorRepository,
+    private val fearGreedDao: FearGreedDao,
+    private val fearGreedRepository: com.tinyoscillator.data.repository.FearGreedRepository,
     private val oscillatorDao: MarketOscillatorDao,
     private val depositDao: MarketDepositDao,
     private val etfDao: EtfDao,
@@ -72,10 +76,25 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
             results.add("ETF: KRX 자격증명 미설정 (건너뜀)")
         }
 
-        // 2. 과매수/과매도 데이터 무결성 검사
+        // 2. Fear & Greed 데이터 무결성 검사
         if (hasKrxCreds) {
-            updateProgress("과매수/과매도 데이터 검사 중...", STATUS_RUNNING, 0.35f)
-            updateNotification("과매수/과매도 데이터 검사 중...", 35)
+            updateProgress("Fear & Greed 데이터 검사 중...", STATUS_RUNNING, 0.20f)
+            updateNotification("Fear & Greed 데이터 검사 중...", 20)
+
+            val fgResult = checkFearGreedIntegrity(creds.id, creds.password)
+            totalChecked++
+            if (fgResult != null) {
+                results.add(fgResult.first)
+                totalFixed += fgResult.second
+            }
+        } else {
+            results.add("Fear & Greed: KRX 자격증명 미설정 (건너뜀)")
+        }
+
+        // 3. 과매수/과매도 데이터 무결성 검사
+        if (hasKrxCreds) {
+            updateProgress("과매수/과매도 데이터 검사 중...", STATUS_RUNNING, 0.40f)
+            updateNotification("과매수/과매도 데이터 검사 중...", 40)
 
             val oscResult = checkOscillatorIntegrity(creds.id, creds.password)
             totalChecked++
@@ -87,9 +106,9 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
             results.add("과매수/과매도: KRX 자격증명 미설정 (건너뜀)")
         }
 
-        // 3. 자금 동향 데이터 무결성 검사
-        updateProgress("자금 동향 데이터 검사 중...", STATUS_RUNNING, 0.50f)
-        updateNotification("자금 동향 데이터 검사 중...", 50)
+        // 4. 자금 동향 데이터 무결성 검사
+        updateProgress("자금 동향 데이터 검사 중...", STATUS_RUNNING, 0.55f)
+        updateNotification("자금 동향 데이터 검사 중...", 55)
 
         val depositResult = checkDepositIntegrity()
         totalChecked++
@@ -98,7 +117,7 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
             totalFixed += depositResult.second
         }
 
-        // 4. 리포트 데이터 무결성 검사
+        // 5. 리포트 데이터 무결성 검사
         updateProgress("리포트 데이터 검사 중...", STATUS_RUNNING, 0.75f)
         updateNotification("리포트 데이터 검사 중...", 75)
 
@@ -309,6 +328,31 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
         } catch (e: Exception) {
             Timber.e(e, "리포트 무결성 검사 오류")
             Pair("리포트: 오류 (${e.message})", 0)
+        }
+    }
+
+    private suspend fun checkFearGreedIntegrity(krxId: String, krxPassword: String): Pair<String, Int>? {
+        return try {
+            val period = loadFearGreedCollectionPeriod(applicationContext)
+
+            for (market in listOf("KOSPI", "KOSDAQ")) {
+                val existingCount = fearGreedDao.getCountByMarket(market)
+                if (existingCount == 0) continue
+
+                // 최신 데이터로 업데이트
+                val result = fearGreedRepository.updateFearGreed(krxId, krxPassword)
+                if (result.isFailure) {
+                    Timber.w("Fear & Greed $market 무결성 검사 실패: ${result.exceptionOrNull()?.message}")
+                }
+
+                if (market == "KOSPI") delay(KRX_RATE_LIMIT_MS)
+            }
+
+            val totalCount = fearGreedDao.getCountByMarket("KOSPI") + fearGreedDao.getCountByMarket("KOSDAQ")
+            Pair("Fear & Greed: 정상 (${totalCount}건)", 0)
+        } catch (e: Exception) {
+            Timber.e(e, "Fear & Greed 무결성 검사 오류")
+            Pair("Fear & Greed: 오류 (${e.message})", 0)
         }
     }
 

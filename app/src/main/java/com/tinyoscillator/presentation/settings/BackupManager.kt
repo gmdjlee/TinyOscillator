@@ -6,6 +6,7 @@ import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
+import com.tinyoscillator.core.database.entity.FearGreedEntity
 import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
 import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
@@ -175,6 +176,32 @@ data class ConsensusDataBackup(
     val version: Int = 1,
     val type: String = "consensus_reports",
     val reports: List<ConsensusReportBackupEntry>
+)
+
+// endregion
+
+// region Fear & Greed Backup Models
+
+@Serializable
+data class FearGreedBackupEntry(
+    val id: String,
+    val market: String,
+    val date: String,
+    val indexValue: Double,
+    val fearGreedValue: Double,
+    val oscillator: Double,
+    val rsi: Double,
+    val momentum: Double,
+    val putCallRatio: Double,
+    val volatility: Double,
+    val spread: Double
+)
+
+@Serializable
+data class FearGreedBackupData(
+    val version: Int = 1,
+    val type: String = "fear_greed",
+    val entries: List<FearGreedBackupEntry>
 )
 
 // endregion
@@ -615,6 +642,91 @@ object BackupManager {
 
     // endregion
 
+    // region Fear & Greed Backup/Restore
+
+    suspend fun exportFearGreedData(
+        context: Context,
+        uri: Uri,
+        db: AppDatabase
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val dao = db.fearGreedDao()
+            val entities = dao.getAllList()
+            if (entities.isEmpty()) {
+                return@withContext Result.failure(Exception("Fear & Greed 데이터가 없습니다"))
+            }
+
+            val backup = FearGreedBackupData(
+                entries = entities.map {
+                    FearGreedBackupEntry(
+                        id = it.id,
+                        market = it.market,
+                        date = it.date,
+                        indexValue = it.indexValue,
+                        fearGreedValue = it.fearGreedValue,
+                        oscillator = it.oscillator,
+                        rsi = it.rsi,
+                        momentum = it.momentum,
+                        putCallRatio = it.putCallRatio,
+                        volatility = it.volatility,
+                        spread = it.spread
+                    )
+                }
+            )
+
+            val json = backupJson.encodeToString(backup)
+            context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+            Result.success(entities.size)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun importFearGreedData(
+        context: Context,
+        uri: Uri,
+        db: AppDatabase
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val json = context.contentResolver.openInputStream(uri)?.use {
+                it.bufferedReader().readText()
+            } ?: return@withContext Result.failure(Exception("파일을 읽을 수 없습니다"))
+
+            val backup = backupJson.decodeFromString<FearGreedBackupData>(json)
+            val dao = db.fearGreedDao()
+
+            val entities = backup.entries.map {
+                FearGreedEntity(
+                    id = it.id,
+                    market = it.market,
+                    date = it.date,
+                    indexValue = it.indexValue,
+                    fearGreedValue = it.fearGreedValue,
+                    oscillator = it.oscillator,
+                    rsi = it.rsi,
+                    momentum = it.momentum,
+                    putCallRatio = it.putCallRatio,
+                    volatility = it.volatility,
+                    spread = it.spread
+                )
+            }
+
+            entities.chunked(500).forEach { chunk ->
+                dao.insertAll(chunk)
+            }
+
+            Result.success("Fear & Greed ${entities.size}건 복원 완료")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // endregion
+
     // region Data Export for Analysis
 
     internal fun formatTimestamp(millis: Long): String {
@@ -647,6 +759,7 @@ object BackupManager {
             val financialCache = db.financialCacheDao().getAll()
             val oscillators = db.marketOscillatorDao().getAllList()
             val deposits = db.marketDepositDao().getAllList()
+            val fearGreedIndices = db.fearGreedDao().getAllList()
             val etfs = db.etfDao().getAllEtfsList()
             val etfHoldings = db.etfDao().getAllHoldings()
             val portfolios = db.portfolioDao().getAllPortfoliosList()
@@ -663,7 +776,7 @@ object BackupManager {
                     w.write("# Records: stock_master=${stockMasters.size}, analysis_cache=${analysisCache.size}, ")
                     w.write("analysis_history=${analysisHistory.size}, fundamental_cache=${fundamentalCache.size}, ")
                     w.write("financial_cache=${financialCache.size}, market_oscillator=${oscillators.size}, ")
-                    w.write("market_deposits=${deposits.size}, etfs=${etfs.size}, etf_holdings=${etfHoldings.size}, ")
+                    w.write("market_deposits=${deposits.size}, fear_greed=${fearGreedIndices.size}, etfs=${etfs.size}, etf_holdings=${etfHoldings.size}, ")
                     w.write("portfolios=${portfolios.size}, consensus_reports=${consensusReports.size}\n\n")
 
                     // stock_master
@@ -780,6 +893,15 @@ object BackupManager {
                         w.write("${d.date}$t${d.depositAmount}$t${d.depositChange}$t${d.creditAmount}$t${d.creditChange}\n")
                     }
                     totalRecords += deposits.size
+
+                    // fear_greed_index
+                    w.write("\n## fear_greed_index\n")
+                    w.write("id${t}market${t}date${t}indexValue${t}fearGreedValue${t}oscillator${t}rsi${t}momentum${t}putCallRatio${t}volatility${t}spread\n")
+                    for (fg in fearGreedIndices) {
+                        w.write("${fg.id}$t${fg.market}$t${fg.date}$t${fg.indexValue}$t${fg.fearGreedValue}$t${fg.oscillator}$t${fg.rsi}$t${fg.momentum}$t${fg.putCallRatio}$t${fg.volatility}$t${fg.spread}\n")
+                    }
+                    totalRecords += fearGreedIndices.size
+                    onProgress("fear_greed: ${fearGreedIndices.size}건")
 
                     // etfs
                     w.write("\n## etfs\n")

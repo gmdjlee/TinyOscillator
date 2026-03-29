@@ -13,6 +13,8 @@ import com.tinyoscillator.presentation.common.GlassCard
 
 @Composable
 internal fun CollectionSettingsTab(
+    fearGreedCollectionDays: Int,
+    onFearGreedCollectionDaysChange: (Int) -> Unit,
     etfCollectionDays: Int,
     onEtfCollectionDaysChange: (Int) -> Unit,
     marketOscCollectionDays: Int,
@@ -35,6 +37,15 @@ internal fun CollectionSettingsTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        CollectionPeriodCard(
+            title = "Fear & Greed 데이터 수집 기간",
+            daysBack = fearGreedCollectionDays,
+            onDaysBackChange = onFearGreedCollectionDaysChange,
+            onSave = onSave,
+            resetType = "feargreed",
+            onShowResetConfirm = onShowResetConfirm
+        )
+
         CollectionPeriodCard(
             title = "ETF 데이터 수집 기간",
             daysBack = etfCollectionDays,
@@ -85,6 +96,7 @@ internal fun CollectionSettingsTab(
     // 삭제 확인 다이얼로그
     showResetConfirmDialog?.let { dataType ->
         val label = when (dataType) {
+            "feargreed" -> "Fear & Greed"
             "etf" -> "ETF"
             "oscillator" -> "과매수/과매도"
             "deposit" -> "자금 동향"
