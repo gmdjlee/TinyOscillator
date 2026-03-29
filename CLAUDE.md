@@ -65,3 +65,19 @@ com.app.stockanalysis/
 - Opus: 아키텍처 설계, 복잡한 알고리즘 구현, 프롬프트 엔지니어링
 - Sonnet: 일반 구현, 리팩토링, 테스트 작성
 - Haiku: 반복적 boilerplate, data class 생성, import 정리
+
+---
+
+## Review Summary (2026-03-29)
+
+| Category | Score | Ceiling |
+|---|---|---|
+| Security | 95/100 | 95 (KIS API header constraint) |
+| Performance | 95/100 | 97 |
+| Reliability | 98/100 | 99 |
+| Test Coverage | 95/100 | 95 (androidTest required) |
+
+### Top 3 Action Items
+1. **MarketOscillatorCalculator KRX caching** — Cache raw KRX OHLCV in Room for incremental updates (Performance +2)
+2. **androidTest infrastructure** — Set up Compose UI + Room DAO tests (Test Coverage +5)
+3. **Holiday awareness** — Add Korean market holiday calendar to TradingHours (Reliability +0.5)

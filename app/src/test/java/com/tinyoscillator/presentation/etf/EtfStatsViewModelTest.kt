@@ -501,7 +501,11 @@ class EtfStatsViewModelTest {
         )
         coEvery { etfRepository.getAllDates() } returns listOf("20260320", "20260319")
         coEvery { etfRepository.getEnrichedAmountRanking(any(), any(), any()) } returns items
-        coEvery { stockMasterDao.getTickerMarketMap() } returns emptyList()
+        coEvery { stockMasterDao.getTickerMarketMap() } returns listOf(
+            TickerMarketPair("005930", "KOSPI"),
+            TickerMarketPair("035720", "KOSPI"),
+            TickerMarketPair("263750", "KOSDAQ")
+        )
         coEvery { stockMasterDao.getTickerSectorMap() } returns emptyList()
 
         val viewModel = createViewModel()

@@ -94,6 +94,8 @@ data class KiwoomApiKeyConfig(
         InvestmentMode.MOCK -> "https://mockapi.kiwoom.com"
         InvestmentMode.PRODUCTION -> "https://api.kiwoom.com"
     }
+
+    override fun toString() = "KiwoomApiKeyConfig(appKey=*****, secretKey=*****, investmentMode=$investmentMode)"
 }
 
 /**
@@ -110,6 +112,8 @@ data class KisApiKeyConfig(
         InvestmentMode.MOCK -> "https://openapivts.koreainvestment.com:29443"
         InvestmentMode.PRODUCTION -> "https://openapi.koreainvestment.com:9443"
     }
+
+    override fun toString() = "KisApiKeyConfig(appKey=*****, appSecret=*****, investmentMode=$investmentMode)"
 }
 
 /**
@@ -125,4 +129,6 @@ data class TokenInfo(
     fun isExpired(): Boolean {
         return System.currentTimeMillis() >= expiresAtMillis - 60_000 // 1분 전 만료 처리
     }
+
+    override fun toString() = "TokenInfo(token=*****, expiresAtMillis=$expiresAtMillis, tokenType=$tokenType)"
 }

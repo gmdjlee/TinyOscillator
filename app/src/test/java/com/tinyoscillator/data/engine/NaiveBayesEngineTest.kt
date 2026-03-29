@@ -108,6 +108,56 @@ class NaiveBayesEngineTest {
             result.upProbability >= result.downProbability)
     }
 
+    @Test
+    fun `모든 가격이 0인 데이터에서 예외 없이 실행된다`() = runTest {
+        // 모든 closePrice가 0인 극단적 케이스
+        val prices = (0 until 50).map { i ->
+            DailyTrading(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                marketCap = 0L,
+                foreignNetBuy = 0L,
+                instNetBuy = 0L,
+                closePrice = 0
+            )
+        }
+        val oscillators = generateOscillators(50)
+        val demarks = generateDemarks(50)
+
+        val result = engine.analyze(prices, oscillators, demarks, null)
+
+        // 확률 합이 여전히 1.0이어야 함 (Laplace smoothing 덕분)
+        val sum = result.upProbability + result.downProbability + result.sidewaysProbability
+        assertEquals("확률 합이 1.0", 1.0, sum, 0.001)
+        assertTrue("upProbability >= 0", result.upProbability >= 0.0)
+        assertTrue("downProbability >= 0", result.downProbability >= 0.0)
+        assertTrue("sidewaysProbability >= 0", result.sidewaysProbability >= 0.0)
+    }
+
+    @Test
+    fun `동일 가격 반복 데이터에서 sideways 확률이 높다`() = runTest {
+        // 모든 가격이 동일한 횡보 데이터
+        val prices = (0 until 100).map { i ->
+            DailyTrading(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                marketCap = 50000000000L,
+                foreignNetBuy = 0L,
+                instNetBuy = 0L,
+                closePrice = 50000
+            )
+        }
+        val oscillators = generateOscillators(100)
+        val demarks = generateDemarks(100)
+
+        val result = engine.analyze(prices, oscillators, demarks, null)
+
+        val sum = result.upProbability + result.downProbability + result.sidewaysProbability
+        assertEquals("확률 합이 1.0", 1.0, sum, 0.001)
+        // 가격 변동 없으면 sideways가 지배적이어야 함
+        assertTrue("sideways가 다른 확률 이상",
+            result.sidewaysProbability >= result.upProbability ||
+            result.sidewaysProbability >= result.downProbability)
+    }
+
     // ─── 헬퍼 ───
 
     private fun generatePrices(days: Int, basePrice: Int = 50000): List<DailyTrading> {

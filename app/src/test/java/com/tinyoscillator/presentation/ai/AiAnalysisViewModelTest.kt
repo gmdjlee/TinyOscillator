@@ -60,11 +60,10 @@ class AiAnalysisViewModelTest {
         aiPreparer = AiAnalysisPreparer()
         apiConfigProvider = mockk(relaxed = true)
 
-        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
-        coEvery { com.tinyoscillator.presentation.settings.loadKiwoomConfig(any()) } returns validKiwoomConfig
-        coEvery { com.tinyoscillator.presentation.settings.loadKisConfig(any()) } returns
+        coEvery { apiConfigProvider.getKiwoomConfig() } returns validKiwoomConfig
+        coEvery { apiConfigProvider.getKisConfig() } returns
             com.tinyoscillator.core.api.KisApiKeyConfig(appKey = "kis-key", appSecret = "kis-secret")
-        coEvery { com.tinyoscillator.presentation.settings.loadAiConfig(any()) } returns validAiConfig
+        coEvery { apiConfigProvider.getAiConfig() } returns validAiConfig
 
         every { searchStocksUseCase(any()) } returns flowOf(emptyList())
 
@@ -152,7 +151,7 @@ class AiAnalysisViewModelTest {
     fun `analyzeMarket_noApiKey`() = runTest {
         advanceUntilIdle()
 
-        coEvery { com.tinyoscillator.presentation.settings.loadAiConfig(any()) } returns
+        coEvery { apiConfigProvider.getAiConfig() } returns
             AiApiKeyConfig(provider = AiProvider.CLAUDE_HAIKU, apiKey = "")
 
         viewModel.analyzeMarketWithAi()
@@ -276,7 +275,7 @@ class AiAnalysisViewModelTest {
         viewModel.selectStock("005930", "삼성전자", null, null)
         advanceUntilIdle()
 
-        coEvery { com.tinyoscillator.presentation.settings.loadAiConfig(any()) } returns
+        coEvery { apiConfigProvider.getAiConfig() } returns
             AiApiKeyConfig(provider = AiProvider.CLAUDE_HAIKU, apiKey = "")
 
         viewModel.analyzeStockWithAi()

@@ -1,5 +1,6 @@
 package com.tinyoscillator.core.api
 
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
@@ -16,16 +17,19 @@ class CircuitBreaker(
 ) {
     private val consecutiveFailures = AtomicInteger(0)
     private val openedAt = AtomicLong(0L)
+    private val halfOpenGate = AtomicBoolean(false)
 
     val isOpen: Boolean
         get() {
             val opened = openedAt.get()
             if (opened == 0L) return false
             if (System.currentTimeMillis() - opened > cooldownMs) {
-                // Cooldown expired → half-open (allow next attempt)
-                // Use compareAndSet to prevent multiple threads entering half-open
-                openedAt.compareAndSet(opened, 0L)
-                return false
+                // Cooldown expired → half-open: only one caller passes through
+                if (halfOpenGate.compareAndSet(false, true)) {
+                    return false
+                }
+                // Another caller already took the half-open slot
+                return true
             }
             return true
         }
@@ -33,6 +37,7 @@ class CircuitBreaker(
     fun recordSuccess() {
         consecutiveFailures.set(0)
         openedAt.set(0L)
+        halfOpenGate.set(false)
     }
 
     fun recordFailure() {
@@ -40,10 +45,12 @@ class CircuitBreaker(
         if (failures >= threshold) {
             openedAt.compareAndSet(0L, System.currentTimeMillis())
         }
+        halfOpenGate.set(false)
     }
 
     fun reset() {
         consecutiveFailures.set(0)
         openedAt.set(0L)
+        halfOpenGate.set(false)
     }
 }

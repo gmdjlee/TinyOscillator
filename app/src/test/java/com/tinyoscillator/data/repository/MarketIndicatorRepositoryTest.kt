@@ -289,7 +289,7 @@ class MarketIndicatorRepositoryTest {
         val result = repository.initializeDeposits(numPages = 5)
 
         assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull()!!.message!!.contains("데이터가 비어있습니다"))
+        assertTrue(result.exceptionOrNull()!!.message!!.contains("데이터가 비어있거나 리스트 크기가 일치하지 않습니다"))
     }
 
     @Test

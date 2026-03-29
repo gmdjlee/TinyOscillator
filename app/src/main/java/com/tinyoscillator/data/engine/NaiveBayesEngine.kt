@@ -105,9 +105,10 @@ class NaiveBayesEngine @Inject constructor() {
         val totalSamples = trainingData.size
         val numClasses = 3
 
-        // 각 피처-값-클래스별 빈도 카운팅
+        // 각 피처-값-클래스별 빈도 카운팅 + 피처값별 총 빈도 (marginal)
         val featureValueClassCounts = mutableMapOf<String, MutableMap<String, MutableMap<Label, Int>>>()
         val featureValues = mutableMapOf<String, MutableSet<String>>()
+        val featureValueCounts = mutableMapOf<String, MutableMap<String, Int>>()
 
         for ((features, label) in trainingData) {
             for ((featureName, featureValue) in features) {
@@ -116,6 +117,9 @@ class NaiveBayesEngine @Inject constructor() {
                     .getOrPut(featureName) { mutableMapOf() }
                     .getOrPut(featureValue) { mutableMapOf() }
                     .merge(label, 1) { a, b -> a + b }
+                featureValueCounts
+                    .getOrPut(featureName) { mutableMapOf() }
+                    .merge(featureValue, 1) { a, b -> a + b }
             }
         }
 
@@ -148,7 +152,7 @@ class NaiveBayesEngine @Inject constructor() {
 
                 // UP 클래스의 likelihood ratio 계산 (feature contribution)
                 if (label == Label.UP) {
-                    val totalFeatureCount = trainingData.count { (f, _) -> f[featureName] == featureValue }
+                    val totalFeatureCount = featureValueCounts[featureName]?.get(featureValue) ?: 0
                     val marginalProb = if (totalFeatureCount > 0)
                         totalFeatureCount.toDouble() / totalSamples else 1.0 / numPossibleValues
                     featureContributions[featureName] = likelihood / marginalProb

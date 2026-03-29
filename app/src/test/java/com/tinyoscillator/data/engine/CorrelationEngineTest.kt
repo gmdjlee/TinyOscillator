@@ -131,6 +131,54 @@ class CorrelationEngineTest {
         assertTrue("빈 상관 결과", result.correlations.isEmpty())
     }
 
+    @Test
+    fun `상수값 시리즈에서 pearsonR은 NaN이 아닌 0을 반환`() {
+        // 분산이 0인 상수 시리즈 — 상관계수 계산 시 0으로 나누기 위험
+        val x = List(50) { 42.0 }
+        val y = List(50) { 42.0 }
+
+        val r = engine.pearsonCorrelation(x, y)
+
+        // NaN이 아니어야 하며, 유한한 값이어야 함
+        assertFalse("NaN이 아니어야 함", r.isNaN())
+        assertFalse("Infinity가 아니어야 함", r.isInfinite())
+    }
+
+    @Test
+    fun `한쪽만 상수값인 시리즈에서도 안전하게 처리`() {
+        val x = List(50) { 42.0 } // 분산 0
+        val y = (1..50).map { it.toDouble() }
+
+        val r = engine.pearsonCorrelation(x, y)
+
+        assertFalse("NaN이 아니어야 함", r.isNaN())
+        assertFalse("Infinity가 아니어야 함", r.isInfinite())
+    }
+
+    @Test
+    fun `상수값 오실레이터 데이터에서 전체 분석이 예외 없이 실행`() = runTest {
+        // 모든 지표가 동일한 값인 극단적 케이스
+        val oscillators = (0 until 60).map { i ->
+            OscillatorRow(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                marketCap = 50000000000L, marketCapTril = 50.0,
+                foreign5d = 0L, inst5d = 0L, supplyRatio = 0.0,
+                ema12 = 0.001, ema26 = 0.001, macd = 0.0,
+                signal = 0.0, oscillator = 0.0
+            )
+        }
+        val demarks = generateDemarks(60)
+        val prices = generatePrices(60)
+
+        val result = engine.analyze(oscillators, demarks, prices)
+
+        // 예외 없이 실행되어야 하며, 상관 결과의 값이 유한해야 함
+        for (corr in result.correlations) {
+            assertFalse("${corr.indicator1}-${corr.indicator2} r이 NaN이 아니어야 함",
+                corr.pearsonR.isNaN())
+        }
+    }
+
     // ─── 헬퍼 ───
 
     private fun generateOscillators(days: Int): List<OscillatorRow> =

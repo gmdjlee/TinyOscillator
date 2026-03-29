@@ -105,6 +105,12 @@ class LogisticScoringEngine @Inject constructor(
         val oscByDate = oscillators.associateBy { it.date }
         val fundByDate = fundamentals?.associateBy { it.date } ?: emptyMap()
 
+        // 날짜→인덱스 맵 (이미 날짜순 정렬된 리스트에서 인덱스 기반 윈도우용)
+        val oscDateIndex = mutableMapOf<String, Int>()
+        oscillators.forEachIndexed { idx, o -> oscDateIndex[o.date] = idx }
+        val fundDateIndex = mutableMapOf<String, Int>()
+        fundamentals?.forEachIndexed { idx, f -> fundDateIndex[f.date] = idx }
+
         // 학습 데이터 생성
         val features = mutableListOf<DoubleArray>()
         val labels = mutableListOf<Double>()
@@ -115,8 +121,16 @@ class LogisticScoringEngine @Inject constructor(
             val fund = fundByDate[date]
 
             val rawFeatures = extractRawFeatures(osc, fund, 0)
-            val recentOsc = oscillators.filter { it.date <= date }.takeLast(NORMALIZATION_WINDOW)
-            val recentFund = fundamentals?.filter { it.date <= date }?.takeLast(NORMALIZATION_WINDOW)
+            val oscIdx = oscDateIndex[date] ?: continue
+            val oscStart = max(0, oscIdx - NORMALIZATION_WINDOW + 1)
+            val recentOsc = oscillators.subList(oscStart, oscIdx + 1)
+            val recentFund = fundamentals?.let { fl ->
+                val fIdx = fundDateIndex[date]
+                if (fIdx != null) {
+                    val fStart = max(0, fIdx - NORMALIZATION_WINDOW + 1)
+                    fl.subList(fStart, fIdx + 1)
+                } else null
+            }
             val normalized = normalizeFeatures(rawFeatures, recentOsc, recentFund)
             features.add(normalized)
 

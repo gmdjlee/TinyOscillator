@@ -126,6 +126,70 @@ class PatternScanEngineTest {
         }
     }
 
+    @Test
+    fun `단일 캔들 데이터셋에서 빈 결과 반환`() = runTest {
+        val prices = listOf(
+            DailyTrading(
+                date = "20250101",
+                marketCap = 50000000000L,
+                foreignNetBuy = 1000000L,
+                instNetBuy = -500000L,
+                closePrice = 50000
+            )
+        )
+        val oscillators = listOf(
+            OscillatorRow(
+                date = "20250101",
+                marketCap = 50000000000L, marketCapTril = 50.0,
+                foreign5d = 1000000L, inst5d = -500000L, supplyRatio = 0.001,
+                ema12 = 0.001, ema26 = 0.001, macd = 0.0,
+                signal = 0.0, oscillator = 0.0
+            )
+        )
+        val demarks = listOf(
+            DemarkTDRow(date = "20250101", closePrice = 50000, marketCapTril = 50.0, tdSellCount = 0, tdBuyCount = 0)
+        )
+
+        val result = engine.analyze(prices, oscillators, demarks, null)
+
+        // 1일치 데이터로는 어떤 패턴도 감지할 수 없음
+        assertTrue("단일 캔들에서 패턴 없음", result.allPatterns.isEmpty())
+    }
+
+    @Test
+    fun `2개 캔들 데이터셋에서도 안전하게 처리`() = runTest {
+        val prices = (0 until 2).map { i ->
+            DailyTrading(
+                date = String.format("202501%02d", i + 1),
+                marketCap = 50000000000L,
+                foreignNetBuy = 1000000L,
+                instNetBuy = -500000L,
+                closePrice = 50000 + i * 100
+            )
+        }
+        val oscillators = (0 until 2).map { i ->
+            OscillatorRow(
+                date = String.format("202501%02d", i + 1),
+                marketCap = 50000000000L, marketCapTril = 50.0,
+                foreign5d = 1000000L, inst5d = -500000L, supplyRatio = 0.001,
+                ema12 = 0.001, ema26 = 0.001, macd = 0.0,
+                signal = 0.0, oscillator = 0.0
+            )
+        }
+        val demarks = (0 until 2).map { i ->
+            DemarkTDRow(
+                date = String.format("202501%02d", i + 1),
+                closePrice = 50000 + i * 100, marketCapTril = 50.0,
+                tdSellCount = 0, tdBuyCount = 0
+            )
+        }
+
+        val result = engine.analyze(prices, oscillators, demarks, null)
+
+        // 예외 없이 실행되어야 함
+        assertTrue("2개 캔들도 안전하게 처리", result.allPatterns.isEmpty())
+    }
+
     // ─── 헬퍼 ───
 
     private fun generatePrices(days: Int): List<DailyTrading> {

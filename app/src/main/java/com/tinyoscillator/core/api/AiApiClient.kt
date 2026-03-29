@@ -48,16 +48,13 @@ class AiApiClient(
 
         var lastResult = analyzeOnce(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
 
-        // 429 재시도
-        if (lastResult.isFailure) {
-            val error = lastResult.exceptionOrNull()
-            if (error is ApiError.ApiCallError && error.code == 429) {
-                for (attempt in 1..MAX_RETRIES) {
-                    delay(RETRY_DELAYS[attempt - 1])
-                    Timber.d("AI API 재시도 %d/%d (429)", attempt, MAX_RETRIES)
-                    lastResult = analyzeOnce(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
-                    if (lastResult.isSuccess) break
-                }
+        // 재시도 (429, 5xx, network, timeout)
+        if (lastResult.isFailure && ApiError.isRetriableError(lastResult.exceptionOrNull())) {
+            for (attempt in 1..MAX_RETRIES) {
+                delay(RETRY_DELAYS[attempt - 1])
+                Timber.d("AI API 재시도 %d/%d", attempt, MAX_RETRIES)
+                lastResult = analyzeOnce(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
+                if (lastResult.isSuccess || !ApiError.isRetriableError(lastResult.exceptionOrNull())) break
             }
         }
 

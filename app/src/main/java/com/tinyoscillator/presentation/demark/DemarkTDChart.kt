@@ -75,7 +75,6 @@ fun DemarkTDChart(
                     bindDemarkData(chart, chartData, isDarkTheme)
                     lastBound[0] = chartData
                 }
-                chart.invalidate()
             },
             modifier = Modifier
                 .fillMaxWidth()

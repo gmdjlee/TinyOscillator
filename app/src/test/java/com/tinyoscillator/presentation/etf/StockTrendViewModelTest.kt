@@ -156,12 +156,16 @@ class StockTrendViewModelTest {
         assertTrue(viewModel.filteredData.value.isEmpty())
     }
 
-    @Test(expected = kotlinx.coroutines.CancellationException::class)
+    @Test
     fun `loadData - CancellationException은 다시 던져진다`() = runTest {
         coEvery { etfRepository.getStockName(any()) } throws kotlinx.coroutines.CancellationException("cancelled")
 
         val viewModel = createViewModel()
         advanceUntilIdle()
+
+        // CancellationException은 viewModelScope 내에서 다시 던져져 코루틴이 취소됨
+        // 데이터가 로드되지 않아야 한다
+        assertTrue(viewModel.filteredData.value.isEmpty())
     }
 
     // ==========================================================

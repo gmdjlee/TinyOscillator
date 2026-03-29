@@ -23,6 +23,8 @@ data class AiApiKeyConfig(
         AiProvider.GEMINI_FLASH ->
             "https://generativelanguage.googleapis.com"
     }
+
+    override fun toString() = "AiApiKeyConfig(provider=$provider, apiKey=*****)"
 }
 
 /** AI 분석 유형 */

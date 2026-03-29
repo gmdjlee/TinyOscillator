@@ -5,6 +5,7 @@ import com.tinyoscillator.data.mapper.AnalysisResponseParser
 import com.tinyoscillator.data.mapper.ProbabilisticPromptBuilder
 import com.tinyoscillator.domain.model.AnalysisState
 import com.tinyoscillator.domain.repository.LlmRepository
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import timber.log.Timber
@@ -65,6 +66,10 @@ class AnalyzeStockProbabilityUseCase @Inject constructor(
             emit(AnalysisState.Success(analysis, statisticalResult))
             Timber.d("분석 완료: ${analysis.overallAssessment}")
 
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Error) {
+            throw e  // OOM 등 치명적 에러는 재던지기
         } catch (e: Exception) {
             Timber.e(e, "분석 실패: ${e.message}")
             emit(AnalysisState.Error(e.message ?: "알 수 없는 오류", e))

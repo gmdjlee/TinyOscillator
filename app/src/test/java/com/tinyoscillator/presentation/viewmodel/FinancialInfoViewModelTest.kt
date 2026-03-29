@@ -346,9 +346,9 @@ class FinancialInfoViewModelTest {
         viewModel.loadForStock("000660", "SK하이닉스")
         advanceUntilIdle()
 
-        // loadKisConfig should be called once (cached after first call)
-        coVerify(atMost = 2) {
-            com.tinyoscillator.presentation.settings.loadKisConfig(any())
+        // apiConfigProvider.getKisConfig should be called for each loadForStock call
+        coVerify(exactly = 2) {
+            apiConfigProvider.getKisConfig()
         }
     }
 

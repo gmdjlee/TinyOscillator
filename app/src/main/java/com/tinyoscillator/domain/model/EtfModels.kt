@@ -1,6 +1,8 @@
 package com.tinyoscillator.domain.model
 
-data class KrxCredentials(val id: String, val password: String)
+data class KrxCredentials(val id: String, val password: String) {
+    override fun toString() = "KrxCredentials(id=$id, password=*****)"
+}
 
 data class EtfKeywordFilter(
     val includeKeywords: List<String>,

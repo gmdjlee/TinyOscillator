@@ -100,6 +100,8 @@ class PortfolioViewModel @Inject constructor(
             try {
                 val (summary, holdings) = portfolioRepository.loadPortfolioHoldings(id, maxWeight, totalAssets)
                 _uiState.value = PortfolioUiState.Success(summary, holdings)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "포트폴리오 로딩 실패")
                 _uiState.value = PortfolioUiState.Error("로딩 실패: ${e.message}")
@@ -181,6 +183,8 @@ class PortfolioViewModel @Inject constructor(
                 } catch (e: Exception) {
                     Timber.w("신규 종목 현재가 조회 실패: $ticker - ${e.message}")
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "종목 추가 실패")
             }
@@ -210,6 +214,8 @@ class PortfolioViewModel @Inject constructor(
                 if (_selectedHoldingId.value == holdingId) {
                     loadTransactions(holdingId)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "거래 추가 실패")
             }
@@ -227,6 +233,8 @@ class PortfolioViewModel @Inject constructor(
             try {
                 portfolioRepository.updateHoldingInfo(holdingId, stockName, market, sector, targetPrice)
                 loadPortfolio()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "종목 수정 실패")
             }
@@ -238,6 +246,8 @@ class PortfolioViewModel @Inject constructor(
             try {
                 portfolioRepository.deleteHoldingWithTransactions(holdingId)
                 loadPortfolio()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "종목 삭제 실패")
             }
@@ -256,6 +266,8 @@ class PortfolioViewModel @Inject constructor(
                 portfolioRepository.updateTransaction(transactionId, date, shares, pricePerShare, memo)
                 loadPortfolio()
                 _selectedHoldingId.value?.let { loadTransactions(it) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "거래 수정 실패")
             }
@@ -268,6 +280,8 @@ class PortfolioViewModel @Inject constructor(
                 portfolioRepository.deleteTransaction(transactionId)
                 loadPortfolio()
                 _selectedHoldingId.value?.let { loadTransactions(it) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "거래 삭제 실패")
             }
@@ -291,6 +305,8 @@ class PortfolioViewModel @Inject constructor(
             try {
                 val currentPrice = _selectedHoldingCurrentPrice.value
                 _transactions.value = portfolioRepository.getTransactionItems(holdingId, currentPrice)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "거래 내역 로딩 실패")
             }
@@ -309,6 +325,8 @@ class PortfolioViewModel @Inject constructor(
                 portfolioRepository.updatePortfolio(updated)
                 _portfolio.value = updated
                 loadPortfolio()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "설정 저장 실패")
             }
