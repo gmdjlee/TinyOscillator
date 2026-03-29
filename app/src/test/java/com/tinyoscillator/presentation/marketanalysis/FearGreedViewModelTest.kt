@@ -18,7 +18,6 @@ class FearGreedViewModelTest {
     fun `FearGreedState sealed class variants`() {
         val idle: FearGreedState = FearGreedState.Idle
         val loading: FearGreedState = FearGreedState.Loading
-        val initializing: FearGreedState = FearGreedState.Initializing("테스트 중...", 50)
         val success: FearGreedState = FearGreedState.Success(
             FearGreedChartData(market = "KOSPI", rows = emptyList())
         )
@@ -26,9 +25,6 @@ class FearGreedViewModelTest {
 
         assertTrue(idle is FearGreedState.Idle)
         assertTrue(loading is FearGreedState.Loading)
-        assertTrue(initializing is FearGreedState.Initializing)
-        assertEquals("테스트 중...", (initializing as FearGreedState.Initializing).message)
-        assertEquals(50, initializing.progress)
         assertTrue(success is FearGreedState.Success)
         assertTrue(error is FearGreedState.Error)
         assertEquals("오류 메시지", (error as FearGreedState.Error).message)

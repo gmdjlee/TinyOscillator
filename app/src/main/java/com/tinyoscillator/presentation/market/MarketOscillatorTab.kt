@@ -22,8 +22,6 @@ import com.tinyoscillator.domain.model.DateRangeOption
 import com.tinyoscillator.domain.model.MarketOscillator
 import com.tinyoscillator.domain.model.MarketOscillatorState
 import com.tinyoscillator.domain.model.OscillatorRangeOption
-import com.tinyoscillator.presentation.common.KrxCredentialDialog
-
 @Composable
 fun MarketOscillatorTab(
     viewModel: MarketOscillatorViewModel
@@ -34,17 +32,8 @@ fun MarketOscillatorTab(
     val marketData by viewModel.marketData.collectAsState()
     val overboughtThreshold by viewModel.overboughtThreshold.collectAsState()
     val oversoldThreshold by viewModel.oversoldThreshold.collectAsState()
-    val needsCredentials by viewModel.needsCredentials.collectAsState()
 
     var showSettingsDialog by remember { mutableStateOf(false) }
-
-    if (needsCredentials) {
-        KrxCredentialDialog(
-            description = "시장 과매수/과매도 데이터 수집을 위해 KRX 데이터시스템 계정이 필요합니다.",
-            onDismiss = { /* can't dismiss without credentials */ },
-            onSave = { viewModel.onCredentialsSaved() }
-        )
-    }
 
     if (showSettingsDialog) {
         ThresholdSettingsDialog(

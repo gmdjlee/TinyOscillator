@@ -1,15 +1,12 @@
 package com.tinyoscillator.presentation.market
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.domain.model.OscillatorRangeOption
 import com.tinyoscillator.domain.model.MarketOscillator
 import com.tinyoscillator.domain.model.MarketOscillatorState
-import com.tinyoscillator.presentation.settings.loadKrxCredentials
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,8 +18,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MarketOscillatorViewModel @Inject constructor(
-    private val repository: MarketIndicatorRepository,
-    @ApplicationContext private val context: Context
+    private val repository: MarketIndicatorRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<MarketOscillatorState>(MarketOscillatorState.Loading)
@@ -43,26 +39,9 @@ class MarketOscillatorViewModel @Inject constructor(
     private val _oversoldThreshold = MutableStateFlow(-80.0)
     val oversoldThreshold: StateFlow<Double> = _oversoldThreshold.asStateFlow()
 
-    private val _needsCredentials = MutableStateFlow(false)
-    val needsCredentials: StateFlow<Boolean> = _needsCredentials.asStateFlow()
-
     init {
-        checkCredentials()
         checkData()
         observeDateRangeChanges()
-    }
-
-    private fun checkCredentials() {
-        viewModelScope.launch {
-            val creds = loadKrxCredentials(context)
-            if (creds.id.isBlank() || creds.password.isBlank()) {
-                _needsCredentials.value = true
-            }
-        }
-    }
-
-    fun onCredentialsSaved() {
-        _needsCredentials.value = false
     }
 
     private fun observeDateRangeChanges() {

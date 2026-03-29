@@ -106,14 +106,6 @@ private fun FearGreedTab(viewModel: FearGreedViewModel) {
     val state by viewModel.state.collectAsState()
     val selectedMarket by viewModel.selectedMarket.collectAsState()
     val selectedRange by viewModel.selectedRange.collectAsState()
-    val showInitDialog by viewModel.showInitDialog.collectAsState()
-
-    if (showInitDialog) {
-        FearGreedInitDialog(
-            onDismiss = { viewModel.dismissInitDialog() },
-            onConfirm = { days -> viewModel.initialize(days) }
-        )
-    }
 
     Column(
         modifier = Modifier
@@ -178,19 +170,6 @@ private fun FearGreedTab(viewModel: FearGreedViewModel) {
                     }
                 }
             }
-            is FearGreedState.Initializing -> {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator()
-                        Text(currentState.message)
-                        Text("${currentState.progress}%", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
             is FearGreedState.Success -> {
                 FearGreedChart(
                     chartData = currentState.chartData,
@@ -216,7 +195,7 @@ private fun FearGreedTab(viewModel: FearGreedViewModel) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            "데이터가 없습니다. 초기 수집을 진행해주세요.",
+                            "설정 > Schedule에서 데이터를 수집해주세요.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -225,53 +204,6 @@ private fun FearGreedTab(viewModel: FearGreedViewModel) {
             }
         }
     }
-}
-
-@Composable
-private fun FearGreedInitDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (Int) -> Unit
-) {
-    var selectedDays by remember { mutableIntStateOf(365) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Fear & Greed 데이터 초기 수집") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "수집 기간을 선택하세요. 기간이 길수록 정확도가 높아지지만 수집 시간이 오래 걸립니다.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                listOf(
-                    180 to "6개월 (180일)",
-                    365 to "12개월 (365일)",
-                    540 to "18개월 (540일)",
-                    730 to "24개월 (730일)"
-                ).forEach { (days, label) ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        RadioButton(
-                            selected = selectedDays == days,
-                            onClick = { selectedDays = days }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(label, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(selectedDays) }) { Text("수집 시작") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("취소") }
-        }
-    )
 }
 
 // ===== DeMark Tab =====
