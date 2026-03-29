@@ -128,11 +128,14 @@ class FearGreedRepository(
 
     suspend fun updateFearGreed(
         krxId: String,
-        krxPassword: String
+        krxPassword: String,
+        collectionDays: Int = UPDATE_DAYS
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
+            // MA warm-up 보정: 요청일수의 3배(최대 730일), 최소 UPDATE_DAYS
+            val actualDays = maxOf(minOf(collectionDays * 3, 730), UPDATE_DAYS)
             val endDate = LocalDate.now().format(krxDateFmt)
-            val startDate = LocalDate.now().minusDays(UPDATE_DAYS.toLong()).format(krxDateFmt)
+            val startDate = LocalDate.now().minusDays(actualDays.toLong()).format(krxDateFmt)
 
             val loggedIn = krxApiClient.login(krxId, krxPassword)
             if (!loggedIn) return@withContext Result.failure(Exception("KRX 로그인 실패"))

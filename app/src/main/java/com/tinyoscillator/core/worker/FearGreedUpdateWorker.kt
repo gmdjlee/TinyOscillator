@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.WorkerParameters
 import com.tinyoscillator.data.repository.FearGreedRepository
+import com.tinyoscillator.presentation.settings.loadFearGreedCollectionPeriod
 import com.tinyoscillator.presentation.settings.loadKrxCredentials
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -37,7 +38,8 @@ class FearGreedUpdateWorker @AssistedInject constructor(
         updateProgress("Fear & Greed 데이터 수집 중...", STATUS_RUNNING, 0.1f)
         updateNotification("Fear & Greed 데이터 수집 중...", 20)
 
-        val result = repository.updateFearGreed(creds.id, creds.password)
+        val collectionDays = loadFearGreedCollectionPeriod(applicationContext).daysBack
+        val result = repository.updateFearGreed(creds.id, creds.password, collectionDays)
         if (result.isFailure) {
             val msg = "Fear & Greed 업데이트 실패: ${result.exceptionOrNull()?.message}"
             Timber.e(msg)
