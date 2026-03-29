@@ -46,7 +46,7 @@ data class ConsensusChartData(
     val ticker: String,
     val stockName: String,
     val dates: List<String>,
-    val marketCaps: List<Long>,
+    val closePrices: List<Int>,
     val reportDates: List<String>,
     val reportTargetPrices: List<Long>
 )

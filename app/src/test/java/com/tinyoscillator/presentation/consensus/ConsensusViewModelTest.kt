@@ -52,7 +52,7 @@ class ConsensusViewModelTest {
         ticker = ticker,
         stockName = "삼성전자",
         dates = listOf("2026-03-20", "2026-03-23"),
-        marketCaps = listOf(500_000_000_000L, 520_000_000_000L),
+        closePrices = listOf(65000, 67000),
         reportDates = listOf("2026-03-20", "2026-03-23"),
         reportTargetPrices = listOf(300000L, 310000L)
     )

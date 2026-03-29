@@ -182,7 +182,7 @@ class ConsensusRepository(
         val dates = cacheEntries.map { e ->
             "${e.date.substring(0, 4)}-${e.date.substring(4, 6)}-${e.date.substring(6, 8)}"
         }
-        val marketCaps = cacheEntries.map { it.marketCap }
+        val closePrices = cacheEntries.map { it.closePrice }
 
         // 목표가 scatter 데이터
         val reportDates = reports.filter { it.targetPrice > 0 }.map { it.writeDate }
@@ -192,7 +192,7 @@ class ConsensusRepository(
             ticker = ticker,
             stockName = stockName,
             dates = dates,
-            marketCaps = marketCaps,
+            closePrices = closePrices,
             reportDates = reportDates,
             reportTargetPrices = reportTargetPrices
         )

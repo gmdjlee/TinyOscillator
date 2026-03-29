@@ -32,8 +32,7 @@ import java.util.Locale
 /**
  * 컨센서스 차트 Composable
  *
- * - 왼쪽 Y축: 시가총액 (조원) — LineChart
- * - 오른쪽 Y축: 목표가 (원) — ScatterChart
+ * - Y축: 가격 (원) — 현재가 LineChart + 목표가 ScatterChart
  * - X축: 날짜
  */
 @Composable
@@ -51,7 +50,7 @@ fun ConsensusChart(
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = "${chartData.stockName} 시가총액 & 목표가",
+                text = "${chartData.stockName} 현재가 & 목표가",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -71,9 +70,7 @@ fun ConsensusChart(
                     chart.xAxis.textColor = chartTextColor
                     chart.legend.textColor = chartTextColor
                     chart.axisLeft.textColor = chartTextColor
-                    chart.axisRight.textColor = chartTextColor
                     chart.axisLeft.gridColor = gridColor
-                    chart.axisRight.gridColor = gridColor
                     if (chartData != lastBound[0]) {
                         bindConsensusData(chart, chartData, surfaceColor)
                         lastBound[0] = chartData
@@ -110,26 +107,14 @@ private fun setupConsensusChart(chart: CombinedChart, chartTextColor: Int, gridC
             textColor = chartTextColor
             setLabelCount(labelCount, true)
             valueFormatter = object : ValueFormatter() {
-                override fun getFormattedValue(value: Float): String {
-                    return String.format("%.1f조", value)
-                }
-            }
-        }
-
-        axisRight.apply {
-            setDrawGridLines(false)
-            this.gridColor = gridColor
-            gridLineWidth = 0.5f
-            enableGridDashedLine(dashLen, dashGap, 0f)
-            textColor = chartTextColor
-            setLabelCount(labelCount, true)
-            valueFormatter = object : ValueFormatter() {
                 private val nf = NumberFormat.getNumberInstance(Locale.KOREA)
                 override fun getFormattedValue(value: Float): String {
                     return "${nf.format(value.toLong())}원"
                 }
             }
         }
+
+        axisRight.isEnabled = false
 
         xAxis.apply {
             position = XAxis.XAxisPosition.BOTTOM
@@ -168,35 +153,22 @@ private fun bindConsensusData(
     }
     chart.xAxis.valueFormatter = IndexAxisValueFormatter(labels)
 
-    // 시가총액 (조원) — 왼쪽 Y축
-    val mcapEntries = chartData.marketCaps.mapIndexed { i, cap ->
-        Entry(i.toFloat(), (cap / 1_000_000_000_000.0).toFloat())
+    // 현재가 (원) — 왼쪽 Y축
+    val priceEntries = chartData.closePrices.mapIndexed { i, price ->
+        Entry(i.toFloat(), price.toFloat())
     }
-    val mcapColor = Color.parseColor("#1976D2")
-    val mcapDataSet = LineDataSet(mcapEntries, "${chartData.stockName} 시가총액(조)").apply {
-        color = mcapColor
+    val priceColor = Color.parseColor("#1976D2")
+    val priceDataSet = LineDataSet(priceEntries, "${chartData.stockName} 현재가(원)").apply {
+        color = priceColor
         lineWidth = 2f
         setDrawCircles(false)
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.LEFT
         isHighlightEnabled = true
-        highLightColor = mcapColor
+        highLightColor = priceColor
     }
 
-    // 왼쪽 Y축 범위를 데이터에 맞게 fitting
-    val mcapValues = mcapEntries.map { it.y }
-    val mcapMin = mcapValues.min()
-    val mcapMax = mcapValues.max()
-    val mcapPadding = (mcapMax - mcapMin) * 0.05f
-    chart.axisLeft.axisMinimum = mcapMin - mcapPadding
-    chart.axisLeft.axisMaximum = mcapMax + mcapPadding
-
-    // 목표가 (원) — 오른쪽 Y축 (ScatterChart)
-    val reportLabels = chartData.reportDates.map { date ->
-        if (date.length >= 8) {
-            "${date.substring(4, 6)}/${date.substring(6, 8)}"
-        } else date
-    }
+    // 목표가 (원) — 같은 Y축 (ScatterChart)
     val scatterEntries = chartData.reportDates.mapIndexedNotNull { i, reportDate ->
         val xIndex = dates.indexOf(reportDate)
         if (xIndex >= 0) {
@@ -209,23 +181,21 @@ private fun bindConsensusData(
         setScatterShape(com.github.mikephil.charting.charts.ScatterChart.ScatterShape.CIRCLE)
         scatterShapeSize = 16f
         setDrawValues(false)
-        axisDependency = YAxis.AxisDependency.RIGHT
+        axisDependency = YAxis.AxisDependency.LEFT
         isHighlightEnabled = true
         highLightColor = targetColor
     }
 
-    // 오른쪽 Y축 범위
-    if (scatterEntries.isNotEmpty()) {
-        val targetValues = scatterEntries.map { it.y }
-        val targetMin = targetValues.min()
-        val targetMax = targetValues.max()
-        val targetPadding = (targetMax - targetMin) * 0.1f
-        chart.axisRight.axisMinimum = targetMin - targetPadding
-        chart.axisRight.axisMaximum = targetMax + targetPadding
-    }
+    // Y축 범위: 현재가 + 목표가 전체를 포함
+    val allValues = priceEntries.map { it.y } + scatterEntries.map { it.y }
+    val yMin = allValues.min()
+    val yMax = allValues.max()
+    val yPadding = (yMax - yMin) * 0.05f
+    chart.axisLeft.axisMinimum = yMin - yPadding
+    chart.axisLeft.axisMaximum = yMax + yPadding
 
     chart.data = CombinedData().apply {
-        setData(LineData(mcapDataSet))
+        setData(LineData(priceDataSet))
         setData(ScatterData(scatterDataSet))
     }
 
@@ -256,7 +226,7 @@ class ConsensusMarkerView(
         val date = labels.getOrElse(xIndex) { "" }
 
         val valueText = when (highlight.dataSetIndex) {
-            0 -> "시가총액: ${String.format("%.2f", e.y)}조"
+            0 -> "현재가: ${numberFormat.format(e.y.toLong())}원"
             1 -> "목표가: ${numberFormat.format(e.y.toLong())}원"
             else -> String.format("%.2f", e.y)
         }
