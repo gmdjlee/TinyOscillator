@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -75,6 +76,7 @@ import com.tinyoscillator.presentation.portfolio.PortfolioScreen
 import com.tinyoscillator.presentation.report.ReportDetailScreen
 import com.tinyoscillator.presentation.report.ReportScreen
 import com.tinyoscillator.presentation.settings.SettingsScreen
+import com.tinyoscillator.presentation.viewmodel.OscillatorDateRange
 import com.tinyoscillator.presentation.viewmodel.OscillatorUiState
 import com.tinyoscillator.presentation.viewmodel.OscillatorViewModel
 import com.tinyoscillator.presentation.viewmodel.StockMasterStatus
@@ -301,6 +303,7 @@ fun OscillatorScreen(
     val stockMasterStatus by viewModel.stockMasterStatus.collectAsStateWithLifecycle()
     val isIntradayMerged by viewModel.isIntradayMerged.collectAsStateWithLifecycle()
     val autoRefreshEnabled by viewModel.autoRefreshEnabled.collectAsStateWithLifecycle()
+    val selectedRange by viewModel.selectedRange.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var showHistory by remember { mutableStateOf(false) }
     var selectedMainTab by remember { mutableStateOf(MainTab.OSCILLATOR) }
@@ -440,7 +443,7 @@ fun OscillatorScreen(
                         keyboardActions = KeyboardActions(onSearch = {
                             if (searchResults.isNotEmpty()) {
                                 val first = searchResults.first()
-                                viewModel.analyze(first.ticker, first.name)
+                                viewModel.analyze(first.ticker, first.name, selectedRange.analysisDays, selectedRange.displayDays)
                                 query = first.name
                                 viewModel.searchStock("") // 검색 결과 초기화
                             }
@@ -532,6 +535,23 @@ fun OscillatorScreen(
                                 }
 
                                 is OscillatorUiState.Success -> {
+                                    // 기간 선택
+                                    item {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            OscillatorDateRange.entries.forEach { range ->
+                                                FilterChip(
+                                                    selected = selectedRange == range,
+                                                    onClick = { viewModel.selectDateRange(range) },
+                                                    label = { Text(range.label) }
+                                                )
+                                            }
+                                        }
+                                    }
                                     // 실시간 데이터 상태 표시
                                     item {
                                         Row(
@@ -673,7 +693,7 @@ fun OscillatorScreen(
                                         .clickable {
                                             query = stock.name
                                             viewModel.searchStock("") // 검색 결과 초기화
-                                            viewModel.analyze(stock.ticker, stock.name)
+                                            viewModel.analyze(stock.ticker, stock.name, selectedRange.analysisDays, selectedRange.displayDays)
                                         }
                                         .padding(12.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween
@@ -737,7 +757,7 @@ fun OscillatorScreen(
                                         onClick = {
                                             query = history.name
                                             viewModel.searchStock("")
-                                            viewModel.analyze(history.ticker, history.name)
+                                            viewModel.analyze(history.ticker, history.name, selectedRange.analysisDays, selectedRange.displayDays)
                                             showHistory = false
                                         }
                                     )

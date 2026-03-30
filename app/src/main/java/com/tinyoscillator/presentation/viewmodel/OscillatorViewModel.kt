@@ -32,6 +32,15 @@ import java.time.LocalDate
 import timber.log.Timber
 import javax.inject.Inject
 
+/** 오실레이터 분석 기간 선택 */
+enum class OscillatorDateRange(val label: String, val analysisDays: Int, val displayDays: Int) {
+    ONE_MONTH("1M", 90, 22),
+    THREE_MONTHS("3M", 180, 66),
+    SIX_MONTHS("6M", 365, 132),
+    ONE_YEAR("1Y", 365, 100),
+    TWO_YEARS("2Y", 730, 200)
+}
+
 /**
  * 수급 오실레이터 ViewModel
  *
@@ -62,6 +71,10 @@ class OscillatorViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<OscillatorUiState>(OscillatorUiState.Idle)
     val uiState: StateFlow<OscillatorUiState> = _uiState.asStateFlow()
+
+    // 기간 선택
+    private val _selectedRange = MutableStateFlow(OscillatorDateRange.ONE_YEAR)
+    val selectedRange: StateFlow<OscillatorDateRange> = _selectedRange.asStateFlow()
 
     // 실시간 수급 상태
     private val _isIntradayMerged = MutableStateFlow(false)
@@ -157,6 +170,14 @@ class OscillatorViewModel @Inject constructor(
     /** 자동 갱신 토글 */
     fun toggleAutoRefresh() {
         _autoRefreshEnabled.value = !_autoRefreshEnabled.value
+    }
+
+    /** 기간 선택 변경 — 현재 분석 종목이 있으면 재분석 */
+    fun selectDateRange(range: OscillatorDateRange) {
+        _selectedRange.value = range
+        val ticker = currentAnalysisTicker ?: return
+        val name = currentAnalysisName ?: return
+        analyze(ticker, name, range.analysisDays, range.displayDays)
     }
 
     /** 오실레이터 분석 실행 */
