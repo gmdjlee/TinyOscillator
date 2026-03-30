@@ -4,6 +4,7 @@ import com.tinyoscillator.domain.model.CorrelationStrength
 import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.OscillatorRow
+import com.tinyoscillator.domain.repository.SectorEtfReturn
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -179,7 +180,61 @@ class CorrelationEngineTest {
         }
     }
 
+    // ─── ETF 자금흐름 테스트 ───
+
+    @Test
+    fun `ETF 자금흐름 데이터 포함 시 상관 결과에 ETF 항목이 있다`() = runTest {
+        val oscillators = generateOscillators(60)
+        val demarks = generateDemarks(60)
+        val prices = generatePrices(60)
+        val etfReturns = generateSectorEtfReturns(60)
+
+        val result = engine.analyze(oscillators, demarks, prices, etfReturns)
+
+        val etfCorrelation = result.correlations.find { it.indicator2 == "ETF자금흐름" }
+        assertNotNull("ETF자금흐름 상관 결과 존재", etfCorrelation)
+        assertTrue("ETF r >= -1", etfCorrelation!!.pearsonR >= -1.0)
+        assertTrue("ETF r <= 1", etfCorrelation.pearsonR <= 1.0)
+    }
+
+    @Test
+    fun `ETF 자금흐름 lead-lag 결과가 존재한다`() = runTest {
+        val oscillators = generateOscillators(60)
+        val demarks = generateDemarks(60)
+        val prices = generatePrices(60)
+        val etfReturns = generateSectorEtfReturns(60)
+
+        val result = engine.analyze(oscillators, demarks, prices, etfReturns)
+
+        val etfLeadLag = result.leadLagResults.find {
+            it.indicator2 == "ETF자금흐름" || it.indicator1 == "ETF자금흐름"
+        }
+        assertNotNull("ETF자금흐름 lead-lag 결과 존재", etfLeadLag)
+    }
+
+    @Test
+    fun `ETF 데이터 null 시 기존 결과만 반환`() = runTest {
+        val oscillators = generateOscillators(60)
+        val demarks = generateDemarks(60)
+        val prices = generatePrices(60)
+
+        val result = engine.analyze(oscillators, demarks, prices, null)
+
+        val etfCorrelation = result.correlations.find { it.indicator2 == "ETF자금흐름" }
+        assertNull("ETF 데이터 없으면 ETF 상관 없음", etfCorrelation)
+    }
+
     // ─── 헬퍼 ───
+
+    private fun generateSectorEtfReturns(days: Int): List<SectorEtfReturn> =
+        (1 until days).map { i ->
+            SectorEtfReturn(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                etfTicker = "AGG_ETF_FLOW",
+                etfName = "ETF자금흐름",
+                dailyReturn = ((i % 5) - 2) * 0.01 // ±2% 변동
+            )
+        }
 
     private fun generateOscillators(days: Int): List<OscillatorRow> =
         (0 until days).map { i ->

@@ -47,6 +47,7 @@ class StatisticalAnalysisEngine @Inject constructor(
         val demarkRows = repository.getDemarkData(stockCode)
         val fundamentals = try { repository.getFundamentalData(stockCode) } catch (e: Exception) { null }
         val sectorEtfReturns = try { repository.getSectorEtfReturns(stockCode) } catch (e: Exception) { null }
+        val etfAmountTrend = try { repository.getEtfAmountTrend(stockCode) } catch (e: Exception) { null }
 
         Timber.d("데이터 로드 완료 — prices=%d, osc=%d, demark=%d",
             prices.size, oscillators.size, demarkRows.size)
@@ -54,7 +55,7 @@ class StatisticalAnalysisEngine @Inject constructor(
         // 7개 엔진 병렬 실행
         val bayesDeferred = async {
             timedExecution("NaiveBayes", timings, failedEngines) {
-                naiveBayesEngine.analyze(prices, oscillators, demarkRows, fundamentals)
+                naiveBayesEngine.analyze(prices, oscillators, demarkRows, fundamentals, etfAmountTrend)
             }
         }
 
@@ -88,7 +89,7 @@ class StatisticalAnalysisEngine @Inject constructor(
 
         val bayesianUpdateDeferred = async {
             timedExecution("BayesianUpdate", timings, failedEngines) {
-                bayesianUpdateEngine.analyze(prices, oscillators, demarkRows, fundamentals)
+                bayesianUpdateEngine.analyze(prices, oscillators, demarkRows, fundamentals, etfAmountTrend)
             }
         }
 

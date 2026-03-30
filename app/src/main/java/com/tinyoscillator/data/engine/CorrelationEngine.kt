@@ -114,7 +114,9 @@ class CorrelationEngine @Inject constructor() {
             }
 
             if (matchedStockReturns.size >= 10) {
-                addCorrelation(correlations, "종목수익률", "섹터ETF수익률",
+                addCorrelation(correlations, "종목수익률", "ETF자금흐름",
+                    matchedStockReturns, matchedEtfReturns)
+                addLeadLag(leadLagResults, "종목수익률", "ETF자금흐름",
                     matchedStockReturns, matchedEtfReturns)
             }
         }

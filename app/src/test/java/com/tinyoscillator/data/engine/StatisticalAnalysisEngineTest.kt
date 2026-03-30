@@ -170,6 +170,18 @@ class StatisticalAnalysisEngineTest {
     }
 
     @Test
+    fun `ETF 데이터가 CorrelationEngine에 전달된다`() = runTest {
+        setupMockData(200)
+
+        val result = engine.analyze("005930")
+
+        val ca = result.correlationAnalysis
+        assertNotNull("correlationAnalysis", ca)
+        val etfCorr = ca!!.correlations.find { it.indicator2 == "ETF자금흐름" }
+        assertNotNull("ETF자금흐름 상관 결과 존재", etfCorr)
+    }
+
+    @Test
     fun `데이터 부족 시 일부 엔진이 null일 수 있다`() = runTest {
         setupMockData(10) // 매우 적은 데이터
 
@@ -246,8 +258,25 @@ class StatisticalAnalysisEngineTest {
         coEvery { repository.getOscillatorData(any(), any()) } returns oscillators
         coEvery { repository.getDemarkData(any(), any()) } returns demarks
         coEvery { repository.getFundamentalData(any(), any()) } returns fundamentals
+        val etfAmountTrend = (0 until days).map { i ->
+            EtfAmountPoint(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                totalAmount = 1000000L + i * 10000L + ((i % 5 - 2) * 50000L),
+                etfCount = 5 + (i % 3)
+            )
+        }
+
+        val sectorEtfReturns = (1 until days).map { i ->
+            SectorEtfReturn(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                etfTicker = "AGG_ETF_FLOW",
+                etfName = "ETF자금흐름",
+                dailyReturn = ((i % 5) - 2) * 0.01
+            )
+        }
+
         coEvery { repository.getEtfHoldingCount(any()) } returns 5
-        coEvery { repository.getEtfAmountTrend(any()) } returns emptyList()
-        coEvery { repository.getSectorEtfReturns(any(), any()) } returns emptyList()
+        coEvery { repository.getEtfAmountTrend(any()) } returns etfAmountTrend
+        coEvery { repository.getSectorEtfReturns(any(), any()) } returns sectorEtfReturns
     }
 }

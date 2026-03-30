@@ -5,6 +5,7 @@ import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.FeatureContribution
 import com.tinyoscillator.domain.model.OscillatorRow
+import com.tinyoscillator.domain.repository.EtfAmountPoint
 import com.tinyoscillator.domain.repository.FundamentalSnapshot
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,6 +41,7 @@ class NaiveBayesEngine @Inject constructor() {
     enum class DemarkState { SETUP_HIGH, SETUP_LOW, NONE }
     enum class VolumeState { SURGE, NORMAL, LOW }
     enum class PbrState { UNDERVALUED, FAIR, OVERVALUED }
+    enum class EtfFlowState { INFLOW, OUTFLOW, STABLE }
 
     /**
      * 나이브 베이즈 분류 실행
@@ -53,7 +55,8 @@ class NaiveBayesEngine @Inject constructor() {
         prices: List<DailyTrading>,
         oscillators: List<OscillatorRow>,
         demarkRows: List<DemarkTDRow>,
-        fundamentals: List<FundamentalSnapshot>?
+        fundamentals: List<FundamentalSnapshot>?,
+        etfAmountTrend: List<EtfAmountPoint>? = null
     ): BayesResult {
         require(prices.size >= LOOK_AHEAD_DAYS + 5) {
             "최소 ${LOOK_AHEAD_DAYS + 5}일의 가격 데이터가 필요합니다 (현재: ${prices.size})"
@@ -68,6 +71,9 @@ class NaiveBayesEngine @Inject constructor() {
         // 거래량(시가총액 변화율) 평균 계산용
         val volumeChanges = calcVolumeChanges(prices)
 
+        // ETF 자금흐름 상태 맵 (일별)
+        val etfFlowByDate = buildEtfFlowMap(etfAmountTrend)
+
         // 학습 데이터 생성: 각 시점의 지표 상태 + 라벨
         val trainingData = mutableListOf<Pair<Map<String, String>, Label>>()
 
@@ -81,7 +87,7 @@ class NaiveBayesEngine @Inject constructor() {
             val label = classifyReturn(returnRate)
 
             val features = extractFeatures(
-                date, oscByDate, demarkByDate, fundByDate, volumeChanges
+                date, oscByDate, demarkByDate, fundByDate, volumeChanges, etfFlowByDate
             ) ?: continue
 
             trainingData.add(features to label)
@@ -126,7 +132,7 @@ class NaiveBayesEngine @Inject constructor() {
         // 현재 시점의 지표 상태로 예측
         val currentDate = prices.last().date
         val currentFeatures = extractFeatures(
-            currentDate, oscByDate, demarkByDate, fundByDate, volumeChanges
+            currentDate, oscByDate, demarkByDate, fundByDate, volumeChanges, etfFlowByDate
         ) ?: return BayesResult(1.0 / 3, 1.0 / 3, 1.0 / 3, emptyList(), totalSamples)
 
         // 각 클래스별 로그 사후 확률 계산
@@ -195,7 +201,8 @@ class NaiveBayesEngine @Inject constructor() {
         oscByDate: Map<String, OscillatorRow>,
         demarkByDate: Map<String, DemarkTDRow>,
         fundByDate: Map<String, FundamentalSnapshot>,
-        volumeChanges: Map<String, Double>
+        volumeChanges: Map<String, Double>,
+        etfFlowByDate: Map<String, String> = emptyMap()
     ): Map<String, String>? {
         val osc = oscByDate[date] ?: return null
         val features = mutableMapOf<String, String>()
@@ -249,7 +256,30 @@ class NaiveBayesEngine @Inject constructor() {
             else -> PbrState.FAIR.name // 데이터 없으면 기본값
         }
 
+        // ETF 자금흐름 상태
+        features["ETF_FLOW"] = etfFlowByDate[date] ?: EtfFlowState.STABLE.name
+
         return features
+    }
+
+    /**
+     * ETF 보유금액 시계열에서 일별 자금흐름 상태를 계산
+     * 전일 대비 보유금액 변화율: >2% INFLOW, <-2% OUTFLOW, else STABLE
+     */
+    private fun buildEtfFlowMap(etfAmountTrend: List<EtfAmountPoint>?): Map<String, String> {
+        if (etfAmountTrend == null || etfAmountTrend.size < 2) return emptyMap()
+        val result = mutableMapOf<String, String>()
+        etfAmountTrend.zipWithNext { prev, curr ->
+            val changeRate = if (prev.totalAmount > 0) {
+                (curr.totalAmount - prev.totalAmount).toDouble() / prev.totalAmount
+            } else 0.0
+            result[curr.date] = when {
+                changeRate > 0.02 -> EtfFlowState.INFLOW.name
+                changeRate < -0.02 -> EtfFlowState.OUTFLOW.name
+                else -> EtfFlowState.STABLE.name
+            }
+        }
+        return result
     }
 
     /**

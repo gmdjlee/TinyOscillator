@@ -5,6 +5,7 @@ import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.OscillatorRow
 import com.tinyoscillator.domain.model.ProbabilityUpdate
+import com.tinyoscillator.domain.repository.EtfAmountPoint
 import com.tinyoscillator.domain.repository.FundamentalSnapshot
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,7 +40,8 @@ class BayesianUpdateEngine @Inject constructor() {
         prices: List<DailyTrading>,
         oscillators: List<OscillatorRow>,
         demarkRows: List<DemarkTDRow>,
-        fundamentals: List<FundamentalSnapshot>?
+        fundamentals: List<FundamentalSnapshot>?,
+        etfAmountTrend: List<EtfAmountPoint>? = null
     ): BayesianUpdateResult {
         if (prices.size < LOOK_AHEAD_DAYS + 10) {
             return BayesianUpdateResult(0.5, 0.5, emptyList())
@@ -48,11 +50,14 @@ class BayesianUpdateEngine @Inject constructor() {
         // Step 1: Base rate (사전 확률) 계산
         val priorProbability = calcBaseRate(prices)
 
+        // ETF 자금흐름 상태 맵 (학습 및 현재 시점 신호 추출용)
+        val etfFlowByDate = buildEtfFlowMap(etfAmountTrend)
+
         // Step 2: Likelihood 테이블 구축 (과거 데이터에서)
-        val likelihoodTable = buildLikelihoodTable(prices, oscillators, demarkRows, fundamentals)
+        val likelihoodTable = buildLikelihoodTable(prices, oscillators, demarkRows, fundamentals, etfFlowByDate)
 
         // Step 3: 현재 시점의 신호 추출
-        val currentSignals = extractCurrentSignals(oscillators, demarkRows, fundamentals)
+        val currentSignals = extractCurrentSignals(oscillators, demarkRows, fundamentals, etfAmountTrend)
 
         // Step 4: 순차적 베이지안 갱신
         var posterior = priorProbability
@@ -120,7 +125,8 @@ class BayesianUpdateEngine @Inject constructor() {
         prices: List<DailyTrading>,
         oscillators: List<OscillatorRow>,
         demarkRows: List<DemarkTDRow>,
-        fundamentals: List<FundamentalSnapshot>?
+        fundamentals: List<FundamentalSnapshot>?,
+        etfFlowByDate: Map<String, String> = emptyMap()
     ): Map<String, LikelihoodEntry> {
         val oscByDate = oscillators.associateBy { it.date }
         val demarkByDate = demarkRows.associateBy { it.date }
@@ -141,7 +147,7 @@ class BayesianUpdateEngine @Inject constructor() {
             val isUp = futurePrice > currentPrice
             if (isUp) totalUp++ else totalDown++
 
-            val signals = extractSignalsAtDate(date, oscByDate, demarkByDate, fundByDate)
+            val signals = extractSignalsAtDate(date, oscByDate, demarkByDate, fundByDate, etfFlowByDate)
             val targetMap = if (isUp) countsUp else countsDown
 
             for ((name, value) in signals) {
@@ -177,7 +183,8 @@ class BayesianUpdateEngine @Inject constructor() {
     private fun extractCurrentSignals(
         oscillators: List<OscillatorRow>,
         demarkRows: List<DemarkTDRow>,
-        fundamentals: List<FundamentalSnapshot>?
+        fundamentals: List<FundamentalSnapshot>?,
+        etfAmountTrend: List<EtfAmountPoint>? = null
     ): List<Pair<String, String>> {
         val signals = mutableListOf<Pair<String, String>>()
 
@@ -205,6 +212,15 @@ class BayesianUpdateEngine @Inject constructor() {
             signals.add("PBR" to pbrState)
         }
 
+        if (etfAmountTrend != null && etfAmountTrend.size >= 2) {
+            val prev = etfAmountTrend[etfAmountTrend.size - 2]
+            val last = etfAmountTrend.last()
+            val changeRate = if (prev.totalAmount > 0) {
+                (last.totalAmount - prev.totalAmount).toDouble() / prev.totalAmount
+            } else 0.0
+            signals.add("ETF자금흐름" to if (changeRate > 0) "INFLOW" else "OUTFLOW")
+        }
+
         return signals
     }
 
@@ -215,7 +231,8 @@ class BayesianUpdateEngine @Inject constructor() {
         date: String,
         oscByDate: Map<String, OscillatorRow>,
         demarkByDate: Map<String, DemarkTDRow>,
-        fundByDate: Map<String, FundamentalSnapshot>
+        fundByDate: Map<String, FundamentalSnapshot>,
+        etfFlowByDate: Map<String, String> = emptyMap()
     ): List<Pair<String, String>> {
         val signals = mutableListOf<Pair<String, String>>()
 
@@ -243,7 +260,26 @@ class BayesianUpdateEngine @Inject constructor() {
             signals.add("PBR" to pbrState)
         }
 
+        etfFlowByDate[date]?.let { flow ->
+            signals.add("ETF자금흐름" to flow)
+        }
+
         return signals
+    }
+
+    /**
+     * ETF 보유금액 시계열에서 일별 자금흐름 상태를 계산
+     */
+    private fun buildEtfFlowMap(etfAmountTrend: List<EtfAmountPoint>?): Map<String, String> {
+        if (etfAmountTrend == null || etfAmountTrend.size < 2) return emptyMap()
+        val result = mutableMapOf<String, String>()
+        etfAmountTrend.zipWithNext { prev, curr ->
+            val changeRate = if (prev.totalAmount > 0) {
+                (curr.totalAmount - prev.totalAmount).toDouble() / prev.totalAmount
+            } else 0.0
+            result[curr.date] = if (changeRate > 0) "INFLOW" else "OUTFLOW"
+        }
+        return result
     }
 
     /**

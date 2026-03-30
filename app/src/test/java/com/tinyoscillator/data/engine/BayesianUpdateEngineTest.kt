@@ -3,6 +3,7 @@ package com.tinyoscillator.data.engine
 import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.OscillatorRow
+import com.tinyoscillator.domain.repository.EtfAmountPoint
 import com.tinyoscillator.domain.repository.FundamentalSnapshot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -138,7 +139,59 @@ class BayesianUpdateEngineTest {
         assertTrue("PBR 갱신이 있어야 함", pbrUpdates.isNotEmpty())
     }
 
+    // ─── ETF_FLOW 신호 테스트 ───
+
+    @Test
+    fun `ETF자금흐름 신호 포함 시 갱신 히스토리에 ETF자금흐름이 있다`() = runTest {
+        val prices = generatePrices(100)
+        val oscillators = generateOscillators(100)
+        val demarks = generateDemarks(100)
+        val etfTrend = generateEtfAmountTrend(100)
+
+        val result = engine.analyze(prices, oscillators, demarks, null, etfTrend)
+
+        val etfUpdates = result.updateHistory.filter { it.signalName.startsWith("ETF자금흐름") }
+        assertTrue("ETF자금흐름 갱신이 있어야 함", etfUpdates.isNotEmpty())
+    }
+
+    @Test
+    fun `ETF 데이터 없이도 기존 결과와 동일하다`() = runTest {
+        val prices = generatePrices(100)
+        val oscillators = generateOscillators(100)
+        val demarks = generateDemarks(100)
+
+        val resultWithout = engine.analyze(prices, oscillators, demarks, null, null)
+        val resultDefault = engine.analyze(prices, oscillators, demarks, null)
+
+        assertEquals("동일 posterior", resultWithout.finalPosterior, resultDefault.finalPosterior, 0.001)
+        assertEquals("동일 prior", resultWithout.priorProbability, resultDefault.priorProbability, 0.001)
+    }
+
+    @Test
+    fun `ETF자금흐름 포함 시 posterior가 유효 범위이다`() = runTest {
+        val prices = generatePrices(100)
+        val oscillators = generateOscillators(100)
+        val demarks = generateDemarks(100)
+        val etfTrend = generateEtfAmountTrend(100)
+
+        val result = engine.analyze(prices, oscillators, demarks, null, etfTrend)
+
+        assertTrue("posterior >= 0", result.finalPosterior >= 0.0)
+        assertTrue("posterior <= 1", result.finalPosterior <= 1.0)
+        assertTrue("prior >= 0", result.priorProbability >= 0.0)
+        assertTrue("prior <= 1", result.priorProbability <= 1.0)
+    }
+
     // ─── 헬퍼 ───
+
+    private fun generateEtfAmountTrend(days: Int): List<EtfAmountPoint> =
+        (0 until days).map { i ->
+            EtfAmountPoint(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                totalAmount = 1000000L + (i * 10000L) + ((i % 5 - 2) * 50000L),
+                etfCount = 5 + (i % 3)
+            )
+        }
 
     private fun generatePrices(days: Int): List<DailyTrading> =
         (0 until days).map { i ->

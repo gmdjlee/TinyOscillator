@@ -10,6 +10,7 @@ import com.tinyoscillator.domain.model.DemarkPeriodType
 import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.OscillatorRow
 import com.tinyoscillator.domain.model.StockAggregatedTimePoint
+import com.tinyoscillator.domain.repository.SectorEtfReturn
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import io.mockk.*
@@ -225,10 +226,58 @@ class StatisticalRepositoryImplTest {
     // ─── getSectorEtfReturns ───
 
     @Test
-    fun `getSectorEtfReturns - 항상 emptyList 반환`() = runTest {
-        val result = repository.getSectorEtfReturns("005930", 200)
+    fun `getSectorEtfReturns - 정상 데이터에서 일별 수익률 계산`() = runTest {
+        val trend = listOf(
+            StockAggregatedTimePoint("20250101", 1000000L, 5, 0.05, 0.03),
+            StockAggregatedTimePoint("20250102", 1100000L, 5, 0.05, 0.03),
+            StockAggregatedTimePoint("20250103", 1050000L, 6, 0.06, 0.04)
+        )
+        coEvery { etfDao.getStockAggregatedTrend("005930") } returns trend
 
-        assertTrue("미구현 기능은 emptyList", result.isEmpty())
+        val result = repository.getSectorEtfReturns("005930")
+
+        assertEquals(2, result.size)
+        assertEquals("20250102", result[0].date)
+        assertEquals(0.1, result[0].dailyReturn, 0.001) // (1100000-1000000)/1000000
+        assertEquals("20250103", result[1].date)
+        assertEquals(-0.04545, result[1].dailyReturn, 0.001) // (1050000-1100000)/1100000
+        assertEquals("AGG_ETF_FLOW", result[0].etfTicker)
+        assertEquals("ETF자금흐름", result[0].etfName)
+    }
+
+    @Test
+    fun `getSectorEtfReturns - 빈 트렌드 시 emptyList`() = runTest {
+        coEvery { etfDao.getStockAggregatedTrend("005930") } returns emptyList()
+
+        val result = repository.getSectorEtfReturns("005930")
+
+        assertTrue("빈 트렌드에서 emptyList", result.isEmpty())
+    }
+
+    @Test
+    fun `getSectorEtfReturns - 단일 포인트 시 emptyList`() = runTest {
+        val trend = listOf(
+            StockAggregatedTimePoint("20250101", 1000000L, 5, 0.05, 0.03)
+        )
+        coEvery { etfDao.getStockAggregatedTrend("005930") } returns trend
+
+        val result = repository.getSectorEtfReturns("005930")
+
+        assertTrue("단일 포인트에서 emptyList", result.isEmpty())
+    }
+
+    @Test
+    fun `getSectorEtfReturns - totalAmount가 0인 경우 dailyReturn은 0`() = runTest {
+        val trend = listOf(
+            StockAggregatedTimePoint("20250101", 0L, 0, 0.0, 0.0),
+            StockAggregatedTimePoint("20250102", 500000L, 3, 0.03, 0.02)
+        )
+        coEvery { etfDao.getStockAggregatedTrend("005930") } returns trend
+
+        val result = repository.getSectorEtfReturns("005930")
+
+        assertEquals(1, result.size)
+        assertEquals(0.0, result[0].dailyReturn, 0.001) // prev.totalAmount == 0
     }
 
     // ─── getEtfHoldingCount ───

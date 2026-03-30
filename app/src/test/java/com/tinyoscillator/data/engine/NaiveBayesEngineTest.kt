@@ -3,6 +3,7 @@ package com.tinyoscillator.data.engine
 import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.OscillatorRow
+import com.tinyoscillator.domain.repository.EtfAmountPoint
 import com.tinyoscillator.domain.repository.FundamentalSnapshot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -158,7 +159,66 @@ class NaiveBayesEngineTest {
             result.sidewaysProbability >= result.downProbability)
     }
 
+    // ─── ETF_FLOW 피처 테스트 ───
+
+    @Test
+    fun `ETF_FLOW 피처 포함 시 확률 합이 1이다`() = runTest {
+        val prices = generatePrices(100)
+        val oscillators = generateOscillators(100)
+        val demarks = generateDemarks(100)
+        val fundamentals = generateFundamentals(100)
+        val etfTrend = generateEtfAmountTrend(100)
+
+        val result = engine.analyze(prices, oscillators, demarks, fundamentals, etfTrend)
+
+        val sum = result.upProbability + result.downProbability + result.sidewaysProbability
+        assertEquals("확률 합이 1.0", 1.0, sum, 0.001)
+    }
+
+    @Test
+    fun `ETF_FLOW 데이터 없이도 기존과 동일하게 동작한다`() = runTest {
+        val prices = generatePrices(100)
+        val oscillators = generateOscillators(100)
+        val demarks = generateDemarks(100)
+
+        val resultWithout = engine.analyze(prices, oscillators, demarks, null, null)
+        val resultDefault = engine.analyze(prices, oscillators, demarks, null)
+
+        assertEquals("동일 up", resultWithout.upProbability, resultDefault.upProbability, 0.001)
+        assertEquals("동일 down", resultWithout.downProbability, resultDefault.downProbability, 0.001)
+    }
+
+    @Test
+    fun `ETF_FLOW dominantFeatures에 ETF_FLOW 항목이 있다`() = runTest {
+        val prices = generatePrices(100)
+        val oscillators = generateOscillators(100)
+        val demarks = generateDemarks(100)
+        val fundamentals = generateFundamentals(100)
+        // 강한 유입 패턴의 ETF 데이터
+        val etfTrend = (0 until 100).map { i ->
+            EtfAmountPoint(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                totalAmount = 1000000L + i * 100000L, // 지속적 증가
+                etfCount = 5 + (i % 3)
+            )
+        }
+
+        val result = engine.analyze(prices, oscillators, demarks, fundamentals, etfTrend)
+
+        val etfFeature = result.dominantFeatures.find { it.featureName == "ETF_FLOW" }
+        assertNotNull("ETF_FLOW 피처가 dominantFeatures에 존재", etfFeature)
+    }
+
     // ─── 헬퍼 ───
+
+    private fun generateEtfAmountTrend(days: Int): List<EtfAmountPoint> =
+        (0 until days).map { i ->
+            EtfAmountPoint(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                totalAmount = 1000000L + (i * 10000L) + ((i % 5 - 2) * 50000L),
+                etfCount = 5 + (i % 3)
+            )
+        }
 
     private fun generatePrices(days: Int, basePrice: Int = 50000): List<DailyTrading> {
         return (0 until days).map { i ->

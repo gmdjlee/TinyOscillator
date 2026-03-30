@@ -105,8 +105,24 @@ class StatisticalRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getSectorEtfReturns(ticker: String, limit: Int): List<SectorEtfReturn> {
-        // 섹터 ETF 수익률은 현재 DB에 직접 저장되지 않으므로 빈 리스트 반환
-        // 향후 섹터별 ETF 매핑 테이블 추가 시 구현
-        return emptyList()
+        val trend = try {
+            etfDao.getStockAggregatedTrend(ticker)
+        } catch (e: Exception) {
+            return emptyList()
+        }
+        if (trend.size < 2) return emptyList()
+
+        val recent = trend.takeLast(limit + 1) // +1: 수익률 계산에 전일 데이터 필요
+        return recent.zipWithNext { prev, curr ->
+            val dailyReturn = if (prev.totalAmount > 0) {
+                (curr.totalAmount - prev.totalAmount).toDouble() / prev.totalAmount
+            } else 0.0
+            SectorEtfReturn(
+                date = curr.date,
+                etfTicker = "AGG_ETF_FLOW",
+                etfName = "ETF자금흐름",
+                dailyReturn = dailyReturn
+            )
+        }
     }
 }
