@@ -29,8 +29,8 @@ import com.tinyoscillator.domain.model.FearGreedChartData
 /**
  * Fear & Greed 차트 Composable
  *
- * - 왼쪽 Y축: F&G 오실레이터 (%) — 양수 초록, 음수 빨간 원
- * - 오른쪽 Y축: 시장 지수 — 파란 선
+ * - 왼쪽 Y축: 시장 지수 — 파란 선
+ * - 오른쪽 Y축: F&G 오실레이터 (%) — 양수 초록, 음수 빨간 원
  * - X축: 날짜 (MM/dd)
  */
 @Composable
@@ -99,7 +99,7 @@ private fun setupFearGreedChart(chart: CombinedChart, chartTextColor: Int) {
 
         setExtraOffsets(8f, 8f, 8f, 8f)
 
-        // 왼쪽 Y축: F&G 오실레이터 (%)
+        // 왼쪽 Y축: 시장 지수
         axisLeft.apply {
             setDrawGridLines(true)
             gridColor = gColor
@@ -109,12 +109,12 @@ private fun setupFearGreedChart(chart: CombinedChart, chartTextColor: Int) {
             setLabelCount(labelCount, true)
             valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String {
-                    return String.format("%.1f%%", value)
+                    return String.format("%.0f", value)
                 }
             }
         }
 
-        // 오른쪽 Y축: 시장 지수
+        // 오른쪽 Y축: F&G 오실레이터 (%)
         axisRight.apply {
             setDrawGridLines(false)
             gridColor = gColor
@@ -124,7 +124,7 @@ private fun setupFearGreedChart(chart: CombinedChart, chartTextColor: Int) {
             setLabelCount(labelCount, true)
             valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String {
-                    return String.format("%.0f", value)
+                    return String.format("%.1f%%", value)
                 }
             }
         }
@@ -170,7 +170,30 @@ private fun bindFearGreedData(
     }
     chart.xAxis.valueFormatter = IndexAxisValueFormatter(labels)
 
-    // F&G 오실레이터 (%) — 왼쪽 Y축
+    // 시장 지수 — 왼쪽 Y축
+    val indexEntries = rows.mapIndexed { i, row ->
+        Entry(i.toFloat(), row.indexValue.toFloat())
+    }
+    val indexDataSet = LineDataSet(indexEntries, "${chartData.market} 지수").apply {
+        color = Color.parseColor("#2196F3")
+        lineWidth = 2f
+        setDrawCircles(false)
+        setDrawValues(false)
+        axisDependency = YAxis.AxisDependency.LEFT
+        isHighlightEnabled = true
+        highLightColor = Color.parseColor("#2196F3")
+    }
+
+    // 왼쪽 Y축 범위 fitting
+    val indexValues = rows.map { it.indexValue.toFloat() }
+    if (indexValues.isEmpty()) return
+    val indexMin = indexValues.min()
+    val indexMax = indexValues.max()
+    val indexPadding = (indexMax - indexMin) * 0.05f
+    chart.axisLeft.axisMinimum = indexMin - indexPadding
+    chart.axisLeft.axisMaximum = indexMax + indexPadding
+
+    // F&G 오실레이터 (%) — 오른쪽 Y축
     val oscEntries = rows.mapIndexed { i, row ->
         Entry(i.toFloat(), (row.oscillator * 100).toFloat())
     }
@@ -180,7 +203,7 @@ private fun bindFearGreedData(
         setDrawCircles(true)
         circleRadius = 3f
         setDrawValues(false)
-        axisDependency = YAxis.AxisDependency.LEFT
+        axisDependency = YAxis.AxisDependency.RIGHT
         circleColors = rows.map { row ->
             if (row.oscillator >= 0) Color.parseColor("#4CAF50")
             else Color.parseColor("#F44336")
@@ -191,39 +214,16 @@ private fun bindFearGreedData(
         highLightColor = Color.parseColor("#388E3C")
     }
 
-    // 왼쪽 Y축 범위 fitting
+    // 오른쪽 Y축 범위 fitting
     val oscValues = rows.map { (it.oscillator * 100).toFloat() }
-    if (oscValues.isEmpty()) return
     val oscMin = oscValues.min()
     val oscMax = oscValues.max()
     val oscPadding = (oscMax - oscMin) * 0.05f
-    chart.axisLeft.axisMinimum = oscMin - oscPadding
-    chart.axisLeft.axisMaximum = oscMax + oscPadding
-
-    // 시장 지수 — 오른쪽 Y축
-    val indexEntries = rows.mapIndexed { i, row ->
-        Entry(i.toFloat(), row.indexValue.toFloat())
-    }
-    val indexDataSet = LineDataSet(indexEntries, "${chartData.market} 지수").apply {
-        color = Color.parseColor("#2196F3")
-        lineWidth = 2f
-        setDrawCircles(false)
-        setDrawValues(false)
-        axisDependency = YAxis.AxisDependency.RIGHT
-        isHighlightEnabled = true
-        highLightColor = Color.parseColor("#2196F3")
-    }
-
-    // 오른쪽 Y축 범위 fitting
-    val indexValues = rows.map { it.indexValue.toFloat() }
-    val indexMin = indexValues.min()
-    val indexMax = indexValues.max()
-    val indexPadding = (indexMax - indexMin) * 0.05f
-    chart.axisRight.axisMinimum = indexMin - indexPadding
-    chart.axisRight.axisMaximum = indexMax + indexPadding
+    chart.axisRight.axisMinimum = oscMin - oscPadding
+    chart.axisRight.axisMaximum = oscMax + oscPadding
 
     chart.data = CombinedData().apply {
-        setData(LineData(oscDataSet, indexDataSet))
+        setData(LineData(indexDataSet, oscDataSet))
     }
 
     // 마커 설정
@@ -261,8 +261,8 @@ class FearGreedMarkerView(
                 append("\n지수: ${String.format("%.2f", row.indexValue)}")
             } else {
                 when (highlight.dataSetIndex) {
-                    0 -> append("\n오실레이터: ${String.format("%.2f%%", e.y)}")
-                    1 -> append("\n지수: ${String.format("%.2f", e.y)}")
+                    0 -> append("\n지수: ${String.format("%.2f", e.y)}")
+                    1 -> append("\n오실레이터: ${String.format("%.2f%%", e.y)}")
                     else -> append("\n${String.format("%.2f", e.y)}")
                 }
             }

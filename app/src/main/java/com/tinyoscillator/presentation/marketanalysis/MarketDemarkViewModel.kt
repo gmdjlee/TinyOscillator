@@ -30,6 +30,10 @@ class MarketDemarkViewModel @Inject constructor(
     private val _state = MutableStateFlow<MarketDemarkState>(MarketDemarkState.Idle)
     val state: StateFlow<MarketDemarkState> = _state.asStateFlow()
 
+    init {
+        loadData()
+    }
+
     private val _selectedMarket = MutableStateFlow("KOSPI")
     val selectedMarket: StateFlow<String> = _selectedMarket.asStateFlow()
 

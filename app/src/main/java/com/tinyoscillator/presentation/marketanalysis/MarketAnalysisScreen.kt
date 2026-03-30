@@ -397,6 +397,11 @@ private fun setupMarketDemarkChart(chart: CombinedChart, chartTextColor: Int) {
             enableGridDashedLine(dashLen, dashGap, 0f)
             textColor = chartTextColor
             setLabelCount(labelCount, true)
+            valueFormatter = object : ValueFormatter() {
+                override fun getFormattedValue(value: Float): String {
+                    return String.format("%.0f", value)
+                }
+            }
         }
 
         axisRight.apply {
@@ -438,7 +443,7 @@ private fun bindMarketDemarkData(
     chartData: MarketDemarkChartData,
     isDarkTheme: Boolean = false
 ) {
-    val rows = chartData.rows
+    val rows = chartData.rows.sortedBy { it.date }
     if (rows.isEmpty()) return
 
     val labels = rows.map { row ->
