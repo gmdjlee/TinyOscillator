@@ -91,7 +91,7 @@ private fun setupConsensusChart(chart: CombinedChart, chartTextColor: Int, gridC
         setDrawGridBackground(false)
         setDrawBarShadow(false)
         isHighlightFullBarEnabled = false
-        setDrawOrder(arrayOf(CombinedChart.DrawOrder.LINE, CombinedChart.DrawOrder.SCATTER))
+        setDrawOrder(arrayOf(CombinedChart.DrawOrder.LINE))
 
         val dashLen = Utils.convertDpToPixel(4f)
         val dashGap = Utils.convertDpToPixel(4f)
@@ -168,18 +168,23 @@ private fun bindConsensusData(
         highLightColor = priceColor
     }
 
-    // 목표가 (원) — 같은 Y축 (ScatterChart)
-    val scatterEntries = chartData.reportDates.mapIndexedNotNull { i, reportDate ->
+    // 목표가 (원) — 같은 Y축 (원만 표시하는 LineDataSet으로 구현, ScatterData는 CombinedChart 버그 회피)
+    // MPAndroidChart requires entries sorted by x-value; unsorted entries cause NegativeArraySizeException
+    val targetEntries = chartData.reportDates.mapIndexedNotNull { i, reportDate ->
         val xIndex = dates.indexOf(reportDate)
         if (xIndex >= 0) {
             Entry(xIndex.toFloat(), chartData.reportTargetPrices[i].toFloat())
         } else null
-    }
+    }.sortedBy { it.x }
     val targetColor = Color.parseColor("#D32F2F")
-    val scatterDataSet = ScatterDataSet(scatterEntries, "목표가(원)").apply {
+    val targetDataSet = LineDataSet(targetEntries, "목표가(원)").apply {
         color = targetColor
-        setScatterShape(com.github.mikephil.charting.charts.ScatterChart.ScatterShape.CIRCLE)
-        scatterShapeSize = 16f
+        setDrawCircles(true)
+        setCircleColor(targetColor)
+        circleRadius = 5f
+        circleHoleRadius = 2.5f
+        lineWidth = 0f
+        enableDashedLine(0f, Float.MAX_VALUE, 0f) // 선 숨기기
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.LEFT
         isHighlightEnabled = true
@@ -187,16 +192,20 @@ private fun bindConsensusData(
     }
 
     // Y축 범위: 현재가 + 목표가 전체를 포함
-    val allValues = priceEntries.map { it.y } + scatterEntries.map { it.y }
+    val allValues = priceEntries.map { it.y } + targetEntries.map { it.y }
+    if (allValues.isEmpty()) return
     val yMin = allValues.min()
     val yMax = allValues.max()
     val yPadding = (yMax - yMin) * 0.05f
     chart.axisLeft.axisMinimum = yMin - yPadding
     chart.axisLeft.axisMaximum = yMax + yPadding
 
+    val lineDataSets = mutableListOf<LineDataSet>(priceDataSet)
+    if (targetEntries.isNotEmpty()) {
+        lineDataSets.add(targetDataSet)
+    }
     chart.data = CombinedData().apply {
-        setData(LineData(priceDataSet))
-        setData(ScatterData(scatterDataSet))
+        setData(LineData(lineDataSets as List<com.github.mikephil.charting.interfaces.datasets.ILineDataSet>))
     }
 
     // 마커 설정
