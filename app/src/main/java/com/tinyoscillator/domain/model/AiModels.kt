@@ -32,7 +32,8 @@ enum class AiAnalysisType(val displayName: String) {
     STOCK_OSCILLATOR("종목 수급 분석"),
     ETF_RANKING("ETF 금액 순위 분석"),
     MARKET_OVERVIEW("시장 지표 분석"),
-    COMPREHENSIVE_STOCK("종목 종합 분석")
+    COMPREHENSIVE_STOCK("종목 종합 분석"),
+    PROBABILITY_INTERPRETATION("확률분석 해석")
 }
 
 /** AI 분석 결과 */

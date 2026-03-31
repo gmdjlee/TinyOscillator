@@ -14,6 +14,7 @@ import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.util.DateFormats
 import com.tinyoscillator.data.engine.StatisticalAnalysisEngine
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
+import com.tinyoscillator.domain.usecase.ProbabilityInterpreter
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.domain.usecase.SearchStocksUseCase
@@ -63,6 +64,25 @@ sealed class ProbabilityAnalysisState {
     data class Error(val message: String) : ProbabilityAnalysisState()
 }
 
+/** 해석 제공 방식 */
+enum class InterpretationProvider(val label: String) {
+    LOCAL("로컬 분석"),
+    AI("AI 분석")
+}
+
+/** 해석 상태 */
+sealed class InterpretationState {
+    data object Idle : InterpretationState()
+    data object Loading : InterpretationState()
+    data class Success(
+        val summary: String,
+        val engineInterpretations: Map<String, String>,
+        val provider: InterpretationProvider
+    ) : InterpretationState()
+    data class Error(val message: String) : InterpretationState()
+    data object NoApiKey : InterpretationState()
+}
+
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class AiAnalysisViewModel @Inject constructor(
@@ -77,7 +97,8 @@ class AiAnalysisViewModel @Inject constructor(
     private val aiApiClient: AiApiClient,
     private val aiPreparer: AiAnalysisPreparer,
     private val apiConfigProvider: ApiConfigProvider,
-    private val statisticalAnalysisEngine: StatisticalAnalysisEngine
+    private val statisticalAnalysisEngine: StatisticalAnalysisEngine,
+    private val probabilityInterpreter: ProbabilityInterpreter
 ) : AndroidViewModel(application) {
 
     private val fmt = DateFormats.yyyyMMdd
@@ -106,6 +127,10 @@ class AiAnalysisViewModel @Inject constructor(
     // 확률 분석 상태
     private val _probabilityState = MutableStateFlow<ProbabilityAnalysisState>(ProbabilityAnalysisState.Idle)
     val probabilityState: StateFlow<ProbabilityAnalysisState> = _probabilityState.asStateFlow()
+
+    // 해석 상태
+    private val _interpretationState = MutableStateFlow<InterpretationState>(InterpretationState.Idle)
+    val interpretationState: StateFlow<InterpretationState> = _interpretationState.asStateFlow()
 
     fun selectTab(tab: AiTab) {
         _selectedTab.value = tab
@@ -318,8 +343,77 @@ class AiAnalysisViewModel @Inject constructor(
         }
     }
 
+    /** 로컬 규칙 기반 해석 실행 */
+    fun interpretLocal() {
+        val result = (_probabilityState.value as? ProbabilityAnalysisState.Success)?.result ?: return
+
+        val summary = probabilityInterpreter.summarize(result)
+        val engines = mutableMapOf<String, String>()
+
+        result.bayesResult?.let { engines["bayes"] = probabilityInterpreter.interpretBayes(it) }
+        result.logisticResult?.let { engines["logistic"] = probabilityInterpreter.interpretLogistic(it) }
+        result.hmmResult?.let { engines["hmm"] = probabilityInterpreter.interpretHmm(it) }
+        result.patternAnalysis?.let { engines["pattern"] = probabilityInterpreter.interpretPattern(it) }
+        result.signalScoringResult?.let { engines["signal"] = probabilityInterpreter.interpretSignalScoring(it) }
+        result.correlationAnalysis?.let { engines["correlation"] = probabilityInterpreter.interpretCorrelation(it) }
+        result.bayesianUpdateResult?.let { engines["bayesian"] = probabilityInterpreter.interpretBayesianUpdate(it) }
+
+        _interpretationState.value = InterpretationState.Success(
+            summary = summary,
+            engineInterpretations = engines,
+            provider = InterpretationProvider.LOCAL
+        )
+    }
+
+    /** AI 기반 해석 실행 */
+    fun interpretWithAi() {
+        val result = (_probabilityState.value as? ProbabilityAnalysisState.Success)?.result ?: return
+
+        viewModelScope.launch {
+            val aiConfig = apiConfigProvider.getAiConfig()
+            if (!aiConfig.isValid()) {
+                _interpretationState.value = InterpretationState.NoApiKey
+                return@launch
+            }
+
+            _interpretationState.value = InterpretationState.Loading
+            try {
+                val userMessage = probabilityInterpreter.buildPromptForAi(result)
+                val systemPrompt = aiPreparer.getSystemPrompt(AiAnalysisType.PROBABILITY_INTERPRETATION)
+                val aiResult = aiApiClient.analyze(
+                    config = aiConfig,
+                    systemPrompt = systemPrompt,
+                    userMessage = userMessage,
+                    analysisType = AiAnalysisType.PROBABILITY_INTERPRETATION,
+                    maxTokens = 1500
+                )
+                aiResult.fold(
+                    onSuccess = { ai ->
+                        _interpretationState.value = InterpretationState.Success(
+                            summary = ai.content,
+                            engineInterpretations = emptyMap(),
+                            provider = InterpretationProvider.AI
+                        )
+                    },
+                    onFailure = { e ->
+                        _interpretationState.value = InterpretationState.Error(e.message ?: "AI 해석 실패")
+                    }
+                )
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _interpretationState.value = InterpretationState.Error(e.message ?: "AI 해석 실패")
+            }
+        }
+    }
+
+    fun dismissInterpretation() {
+        _interpretationState.value = InterpretationState.Idle
+    }
+
     fun dismissProbability() {
         _probabilityState.value = ProbabilityAnalysisState.Idle
+        _interpretationState.value = InterpretationState.Idle
     }
 
     fun dismissMarketAi() {

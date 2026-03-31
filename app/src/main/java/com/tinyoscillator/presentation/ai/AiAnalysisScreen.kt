@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,6 +47,7 @@ fun AiAnalysisScreen(
     val selectedStock by viewModel.selectedStock.collectAsStateWithLifecycle()
     val stockDataState by viewModel.stockDataState.collectAsStateWithLifecycle()
     val probabilityState by viewModel.probabilityState.collectAsStateWithLifecycle()
+    val interpretationState by viewModel.interpretationState.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
     val themeModeState = LocalThemeModeState.current
@@ -109,9 +112,13 @@ fun AiAnalysisScreen(
                     ProbabilityTabContent(
                         selectedStock = selectedStock,
                         probabilityState = probabilityState,
+                        interpretationState = interpretationState,
                         onAnalyze = { viewModel.analyzeProbability() },
                         onDismiss = { viewModel.dismissProbability() },
-                        onSelectStock = { viewModel.selectTab(AiTab.STOCK) }
+                        onSelectStock = { viewModel.selectTab(AiTab.STOCK) },
+                        onInterpretLocal = { viewModel.interpretLocal() },
+                        onInterpretAi = { viewModel.interpretWithAi() },
+                        onDismissInterpretation = { viewModel.dismissInterpretation() }
                     )
                 }
             }
@@ -468,9 +475,13 @@ private fun DataChip(label: String, available: Boolean) {
 private fun ProbabilityTabContent(
     selectedStock: SelectedStockInfo?,
     probabilityState: ProbabilityAnalysisState,
+    interpretationState: InterpretationState,
     onAnalyze: () -> Unit,
     onDismiss: () -> Unit,
-    onSelectStock: () -> Unit
+    onSelectStock: () -> Unit,
+    onInterpretLocal: () -> Unit,
+    onInterpretAi: () -> Unit,
+    onDismissInterpretation: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -550,7 +561,171 @@ private fun ProbabilityTabContent(
                 }
 
                 is ProbabilityAnalysisState.Success -> {
-                    ProbabilityResultContent(state.result)
+                    // 해석 제공자 선택 버튼
+                    InterpretationProviderSelector(
+                        interpretationState = interpretationState,
+                        onInterpretLocal = onInterpretLocal,
+                        onInterpretAi = onInterpretAi
+                    )
+
+                    // 해석 결과 표시
+                    InterpretationResultCard(
+                        interpretationState = interpretationState,
+                        onDismiss = onDismissInterpretation,
+                        onRetryLocal = onInterpretLocal,
+                        onRetryAi = onInterpretAi
+                    )
+
+                    // 확률 분석 결과
+                    ProbabilityResultContent(
+                        result = state.result,
+                        interpretationState = interpretationState
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 해석 제공자 선택 (로컬/AI) */
+@Composable
+private fun InterpretationProviderSelector(
+    interpretationState: InterpretationState,
+    onInterpretLocal: () -> Unit,
+    onInterpretAi: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text("결과 해석", style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onInterpretLocal,
+                    modifier = Modifier.weight(1f),
+                    enabled = interpretationState !is InterpretationState.Loading
+                ) {
+                    Icon(Icons.Default.Lightbulb, contentDescription = null,
+                        modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("로컬 분석", style = MaterialTheme.typography.labelMedium)
+                }
+                OutlinedButton(
+                    onClick = onInterpretAi,
+                    modifier = Modifier.weight(1f),
+                    enabled = interpretationState !is InterpretationState.Loading
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null,
+                        modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("AI 분석", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+    }
+}
+
+/** 해석 결과 카드 */
+@Composable
+private fun InterpretationResultCard(
+    interpretationState: InterpretationState,
+    onDismiss: () -> Unit,
+    onRetryLocal: () -> Unit,
+    onRetryAi: () -> Unit
+) {
+    when (interpretationState) {
+        is InterpretationState.Idle -> {}
+
+        is InterpretationState.Loading -> {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text("AI 해석 중...")
+                }
+            }
+        }
+
+        is InterpretationState.Success -> {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                if (interpretationState.provider == InterpretationProvider.AI)
+                                    Icons.Default.AutoAwesome else Icons.Default.Lightbulb,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                "${interpretationState.provider.label} 해석",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                        TextButton(onClick = onDismiss) {
+                            Text("닫기", color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        interpretationState.summary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
+        }
+
+        is InterpretationState.Error -> {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(interpretationState.message,
+                        color = MaterialTheme.colorScheme.onErrorContainer)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onRetryAi) { Text("AI 재시도") }
+                        OutlinedButton(onClick = onRetryLocal) { Text("로컬로 전환") }
+                    }
+                }
+            }
+        }
+
+        is InterpretationState.NoApiKey -> {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("AI 분석을 사용하려면 설정에서 AI API 키를 입력해주세요.",
+                        color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onRetryLocal) { Text("로컬 분석 사용") }
                 }
             }
         }
@@ -558,8 +733,13 @@ private fun ProbabilityTabContent(
 }
 
 @Composable
-private fun ProbabilityResultContent(result: StatisticalResult) {
+private fun ProbabilityResultContent(
+    result: StatisticalResult,
+    interpretationState: InterpretationState
+) {
     val financeColors = LocalFinanceColors.current
+    val engineInterpretations = (interpretationState as? InterpretationState.Success)
+        ?.engineInterpretations ?: emptyMap()
 
     // 종합 요약 카드
     Card(modifier = Modifier.fillMaxWidth(),
@@ -594,7 +774,7 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
         }
     }
 
-    // 개별 엔진 결과 (Expandable)
+    // 개별 엔진 결과 (Expandable + 해석)
     result.bayesResult?.let { bayes ->
         ProbExpandableCard("나이브 베이즈 (샘플 ${bayes.sampleCount}건)") {
             Text("상승: ${pctFmt(bayes.upProbability)} | 하락: ${pctFmt(bayes.downProbability)} | 횡보: ${pctFmt(bayes.sidewaysProbability)}")
@@ -607,6 +787,7 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
+            EngineInterpretationBlock(engineInterpretations["bayes"])
         }
     }
 
@@ -618,6 +799,7 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
                 Text("  · $name: ${String.format("%.3f", value)}",
                     style = MaterialTheme.typography.bodySmall)
             }
+            EngineInterpretationBlock(engineInterpretations["logistic"])
         }
     }
 
@@ -632,6 +814,7 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
                 Text("최근 경로: ${hmm.recentRegimePath.takeLast(10).joinToString("→")}",
                     style = MaterialTheme.typography.bodySmall)
             }
+            EngineInterpretationBlock(engineInterpretations["hmm"])
         }
     }
 
@@ -647,6 +830,7 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
+            EngineInterpretationBlock(engineInterpretations["pattern"])
         }
     }
 
@@ -664,6 +848,7 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
                         color = MaterialTheme.colorScheme.error)
                 }
             }
+            EngineInterpretationBlock(engineInterpretations["signal"])
         }
     }
 
@@ -682,6 +867,7 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
                         Text("  · ${ll.interpretation}", style = MaterialTheme.typography.bodySmall)
                     }
                 }
+                EngineInterpretationBlock(engineInterpretations["correlation"])
             }
         }
     }
@@ -695,6 +881,7 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
                 Text("  · ${u.signalName} $arrow${pctFmt(kotlin.math.abs(u.deltaProb))}",
                     style = MaterialTheme.typography.bodySmall)
             }
+            EngineInterpretationBlock(engineInterpretations["bayesian"])
         }
     }
 
@@ -704,6 +891,36 @@ private fun ProbabilityResultContent(result: StatisticalResult) {
                 " | 실패: ${result.executionMetadata.failedEngines.joinToString()}" else "",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** 개별 엔진 해석 블록 — 로컬 분석 시 각 카드 하단에 표시 */
+@Composable
+private fun EngineInterpretationBlock(interpretation: String?) {
+    if (interpretation.isNullOrBlank()) return
+
+    Spacer(Modifier.height(8.dp))
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Spacer(Modifier.height(6.dp))
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Icon(
+            Icons.Default.Lightbulb,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = MaterialTheme.colorScheme.tertiary
+        )
+        Text("해석", style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.tertiary)
+    }
+    Spacer(Modifier.height(4.dp))
+    Text(
+        interpretation,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable

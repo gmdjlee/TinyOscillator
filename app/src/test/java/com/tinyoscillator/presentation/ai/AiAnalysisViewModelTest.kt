@@ -68,11 +68,12 @@ class AiAnalysisViewModelTest {
         every { searchStocksUseCase(any()) } returns flowOf(emptyList())
 
         val statisticalAnalysisEngine = mockk<com.tinyoscillator.data.engine.StatisticalAnalysisEngine>(relaxed = true)
+        val probabilityInterpreter = com.tinyoscillator.domain.usecase.ProbabilityInterpreter()
         viewModel = AiAnalysisViewModel(
             application, stockRepository, financialRepository, etfRepository,
             marketIndicatorRepository, calcOscillator, calcDemarkTD,
             searchStocksUseCase, aiApiClient, aiPreparer, apiConfigProvider,
-            statisticalAnalysisEngine
+            statisticalAnalysisEngine, probabilityInterpreter
         )
     }
 

@@ -23,6 +23,7 @@ import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.data.repository.PortfolioRepository
 import com.tinyoscillator.data.repository.StockRepository
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
+import com.tinyoscillator.domain.usecase.ProbabilityInterpreter
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.domain.usecase.MarketOscillatorCalculator
@@ -72,6 +73,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideAiAnalysisPreparer(): AiAnalysisPreparer = AiAnalysisPreparer()
+
+    @Provides
+    @Singleton
+    fun provideProbabilityInterpreter(): ProbabilityInterpreter = ProbabilityInterpreter()
 
     @Provides
     @Singleton
