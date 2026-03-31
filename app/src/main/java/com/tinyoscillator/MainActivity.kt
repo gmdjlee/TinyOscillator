@@ -68,6 +68,7 @@ import com.tinyoscillator.domain.model.ConsensusReport
 import com.tinyoscillator.presentation.consensus.ConsensusContent
 import com.tinyoscillator.presentation.financial.DuPontContent
 import com.tinyoscillator.presentation.financial.FinancialInfoContent
+import com.tinyoscillator.presentation.financial.NaverStockWebScreen
 import com.tinyoscillator.presentation.fundamental.FundamentalHistoryContent
 import com.tinyoscillator.presentation.ai.AiAnalysisScreen
 import com.tinyoscillator.presentation.market.MarketIndicatorScreen
@@ -287,7 +288,8 @@ private enum class MainTab(val label: String) {
     FINANCIAL("재무정보"),
     CONSENSUS("컨센서스"),
     INDICATOR("지표"),
-    DUPONT("DuPont")
+    DUPONT("DuPont"),
+    NAVER_STOCK("네이버증권")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -661,6 +663,13 @@ fun OscillatorScreen(
                         DuPontContent(
                             ticker = currentTicker,
                             stockName = currentStockName,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    MainTab.NAVER_STOCK -> {
+                        NaverStockWebScreen(
+                            ticker = currentTicker,
                             modifier = Modifier.fillMaxSize()
                         )
                     }

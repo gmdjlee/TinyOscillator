@@ -130,6 +130,9 @@ dependencies {
     // === Security (Encrypted Storage) ===
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // === Browser (Custom Tabs fallback for WebView) ===
+    implementation("androidx.browser:browser:1.8.0")
+
     // === Logging ===
     implementation("com.jakewharton.timber:timber:5.0.1")
 
