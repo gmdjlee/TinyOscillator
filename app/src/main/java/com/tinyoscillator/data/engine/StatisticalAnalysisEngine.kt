@@ -150,6 +150,8 @@ class StatisticalAnalysisEngine @Inject constructor(
             timings[engineName] = System.currentTimeMillis() - start
             Timber.d("  ✓ $engineName: ${timings[engineName]}ms")
             result
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
         } catch (e: Exception) {
             timings[engineName] = System.currentTimeMillis() - start
             failedEngines.add(engineName)

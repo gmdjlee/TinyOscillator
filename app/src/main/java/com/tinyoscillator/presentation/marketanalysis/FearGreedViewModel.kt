@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.tinyoscillator.data.repository.FearGreedRepository
 import com.tinyoscillator.domain.model.FearGreedChartData
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -42,6 +43,7 @@ class FearGreedViewModel @Inject constructor(
     val selectedRange: StateFlow<FearGreedDateRange> = _selectedRange.asStateFlow()
 
     private val isoFmt = DateTimeFormatter.ISO_LOCAL_DATE
+    private var loadJob: Job? = null
 
     init {
         checkData()
@@ -73,31 +75,38 @@ class FearGreedViewModel @Inject constructor(
     }
 
     private fun loadData() {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             _state.value = FearGreedState.Loading
-            val market = _selectedMarket.value
-            val range = _selectedRange.value
+            try {
+                val market = _selectedMarket.value
+                val range = _selectedRange.value
 
-            val endDate = LocalDate.now().format(isoFmt)
-            val startDate = if (range.days > 0) {
-                LocalDate.now().minusDays(range.days).format(isoFmt)
-            } else {
-                "2000-01-01"
-            }
-
-            repository.getChartData(market, startDate, endDate)
-                .collect { chartData ->
-                    if (chartData.rows.isEmpty()) {
-                        val count = repository.getCountByMarket(market)
-                        if (count == 0) {
-                            _state.value = FearGreedState.Idle
-                        } else {
-                            _state.value = FearGreedState.Error("선택한 기간에 데이터가 없습니다")
-                        }
-                    } else {
-                        _state.value = FearGreedState.Success(chartData)
-                    }
+                val endDate = LocalDate.now().format(isoFmt)
+                val startDate = if (range.days > 0) {
+                    LocalDate.now().minusDays(range.days).format(isoFmt)
+                } else {
+                    "2000-01-01"
                 }
+
+                repository.getChartData(market, startDate, endDate)
+                    .collect { chartData ->
+                        if (chartData.rows.isEmpty()) {
+                            val count = repository.getCountByMarket(market)
+                            if (count == 0) {
+                                _state.value = FearGreedState.Idle
+                            } else {
+                                _state.value = FearGreedState.Error("선택한 기간에 데이터가 없습니다")
+                            }
+                        } else {
+                            _state.value = FearGreedState.Success(chartData)
+                        }
+                    }
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.value = FearGreedState.Error(e.message ?: "데이터 로드 실패")
+            }
         }
     }
 }

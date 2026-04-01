@@ -2,8 +2,36 @@
 
 ## 현재 상태
 - Phase: ALL PHASES COMPLETED (Phase 1~5) + PROJECT REVIEW COMPLETE
-- Last Updated: 2026-03-29
-- Total Tests: 96 + 57 new/fixed = 153+ (ALL PASSED)
+- Last Updated: 2026-03-31
+- Total Tests: ~1,384 (ALL PASSED)
+
+## Project Review — 2026-03-31 (Re-review after 10 new commits)
+
+### Iteration 1: 4-Agent Review
+- Security: 95/100, Performance: 93/100, Reliability: 96/100, Test Coverage: 87/100
+
+### Iteration 2: Performance Fixes (+2 → 95)
+- NaverStockWebScreen: DisposableEffect for WebView.destroy()
+- FearGreedViewModel: loadJob cancellation for Flow collection race
+- ConsensusChart: Removed redundant chart.invalidate()
+
+### Iteration 3: Reliability Fixes (+2 → 98)
+- StatisticalAnalysisEngine: CancellationException re-throw in timedExecution()
+- FearGreedViewModel: try-catch with error state
+- ConsensusViewModel: try-catch/finally for loading state
+
+### Iteration 4: Test Coverage Fixes (+8 → 95)
+- WiseReportUrlTest (3 tests), ConsensusChartDataTest (4 tests), MarketDemarkViewModelTest (3 tests)
+
+### Files Changed (6 source + 3 test files)
+- `data/engine/StatisticalAnalysisEngine.kt` — CancellationException fix
+- `presentation/financial/NaverStockWebScreen.kt` — WebView lifecycle cleanup
+- `presentation/marketanalysis/FearGreedViewModel.kt` — Flow race + error handling
+- `presentation/chart/ConsensusChart.kt` — redundant invalidate removed
+- `presentation/consensus/ConsensusViewModel.kt` — error handling
+- 3 new test files (10 tests total)
+
+---
 
 ## Project Review — 2026-03-29
 

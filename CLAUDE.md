@@ -68,7 +68,7 @@ com.app.stockanalysis/
 
 ---
 
-## Review Summary (2026-03-29)
+## Review Summary (2026-03-31)
 
 | Category | Score | Ceiling |
 |---|---|---|
@@ -76,6 +76,8 @@ com.app.stockanalysis/
 | Performance | 95/100 | 97 |
 | Reliability | 98/100 | 99 |
 | Test Coverage | 95/100 | 95 (androidTest required) |
+
+10 new commits reviewed (Fear & Greed, Market DeMark, WebView, Consensus fix, schedule restoration, probability interpreter, period selection, ETF integration). 6 fixes applied (WebView lifecycle, Flow race, chart invalidate, CancellationException, ViewModel error handling). 72+ new tests (total: ~1,384).
 
 ### Top 3 Action Items
 1. **MarketOscillatorCalculator KRX caching** — Cache raw KRX OHLCV in Room for incremental updates (Performance +2)

@@ -33,9 +33,17 @@ class ConsensusViewModel @Inject constructor(
         currentTicker = ticker
         viewModelScope.launch {
             _isLoading.value = true
-            _reports.value = consensusRepository.getReportsByTicker(ticker)
-            _chartData.value = consensusRepository.getConsensusChartData(ticker, stockName ?: ticker)
-            _isLoading.value = false
+            try {
+                _reports.value = consensusRepository.getReportsByTicker(ticker)
+                _chartData.value = consensusRepository.getConsensusChartData(ticker, stockName ?: ticker)
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _reports.value = emptyList()
+                _chartData.value = null
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 }

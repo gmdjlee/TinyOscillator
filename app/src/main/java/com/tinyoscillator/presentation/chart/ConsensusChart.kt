@@ -75,7 +75,6 @@ fun ConsensusChart(
                         bindConsensusData(chart, chartData, surfaceColor)
                         lastBound[0] = chartData
                     }
-                    chart.invalidate()
                 },
                 modifier = Modifier
                     .fillMaxWidth()

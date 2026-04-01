@@ -62,6 +62,14 @@ fun NaverStockWebScreen(
         hasError = false
     }
 
+    // WebView 메모리 해제
+    DisposableEffect(Unit) {
+        onDispose {
+            webViewInstance?.destroy()
+            webViewInstance = null
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         if (hasError) {
             NaverWebErrorCard(
