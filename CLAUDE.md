@@ -1,85 +1,303 @@
-# CLAUDE.md — Probabilistic Stock Analysis Engine
+# CLAUDE.md — TinyOscillator Project Guide
 
-## Project Overview
-Android 한국 주식 분석 앱에 7개 통계 알고리즘 + 로컬 LLM 메타분석 기능을 추가한다.
+## Project overview
+TinyOscillator is a Korean stock market analysis Android app targeting retail investors. It provides oscillator-based technical analysis, DeMark TD Sequential, financial statement analysis, ETF sector analysis, market Fear & Greed index, analyst consensus reports, AI-powered analysis (Claude/Gemini API), and portfolio management. The app is written entirely in Kotlin with a llama.cpp JNI bridge for optional local LLM inference. It is in active development with ~1,384 passing tests and a mature MVVM + Clean Architecture codebase.
 
-### Architecture Principle
-- **Kotlin = Calculator**: 모든 수치 계산은 Kotlin에서 결정적으로 수행
-- **LLM = Analyst**: 계산 결과를 종합 해석하는 통역사 역할만 담당
-- LLM에게 절대 수치 계산을 시키지 않는다
-
-### Tech Stack
-- Language: Kotlin
-- Architecture: MVVM + Clean Architecture
-- DI: Hilt
-- DB: Room
-- Async: Coroutines + Flow
-- Chart: MPAndroidChart
-- LLM Runtime: llama.cpp (JNI/NDK)
-- Model Format: GGUF (Q4_K_M quantization)
-- Build: Gradle (Kotlin DSL)
-
-### Package Structure
+## Repository layout
 ```
-com.app.stockanalysis/
-├── domain/
-│   ├── model/          # Data classes (StatisticalResult, PatternMatch, etc.)
-│   ├── repository/     # Repository interfaces
-│   └── usecase/        # AnalyzeStockUseCase, etc.
-├── data/
-│   ├── local/
-│   │   ├── db/         # Room DB, DAOs
-│   │   ├── llm/        # LlmRepositoryImpl (JNI wrapper)
-│   │   └── engine/     # StatisticalAnalysisEngine + 7 algorithms
-│   └── mapper/         # PromptBuilder, ResponseParser
-├── presentation/
-│   ├── viewmodel/      # StockAnalysisViewModel
-│   └── ui/             # Compose screens
-└── di/                 # Hilt modules
+TinyOscillator/
+├── app/
+│   ├── build.gradle.kts              # App-level build config
+│   ├── proguard-rules.pro
+│   ├── schemas/                       # Room schema exports (v1–v13)
+│   └── src/
+│       ├── main/
+│       │   ├── cpp/                   # llama.cpp JNI bridge (C++)
+│       │   │   ├── CMakeLists.txt
+│       │   │   ├── llama_jni.cpp
+│       │   │   └── llama_jni_stub.cpp
+│       │   └── java/com/tinyoscillator/
+│       │       ├── TinyOscillatorApp.kt       # Application (@HiltAndroidApp)
+│       │       ├── MainActivity.kt            # Single-Activity + Compose NavHost
+│       │       ├── core/
+│       │       │   ├── api/           # API clients (Kiwoom, KIS, KRX, AI)
+│       │       │   ├── config/        # ApiConfigProvider (credential cache)
+│       │       │   ├── database/      # Room AppDatabase, DAOs, Entities
+│       │       │   ├── di/            # Hilt modules (App, Database, Statistical, Worker)
+│       │       │   ├── network/       # NetworkUtils (connectivity check)
+│       │       │   ├── scraper/       # Web scrapers (Naver, Equity, FnGuide)
+│       │       │   ├── util/          # DateFormats
+│       │       │   └── worker/        # WorkManager workers (7 workers + helpers)
+│       │       ├── data/
+│       │       │   ├── dto/           # API response DTOs
+│       │       │   ├── engine/        # 7 statistical engines + orchestrator
+│       │       │   ├── local/llm/     # LlmRepositoryImpl, ModelManager
+│       │       │   ├── mapper/        # PromptBuilder, ResponseParser
+│       │       │   └── repository/    # Repository implementations
+│       │       ├── domain/
+│       │       │   ├── model/         # Domain data classes
+│       │       │   ├── repository/    # Repository interfaces
+│       │       │   └── usecase/       # Business logic use cases
+│       │       ├── presentation/
+│       │       │   ├── ai/            # AI analysis screens + ViewModel
+│       │       │   ├── chart/         # OscillatorChart, ConsensusChart
+│       │       │   ├── common/        # Shared Compose components
+│       │       │   ├── consensus/     # Consensus report screen
+│       │       │   ├── demark/        # DeMark TD screen
+│       │       │   ├── etf/           # ETF analysis screens (5+ screens)
+│       │       │   ├── financial/     # Financial info, DuPont, NaverWeb
+│       │       │   ├── fundamental/   # Fundamental history charts
+│       │       │   ├── market/        # Market oscillator + deposit tabs
+│       │       │   ├── marketanalysis/# Fear&Greed, Market DeMark
+│       │       │   ├── portfolio/     # Portfolio management screens
+│       │       │   ├── report/        # Analyst report screens
+│       │       │   ├── settings/      # Settings, Backup, Schedule config
+│       │       │   └── viewmodel/     # OscillatorVM, StockAnalysisVM
+│       │       └── ui/theme/          # Material3 theme (Color, Type, Theme)
+│       └── test/                      # 98 unit test files
+├── build.gradle.kts                   # Root build (plugin versions)
+├── settings.gradle.kts                # includeBuild("../kotlin_krx")
+└── concen/                            # Standalone Python scraper (not in app)
 ```
 
-### Existing DB Schema (Room)
-이미 존재하는 테이블들 — 새로 만들 필요 없음:
-- `daily_price`: date, open, high, low, close, volume, change_percent
-- `indicator`: date, stock_code, ema20, ema60, macd, macd_signal, macd_histogram, oscillator_value, oscillator_signal, volume_change_rate
-- `demark_data`: date, stock_code, buy_setup_count, sell_setup_count, buy_countdown_count, sell_countdown_count
-- `financial_data`: stock_code, per, pbr, roe, dividend_yield, ...
-- `etf_data`: etf_code, sector_name, date, close, volume
+## Tech stack
+### Android / Kotlin
+| Property | Value |
+|----------|-------|
+| compileSdk | 35 |
+| minSdk | 26 |
+| targetSdk | 35 |
+| Kotlin | 2.1.0 |
+| AGP | 8.7.3 |
+| Compose BOM | 2024.02.00 |
+| JVM target | 17 |
+| NDK ABIs | arm64-v8a, armeabi-v7a |
+| CMake | 3.22.1 (C++17) |
 
-### Naming Conventions
+### Dependencies
+| Library | Version | Purpose |
+|---------|---------|---------|
+| OkHttp | 4.12.0 | HTTP client for all APIs |
+| Jsoup | 1.17.2 | HTML scraping (Naver, Equity, FnGuide) |
+| kotlinx-serialization-json | 1.6.3 | JSON parsing |
+| kotlinx-coroutines | 1.7.3 | Async (core + android) |
+| Compose UI/Material3 | BOM 2024.02.00 | UI framework |
+| Material3 window-size-class | (BOM) | Adaptive layout (phone/tablet/foldable) |
+| Material Icons Extended | (BOM) | Icon library |
+| Navigation Compose | 2.7.7 | Screen navigation |
+| Room | 2.6.1 | Local database (runtime + ktx + KSP compiler) |
+| Hilt | 2.54 | Dependency injection |
+| Hilt Navigation Compose | 1.2.0 | ViewModel injection in Compose |
+| Hilt Work | 1.2.0 | WorkManager injection |
+| WorkManager | 2.9.0 | Background scheduled jobs |
+| kotlin_krx | 1.0.0-SNAPSHOT | KRX data (composite build from ../kotlin_krx) |
+| MPAndroidChart | v3.1.0 | Stock charts |
+| Security Crypto | 1.1.0-alpha06 | EncryptedSharedPreferences |
+| Browser | 1.8.0 | Custom Tabs for WebView fallback |
+| Timber | 5.0.1 | Logging |
+| JUnit4 | 4.13.2 | Unit testing |
+| MockK | 1.13.9 | Mocking |
+| Turbine | 1.0.0 | Flow testing |
+| MockWebServer | 4.12.0 | HTTP testing |
+| KSP | 2.1.0-1.0.29 | Annotation processing |
+
+### Python layer
+**None.** There is no Chaquopy integration, no Python files in the app module, and no Python bridge. The `concen/` directory at root contains a standalone Python scraper (`equity_report_scraper_450.py`) that is not part of the Android build.
+
+## Architecture
+### Pattern
+MVVM + Clean Architecture confirmed. Clear layer separation:
+- **Domain**: interfaces (`StatisticalRepository`, `LlmRepository`), use cases (`AnalyzeStockProbabilityUseCase`, `CalcOscillatorUseCase`, etc.), domain models
+- **Data**: repository implementations, 7 statistical engines, LLM JNI wrapper, API clients, scrapers, mappers
+- **Presentation**: Compose screens, ViewModels, theme
+- **Core**: cross-cutting concerns (API clients, database, DI, network, workers)
+
+### Module structure
+| Module | Description |
+|--------|-------------|
+| `:app` | Single application module containing all layers |
+| `../kotlin_krx` | External composite build — KRX data client library |
+
+### Key classes
+| Class | Layer | File | Responsibility |
+|-------|-------|------|----------------|
+| `TinyOscillatorApp` | core | `TinyOscillatorApp.kt` | Application entry, WorkManager schedule restoration |
+| `MainActivity` | presentation | `MainActivity.kt` | Single Activity, NavHost, bottom/rail navigation |
+| `StatisticalAnalysisEngine` | data/engine | `StatisticalAnalysisEngine.kt` | 7-engine parallel orchestrator |
+| `AnalyzeStockProbabilityUseCase` | domain/usecase | `AnalyzeStockProbabilityUseCase.kt` | Full analysis pipeline (stats → cache → LLM) |
+| `ApiConfigProvider` | core/config | `ApiConfigProvider.kt` | Thread-safe credential cache (volatile + mutex) |
+| `WorkManagerHelper` | core/worker | `WorkManagerHelper.kt` | Centralized worker scheduling |
+| `AppDatabase` | core/database | `AppDatabase.kt` | Room DB v13, 15 entities, 12 DAOs |
+| `ProbabilisticPromptBuilder` | data/mapper | `ProbabilisticPromptBuilder.kt` | ChatML prompt for LLM analysis |
+| `FearGreedCalculator` | domain/usecase | `FearGreedCalculator.kt` | 7-indicator fear/greed index |
+| `MarketOscillatorCalculator` | domain/usecase | `MarketOscillatorCalculator.kt` | Market overbought/oversold index |
+
+## Kotlin–Python bridge
+**Not applicable.** There is no Python bridge in this project. All analysis is implemented in pure Kotlin. The LLM integration uses C++ via JNI (llama.cpp).
+
+## Data sources
+### KIS OpenAPI
+- **Credential storage**: EncryptedSharedPreferences (`api_settings_encrypted`), AES256-GCM
+- **Token refresh**: OAuth2 `/oauth2/tokenP` with mutex-protected cache, auto-refresh 1 min before expiry
+- **Rate limiting**: 500ms per request (mutex-based)
+- **Circuit breaker**: 3 consecutive failures → 5 min cooldown
+- **Endpoints**: Financial statements (balance sheet, income, profitability/stability/growth ratios)
+
+### Kiwoom OpenAPI
+- **Credential storage**: Same EncryptedSharedPreferences
+- **Token refresh**: OAuth2 `/oauth2/token` (api-id: au10001), same pattern as KIS
+- **Rate limiting**: 500ms per request
+- **Circuit breaker**: 3 failures → 5 min cooldown
+- **Certificate pinning**: Intermediate CAs for *.kiwoom.com and *.koreainvestment.com
+- **Endpoints**: Daily OHLCV, investor trend, stock info, stock list (KOSPI + KOSDAQ)
+
+### KRX (via kotlin_krx)
+- **Credential storage**: EncryptedSharedPreferences (KRX username + password)
+- **Functions in use**: `login()`, `getEtfTickerList()`, `getPortfolio()`, `getKrxIndex()`, `getKrxStock()`
+- **Caching**: Room DB (ETF holdings 365-day TTL, fundamental 730-day TTL, incremental updates)
+- **Rate limiting**: 500ms in EtfRepository
+
+### AI API (Claude / Gemini)
+- **Credential storage**: EncryptedSharedPreferences (provider + API key)
+- **Providers**: Claude Haiku, Claude Sonnet, Gemini Flash
+- **Rate limiting**: 1000ms per request
+- **Endpoints**: Claude `/v1/messages`, Gemini `/v1beta/models/{id}:generateContent`
+
+### Web scrapers
+| Scraper | Source | Data | Rate limit |
+|---------|--------|------|------------|
+| NaverFinanceScraper | finance.naver.com | Market deposit/credit trends | 500ms |
+| EquityReportScraper | equity.co.kr | Analyst consensus reports | 8-16s (gamma) |
+| FnGuideReportScraper | comp.fnguide.com | Analyst report summaries | 1-5s (random) |
+
+### DART OpenAPI
+- **Integration status**: Absent
+
+### BOK ECOS
+- **Integration status**: Absent
+
+## Analysis engine
+### Algorithm inventory
+| # | Algorithm | Class | File | Output range | Calibrated |
+|---|-----------|-------|------|-------------|------------|
+| 1 | Naive Bayes | `NaiveBayesEngine` | `data/engine/NaiveBayesEngine.kt` | [0,1] × 3 classes (UP/DOWN/SIDEWAYS) | No |
+| 2 | Logistic Regression | `LogisticScoringEngine` | `data/engine/LogisticScoringEngine.kt` | [0,1] probability + 0–100 score | No |
+| 3 | Hidden Markov Model | `HmmRegimeEngine` | `data/engine/HmmRegimeEngine.kt` | 4 regimes, [0,1]⁴ probabilities | No |
+| 4 | Pattern Scanning | `PatternScanEngine` | `data/engine/PatternScanEngine.kt` | Win rates [0,1], returns | No |
+| 5 | Weighted Signal | `SignalScoringEngine` | `data/engine/SignalScoringEngine.kt` | 0–100 score + direction | No |
+| 6 | Rolling Correlation | `CorrelationEngine` | `data/engine/CorrelationEngine.kt` | r ∈ [-1,1], lag ∈ [-5,5] | No |
+| 7 | Bayesian Updating | `BayesianUpdateEngine` | `data/engine/BayesianUpdateEngine.kt` | [0.001,0.999] posterior | No |
+
+### Ensemble orchestrator
+- **Class**: `StatisticalAnalysisEngine`
+- **File**: `data/engine/StatisticalAnalysisEngine.kt`
+- **Aggregation**: No weighted voting — runs all 7 engines in parallel via coroutines and returns individual results in `StatisticalResult`. The LLM (or AI API) synthesizes the final interpretation via `ProbabilisticPromptBuilder`.
+- **Failure isolation**: Each engine failure is caught individually; remaining results are returned with `null` for failed engines.
+
+### Probability interpreter
+- **Class**: `ProbabilityInterpreter`
+- **File**: `domain/usecase/ProbabilityInterpreter.kt`
+- **Purpose**: Local (non-LLM) interpretation of statistical results — provides textual summary when AI API is unavailable
+
+### AI analysis pipeline
+- **Use case**: `AnalyzeStockProbabilityUseCase` → `StatisticalAnalysisEngine` → `ProbabilisticPromptBuilder` → `AiApiClient` → `AnalysisResponseParser`
+- **Fallback**: If AI unavailable, `ProbabilityInterpreter` provides local interpretation
+
+## Korean market conventions
+### Session hours
+`TradingHours` object in `domain/model/RealtimeSupplyModels.kt`: 09:00–15:30 KST, weekday check (Saturday/Sunday excluded). Used by `OscillatorViewModel` to gate auto-refresh.
+
+### Holiday handling
+**No KRX holiday calendar.** Only weekend exclusion via `DayOfWeek` check. Korean market holidays (Lunar New Year, Chuseok, etc.) are not handled — the app will attempt data fetches on holidays and rely on API no-data responses + 1-hour cooldown.
+
+### Ticker format
+6-digit numeric strings (e.g., `005930` for Samsung Electronics). KOSPI and KOSDAQ tickers follow the same format. Market type stored in `StockMasterEntity.market` field.
+
+## Security rules (KIS API credentials)
+- All API credentials stored in `EncryptedSharedPreferences` (`api_settings_encrypted`) with AES256-SIV key encryption and AES256-GCM value encryption
+- `ApiConfigProvider` caches credentials in memory with volatile + mutex pattern
+- Certificate pinning for Kiwoom and KIS TLS connections
+- **Never hardcode** API keys, tokens, or secrets in source files
+- **Never log** credential values — use masked `toString()` for debug output
+- OAuth2 tokens auto-expire 1 min before server expiry; refresh handled in API clients
+- ProGuard strips logs in release builds
+
+## Background jobs (WorkManager)
+| Worker class | Default schedule | Purpose | Trigger |
+|-------------|-----------------|---------|---------|
+| `EtfUpdateWorker` | 00:30 daily | Sync ETF list + holdings from KRX | Scheduled + manual |
+| `MarketOscillatorUpdateWorker` | 01:00 daily | KOSPI/KOSDAQ overbought/oversold indices | Scheduled + manual |
+| `MarketDepositUpdateWorker` | 02:00 daily | Market deposit/credit from Naver | Scheduled + manual |
+| `ConsensusUpdateWorker` | 03:00 daily | Analyst consensus reports (Equity + FnGuide) | Scheduled + manual |
+| `FearGreedUpdateWorker` | 04:00 daily | 7-indicator fear/greed index | Scheduled + manual |
+| `MarketCloseRefreshWorker` | 19:00 daily | Replace intraday data with confirmed close-of-day | Scheduled + manual |
+| `DataIntegrityCheckWorker` | Manual only | Comprehensive data validation and repair | Manual |
+
+All workers: network-constrained, exponential backoff (30s initial), foreground service (DATA_SYNC), results logged to `worker_logs` table. Schedules are user-configurable in Settings and restored on app startup in `TinyOscillatorApp.onCreate()`.
+
+## Room database (v13)
+### Entities
+| Entity | DAO | Purpose |
+|--------|-----|---------|
+| `StockMasterEntity` | `StockMasterDao` | KOSPI/KOSDAQ stock list |
+| `AnalysisCacheEntity` | `AnalysisCacheDao` | Cached OHLCV + indicator data per stock per date |
+| `AnalysisHistoryEntity` | `AnalysisHistoryDao` | User's analysis history (recently viewed stocks) |
+| `FinancialCacheEntity` | `FinancialCacheDao` | KIS financial statement cache (24h TTL) |
+| `EtfEntity` | `EtfDao` | ETF master list |
+| `EtfHoldingEntity` | `EtfDao` | ETF portfolio composition |
+| `MarketOscillatorEntity` | `MarketOscillatorDao` | Market overbought/oversold daily values |
+| `MarketDepositEntity` | `MarketDepositDao` | Market deposit/credit daily values |
+| `PortfolioEntity` | `PortfolioDao` | User portfolios |
+| `PortfolioHoldingEntity` | `PortfolioDao` | Portfolio stock holdings |
+| `PortfolioTransactionEntity` | `PortfolioDao` | Buy/sell transaction records |
+| `FundamentalCacheEntity` | `FundamentalCacheDao` | KRX fundamental data (730d TTL) |
+| `WorkerLogEntity` | `WorkerLogDao` | Background job execution logs |
+| `ConsensusReportEntity` | `ConsensusReportDao` | Analyst consensus reports |
+| `FearGreedEntity` | `FearGreedDao` | Fear & Greed index daily values |
+
+## Testing conventions
+- **Framework**: JUnit4 + MockK + Turbine (Flow) + coroutines-test + MockWebServer
+- **Test count**: 98 test files, ~1,384 tests total (all passing as of 2026-03-31)
+- **Location**: `app/src/test/` (unit tests only; no androidTest instrumented tests)
+- **Naming**: `ClassNameTest.kt` in same package structure as source
+- **Config**: `testOptions { unitTests.isReturnDefaultValues = true }`
+- **Coverage**: All 7 engines tested, all repositories tested, all ViewModels tested
+- **Gap**: No Compose UI tests, no Room DAO instrumented tests (requires androidTest setup)
+
+## Known issues and TODOs
+### Blocking
+None found in current codebase (no TODO/FIXME/HACK/XXX markers).
+
+### Non-blocking
+- No KRX holiday calendar — app retries on holidays until cooldown
+- No androidTest infrastructure for Compose UI and Room DAO tests
+- MarketOscillatorCalculator does not cache raw KRX OHLCV in Room for incremental updates
+- LLM JNI bridge (`llama_jni.cpp`) present but local LLM inference is effectively unused in favor of AI API (Claude/Gemini)
+
+## Naming conventions
 - Use case: `동사 + 명사 + UseCase` (e.g., `AnalyzeStockProbabilityUseCase`)
 - Repository: `명사 + Repository` (e.g., `StatisticalRepository`)
-- Engine classes: `명사 + Engine` (e.g., `NaiveBayesEngine`)
-- Result classes: `명사 + Result` (e.g., `BayesResult`)
-- 한국어 주석 허용, 코드는 영어
+- Engine: `명사 + Engine` (e.g., `NaiveBayesEngine`)
+- Result: `명사 + Result` (e.g., `BayesResult`)
+- Worker: `명사 + Worker` (e.g., `EtfUpdateWorker`)
+- Korean comments allowed; code identifiers in English
 
-### Key Constraints
-- Room DB 데이터만 사용 (외부 API 호출 없음)
-- 단일 종목 분석 (single stock code)
-- 통계 엔진은 외부 ML 라이브러리 없이 순수 Kotlin
-- LLM 추론은 백그라운드 스레드 (Dispatchers.Default)
-- 모든 통계 엔진은 suspend fun으로 구현
-- 테스트: 각 알고리즘에 대한 unit test 필수
+## Upcoming feature expansion
+The following 11 features will be added in numbered prompt sessions (PROMPT 01–11).
+Each prompt will update TASK.md and PROGRESS.md on completion.
 
-### Model Tier (for Claude Code)
-- Opus: 아키텍처 설계, 복잡한 알고리즘 구현, 프롬프트 엔지니어링
-- Sonnet: 일반 구현, 리팩토링, 테스트 작성
-- Haiku: 반복적 boilerplate, data class 생성, import 정리
+| # | Feature | Key new file(s) |
+|---|---------|-----------------|
+| 01 | Signal Calibration | calibration/signal_calibrator.py, validation/walk_forward_validator.py |
+| 02 | Regime Detection | regime/market_regime_classifier.py |
+| 03 | Feature Store | FeatureStore.kt, FeatureCacheDao.kt |
+| 04 | Order Flow | features/order_flow_features.py |
+| 05 | DART Event Study | dart/dart_disclosure_fetcher.py, dart/event_study_engine.py |
+| 06 | BOK ECOS Macro | macro/bok_ecos_collector.py |
+| 07 | Stacking Ensemble | ensemble/stacking_ensemble.py |
+| 08 | Kelly + CVaR | risk/kelly_position_sizer.py, risk/cvar_risk_overlay.py |
+| 09 | Incremental Learning | models/incremental_models.py |
+| 10 | Korea 5-Factor | factors/factor_model.py |
+| 11 | Sector Network + Vectorized | network/sector_correlation_network.py, indicators/vectorized_indicators.py |
 
----
-
-## Review Summary (2026-03-31)
-
-| Category | Score | Ceiling |
-|---|---|---|
-| Security | 95/100 | 95 (KIS API header constraint) |
-| Performance | 95/100 | 97 |
-| Reliability | 98/100 | 99 |
-| Test Coverage | 95/100 | 95 (androidTest required) |
-
-10 new commits reviewed (Fear & Greed, Market DeMark, WebView, Consensus fix, schedule restoration, probability interpreter, period selection, ETF integration). 6 fixes applied (WebView lifecycle, Flow race, chart invalidate, CancellationException, ViewModel error handling). 72+ new tests (total: ~1,384).
-
-### Top 3 Action Items
-1. **MarketOscillatorCalculator KRX caching** — Cache raw KRX OHLCV in Room for incremental updates (Performance +2)
-2. **androidTest infrastructure** — Set up Compose UI + Room DAO tests (Test Coverage +5)
-3. **Holiday awareness** — Add Korean market holiday calendar to TradingHours (Reliability +0.5)
+**Note**: The roadmap references `.py` files, but the current codebase has no Python/Chaquopy layer. These features will require adding Chaquopy to the build or implementing in pure Kotlin. This decision should be made in PROMPT 01.

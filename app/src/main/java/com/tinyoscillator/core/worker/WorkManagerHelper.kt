@@ -147,6 +147,53 @@ object WorkManagerHelper {
     fun runFearGreedUpdateNow(context: Context) =
         runWorkerNow<FearGreedUpdateWorker>(context, FearGreedUpdateWorker.MANUAL_WORK_NAME, FearGreedUpdateWorker.TAG, "Fear & Greed")
 
+    // ===== 시장 레짐 =====
+
+    fun scheduleRegimeUpdate(context: Context, hour: Int = 5, minute: Int = 0) {
+        require(hour in 0..23) { "hour must be 0-23, got $hour" }
+        require(minute in 0..59) { "minute must be 0-59, got $minute" }
+
+        // Weekly schedule (every 7 days instead of daily)
+        val now = java.util.Calendar.getInstance()
+        val target = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.SUNDAY)
+            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.MINUTE, minute)
+            set(java.util.Calendar.SECOND, 0)
+            if (before(now)) add(java.util.Calendar.WEEK_OF_YEAR, 1)
+        }
+
+        val initialDelay = target.timeInMillis - now.timeInMillis
+
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = PeriodicWorkRequestBuilder<RegimeUpdateWorker>(
+            7, TimeUnit.DAYS
+        )
+            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .addTag(RegimeUpdateWorker.TAG)
+            .build()
+
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(
+                RegimeUpdateWorker.WORK_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                request
+            )
+
+        Timber.d("시장 레짐 주간 업데이트 스케줄 등록: 매주 일요일 %02d:%02d (초기 딜레이: %d분)", hour, minute, initialDelay / 60000)
+    }
+
+    fun cancelRegimeUpdate(context: Context) =
+        cancelWorker(context, RegimeUpdateWorker.WORK_NAME, "시장 레짐")
+
+    fun runRegimeUpdateNow(context: Context) =
+        runWorkerNow<RegimeUpdateWorker>(context, RegimeUpdateWorker.MANUAL_WORK_NAME, RegimeUpdateWorker.TAG, "시장 레짐")
+
     // ===== 데이터 무결성 검사 =====
 
     fun runIntegrityCheckNow(context: Context) =

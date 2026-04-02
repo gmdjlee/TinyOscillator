@@ -1,6 +1,8 @@
 package com.tinyoscillator.data.engine
 
 import android.content.SharedPreferences
+import com.tinyoscillator.core.database.dao.CalibrationDao
+import com.tinyoscillator.data.engine.calibration.SignalCalibrator
 import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.OscillatorRow
@@ -37,6 +39,8 @@ class StatisticalAnalysisEngineTest {
         every { prefs.getBoolean(any(), any()) } returns false
         every { prefs.getFloat(any(), any()) } answers { secondArg() }
 
+        val calibrationDao = mockk<CalibrationDao>(relaxed = true)
+
         engine = StatisticalAnalysisEngine(
             repository = repository,
             naiveBayesEngine = NaiveBayesEngine(),
@@ -45,7 +49,10 @@ class StatisticalAnalysisEngineTest {
             patternScanEngine = PatternScanEngine(),
             signalScoringEngine = SignalScoringEngine(),
             correlationEngine = CorrelationEngine(),
-            bayesianUpdateEngine = BayesianUpdateEngine()
+            bayesianUpdateEngine = BayesianUpdateEngine(),
+            signalCalibrator = SignalCalibrator(),
+            calibrationDao = calibrationDao,
+            marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier()
         )
     }
 

@@ -357,6 +357,7 @@ class AiAnalysisViewModel @Inject constructor(
         result.signalScoringResult?.let { engines["signal"] = probabilityInterpreter.interpretSignalScoring(it) }
         result.correlationAnalysis?.let { engines["correlation"] = probabilityInterpreter.interpretCorrelation(it) }
         result.bayesianUpdateResult?.let { engines["bayesian"] = probabilityInterpreter.interpretBayesianUpdate(it) }
+        result.marketRegimeResult?.let { engines["regime"] = probabilityInterpreter.interpretMarketRegime(it) }
 
         _interpretationState.value = InterpretationState.Success(
             summary = summary,

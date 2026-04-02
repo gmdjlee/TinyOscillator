@@ -1,6 +1,8 @@
 package com.tinyoscillator.domain.usecase
 
+import com.tinyoscillator.core.database.dao.CalibrationDao
 import com.tinyoscillator.data.engine.*
+import com.tinyoscillator.data.engine.calibration.SignalCalibrator
 import com.tinyoscillator.data.mapper.AnalysisResponseParser
 import com.tinyoscillator.data.mapper.ProbabilisticPromptBuilder
 import com.tinyoscillator.domain.model.AnalysisState
@@ -44,6 +46,7 @@ class AnalyzeStockProbabilityUseCaseTest {
         every { prefs.getBoolean(any(), any()) } returns false
         every { prefs.getFloat(any(), any()) } answers { secondArg() }
 
+        val calibrationDao = mockk<CalibrationDao>(relaxed = true)
         val statisticalEngine = StatisticalAnalysisEngine(
             repository = repository,
             naiveBayesEngine = NaiveBayesEngine(),
@@ -52,7 +55,10 @@ class AnalyzeStockProbabilityUseCaseTest {
             patternScanEngine = PatternScanEngine(),
             signalScoringEngine = SignalScoringEngine(),
             correlationEngine = CorrelationEngine(),
-            bayesianUpdateEngine = BayesianUpdateEngine()
+            bayesianUpdateEngine = BayesianUpdateEngine(),
+            signalCalibrator = SignalCalibrator(),
+            calibrationDao = calibrationDao,
+            marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier()
         )
 
         useCase = AnalyzeStockProbabilityUseCase(

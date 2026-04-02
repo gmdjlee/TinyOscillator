@@ -4,7 +4,9 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
+import com.tinyoscillator.core.database.dao.CalibrationDao
 import com.tinyoscillator.core.database.dao.ConsensusReportDao
+import com.tinyoscillator.core.database.dao.RegimeDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.FundamentalCacheDao
@@ -16,7 +18,10 @@ import com.tinyoscillator.core.database.dao.FearGreedDao
 import com.tinyoscillator.core.database.dao.WorkerLogDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
+import com.tinyoscillator.core.database.entity.CalibrationStateEntity
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
+import com.tinyoscillator.core.database.entity.KospiIndexEntity
+import com.tinyoscillator.core.database.entity.RegimeStateEntity
 import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.FearGreedEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
@@ -27,6 +32,7 @@ import com.tinyoscillator.core.database.entity.MarketOscillatorEntity
 import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
 import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
+import com.tinyoscillator.core.database.entity.SignalHistoryEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
 
@@ -46,9 +52,13 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         FundamentalCacheEntity::class,
         WorkerLogEntity::class,
         ConsensusReportEntity::class,
-        FearGreedEntity::class
+        FearGreedEntity::class,
+        SignalHistoryEntity::class,
+        CalibrationStateEntity::class,
+        KospiIndexEntity::class,
+        RegimeStateEntity::class
     ],
-    version = 13,
+    version = 15,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -64,4 +74,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun workerLogDao(): WorkerLogDao
     abstract fun consensusReportDao(): ConsensusReportDao
     abstract fun fearGreedDao(): FearGreedDao
+    abstract fun calibrationDao(): CalibrationDao
+    abstract fun regimeDao(): RegimeDao
 }

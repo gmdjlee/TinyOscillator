@@ -750,6 +750,41 @@ private fun ProbabilityResultContent(
                 fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
 
+            // 시장 레짐 배지
+            result.marketRegimeResult?.let { regime ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val regimeColor = when (regime.regimeName) {
+                        "BULL_LOW_VOL" -> Color(0xFF4CAF50)
+                        "BEAR_HIGH_VOL" -> Color(0xFFFF9800)
+                        "SIDEWAYS" -> Color(0xFF9E9E9E)
+                        "CRISIS" -> Color(0xFFF44336)
+                        else -> Color(0xFF9E9E9E)
+                    }
+                    SuggestionChip(
+                        onClick = {},
+                        label = {
+                            Text(
+                                "${regime.regimeDescription} (${String.format("%.0f", regime.confidence * 100)}%)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = regimeColor.copy(alpha = 0.35f)
+                        ),
+                        border = BorderStroke(1.dp, regimeColor.copy(alpha = 0.7f))
+                    )
+                    Text("${regime.regimeDurationDays}일 지속",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
             // Bayes 확률 요약 (한국 주식 관례: 상승=빨강, 하락=파랑, 횡보=회색)
             result.bayesResult?.let { bayes ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -815,6 +850,22 @@ private fun ProbabilityResultContent(
                     style = MaterialTheme.typography.bodySmall)
             }
             EngineInterpretationBlock(engineInterpretations["hmm"])
+        }
+    }
+
+    result.marketRegimeResult?.let { regime ->
+        ProbExpandableCard("시장 레짐: ${regime.regimeDescription}") {
+            val probLabels = listOf("안정적 상승장", "변동성 하락장", "박스권 횡보", "위기 구간")
+            regime.probaVec.forEachIndexed { i, p ->
+                if (i < probLabels.size) {
+                    Text("${probLabels[i]}: ${pctFmt(p)}",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text("신뢰도: ${pctFmt(regime.confidence)} | 지속: ${regime.regimeDurationDays}일",
+                style = MaterialTheme.typography.bodySmall)
+            EngineInterpretationBlock(engineInterpretations["regime"])
         }
     }
 

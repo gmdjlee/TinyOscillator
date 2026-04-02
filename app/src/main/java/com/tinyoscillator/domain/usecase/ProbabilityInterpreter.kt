@@ -305,6 +305,33 @@ class ProbabilityInterpreter @Inject constructor() {
         return sb.toString()
     }
 
+    /** 시장 레짐 해석 */
+    fun interpretMarketRegime(regime: MarketRegimeResult): String {
+        val sb = StringBuilder()
+        sb.appendLine("시장 레짐 분류기가 KOSPI 지수를 기반으로 현재 시장 상태를 판단했습니다.")
+        sb.appendLine("현재 레짐: ${regime.regimeDescription} (${regime.regimeName})")
+        sb.appendLine("신뢰도: ${pct(regime.confidence)}")
+        sb.appendLine("현재 레짐 지속: ${regime.regimeDurationDays}일")
+        sb.appendLine()
+
+        val probLabels = listOf("안정적 상승장", "변동성 하락장", "박스권 횡보", "위기 구간")
+        sb.appendLine("레짐별 확률:")
+        regime.probaVec.forEachIndexed { i, p ->
+            if (i < probLabels.size) sb.appendLine("  ${probLabels[i]}: ${pct(p)}")
+        }
+
+        sb.appendLine()
+        sb.append(when (regime.regimeName) {
+            "BULL_LOW_VOL" -> "안정적 상승장에서는 모멘텀/추세 추종 전략의 신뢰도가 높습니다."
+            "BEAR_HIGH_VOL" -> "변동성 하락장에서는 레짐 탐지와 상관 분석 신호에 더 주목해야 합니다."
+            "SIDEWAYS" -> "박스권에서는 평균회귀 전략과 통계적 분석의 유효성이 높아집니다."
+            "CRISIS" -> "위기 구간에서는 HMM 레짐 탐지와 베이지안 갱신 신호가 핵심입니다. 방어적 포지션을 고려하세요."
+            else -> "레짐을 파악할 수 없습니다."
+        })
+
+        return sb.toString()
+    }
+
     /** AI 해석용 프롬프트 생성 */
     fun buildPromptForAi(result: StatisticalResult): String {
         val sb = StringBuilder()
@@ -348,6 +375,10 @@ class ProbabilityInterpreter @Inject constructor() {
 
         result.bayesianUpdateResult?.let { b ->
             sb.appendLine("[베이지안] 사전=${pct(b.priorProbability)} → 사후=${pct(b.finalPosterior)}")
+        }
+
+        result.marketRegimeResult?.let { r ->
+            sb.appendLine("[시장 레짐] ${r.regimeDescription}(${r.regimeName}) 신뢰도=${pct(r.confidence)} 지속=${r.regimeDurationDays}일")
         }
 
         return sb.toString()

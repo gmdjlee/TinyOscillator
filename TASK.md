@@ -1,70 +1,144 @@
-# TASK.md — 확률적 기대값 분석 엔진 구현
+# TASK.md — Active Work Queue
 
-## Phase 1: Domain Models & Interfaces (Foundation)
-### 목표: 모든 데이터 클래스와 인터페이스 정의
-### 모델 티어: Haiku → Sonnet
+_Last updated: 2026-04-02 by PROMPT 01 Signal Calibration_
 
-- [x] 1.1 domain/model/ 패키지에 결과 데이터 클래스 생성
-  - StatisticalResult (7개 알고리즘 결과를 묶는 최상위)
-  - BayesResult, LogisticResult, HmmResult
-  - PatternMatch, PatternOccurrence, PatternAnalysis
-  - CorrelationResult, CorrelationAnalysis
-  - ExpectedValueAnalysis, Scenario, HistoricalOutcome
-  - DemarkAnalysis, DemarkState, DemarkHistoricalResult
-  - EtfContext, SignalConflict
-  - StockAnalysis (LLM 최종 출력)
-- [x] 1.2 domain/repository/ 인터페이스 정의
-  - StatisticalRepository
-  - LlmRepository
-- [x] 1.3 기존 Room DAO에 필요한 쿼리 메서드 추가
-  - StockDao: getDailyPrices(code, limit), getStockName(code)
-  - IndicatorDao: getIndicators(code), getDemarkData(code)
-  - EtfDao: getSectorEtfForStock(code), getEtfPrices(code, limit)
+## Current session
+**PROMPT 02 — Market Regime Detection** COMPLETE. Ready to begin PROMPT 03.
 
-## Phase 2: Statistical Engines (Core Algorithms)
-### 목표: 7개 알고리즘을 각각 독립 클래스로 구현
-### 모델 티어: Opus (알고리즘) → Sonnet (테스트)
+## Upcoming tasks (ordered)
 
-- [x] 2.1 NaiveBayesEngine — 조건부 확률 분류기
-- [x] 2.2 LogisticScoringEngine — 로지스틱 회귀 스코어링
-- [x] 2.3 HmmRegimeEngine — Hidden Markov Model 레짐 탐지
-- [x] 2.4 PatternScanEngine — 조건부 빈도 분석 (패턴 백테스팅)
-- [x] 2.5 SignalScoringEngine — 가중 신호 앙상블 점수
-- [x] 2.6 CorrelationEngine — 롤링 상관/선행-후행 분석
-- [x] 2.7 BayesianUpdateEngine — 실시간 사전확률 갱신
-- [x] 2.8 StatisticalAnalysisEngine — 7개 엔진을 병렬 실행하고 결과 통합
-- [x] 2.9 각 엔진별 unit test (mock data)
+### PROMPT 02 — Market Regime Detection
+**Status:** COMPLETE (2026-04-02)
+**Decision:** Pure Kotlin implementation (no Python) — matches PROMPT 01 decision
+**Delivers:**
+- `data/engine/regime/GaussianHmm.kt` — Pure Kotlin Gaussian HMM with Baum-Welch EM
+- `data/engine/regime/MarketRegimeClassifier.kt` — 4-state KOSPI regime classifier
+- `data/engine/regime/RegimeWeightTable.kt` — Regime-specific ensemble weights
+- `domain/model/RegimeModels.kt` — MarketRegimeResult data class
+- `core/database/entity/KospiIndexEntity.kt` + `RegimeStateEntity.kt` — Room entities
+- `core/database/dao/RegimeDao.kt` — DAO
+- `core/worker/RegimeUpdateWorker.kt` — Weekly retraining WorkManager job
+- DB v14→v15 migration (kospi_index + regime_state tables)
+- `StatisticalAnalysisEngine` integration: regime result in `StatisticalResult`, weight table
+- Regime badge chip in AiAnalysisScreen + expandable card with probabilities
+- 3 test files with full coverage
+**Acceptance test:** 4 distinct regimes returned; regime weights visibly change per regime; badge in UI
 
-## Phase 3: LLM Integration (Prompt + Runtime)
-### 목표: llama.cpp JNI 래퍼 + 프롬프트 빌더 + 파서
-### 모델 티어: Opus
+### PROMPT 03 — Feature Store
+**Status:** NOT STARTED
+**Prerequisite:** None (foundational — can run first or in parallel)
+**Delivers:**
+- `FeatureCacheEntry`, `FeatureCacheDao` (Room)
+- `FeatureStore.kt` (singleton, TTL-aware)
+- `FeatureCacheEvictionWorker.kt`
+**Acceptance test:** Second call for same key returns cached value without calling Python
 
-- [x] 3.1 ProbabilisticPromptBuilder — StatisticalResult → LLM prompt 변환
-- [x] 3.2 AnalysisResponseParser — LLM JSON 출력 → StockAnalysis 파싱
-- [x] 3.3 LlmRepositoryImpl — llama.cpp JNI 래퍼 (스트리밍)
-- [x] 3.4 ModelManager — GGUF 모델 다운로드/캐시 관리
-- [x] 3.5 프롬프트 테스트 (mock LLM 응답으로 파서 검증)
+### PROMPT 04 — Order Flow Features
+**Status:** NOT STARTED
+**Prerequisite:** PROMPT 03 (FeatureStore)
+**Delivers:**
+- `app/src/main/python/features/order_flow_features.py`
+- `app/src/main/python/features/flow_signal_adapter.py`
+- Ensemble extended to 8 algorithms
+- Kotlin: `OrderFlowDto`
+**Acceptance test:** `build_all()` runs on 005930 for last 60 days
 
-## Phase 4: UseCase & ViewModel (Integration)
-### 목표: Clean Architecture 통합 + UI 연결
-### 모델 티어: Sonnet
+### PROMPT 05 — DART Event Study
+**Status:** NOT STARTED
+**Prerequisite:** PROMPT 03 (FeatureStore)
+**Delivers:**
+- `app/src/main/python/dart/dart_disclosure_fetcher.py`
+- `app/src/main/python/dart/event_study_engine.py`
+- `app/src/main/python/dart/disclosure_signal_adapter.py`
+- `app/src/main/python/dart/corp_code_mapper.py`
+- Ensemble extended to 9 algorithms
+- Kotlin: `DartEventDto`
+**Acceptance test:** CAR computed for 005930 on a known past rights offering date
 
-- [x] 4.1 AnalyzeStockProbabilityUseCase — 전체 파이프라인 오케스트레이션
-- [x] 4.2 StockAnalysisViewModel — UI 상태 관리
-- [x] 4.3 Hilt DI Module 구성
-- [x] 4.4 Compose UI — 분석 리포트 카드 화면
+### PROMPT 06 — BOK ECOS Macro
+**Status:** NOT STARTED
+**Prerequisite:** PROMPT 03 (FeatureStore)
+**Delivers:**
+- `app/src/main/python/macro/bok_ecos_collector.py`
+- `app/src/main/python/macro/macro_regime_overlay.py`
+- Kotlin: `MacroSignalDto`, macro chip in UI
+**Acceptance test:** `macro_signal_vector()` returns valid dict for recent reference date
 
-## Phase 5: NDK Build & Model Setup
-### 목표: llama.cpp 빌드 + 모델 배포
-### 모델 티어: Sonnet
+### PROMPT 07 — Stacking Ensemble
+**Status:** NOT STARTED
+**Prerequisite:** PROMPT 01 (calibration) ✅, PROMPT 02 (regime) ✅
+**Delivers:**
+- `app/src/main/python/ensemble/stacking_ensemble.py`
+- `app/src/main/python/ensemble/signal_history_store.py`
+- Room entity `SignalHistoryEntry`
+- Kotlin: `MetaLearnerStatusDto`
+**Acceptance test:** Cold-start fallback tested; meta-learner fits on 60+ synthetic samples
 
-- [x] 5.1 CMakeLists.txt — llama.cpp NDK 빌드 설정
-- [x] 5.2 JNI bridge C++ 코드
-- [x] 5.3 모델 다운로드 UI flow
-- [x] 5.4 통합 테스트 (StatisticalAnalysisEngine 12 tests + UseCase 5 tests)
+### PROMPT 08 — Kelly + CVaR
+**Status:** NOT STARTED
+**Prerequisite:** PROMPT 01 (calibration), PROMPT 07 (stacking)
+**Delivers:**
+- `app/src/main/python/risk/kelly_position_sizer.py`
+- `app/src/main/python/risk/cvar_risk_overlay.py`
+- `app/src/main/python/risk/position_recommendation.py`
+- Kotlin: `PositionRecommendationDto`, Position Guide UI card
+**Acceptance test:** CVaR bound reduces Kelly size in stress test with -15% daily returns
 
-## 현재 진행 상태
-Phase: ALL PHASES COMPLETED
-Current Task: DONE
-Total Tests: 96 (ALL PASSED)
-Blockers: -
+### PROMPT 09 — Incremental Learning
+**Status:** NOT STARTED
+**Prerequisite:** PROMPT 07 (stacking — history store must exist)
+**Delivers:**
+- `app/src/main/python/models/incremental_models.py`
+- `app/src/main/python/models/model_persistence.py`
+- `IncrementalModelUpdateWorker.kt`
+**Acceptance test:** daily_update() completes in < 200ms on 1-sample input; save/load roundtrip
+
+### PROMPT 10 — Korea 5-Factor Model
+**Status:** NOT STARTED
+**Prerequisite:** PROMPT 03 (FeatureStore), PROMPT 06 (macro data for RF rate)
+**Delivers:**
+- `app/src/main/python/factors/factor_data_builder.py`
+- `app/src/main/python/factors/factor_model.py`
+- `app/src/main/python/factors/factor_cache.py`
+- Ensemble extended to 10 algorithms
+- Kotlin: `FactorAlphaDto`
+**Acceptance test:** rolling_alpha runs on 005930 with 36-month history
+
+### PROMPT 11 — Sector Network + Vectorized Indicators
+**Status:** NOT STARTED
+**Prerequisite:** PROMPT 03 (FeatureStore)
+**Delivers:**
+- `app/src/main/python/network/sector_correlation_network.py`
+- `app/src/main/python/network/sector_mapper.py`
+- `app/src/main/python/indicators/vectorized_indicators.py`
+- Ensemble extended to 11 algorithms
+- Benchmark log: ema_numpy vs pandas speedup ratio
+**Acceptance test:** All 11 algorithms registered; regime weights sum to 1.0 per regime
+
+## Completed tasks
+
+### PROMPT 01 — Signal Calibration
+**Status:** COMPLETE (2026-04-02)
+**Decision:** Implemented in pure Kotlin (no Chaquopy) — matches existing engine patterns
+**Delivered:**
+- `data/engine/calibration/SignalCalibrator.kt` — Isotonic (PAVA) + Platt sigmoid, per-algo calibrators
+- `data/engine/calibration/WalkForwardValidator.kt` — Time-series CV with no future leakage
+- `data/engine/calibration/CalibrationMonitor.kt` — Rolling Brier/ECE tracker with recalibration flag
+- `data/engine/calibration/SignalScoreExtractor.kt` — Extracts raw bullish scores from 6 engines
+- `domain/model/CalibrationModels.kt` — CalibrationMetrics, CalibratedScore, CalibratorState, etc.
+- `core/database/entity/SignalHistoryEntity.kt` — Room entity for signal history
+- `core/database/entity/CalibrationStateEntity.kt` — Room entity for calibrator state persistence
+- `core/database/dao/CalibrationDao.kt` — DAO for signal history + calibration state
+- Room DB v13→v14 migration (signal_history + calibration_state tables)
+- `StatisticalAnalysisEngine` integration: records signal history after each analysis, exposes `getCalibratedScores()`
+- 4 test files with full coverage
+**Next steps:** PROMPT 03 (Feature Store)
+
+## Deferred / backlog
+_Items discovered during PROMPT 00 audit that are not part of the 11-prompt roadmap:_
+
+- **Holiday calendar**: Add KRX Korean market holiday calendar to `TradingHours` — currently only skips weekends
+- **androidTest infrastructure**: Set up Compose UI tests + Room DAO instrumented tests
+- **MarketOscillator caching**: Cache raw KRX OHLCV data in Room for incremental market oscillator updates
+- **Local LLM cleanup**: JNI bridge exists but local LLM is unused in favor of AI API — decide whether to remove or complete
+- **Python layer decision**: RESOLVED — all features will be implemented in pure Kotlin (no Chaquopy). Decision made in PROMPT 01.

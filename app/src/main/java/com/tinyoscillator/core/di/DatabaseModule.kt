@@ -8,7 +8,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
+import com.tinyoscillator.core.database.dao.CalibrationDao
 import com.tinyoscillator.core.database.dao.ConsensusReportDao
+import com.tinyoscillator.core.database.dao.RegimeDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.FundamentalCacheDao
@@ -318,6 +320,70 @@ object DatabaseModule {
         }
     }
 
+    /** Migration v13→v14: added signal_history and calibration_state tables */
+    private val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `signal_history` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `ticker` TEXT NOT NULL,
+                        `algo_name` TEXT NOT NULL,
+                        `raw_score` REAL NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `outcome_return` REAL,
+                        `created_at` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_signal_history_algo_name_date` ON `signal_history` (`algo_name`, `date`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_signal_history_ticker_date` ON `signal_history` (`ticker`, `date`)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `calibration_state` (
+                        `algo_name` TEXT NOT NULL PRIMARY KEY,
+                        `method` TEXT NOT NULL,
+                        `state_json` TEXT NOT NULL,
+                        `updated_at` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                Timber.d("Migration v13→v14 성공: signal_history, calibration_state 테이블 생성")
+            } catch (e: Exception) {
+                Timber.e(e, "Migration v13→v14 실패")
+                throw e
+            }
+        }
+    }
+
+    /** Migration v14→v15: added kospi_index and regime_state tables */
+    private val MIGRATION_14_15 = object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `kospi_index` (
+                        `date` TEXT NOT NULL PRIMARY KEY,
+                        `close_value` REAL NOT NULL,
+                        `updated_at` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_kospi_index_date` ON `kospi_index` (`date`)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `regime_state` (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `state_json` TEXT NOT NULL,
+                        `regime_name` TEXT NOT NULL,
+                        `confidence` REAL NOT NULL,
+                        `trained_at` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                Timber.d("Migration v14→v15 성공: kospi_index, regime_state 테이블 생성")
+            } catch (e: Exception) {
+                Timber.e(e, "Migration v14→v15 실패")
+                throw e
+            }
+        }
+    }
+
     /** Migration v11→v12: added stock_name column to consensus_reports */
     private val MIGRATION_11_12 = object : Migration(11, 12) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -342,7 +408,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
@@ -359,7 +425,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .build()
         }
     }
@@ -399,4 +465,10 @@ object DatabaseModule {
 
     @Provides
     fun provideFearGreedDao(db: AppDatabase): com.tinyoscillator.core.database.dao.FearGreedDao = db.fearGreedDao()
+
+    @Provides
+    fun provideCalibrationDao(db: AppDatabase): CalibrationDao = db.calibrationDao()
+
+    @Provides
+    fun provideRegimeDao(db: AppDatabase): RegimeDao = db.regimeDao()
 }

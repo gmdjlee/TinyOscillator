@@ -21,6 +21,7 @@ data class StatisticalResult(
     val signalScoringResult: SignalScoringResult? = null,
     val correlationAnalysis: CorrelationAnalysis? = null,
     val bayesianUpdateResult: BayesianUpdateResult? = null,
+    val marketRegimeResult: MarketRegimeResult? = null,
     val executionMetadata: ExecutionMetadata = ExecutionMetadata()
 )
 

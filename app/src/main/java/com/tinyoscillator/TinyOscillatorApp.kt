@@ -2,8 +2,11 @@ package com.tinyoscillator
 
 import android.app.Application
 import androidx.work.Configuration
+import com.tinyoscillator.core.database.dao.RegimeDao
 import com.tinyoscillator.core.worker.CollectionNotificationHelper
 import com.tinyoscillator.core.worker.WorkManagerHelper
+import com.tinyoscillator.data.engine.StatisticalAnalysisEngine
+import com.tinyoscillator.data.engine.regime.MarketRegimeClassifier
 import com.tinyoscillator.presentation.settings.loadConsensusScheduleTime
 import com.tinyoscillator.presentation.settings.loadDepositScheduleTime
 import com.tinyoscillator.presentation.settings.loadEtfScheduleTime
@@ -23,6 +26,15 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
 
     @Inject
     lateinit var workerConfiguration: Configuration
+
+    @Inject
+    lateinit var regimeDao: RegimeDao
+
+    @Inject
+    lateinit var marketRegimeClassifier: MarketRegimeClassifier
+
+    @Inject
+    lateinit var statisticalAnalysisEngine: StatisticalAnalysisEngine
 
     override val workManagerConfiguration: Configuration
         get() = workerConfiguration
@@ -65,6 +77,48 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
             if (fgSchedule.enabled) {
                 WorkManagerHelper.scheduleFearGreedUpdate(this@TinyOscillatorApp, fgSchedule.hour, fgSchedule.minute)
             }
+
+            // 시장 레짐 모델 복원 + 주간 업데이트 스케줄
+            WorkManagerHelper.scheduleRegimeUpdate(this@TinyOscillatorApp)
+            restoreRegimeModel()
         }
+    }
+
+    private suspend fun restoreRegimeModel() {
+        try {
+            val state = regimeDao.getRegimeState() ?: return
+            val stateMap = jsonStringToMap(state.stateJson)
+            marketRegimeClassifier.loadModel(stateMap)
+
+            // Predict current regime from cached KOSPI data
+            val kospiData = regimeDao.getAllKospiIndex()
+            if (kospiData.size > MarketRegimeClassifier.LOOKBACK + 1) {
+                val closes = kospiData.map { it.closeValue }.toDoubleArray()
+                val result = marketRegimeClassifier.predictRegime(closes)
+                statisticalAnalysisEngine.updateRegimeResult(result)
+                Timber.d("시장 레짐 모델 복원 완료: %s (신뢰도: %.1f%%)", result.regimeName, result.confidence * 100)
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "시장 레짐 모델 복원 실패 — 다음 학습까지 기본값 사용")
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun jsonStringToMap(json: String): Map<String, Any> {
+        val element = kotlinx.serialization.json.Json.parseToJsonElement(json)
+        return jsonElementToAny(element) as? Map<String, Any> ?: emptyMap()
+    }
+
+    private fun jsonElementToAny(element: kotlinx.serialization.json.JsonElement): Any? = when (element) {
+        is kotlinx.serialization.json.JsonPrimitive -> when {
+            element.isString -> element.content
+            element.content == "true" -> true
+            element.content == "false" -> false
+            element.content.contains('.') -> element.content.toDoubleOrNull() ?: element.content
+            else -> element.content.toLongOrNull() ?: element.content.toDoubleOrNull() ?: element.content
+        }
+        is kotlinx.serialization.json.JsonArray -> element.map { jsonElementToAny(it) }
+        is kotlinx.serialization.json.JsonObject -> element.entries.associate { (k, v) -> k to jsonElementToAny(v)!! }
+        is kotlinx.serialization.json.JsonNull -> null
     }
 }
