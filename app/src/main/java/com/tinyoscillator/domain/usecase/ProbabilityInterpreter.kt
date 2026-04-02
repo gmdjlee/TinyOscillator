@@ -50,6 +50,11 @@ class ProbabilityInterpreter @Inject constructor() {
             parts += "시장 레짐: ${hmm.regimeDescription}"
         }
 
+        // 자금흐름
+        result.orderFlowResult?.let { of ->
+            parts += "자금흐름: ${of.flowDirection} (${of.flowStrength})"
+        }
+
         if (parts.isEmpty()) return "분석 결과를 해석할 수 없습니다."
 
         // 종합 판단
@@ -305,6 +310,63 @@ class ProbabilityInterpreter @Inject constructor() {
         return sb.toString()
     }
 
+    /** 투자자 자금흐름 해석 */
+    fun interpretOrderFlow(of: OrderFlowResult): String {
+        val sb = StringBuilder()
+        sb.appendLine("투자자별 순매수 데이터를 분석하여 자금흐름 불균형(OFI)을 산출했습니다.")
+        sb.appendLine()
+
+        val dirLabel = when (of.flowDirection) {
+            "BUY" -> "매수 우위"
+            "SELL" -> "매도 우위"
+            else -> "중립"
+        }
+        val strengthLabel = when (of.flowStrength) {
+            "STRONG" -> "강한"
+            "MODERATE" -> "보통"
+            else -> "약한"
+        }
+        sb.appendLine("자금흐름 방향: $strengthLabel $dirLabel")
+        sb.appendLine("종합 매수 우위 점수: ${pct(of.buyerDominanceScore)}")
+        sb.appendLine()
+
+        // OFI 해석
+        sb.appendLine("단기(5일) OFI: ${String.format("%.3f", of.ofi5d)} | 중기(20일) OFI: ${String.format("%.3f", of.ofi20d)}")
+        if (of.ofi5d > 0 && of.ofi20d > 0) {
+            sb.appendLine("  → 외국인 매수세가 단기·중기 모두 지속되고 있습니다.")
+        } else if (of.ofi5d > 0 && of.ofi20d < 0) {
+            sb.appendLine("  → 최근 외국인 매수 전환이 감지되나, 중기 추세는 아직 매도 우위입니다.")
+        } else if (of.ofi5d < 0 && of.ofi20d > 0) {
+            sb.appendLine("  → 단기 매도 압력이 발생했으나, 중기 추세는 여전히 매수 우위입니다.")
+        } else {
+            sb.appendLine("  → 외국인 매도세가 단기·중기 모두 지속되고 있습니다.")
+        }
+        sb.appendLine()
+
+        // 기관-외국인 괴리
+        if (of.institutionalDivergence > 0.5) {
+            sb.appendLine("경고: 기관과 외국인의 방향이 크게 다릅니다 (괴리도 ${pct(of.institutionalDivergence)}).")
+            sb.appendLine("  → 신호 불확실성이 높아 신중한 판단이 필요합니다.")
+        } else if (of.institutionalDivergence < 0.2) {
+            sb.appendLine("기관과 외국인이 같은 방향으로 움직이고 있습니다 — 신호 신뢰도가 높습니다.")
+        }
+        sb.appendLine()
+
+        // 추세 정렬
+        if (of.trendAlignment > 0.6) {
+            sb.appendLine("긍정: 자금흐름이 가격 추세와 일치 — 현재 추세가 지속될 가능성이 높습니다.")
+        } else if (of.trendAlignment < 0.4) {
+            sb.appendLine("주의: 자금흐름이 가격과 역행 — 추세 전환 가능성을 고려하세요.")
+        }
+
+        // 평균회귀
+        if (of.meanReversionSignal > 0.5) {
+            sb.appendLine("평균회귀 신호: 자금흐름이 극단적 수준 — 반대 방향 조정 가능성이 있습니다.")
+        }
+
+        return sb.toString()
+    }
+
     /** 시장 레짐 해석 */
     fun interpretMarketRegime(regime: MarketRegimeResult): String {
         val sb = StringBuilder()
@@ -335,7 +397,7 @@ class ProbabilityInterpreter @Inject constructor() {
     /** AI 해석용 프롬프트 생성 */
     fun buildPromptForAi(result: StatisticalResult): String {
         val sb = StringBuilder()
-        sb.appendLine("다음은 ${result.stockName}(${result.ticker})의 7개 통계 알고리즘 확률분석 결과입니다.")
+        sb.appendLine("다음은 ${result.stockName}(${result.ticker})의 8개 통계 알고리즘 확률분석 결과입니다.")
         sb.appendLine("각 결과를 종합하여 투자자에게 유용한 해석을 제공해주세요.")
         sb.appendLine()
 
@@ -377,6 +439,10 @@ class ProbabilityInterpreter @Inject constructor() {
             sb.appendLine("[베이지안] 사전=${pct(b.priorProbability)} → 사후=${pct(b.finalPosterior)}")
         }
 
+        result.orderFlowResult?.let { of ->
+            sb.appendLine("[자금흐름] 방향=${of.flowDirection}(${of.flowStrength}) 점수=${pct(of.buyerDominanceScore)} OFI5d=${String.format("%.3f", of.ofi5d)} OFI20d=${String.format("%.3f", of.ofi20d)} 기관괴리=${pct(of.institutionalDivergence)} 외국인압력=${String.format("%.3f", of.foreignBuyPressure)}")
+        }
+
         result.marketRegimeResult?.let { r ->
             sb.appendLine("[시장 레짐] ${r.regimeDescription}(${r.regimeName}) 신뢰도=${pct(r.confidence)} 지속=${r.regimeDurationDays}일")
         }
@@ -413,6 +479,10 @@ class ProbabilityInterpreter @Inject constructor() {
         result.bayesianUpdateResult?.let {
             total++
             if (it.finalPosterior > 0.55) bullScore++ else if (it.finalPosterior < 0.45) bearScore++
+        }
+        result.orderFlowResult?.let {
+            total++
+            if (it.buyerDominanceScore > 0.55) bullScore++ else if (it.buyerDominanceScore < 0.45) bearScore++
         }
 
         if (total == 0) return "판단 불가"

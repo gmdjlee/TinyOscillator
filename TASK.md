@@ -1,9 +1,9 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-02 by PROMPT 01 Signal Calibration_
+_Last updated: 2026-04-03 by PROMPT 04 Order Flow Features_
 
 ## Current session
-**PROMPT 02 — Market Regime Detection** COMPLETE. Ready to begin PROMPT 03.
+**PROMPT 04 — Order Flow Features** COMPLETE. Ready to begin PROMPT 05.
 
 ## Upcoming tasks (ordered)
 
@@ -25,23 +25,34 @@ _Last updated: 2026-04-02 by PROMPT 01 Signal Calibration_
 **Acceptance test:** 4 distinct regimes returned; regime weights visibly change per regime; badge in UI
 
 ### PROMPT 03 — Feature Store
-**Status:** NOT STARTED
-**Prerequisite:** None (foundational — can run first or in parallel)
+**Status:** COMPLETE (2026-04-02)
+**Decision:** Pure Kotlin implementation — consistent with PROMPT 01/02
 **Delivers:**
-- `FeatureCacheEntry`, `FeatureCacheDao` (Room)
-- `FeatureStore.kt` (singleton, TTL-aware)
-- `FeatureCacheEvictionWorker.kt`
-**Acceptance test:** Second call for same key returns cached value without calling Python
+- `FeatureCacheEntity`, `FeatureCacheDao` (Room v15→v16)
+- `FeatureStore.kt` (singleton, TTL-aware, generic `getOrCompute<T>` with KSerializer)
+- `FeatureCacheEvictionWorker.kt` (daily 06:00 KST)
+- `FeatureStoreModels.kt` (FeatureKey, FeatureTtl, CacheStats)
+- `@Serializable` on all StatisticalResult types for JSON cache round-trip
+- StatisticalAnalysisEngine integration (Daily TTL per ticker+date)
+- AiAnalysisViewModel: cacheStats exposure + clearAnalysisCache()
+- UI: Cached/Live indicator chip in probability analysis results
+- FeatureStoreTest.kt (12 tests)
+**Acceptance test:** Second call for same ticker+feature+date returns cached value without calling compute
 
 ### PROMPT 04 — Order Flow Features
-**Status:** NOT STARTED
-**Prerequisite:** PROMPT 03 (FeatureStore)
+**Status:** COMPLETE (2026-04-03)
+**Decision:** Pure Kotlin implementation — investor data (foreignNetBuy, instNetBuy) already in DailyTrading
 **Delivers:**
-- `app/src/main/python/features/order_flow_features.py`
-- `app/src/main/python/features/flow_signal_adapter.py`
-- Ensemble extended to 8 algorithms
-- Kotlin: `OrderFlowDto`
-**Acceptance test:** `build_all()` runs on 005930 for last 60 days
+- `data/engine/OrderFlowEngine.kt` — OFI, institutional divergence, foreign buy pressure, signal scoring
+- `domain/model/StatisticalModels.kt` — `OrderFlowResult` data class (12 fields)
+- Ensemble extended to 8 algorithms (8th: OrderFlow)
+- `RegimeWeightTable` updated: OrderFlow gets 0.14–0.18 weight (highest in CRISIS/BEAR_HIGH_VOL)
+- `SignalScoreExtractor`: extracts `buyerDominanceScore` for calibration
+- `ProbabilityInterpreter.interpretOrderFlow()` — rule-based Korean interpretation
+- `ProbabilisticPromptBuilder` — OrderFlow section in AI prompt
+- UI: Order Flow expandable card in probability analysis results
+- `OrderFlowEngineTest.kt` — 14 tests
+**Acceptance test:** Engine runs on 60-day data with correct direction/signal; OFI bounded [-1,1]; signal bounded [0,1]
 
 ### PROMPT 05 — DART Event Study
 **Status:** NOT STARTED

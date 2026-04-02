@@ -22,7 +22,7 @@ class RegimeWeightTableTest {
     @Test
     fun `모든 레짐에 7개 알고리즘이 있다`() {
         for ((regime, weights) in RegimeWeightTable.WEIGHT_TABLE) {
-            assertEquals("$regime 알고리즘 수 = 7", 7, weights.size)
+            assertEquals("$regime 알고리즘 수 = 8", 8, weights.size)
             for (algo in RegimeWeightTable.ALL_ALGOS) {
                 assertTrue("$regime 에 $algo 존재", algo in weights)
             }
@@ -47,15 +47,15 @@ class RegimeWeightTableTest {
     @Test
     fun `getWeights가 유효한 레짐에 대해 가중치를 반환한다`() {
         val weights = RegimeWeightTable.getWeights("BULL_LOW_VOL")
-        assertEquals(7, weights.size)
+        assertEquals(8, weights.size)
         assertTrue(abs(weights.values.sum() - 1.0) < 1e-6)
     }
 
     @Test
     fun `getWeights가 유효하지 않은 레짐에 대해 균등 가중치를 반환한다`() {
         val weights = RegimeWeightTable.getWeights("UNKNOWN_REGIME")
-        assertEquals(7, weights.size)
-        val expectedWeight = 1.0 / 7
+        assertEquals(8, weights.size)
+        val expectedWeight = 1.0 / 8
         for ((_, w) in weights) {
             assertEquals(expectedWeight, w, 1e-6)
         }
@@ -64,7 +64,7 @@ class RegimeWeightTableTest {
     @Test
     fun `equalWeights가 균등 가중치를 반환한다`() {
         val weights = RegimeWeightTable.equalWeights()
-        assertEquals(7, weights.size)
+        assertEquals(8, weights.size)
         val sum = weights.values.sum()
         assertTrue("균등 가중치 합 ≈ 1.0", abs(sum - 1.0) < 1e-6)
     }

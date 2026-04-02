@@ -1,5 +1,7 @@
 package com.tinyoscillator.domain.model
 
+import kotlinx.serialization.Serializable
+
 /**
  * 확률적 기대값 분석 엔진 — 결과 데이터 클래스
  *
@@ -10,6 +12,7 @@ package com.tinyoscillator.domain.model
 // ─── 최상위 통합 결과 ───
 
 /** 7개 알고리즘 결과를 묶는 최상위 래퍼 */
+@Serializable
 data class StatisticalResult(
     val ticker: String,
     val stockName: String,
@@ -21,11 +24,13 @@ data class StatisticalResult(
     val signalScoringResult: SignalScoringResult? = null,
     val correlationAnalysis: CorrelationAnalysis? = null,
     val bayesianUpdateResult: BayesianUpdateResult? = null,
+    val orderFlowResult: OrderFlowResult? = null,
     val marketRegimeResult: MarketRegimeResult? = null,
     val executionMetadata: ExecutionMetadata = ExecutionMetadata()
 )
 
 /** 각 엔진의 실행 시간 메타데이터 */
+@Serializable
 data class ExecutionMetadata(
     val totalTimeMs: Long = 0,
     val engineTimings: Map<String, Long> = emptyMap(),
@@ -35,6 +40,7 @@ data class ExecutionMetadata(
 // ─── 2.1 Naive Bayes ───
 
 /** 나이브 베이즈 분류 결과 */
+@Serializable
 data class BayesResult(
     val upProbability: Double,
     val downProbability: Double,
@@ -44,6 +50,7 @@ data class BayesResult(
 )
 
 /** 각 지표의 확률 기여도 */
+@Serializable
 data class FeatureContribution(
     val featureName: String,
     val likelihoodRatio: Double
@@ -52,6 +59,7 @@ data class FeatureContribution(
 // ─── 2.2 Logistic Scoring ───
 
 /** 로지스틱 회귀 스코어링 결과 */
+@Serializable
 data class LogisticResult(
     val probability: Double,
     val weights: Map<String, Double>,
@@ -62,6 +70,7 @@ data class LogisticResult(
 // ─── 2.3 HMM Regime ───
 
 /** Hidden Markov Model 레짐 탐지 결과 */
+@Serializable
 data class HmmResult(
     val currentRegime: Int,
     val regimeProbabilities: DoubleArray,
@@ -107,6 +116,7 @@ data class HmmResult(
 // ─── 2.4 Pattern Scan ───
 
 /** 패턴 분석 전체 결과 */
+@Serializable
 data class PatternAnalysis(
     val allPatterns: List<PatternMatch>,
     val activePatterns: List<PatternMatch>,
@@ -114,6 +124,7 @@ data class PatternAnalysis(
 )
 
 /** 개별 패턴 매칭 결과 */
+@Serializable
 data class PatternMatch(
     val patternName: String,
     val patternDescription: String,
@@ -130,6 +141,7 @@ data class PatternMatch(
 )
 
 /** 패턴 발생 이력 */
+@Serializable
 data class PatternOccurrence(
     val date: String,
     val return5d: Double,
@@ -141,6 +153,7 @@ data class PatternOccurrence(
 // ─── 2.5 Signal Scoring ───
 
 /** 가중 신호 앙상블 점수 결과 */
+@Serializable
 data class SignalScoringResult(
     val totalScore: Int,
     val contributions: List<SignalContribution>,
@@ -149,6 +162,7 @@ data class SignalScoringResult(
 )
 
 /** 개별 신호 기여도 */
+@Serializable
 data class SignalContribution(
     val name: String,
     val weight: Double,
@@ -158,6 +172,7 @@ data class SignalContribution(
 )
 
 /** 신호 충돌 */
+@Serializable
 data class SignalConflict(
     val signal1: String,
     val signal2: String,
@@ -169,12 +184,14 @@ data class SignalConflict(
 // ─── 2.6 Correlation ───
 
 /** 상관 분석 전체 결과 */
+@Serializable
 data class CorrelationAnalysis(
     val correlations: List<CorrelationResult>,
     val leadLagResults: List<LeadLagResult>
 )
 
 /** 상관 계수 결과 */
+@Serializable
 data class CorrelationResult(
     val indicator1: String,
     val indicator2: String,
@@ -183,6 +200,7 @@ data class CorrelationResult(
 )
 
 /** 상관 강도 */
+@Serializable
 enum class CorrelationStrength(val label: String) {
     STRONG_POSITIVE("강한 양의 상관"),
     MODERATE_POSITIVE("보통 양의 상관"),
@@ -202,6 +220,7 @@ enum class CorrelationStrength(val label: String) {
 }
 
 /** 선행-후행 분석 결과 */
+@Serializable
 data class LeadLagResult(
     val indicator1: String,
     val indicator2: String,
@@ -213,6 +232,7 @@ data class LeadLagResult(
 // ─── 2.7 Bayesian Update ───
 
 /** 베이지안 갱신 결과 */
+@Serializable
 data class BayesianUpdateResult(
     val finalPosterior: Double,
     val priorProbability: Double,
@@ -220,6 +240,7 @@ data class BayesianUpdateResult(
 )
 
 /** 확률 갱신 이력 */
+@Serializable
 data class ProbabilityUpdate(
     val signalName: String,
     val beforeProb: Double,
@@ -228,7 +249,38 @@ data class ProbabilityUpdate(
     val likelihoodRatio: Double
 )
 
-// ─── 2.8 Expected Value (확률적 기대값) ───
+// ─── 2.8 Order Flow (투자자 자금흐름) ───
+
+/** 투자자 자금흐름 분석 결과 */
+@Serializable
+data class OrderFlowResult(
+    /** 종합 매수 우위 점수 (0.0~1.0, 0.5=중립) */
+    val buyerDominanceScore: Double,
+    /** 5일 Order Flow Imbalance (-1.0~1.0) */
+    val ofi5d: Double,
+    /** 20일 Order Flow Imbalance (-1.0~1.0) */
+    val ofi20d: Double,
+    /** 기관-외국인 괴리도 (0.0~1.0, 높을수록 불일치) */
+    val institutionalDivergence: Double,
+    /** 외국인 매수 압력 (-1.0~1.0) */
+    val foreignBuyPressure: Double,
+    /** 시그모이드 변환 신호 점수 (0.0~1.0) */
+    val signalScore: Double,
+    /** 자금흐름 방향: BUY / SELL / NEUTRAL */
+    val flowDirection: String,
+    /** 자금흐름 강도: STRONG / MODERATE / WEAK */
+    val flowStrength: String,
+    /** 추세 정렬도 (0.0~1.0, 1.0=자금흐름과 가격 추세 완전 일치) */
+    val trendAlignment: Double,
+    /** 평균회귀 신호 (0.0~1.0, 높을수록 극단치 → 반전 가능) */
+    val meanReversionSignal: Double,
+    /** 상세 메트릭 */
+    val analysisDetails: Map<String, Double> = emptyMap(),
+    /** 데이터 기준일 (yyyyMMdd) */
+    val dataDate: String = ""
+)
+
+// ─── 2.9 Expected Value (확률적 기대값) ───
 
 /** 확률적 기대값 분석 — 시나리오 기반 기대 수익률 */
 data class ExpectedValueAnalysis(

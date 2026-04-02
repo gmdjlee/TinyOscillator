@@ -10,6 +10,7 @@ import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
 import com.tinyoscillator.core.database.dao.CalibrationDao
 import com.tinyoscillator.core.database.dao.ConsensusReportDao
+import com.tinyoscillator.core.database.dao.FeatureCacheDao
 import com.tinyoscillator.core.database.dao.RegimeDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
@@ -399,6 +400,30 @@ object DatabaseModule {
         }
     }
 
+    /** Migration v15→v16: added feature_cache table */
+    private val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `feature_cache` (
+                        `key` TEXT NOT NULL PRIMARY KEY,
+                        `ticker` TEXT NOT NULL,
+                        `feature_name` TEXT NOT NULL,
+                        `value` TEXT NOT NULL,
+                        `computed_at` INTEGER NOT NULL,
+                        `ttl_ms` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_feature_cache_ticker` ON `feature_cache` (`ticker`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_feature_cache_computed_at` ON `feature_cache` (`computed_at`)")
+                Timber.d("Migration v15→v16 성공: feature_cache 테이블 생성")
+            } catch (e: Exception) {
+                Timber.e(e, "Migration v15→v16 실패")
+                throw e
+            }
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -408,7 +433,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
@@ -425,7 +450,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .build()
         }
     }
@@ -471,4 +496,7 @@ object DatabaseModule {
 
     @Provides
     fun provideRegimeDao(db: AppDatabase): RegimeDao = db.regimeDao()
+
+    @Provides
+    fun provideFeatureCacheDao(db: AppDatabase): FeatureCacheDao = db.featureCacheDao()
 }

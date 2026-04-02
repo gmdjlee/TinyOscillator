@@ -81,6 +81,9 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
             // 시장 레짐 모델 복원 + 주간 업데이트 스케줄
             WorkManagerHelper.scheduleRegimeUpdate(this@TinyOscillatorApp)
             restoreRegimeModel()
+
+            // Feature 캐시 만료 엔트리 정리 (매일 06:00)
+            WorkManagerHelper.scheduleFeatureCacheEviction(this@TinyOscillatorApp)
         }
     }
 

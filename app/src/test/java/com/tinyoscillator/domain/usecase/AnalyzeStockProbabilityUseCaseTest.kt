@@ -1,8 +1,10 @@
 package com.tinyoscillator.domain.usecase
 
 import com.tinyoscillator.core.database.dao.CalibrationDao
+import com.tinyoscillator.core.database.dao.FeatureCacheDao
 import com.tinyoscillator.data.engine.*
 import com.tinyoscillator.data.engine.calibration.SignalCalibrator
+import kotlinx.serialization.json.Json
 import com.tinyoscillator.data.mapper.AnalysisResponseParser
 import com.tinyoscillator.data.mapper.ProbabilisticPromptBuilder
 import com.tinyoscillator.domain.model.AnalysisState
@@ -56,9 +58,16 @@ class AnalyzeStockProbabilityUseCaseTest {
             signalScoringEngine = SignalScoringEngine(),
             correlationEngine = CorrelationEngine(),
             bayesianUpdateEngine = BayesianUpdateEngine(),
+            orderFlowEngine = OrderFlowEngine(),
             signalCalibrator = SignalCalibrator(),
             calibrationDao = calibrationDao,
-            marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier()
+            marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier(),
+            featureStore = FeatureStore(
+                mockk<FeatureCacheDao>(relaxed = true).also {
+                    every { it.count() } returns flowOf(0)
+                },
+                Json { ignoreUnknownKeys = true }
+            )
         )
 
         useCase = AnalyzeStockProbabilityUseCase(

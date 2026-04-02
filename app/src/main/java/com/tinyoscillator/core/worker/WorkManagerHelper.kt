@@ -194,6 +194,17 @@ object WorkManagerHelper {
     fun runRegimeUpdateNow(context: Context) =
         runWorkerNow<RegimeUpdateWorker>(context, RegimeUpdateWorker.MANUAL_WORK_NAME, RegimeUpdateWorker.TAG, "시장 레짐")
 
+    // ===== Feature 캐시 정리 =====
+
+    fun scheduleFeatureCacheEviction(context: Context, hour: Int = 6, minute: Int = 0) =
+        scheduleDailyWorker<FeatureCacheEvictionWorker>(context, FeatureCacheEvictionWorker.WORK_NAME, FeatureCacheEvictionWorker.TAG, "Feature 캐시 정리", hour, minute)
+
+    fun cancelFeatureCacheEviction(context: Context) =
+        cancelWorker(context, FeatureCacheEvictionWorker.WORK_NAME, "Feature 캐시 정리")
+
+    fun runFeatureCacheEvictionNow(context: Context) =
+        runWorkerNow<FeatureCacheEvictionWorker>(context, FeatureCacheEvictionWorker.MANUAL_WORK_NAME, FeatureCacheEvictionWorker.TAG, "Feature 캐시 정리")
+
     // ===== 데이터 무결성 검사 =====
 
     fun runIntegrityCheckNow(context: Context) =

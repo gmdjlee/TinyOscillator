@@ -8,6 +8,8 @@ import com.tinyoscillator.data.engine.regime.MarketRegimeClassifier
 import com.tinyoscillator.data.engine.regime.RegimeWeightTable
 import com.tinyoscillator.domain.model.CalibratedScore
 import com.tinyoscillator.domain.model.ExecutionMetadata
+import com.tinyoscillator.domain.model.FeatureKey
+import com.tinyoscillator.domain.model.FeatureTtl
 import com.tinyoscillator.domain.model.MarketRegimeResult
 import com.tinyoscillator.domain.model.StatisticalResult
 import com.tinyoscillator.domain.repository.StatisticalRepository
@@ -20,7 +22,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 통계 분석 오케스트레이터 — 7개 엔진을 coroutine으로 병렬 실행하고 결과를 통합
+ * 통계 분석 오케스트레이터 — 8개 엔진을 coroutine으로 병렬 실행하고 결과를 통합
  *
  * 각 엔진의 실패는 개별 처리 (하나가 실패해도 나머지 결과는 반환).
  * 보정기가 학습된 경우, 원시 점수를 보정된 확률로 변환.
@@ -36,9 +38,11 @@ class StatisticalAnalysisEngine @Inject constructor(
     private val signalScoringEngine: SignalScoringEngine,
     private val correlationEngine: CorrelationEngine,
     private val bayesianUpdateEngine: BayesianUpdateEngine,
+    private val orderFlowEngine: OrderFlowEngine,
     val signalCalibrator: SignalCalibrator,
     private val calibrationDao: CalibrationDao,
-    private val marketRegimeClassifier: MarketRegimeClassifier
+    private val marketRegimeClassifier: MarketRegimeClassifier,
+    private val featureStore: FeatureStore
 ) {
 
     /** 캐시된 시장 레짐 결과 (주기적으로 갱신) */
@@ -46,12 +50,36 @@ class StatisticalAnalysisEngine @Inject constructor(
     private var cachedRegimeResult: MarketRegimeResult? = null
 
     /**
-     * 종합 통계 분석 실행
+     * 종합 통계 분석 실행 (FeatureStore 캐시 적용)
+     *
+     * 동일 종목+날짜에 대해 Daily TTL(4시간) 이내 재호출 시 캐시 반환.
+     * 캐시 미스 시 7개 엔진 병렬 실행 후 결과를 캐싱.
+     */
+    suspend fun analyze(stockCode: String): StatisticalResult {
+        val key = FeatureKey(ticker = stockCode, featureName = "StatisticalResult")
+        return featureStore.getOrCompute(
+            key = key,
+            ttl = FeatureTtl.Daily,
+            serializer = StatisticalResult.serializer()
+        ) {
+            analyzeInternal(stockCode)
+        }
+    }
+
+    /**
+     * 특정 종목의 분석 캐시 무효화 (수동 새로고침용)
+     */
+    suspend fun clearAnalysisCache(ticker: String) {
+        featureStore.invalidate(ticker)
+    }
+
+    /**
+     * 종합 통계 분석 실행 (내부 — 캐시 미스 시 호출)
      *
      * 7개 엔진을 병렬 실행하고 결과를 StatisticalResult로 통합.
      * 각 엔진 실패 시 해당 결과만 null로 표시.
      */
-    suspend fun analyze(stockCode: String): StatisticalResult = coroutineScope {
+    private suspend fun analyzeInternal(stockCode: String): StatisticalResult = coroutineScope {
         val totalStart = System.currentTimeMillis()
         val timings = mutableMapOf<String, Long>()
         val failedEngines = mutableListOf<String>()
@@ -111,6 +139,12 @@ class StatisticalAnalysisEngine @Inject constructor(
             }
         }
 
+        val orderFlowDeferred = async {
+            timedExecution("OrderFlow", timings, failedEngines) {
+                orderFlowEngine.analyze(prices)
+            }
+        }
+
         // 패턴 분석 결과를 기다린 후 SignalScoring에 전달
         val patternResult = patternDeferred.await()
 
@@ -128,6 +162,7 @@ class StatisticalAnalysisEngine @Inject constructor(
         val hmmResult = hmmDeferred.await()
         val correlationResult = correlationDeferred.await()
         val bayesianUpdateResult = bayesianUpdateDeferred.await()
+        val orderFlowResult = orderFlowDeferred.await()
         val signalResult = signalDeferred.await()
 
         val totalTime = System.currentTimeMillis() - totalStart
@@ -152,6 +187,7 @@ class StatisticalAnalysisEngine @Inject constructor(
             signalScoringResult = signalResult,
             correlationAnalysis = correlationResult,
             bayesianUpdateResult = bayesianUpdateResult,
+            orderFlowResult = orderFlowResult,
             marketRegimeResult = regimeResult,
             executionMetadata = ExecutionMetadata(
                 totalTimeMs = totalTime,

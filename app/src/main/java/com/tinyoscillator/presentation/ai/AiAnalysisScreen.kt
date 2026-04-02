@@ -746,8 +746,30 @@ private fun ProbabilityResultContent(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("분석 완료", style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("분석 완료", style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold)
+                // 캐시 상태 표시
+                val isCached = result.executionMetadata.totalTimeMs < 50
+                SuggestionChip(
+                    onClick = {},
+                    label = {
+                        Text(
+                            if (isCached) "Cached" else "Live",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    },
+                    colors = SuggestionChipDefaults.suggestionChipColors(
+                        containerColor = if (isCached)
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        else MaterialTheme.colorScheme.secondaryContainer
+                    ),
+                    border = null
+                )
+            }
             Spacer(Modifier.height(8.dp))
 
             // 시장 레짐 배지
@@ -933,6 +955,28 @@ private fun ProbabilityResultContent(
                     style = MaterialTheme.typography.bodySmall)
             }
             EngineInterpretationBlock(engineInterpretations["bayesian"])
+        }
+    }
+
+    result.orderFlowResult?.let { of ->
+        val dirLabel = when (of.flowDirection) {
+            "BUY" -> "매수 우위"
+            "SELL" -> "매도 우위"
+            else -> "중립"
+        }
+        ProbExpandableCard("투자자 자금흐름: $dirLabel (${of.flowStrength})") {
+            Text("종합 점수: ${pctFmt(of.buyerDominanceScore)}")
+            Spacer(Modifier.height(4.dp))
+            Text("OFI(5일): ${String.format("%.3f", of.ofi5d)} | OFI(20일): ${String.format("%.3f", of.ofi20d)}",
+                style = MaterialTheme.typography.bodySmall)
+            Text("외국인 매수 압력: ${String.format("%.3f", of.foreignBuyPressure)}",
+                style = MaterialTheme.typography.bodySmall)
+            Text("기관-외국인 괴리: ${pctFmt(of.institutionalDivergence)}",
+                style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(4.dp))
+            Text("추세 정렬: ${pctFmt(of.trendAlignment)} | 평균회귀: ${pctFmt(of.meanReversionSignal)}",
+                style = MaterialTheme.typography.bodySmall)
+            EngineInterpretationBlock(engineInterpretations["orderflow"])
         }
     }
 

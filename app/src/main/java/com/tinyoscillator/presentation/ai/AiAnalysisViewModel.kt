@@ -12,7 +12,9 @@ import com.tinyoscillator.data.repository.StockRepository
 import com.tinyoscillator.domain.model.*
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.util.DateFormats
+import com.tinyoscillator.data.engine.FeatureStore
 import com.tinyoscillator.data.engine.StatisticalAnalysisEngine
+import com.tinyoscillator.domain.model.CacheStats
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.ProbabilityInterpreter
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
@@ -98,7 +100,8 @@ class AiAnalysisViewModel @Inject constructor(
     private val aiPreparer: AiAnalysisPreparer,
     private val apiConfigProvider: ApiConfigProvider,
     private val statisticalAnalysisEngine: StatisticalAnalysisEngine,
-    private val probabilityInterpreter: ProbabilityInterpreter
+    private val probabilityInterpreter: ProbabilityInterpreter,
+    private val featureStore: FeatureStore
 ) : AndroidViewModel(application) {
 
     private val fmt = DateFormats.yyyyMMdd
@@ -127,6 +130,10 @@ class AiAnalysisViewModel @Inject constructor(
     // 확률 분석 상태
     private val _probabilityState = MutableStateFlow<ProbabilityAnalysisState>(ProbabilityAnalysisState.Idle)
     val probabilityState: StateFlow<ProbabilityAnalysisState> = _probabilityState.asStateFlow()
+
+    // Feature Store 캐시 통계
+    val cacheStats: StateFlow<CacheStats> = featureStore.cacheStats
+        .stateIn(viewModelScope, SharingStarted.Lazily, CacheStats())
 
     // 해석 상태
     private val _interpretationState = MutableStateFlow<InterpretationState>(InterpretationState.Idle)
@@ -357,6 +364,7 @@ class AiAnalysisViewModel @Inject constructor(
         result.signalScoringResult?.let { engines["signal"] = probabilityInterpreter.interpretSignalScoring(it) }
         result.correlationAnalysis?.let { engines["correlation"] = probabilityInterpreter.interpretCorrelation(it) }
         result.bayesianUpdateResult?.let { engines["bayesian"] = probabilityInterpreter.interpretBayesianUpdate(it) }
+        result.orderFlowResult?.let { engines["orderflow"] = probabilityInterpreter.interpretOrderFlow(it) }
         result.marketRegimeResult?.let { engines["regime"] = probabilityInterpreter.interpretMarketRegime(it) }
 
         _interpretationState.value = InterpretationState.Success(
@@ -423,5 +431,12 @@ class AiAnalysisViewModel @Inject constructor(
 
     fun dismissStockAi() {
         _stockAiState.value = AiAnalysisState.Idle
+    }
+
+    /** 특정 종목의 분석 캐시 무효화 (수동 새로고침) */
+    fun clearAnalysisCache(ticker: String) {
+        viewModelScope.launch {
+            statisticalAnalysisEngine.clearAnalysisCache(ticker)
+        }
     }
 }

@@ -2,7 +2,10 @@ package com.tinyoscillator.data.engine
 
 import android.content.SharedPreferences
 import com.tinyoscillator.core.database.dao.CalibrationDao
+import com.tinyoscillator.core.database.dao.FeatureCacheDao
 import com.tinyoscillator.data.engine.calibration.SignalCalibrator
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.serialization.json.Json
 import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.OscillatorRow
@@ -50,9 +53,16 @@ class StatisticalAnalysisEngineTest {
             signalScoringEngine = SignalScoringEngine(),
             correlationEngine = CorrelationEngine(),
             bayesianUpdateEngine = BayesianUpdateEngine(),
+            orderFlowEngine = OrderFlowEngine(),
             signalCalibrator = SignalCalibrator(),
             calibrationDao = calibrationDao,
-            marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier()
+            marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier(),
+            featureStore = FeatureStore(
+                mockk<FeatureCacheDao>(relaxed = true).also {
+                    every { it.count() } returns flowOf(0)
+                },
+                Json { ignoreUnknownKeys = true }
+            )
         )
     }
 

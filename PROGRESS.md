@@ -171,11 +171,50 @@ _Each completed PROMPT session appends one block below._
   - `RegimeWeightTableTest.kt` — validateWeights(), weight sums, regime-specific strategy priorities, equal weights fallback
 - Existing tests updated: StatisticalAnalysisEngineTest, AnalyzeStockProbabilityUseCaseTest (added MarketRegimeClassifier parameter)
 
-### [PENDING] PROMPT 03 — Feature Store
-- Status: NOT STARTED
+### [COMPLETE] PROMPT 03 — Feature Store (2026-04-02)
+- Status: COMPLETE
+- Decision: Pure Kotlin implementation (no Chaquopy/Python) — consistent with PROMPT 01/02
+- New source files:
+  - `core/database/entity/FeatureCacheEntity.kt` — Room entity (PK=key, ticker index, computed_at index)
+  - `core/database/dao/FeatureCacheDao.kt` — get, upsert, evictExpired, evictByTicker, evictAll, count()
+  - `domain/model/FeatureStoreModels.kt` — FeatureKey (ticker:feature:date), FeatureTtl (Intraday/Daily/Weekly/Custom), CacheStats
+  - `data/engine/FeatureStore.kt` — Singleton with generic `getOrCompute<T>(key, ttl, serializer, compute)`, cache stats Flow
+  - `core/worker/FeatureCacheEvictionWorker.kt` — Daily 06:00 KST eviction of expired entries
+- Modified files:
+  - `core/database/AppDatabase.kt` — v15→v16, FeatureCacheEntity + featureCacheDao()
+  - `core/di/DatabaseModule.kt` — MIGRATION_15_16 (feature_cache table), provideFeatureCacheDao()
+  - `core/worker/WorkManagerHelper.kt` — scheduleFeatureCacheEviction(), cancelFeatureCacheEviction(), runFeatureCacheEvictionNow()
+  - `TinyOscillatorApp.kt` — Schedule feature cache eviction on startup
+  - `domain/model/StatisticalModels.kt` — @Serializable on all result types (StatisticalResult, BayesResult, LogisticResult, HmmResult, PatternAnalysis, SignalScoringResult, CorrelationAnalysis, BayesianUpdateResult, etc.)
+  - `domain/model/RegimeModels.kt` — @Serializable on MarketRegimeResult
+  - `data/engine/StatisticalAnalysisEngine.kt` — FeatureStore injection, analyze() wraps analyzeInternal() via getOrCompute (Daily TTL), clearAnalysisCache()
+  - `presentation/ai/AiAnalysisViewModel.kt` — FeatureStore injection, cacheStats StateFlow, clearAnalysisCache()
+  - `presentation/ai/AiAnalysisScreen.kt` — Cached/Live SuggestionChip in probability result header
+- Tests added (1 file):
+  - `FeatureStoreTest.kt` — 12 tests: cache miss/hit, TTL expiry, recompute, invalidate, key format, TTL constants, cache stats
+- Existing tests updated: StatisticalAnalysisEngineTest, AnalyzeStockProbabilityUseCaseTest, AiAnalysisViewModelTest (added featureStore parameter)
 
-### [PENDING] PROMPT 04 — Order Flow
-- Status: NOT STARTED
+### [COMPLETE] PROMPT 04 — Order Flow Features (2026-04-03)
+- Status: COMPLETE
+- Decision: Pure Kotlin implementation — investor data (foreignNetBuy, instNetBuy) already available in DailyTrading via AnalysisCacheEntity
+- No new API calls needed — data source: existing KRX/Kiwoom investor trend endpoints cached in analysis_cache table
+- New source files:
+  - `data/engine/OrderFlowEngine.kt` — 8th engine: OFI (5d/20d), institutional divergence, foreign buy pressure, Z-score sigmoid signal, trend alignment, mean reversion detection
+  - `domain/model/StatisticalModels.kt` — OrderFlowResult data class with 12 fields
+- Modified files:
+  - `data/engine/StatisticalAnalysisEngine.kt` — OrderFlowEngine injection, parallel async execution, result in StatisticalResult
+  - `data/engine/regime/RegimeWeightTable.kt` — ALGO_ORDER_FLOW constant, ALL_ALGOS updated to 8, weights redistributed (OrderFlow: BULL 0.14, BEAR 0.17, SIDEWAYS 0.15, CRISIS 0.18)
+  - `data/engine/calibration/SignalScoreExtractor.kt` — Extracts buyerDominanceScore for OrderFlow
+  - `domain/usecase/ProbabilityInterpreter.kt` — interpretOrderFlow(), updated summarize(), assessOverallDirection(), buildPromptForAi() (8개 알고리즘)
+  - `data/mapper/ProbabilisticPromptBuilder.kt` — OrderFlow section in AI prompt (8개 알고리즘)
+  - `presentation/ai/AiAnalysisScreen.kt` — Order Flow expandable card (direction, OFI, divergence, trend alignment)
+  - `presentation/ai/AiAnalysisViewModel.kt` — interpretLocal() includes orderflow
+- Tests added (1 file):
+  - `OrderFlowEngineTest.kt` — 14 tests: bounds checking (OFI [-1,1], signal [0,1], divergence [0,1], fbp [-1,1]), BUY/SELL direction, divergence high/low, trend alignment, zero flow, insufficient data, analysis details keys
+- Existing tests updated:
+  - `StatisticalAnalysisEngineTest.kt` — added orderFlowEngine parameter
+  - `AnalyzeStockProbabilityUseCaseTest.kt` — added orderFlowEngine parameter
+  - `RegimeWeightTableTest.kt` — updated from 7 to 8 algorithms
 
 ### [PENDING] PROMPT 05 — DART Event Study
 - Status: NOT STARTED
