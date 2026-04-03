@@ -12,6 +12,7 @@ import com.tinyoscillator.core.database.dao.CalibrationDao
 import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.dao.DartDao
 import com.tinyoscillator.core.database.dao.EnsembleHistoryDao
+import com.tinyoscillator.core.database.dao.IncrementalModelDao
 import com.tinyoscillator.core.database.dao.MacroDao
 import com.tinyoscillator.core.database.dao.FeatureCacheDao
 import com.tinyoscillator.core.database.dao.RegimeDao
@@ -472,6 +473,39 @@ object DatabaseModule {
         }
     }
 
+    /** Migration v19→v20: added incremental_model_state and model_drift_alert tables */
+    private val MIGRATION_19_20 = object : Migration(19, 20) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `incremental_model_state` (
+                        `model_name` TEXT NOT NULL PRIMARY KEY,
+                        `state_json` TEXT NOT NULL,
+                        `samples_seen` INTEGER NOT NULL DEFAULT 0,
+                        `updated_at` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `model_drift_alert` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `model_name` TEXT NOT NULL,
+                        `brier_score` REAL NOT NULL,
+                        `baseline_brier` REAL NOT NULL,
+                        `degradation` REAL NOT NULL,
+                        `detected_at` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_model_drift_alert_model_name` ON `model_drift_alert` (`model_name`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_model_drift_alert_detected_at` ON `model_drift_alert` (`detected_at`)")
+                Timber.d("Migration v19→v20 성공: incremental_model_state, model_drift_alert 테이블 생성")
+            } catch (e: Exception) {
+                Timber.e(e, "Migration v19→v20 실패")
+                throw e
+            }
+        }
+    }
+
     /** Migration v18→v19: added ensemble_history table */
     private val MIGRATION_18_19 = object : Migration(18, 19) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -508,7 +542,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
@@ -525,7 +559,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
                 .build()
         }
     }
@@ -583,4 +617,7 @@ object DatabaseModule {
 
     @Provides
     fun provideEnsembleHistoryDao(db: AppDatabase): EnsembleHistoryDao = db.ensembleHistoryDao()
+
+    @Provides
+    fun provideIncrementalModelDao(db: AppDatabase): IncrementalModelDao = db.incrementalModelDao()
 }

@@ -7,6 +7,7 @@ import com.tinyoscillator.data.engine.calibration.SignalCalibrator
 import com.tinyoscillator.data.engine.calibration.SignalScoreExtractor
 import com.tinyoscillator.data.engine.ensemble.SignalHistoryStore
 import com.tinyoscillator.data.engine.ensemble.StackingEnsemble
+import com.tinyoscillator.data.engine.incremental.IncrementalModelManager
 import com.tinyoscillator.data.engine.macro.MacroRegimeOverlay
 import com.tinyoscillator.data.engine.regime.MarketRegimeClassifier
 import com.tinyoscillator.data.engine.regime.RegimeWeightTable
@@ -64,6 +65,11 @@ class StatisticalAnalysisEngine @Inject constructor(
     val stackingEnsemble = StackingEnsemble(
         baseModelNames = RegimeWeightTable.ALL_ALGOS,
         metaC = 0.5
+    )
+
+    /** 점진적 학습 모델 매니저 */
+    val incrementalModelManager = IncrementalModelManager(
+        algoNames = RegimeWeightTable.ALL_ALGOS
     )
 
     /** 캐시된 시장 레짐 결과 (주기적으로 갱신) */
@@ -334,7 +340,12 @@ class StatisticalAnalysisEngine @Inject constructor(
     /**
      * 스태킹 앙상블 확률 예측.
      *
-     * 메타 학습기가 학습되지 않은 경우 (cold start) 레짐 가중치 기반 가중합으로 폴백.
+     * 우선순위:
+     * 1. 스태킹 메타 학습기 (주간 배치 학습)
+     * 2. 점진적 모델 (야간 SGD 갱신)
+     * 3. 레짐 가중합 폴백 (cold start)
+     *
+     * 메타 학습기와 점진적 모델이 모두 학습된 경우, 메타 학습기 70% + 점진적 30% 블렌딩.
      *
      * @param result 9개 엔진의 분석 결과
      * @return 상승 확률 [0, 1]
@@ -342,18 +353,36 @@ class StatisticalAnalysisEngine @Inject constructor(
     fun getEnsembleProbability(result: StatisticalResult): Double {
         val calibratedSignals = getCalibratedSignals(result)
 
-        // 스태킹 메타 학습기 시도
-        if (stackingEnsemble.isFitted) {
-            return try {
+        val stackingProb = if (stackingEnsemble.isFitted) {
+            try {
                 stackingEnsemble.predictProba(calibratedSignals)
             } catch (e: Exception) {
-                Timber.w(e, "메타 학습기 예측 실패 — 가중합 폴백")
-                weightedSumFallback(calibratedSignals)
+                Timber.w(e, "메타 학습기 예측 실패")
+                null
             }
-        }
+        } else null
 
-        // Cold start: 레짐 가중합 폴백
-        return weightedSumFallback(calibratedSignals)
+        val incrementalProb = if (incrementalModelManager.naiveBayes.isFitted &&
+            incrementalModelManager.logisticRegression.isFitted) {
+            try {
+                incrementalModelManager.predictProba(calibratedSignals)
+            } catch (e: Exception) {
+                Timber.w(e, "점진적 모델 예측 실패")
+                null
+            }
+        } else null
+
+        return when {
+            // 둘 다 학습된 경우: 블렌딩 (메타 학습기 70%, 점진적 30%)
+            stackingProb != null && incrementalProb != null ->
+                (0.7 * stackingProb + 0.3 * incrementalProb).coerceIn(0.0, 1.0)
+            // 메타 학습기만 학습된 경우
+            stackingProb != null -> stackingProb
+            // 점진적 모델만 학습된 경우
+            incrementalProb != null -> incrementalProb
+            // Cold start: 레짐 가중합
+            else -> weightedSumFallback(calibratedSignals)
+        }
     }
 
     /**

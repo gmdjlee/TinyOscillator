@@ -298,6 +298,17 @@ object WorkManagerHelper {
     fun runMetaLearnerRefitNow(context: Context) =
         runWorkerNow<MetaLearnerRefitWorker>(context, MetaLearnerRefitWorker.MANUAL_WORK_NAME, MetaLearnerRefitWorker.TAG, "메타 학습기")
 
+    // ===== 점진적 모델 업데이트 =====
+
+    fun scheduleIncrementalModelUpdate(context: Context, hour: Int = 19, minute: Int = 0) =
+        scheduleDailyWorker<IncrementalModelUpdateWorker>(context, IncrementalModelUpdateWorker.WORK_NAME, IncrementalModelUpdateWorker.TAG, "점진적 모델", hour, minute)
+
+    fun cancelIncrementalModelUpdate(context: Context) =
+        cancelWorker(context, IncrementalModelUpdateWorker.WORK_NAME, "점진적 모델")
+
+    fun runIncrementalModelUpdateNow(context: Context) =
+        runWorkerNow<IncrementalModelUpdateWorker>(context, IncrementalModelUpdateWorker.MANUAL_WORK_NAME, IncrementalModelUpdateWorker.TAG, "점진적 모델")
+
     // ===== 데이터 무결성 검사 =====
 
     fun runIntegrityCheckNow(context: Context) =

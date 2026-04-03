@@ -90,6 +90,9 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
 
             // Feature 캐시 만료 엔트리 정리 (매일 06:00)
             WorkManagerHelper.scheduleFeatureCacheEviction(this@TinyOscillatorApp)
+
+            // 점진적 모델 야간 업데이트 (매일 19:00)
+            WorkManagerHelper.scheduleIncrementalModelUpdate(this@TinyOscillatorApp)
         }
     }
 

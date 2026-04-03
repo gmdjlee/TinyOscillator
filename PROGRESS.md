@@ -352,8 +352,35 @@ _Each completed PROMPT session appends one block below._
   - `CVaRRiskOverlayTest.kt` — 16 tests: historical CVaR negative, CF fallback for small samples, CF non-positive, stress scenario, positionLimit 0 when CVaR >= 0, riskAdjustedSize ≤ min(kelly, cvar), normalCdf/Quantile/Pdf accuracy
   - `PositionRecommendationEngineTest.kt` — 14 tests: NO_EDGE when prob < 0.5, finite result for Samsung 252d, unavailable for insufficient data, CVaR bound in stress, signalEdge correctness, higher prob → larger position
 
-### [PENDING] PROMPT 09 — Incremental Learning
-- Status: NOT STARTED
+### [COMPLETE] PROMPT 09 — Incremental Learning (2026-04-03)
+- Status: COMPLETE
+- Decision: Pure Kotlin implementation (no Chaquopy/Python) — consistent with PROMPT 01–08
+- Incremental NaiveBayes: 3-bin discretization of calibrated signal scores, Laplace smoothing (alpha=0.5)
+- Incremental LogisticRegression: SGD with adaptive learning rate (eta=eta0/(1+eta0*lambda*t)), L2 regularization, class-balanced weights
+- Features: 9 calibrated signal scores from base engines (same input space as StackingEnsemble)
+- Drift detection: Rolling 30-day Brier score vs 90-day baseline, threshold=0.05
+- Ensemble blending: meta-learner 70% + incremental 30% when both fitted
+- Cold start: warmStart on last 252 rows from SignalHistoryStore
+- New source files:
+  - `data/engine/incremental/IncrementalNaiveBayes.kt` — warmStart + update(partial_fit) + predictProba + save/load
+  - `data/engine/incremental/IncrementalLogisticRegression.kt` — warmStart + SGD update + predictProba + save/load
+  - `data/engine/incremental/IncrementalModelManager.kt` — coldStartIfNeeded, dailyUpdate, drift detection, state management
+  - `domain/model/IncrementalModels.kt` — IncrementalNaiveBayesState, IncrementalLogisticRegressionState, IncrementalModelManagerState, BrierEntry, ModelDriftAlert, IncrementalUpdateSummary
+  - `core/database/entity/IncrementalModelStateEntity.kt` — Room entity (PK=model_name, state_json, samples_seen)
+  - `core/database/entity/ModelDriftAlertEntity.kt` — Room entity (auto PK, model_name, brier/baseline/degradation)
+  - `core/database/dao/IncrementalModelDao.kt` — DAO for model state + drift alerts
+  - `core/worker/IncrementalModelUpdateWorker.kt` — Daily 19:00 KST HiltWorker
+- Modified files:
+  - `core/database/AppDatabase.kt` — v19→v20, 2 new entities + incrementalModelDao()
+  - `core/di/DatabaseModule.kt` — MIGRATION_19_20, provideIncrementalModelDao()
+  - `core/worker/WorkManagerHelper.kt` — scheduleIncrementalModelUpdate(), cancelIncrementalModelUpdate(), runIncrementalModelUpdateNow()
+  - `core/worker/CollectionNotificationHelper.kt` — INCREMENTAL_MODEL_NOTIFICATION_ID = 1011
+  - `TinyOscillatorApp.kt` — Schedule incremental model update on startup (daily 19:00)
+  - `data/engine/StatisticalAnalysisEngine.kt` — IncrementalModelManager integration, 70/30 blending in getEnsembleProbability()
+- Tests added (3 files):
+  - `IncrementalNaiveBayesTest.kt` — 10 tests: warmStart, update stability, predict bounds, save/load roundtrip, discretize, missing features, error cases
+  - `IncrementalLogisticRegressionTest.kt` — 11 tests: warmStart, SGD update stability, predict bounds, save/load roundtrip, adaptive LR, map-based predict, error cases
+  - `IncrementalModelManagerTest.kt` — 10 tests: dailyUpdate <200ms, save/load roundtrip, drift detection, constants, both-model update
 
 ### [PENDING] PROMPT 10 — Korea 5-Factor
 - Status: NOT STARTED

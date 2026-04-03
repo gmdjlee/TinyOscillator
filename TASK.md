@@ -1,9 +1,9 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-03 by PROMPT 08 Kelly + CVaR_
+_Last updated: 2026-04-03 by PROMPT 09 Incremental Learning_
 
 ## Current session
-**PROMPT 08 — Kelly + CVaR** COMPLETE. Ready to begin PROMPT 09.
+**PROMPT 09 — Incremental Learning** COMPLETE. Ready to begin PROMPT 10.
 
 ## Upcoming tasks (ordered)
 
@@ -125,13 +125,22 @@ _Last updated: 2026-04-03 by PROMPT 08 Kelly + CVaR_
 **Acceptance test:** CVaR bound reduces Kelly size in stress test; recommend() returns finite result for Samsung with 252 days; NO_EDGE when signal_prob=0.48
 
 ### PROMPT 09 — Incremental Learning
-**Status:** NOT STARTED
+**Status:** COMPLETE (2026-04-03)
 **Prerequisite:** PROMPT 07 (stacking — history store must exist)
+**Decision:** Pure Kotlin implementation — consistent with PROMPT 01–08 (no Chaquopy/Python)
 **Delivers:**
-- `app/src/main/python/models/incremental_models.py`
-- `app/src/main/python/models/model_persistence.py`
-- `IncrementalModelUpdateWorker.kt`
-**Acceptance test:** daily_update() completes in < 200ms on 1-sample input; save/load roundtrip
+- `data/engine/incremental/IncrementalNaiveBayes.kt` — 3-bin discretized NB with partial_fit
+- `data/engine/incremental/IncrementalLogisticRegression.kt` — SGD logistic regression (adaptive LR)
+- `data/engine/incremental/IncrementalModelManager.kt` — Manager + Brier drift detection
+- `domain/model/IncrementalModels.kt` — State/alert data classes
+- `core/database/entity/IncrementalModelStateEntity.kt` — Room entity for model state
+- `core/database/entity/ModelDriftAlertEntity.kt` — Room entity for drift alerts
+- `core/database/dao/IncrementalModelDao.kt` — DAO for state + alerts
+- `core/worker/IncrementalModelUpdateWorker.kt` — Daily 19:00 KST worker
+- DB v19→v20 migration (incremental_model_state + model_drift_alert tables)
+- StatisticalAnalysisEngine: 70/30 blending (meta-learner + incremental)
+- 3 test files: IncrementalNaiveBayesTest (10), IncrementalLogisticRegressionTest (11), IncrementalModelManagerTest (10)
+**Acceptance test:** dailyUpdate() < 200ms on 1-sample; save/load roundtrip identical predictions; drift detection fires
 
 ### PROMPT 10 — Korea 5-Factor Model
 **Status:** NOT STARTED
