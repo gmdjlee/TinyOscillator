@@ -7,6 +7,7 @@ import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
 import com.tinyoscillator.core.database.dao.CalibrationDao
 import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.dao.DartDao
+import com.tinyoscillator.core.database.dao.MacroDao
 import com.tinyoscillator.core.database.dao.FeatureCacheDao
 import com.tinyoscillator.core.database.dao.RegimeDao
 import com.tinyoscillator.core.database.dao.EtfDao
@@ -23,6 +24,7 @@ import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.core.database.entity.CalibrationStateEntity
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
 import com.tinyoscillator.core.database.entity.DartCorpCodeEntity
+import com.tinyoscillator.core.database.entity.MacroIndicatorEntity
 import com.tinyoscillator.core.database.entity.KospiIndexEntity
 import com.tinyoscillator.core.database.entity.RegimeStateEntity
 import com.tinyoscillator.core.database.entity.FeatureCacheEntity
@@ -62,9 +64,10 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         KospiIndexEntity::class,
         RegimeStateEntity::class,
         FeatureCacheEntity::class,
-        DartCorpCodeEntity::class
+        DartCorpCodeEntity::class,
+        MacroIndicatorEntity::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -84,4 +87,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun regimeDao(): RegimeDao
     abstract fun featureCacheDao(): FeatureCacheDao
     abstract fun dartDao(): DartDao
+    abstract fun macroDao(): MacroDao
 }

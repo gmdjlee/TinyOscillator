@@ -27,6 +27,7 @@ internal fun ApiTab(
     aiApiKey: String, onAiApiKeyChange: (String) -> Unit,
     aiProvider: AiProvider, onAiProviderChange: (AiProvider) -> Unit,
     dartApiKey: String = "", onDartApiKeyChange: (String) -> Unit = {},
+    ecosApiKey: String = "", onEcosApiKeyChange: (String) -> Unit = {},
     saveMessage: String?,
     onSave: () -> Unit
 ) {
@@ -189,6 +190,32 @@ internal fun ApiTab(
             ) {
                 Text(
                     "• opendart.fss.or.kr에서 인증키 발급\n• 일 10,000건 제한 — 캐시 자동 적용\n• 미설정 시 공시 이벤트 분석이 비활성화됩니다",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+        }
+
+        // === BOK ECOS API ===
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("BOK ECOS (매크로 지표)", style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.secondary)
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = ecosApiKey,
+                onValueChange = onEcosApiKeyChange,
+                label = { Text("ECOS API Key") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(12.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    "• ecos.bok.or.kr에서 인증키 발급\n• 기준금리, M2, 산업생산, 환율, CPI 수집\n• 미설정 시 매크로 환경 분석이 비활성화됩니다",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(8.dp)
                 )

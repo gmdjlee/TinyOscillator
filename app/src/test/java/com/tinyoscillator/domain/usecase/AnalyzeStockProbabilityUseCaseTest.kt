@@ -67,6 +67,7 @@ class AnalyzeStockProbabilityUseCaseTest {
             signalCalibrator = SignalCalibrator(),
             calibrationDao = calibrationDao,
             marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier(),
+            macroRegimeOverlay = com.tinyoscillator.data.engine.macro.MacroRegimeOverlay(),
             featureStore = FeatureStore(
                 mockk<FeatureCacheDao>(relaxed = true).also {
                     every { it.count() } returns flowOf(0)

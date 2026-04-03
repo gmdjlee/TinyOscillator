@@ -1,9 +1,9 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-03 by PROMPT 05 DART Event Study_
+_Last updated: 2026-04-03 by PROMPT 06 BOK ECOS Macro_
 
 ## Current session
-**PROMPT 05 — DART Event Study** COMPLETE. Ready to begin PROMPT 06.
+**PROMPT 06 — BOK ECOS Macro** COMPLETE. Ready to begin PROMPT 07.
 
 ## Upcoming tasks (ordered)
 
@@ -75,13 +75,22 @@ _Last updated: 2026-04-03 by PROMPT 05 DART Event Study_
 **Acceptance test:** CAR computed for synthetic data; classify_disclosure covers all 7 event types; signal bounded [0,1]
 
 ### PROMPT 06 — BOK ECOS Macro
-**Status:** NOT STARTED
-**Prerequisite:** PROMPT 03 (FeatureStore)
+**Status:** COMPLETE (2026-04-03)
+**Decision:** Pure Kotlin implementation — consistent with PROMPT 01–05 (no Chaquopy/Python)
 **Delivers:**
-- `app/src/main/python/macro/bok_ecos_collector.py`
-- `app/src/main/python/macro/macro_regime_overlay.py`
-- Kotlin: `MacroSignalDto`, macro chip in UI
-**Acceptance test:** `macro_signal_vector()` returns valid dict for recent reference date
+- `core/api/BokEcosApiClient.kt` — ECOS REST API client (5 indicators, 1000ms rate limit)
+- `data/engine/macro/BokEcosCollector.kt` — Fetches 24 months, computes YoY, ffill gaps
+- `data/engine/macro/MacroRegimeOverlay.kt` — 4-environment classification + weight adjustment
+- `domain/model/MacroModels.kt` — EcosIndicatorSpec, EcosDataPoint, MacroEnvironment, MacroSignalResult
+- `core/database/entity/MacroIndicatorEntity.kt` — Room entity for macro data cache
+- `core/database/dao/MacroDao.kt` — DAO
+- `core/worker/MacroUpdateWorker.kt` — Weekly (Sunday 05:30) background fetch
+- DB v17→v18 migration (macro_indicator table)
+- StatisticalAnalysisEngine: macro overlay applied to regime weights, macroSignalResult in StatisticalResult
+- Settings: ECOS API key in EncryptedSharedPreferences
+- UI: Macro environment chip (color-coded) + expandable card with 5 YoY values
+- 2 test files with full coverage
+**Acceptance test:** macroSignalVector returns valid result; 4 environments classified correctly; adjusted weights sum to 1.0
 
 ### PROMPT 07 — Stacking Ensemble
 **Status:** NOT STARTED

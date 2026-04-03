@@ -159,6 +159,20 @@ JSON 출력 스키마:
             }
         }
 
+        // 매크로 환경
+        result.macroSignalResult?.let { m ->
+            if (m.unavailableReason == null) {
+                sb.appendLine("[매크로 환경]")
+                sb.appendLine("- 분류: ${m.macroEnv}")
+                sb.appendLine("- 기준금리 YoY: ${String.format("%+.2f", m.baseRateYoy)}pp")
+                sb.appendLine("- M2 통화량 YoY: ${String.format("%+.1f", m.m2Yoy)}%")
+                sb.appendLine("- 산업생산 YoY: ${String.format("%+.1f", m.iipYoy)}%")
+                sb.appendLine("- USD/KRW YoY: ${String.format("%+.1f", m.usdKrwYoy)}%")
+                sb.appendLine("- CPI YoY: ${String.format("%+.1f", m.cpiYoy)}%")
+                sb.appendLine()
+            }
+        }
+
         sb.appendLine("위 데이터를 종합하여 JSON으로 응답하세요.")
 
         return sb.toString()

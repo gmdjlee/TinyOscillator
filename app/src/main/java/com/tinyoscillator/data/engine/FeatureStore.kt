@@ -94,6 +94,31 @@ class FeatureStore @Inject constructor(
         result
     }
 
+    /**
+     * 값을 캐시에 직접 저장 (compute 없이).
+     * Worker에서 미리 계산된 결과를 캐시할 때 사용.
+     */
+    suspend fun <T> put(
+        key: FeatureKey,
+        ttl: FeatureTtl,
+        serializer: KSerializer<T>,
+        value: T
+    ) = withContext(Dispatchers.IO) {
+        val keyStr = key.asString()
+        val serialized = json.encodeToString(serializer, value)
+        dao.upsert(
+            FeatureCacheEntity(
+                key = keyStr,
+                ticker = key.ticker,
+                featureName = key.featureName,
+                value = serialized,
+                computedAt = System.currentTimeMillis(),
+                ttlMs = ttl.ms
+            )
+        )
+        Timber.d("FeatureStore PUT: %s", keyStr)
+    }
+
     /** 특정 종목의 모든 캐시 무효화 */
     suspend fun invalidate(ticker: String) {
         dao.evictByTicker(ticker)

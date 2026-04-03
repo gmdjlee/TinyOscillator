@@ -127,7 +127,7 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 | `AnalyzeStockProbabilityUseCase` | domain/usecase | `AnalyzeStockProbabilityUseCase.kt` | Full analysis pipeline (stats → cache → LLM) |
 | `ApiConfigProvider` | core/config | `ApiConfigProvider.kt` | Thread-safe credential cache (volatile + mutex) |
 | `WorkManagerHelper` | core/worker | `WorkManagerHelper.kt` | Centralized worker scheduling |
-| `AppDatabase` | core/database | `AppDatabase.kt` | Room DB v17, 21 entities, 16 DAOs |
+| `AppDatabase` | core/database | `AppDatabase.kt` | Room DB v18, 22 entities, 17 DAOs |
 | `ProbabilisticPromptBuilder` | data/mapper | `ProbabilisticPromptBuilder.kt` | ChatML prompt for LLM analysis |
 | `FearGreedCalculator` | domain/usecase | `FearGreedCalculator.kt` | 7-indicator fear/greed index |
 | `MarketOscillatorCalculator` | domain/usecase | `MarketOscillatorCalculator.kt` | Market overbought/oversold index |
@@ -180,7 +180,14 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 - **Classification**: 7 event types via Korean keyword matching
 
 ### BOK ECOS
-- **Integration status**: Absent
+- **Credential storage**: EncryptedSharedPreferences (`api_settings_encrypted`)
+- **Rate limiting**: 1000ms per request (mutex-based)
+- **Base URL**: `https://ecos.bok.or.kr/api/StatisticSearch/{api_key}/json/kr/1/100/{stat_code}/{freq}/{start}/{end}/{item_code}`
+- **Indicators**: base_rate (722Y001), m2 (101Y004), iip (901Y033), usd_krw (731Y001), cpi (901Y009)
+- **Data lag**: 1-2 months — referenceDate minus 2 months for safety
+- **Caching**: Room `macro_indicator` table + FeatureStore (Weekly TTL)
+- **Macro environments**: EASING, TIGHTENING, NEUTRAL, STAGFLATION
+- **Ensemble overlay**: Adjusts regime weights (not a standalone engine)
 
 ## Analysis engine
 ### Algorithm inventory
@@ -239,6 +246,7 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 | `ConsensusUpdateWorker` | 03:00 daily | Analyst consensus reports (Equity + FnGuide) | Scheduled + manual |
 | `FearGreedUpdateWorker` | 04:00 daily | 7-indicator fear/greed index | Scheduled + manual |
 | `MarketCloseRefreshWorker` | 19:00 daily | Replace intraday data with confirmed close-of-day | Scheduled + manual |
+| `MacroUpdateWorker` | Sun 05:30 weekly | BOK ECOS 5 macro indicators + YoY | Scheduled + manual |
 | `DataIntegrityCheckWorker` | Manual only | Comprehensive data validation and repair | Manual |
 
 All workers: network-constrained, exponential backoff (30s initial), foreground service (DATA_SYNC), results logged to `worker_logs` table. Schedules are user-configurable in Settings and restored on app startup in `TinyOscillatorApp.onCreate()`.
@@ -268,10 +276,11 @@ All workers: network-constrained, exponential backoff (30s initial), foreground 
 | `RegimeStateEntity` | `RegimeDao` | HMM regime model state |
 | `FeatureCacheEntity` | `FeatureCacheDao` | Feature store cache |
 | `DartCorpCodeEntity` | `DartDao` | DART corp_code ↔ ticker mapping |
+| `MacroIndicatorEntity` | `MacroDao` | BOK ECOS macro indicator cache |
 
 ## Testing conventions
 - **Framework**: JUnit4 + MockK + Turbine (Flow) + coroutines-test + MockWebServer
-- **Test count**: 99 test files, ~1,404 tests total (all passing as of 2026-04-03)
+- **Test count**: 101 test files, ~1,429 tests total (all passing as of 2026-04-03)
 - **Location**: `app/src/test/` (unit tests only; no androidTest instrumented tests)
 - **Naming**: `ClassNameTest.kt` in same package structure as source
 - **Config**: `testOptions { unitTests.isReturnDefaultValues = true }`

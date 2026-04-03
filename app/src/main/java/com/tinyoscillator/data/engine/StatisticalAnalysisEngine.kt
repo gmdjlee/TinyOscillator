@@ -5,12 +5,15 @@ import com.tinyoscillator.core.database.entity.SignalHistoryEntity
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.data.engine.calibration.SignalCalibrator
 import com.tinyoscillator.data.engine.calibration.SignalScoreExtractor
+import com.tinyoscillator.data.engine.macro.MacroRegimeOverlay
 import com.tinyoscillator.data.engine.regime.MarketRegimeClassifier
 import com.tinyoscillator.data.engine.regime.RegimeWeightTable
 import com.tinyoscillator.domain.model.CalibratedScore
 import com.tinyoscillator.domain.model.ExecutionMetadata
 import com.tinyoscillator.domain.model.FeatureKey
 import com.tinyoscillator.domain.model.FeatureTtl
+import com.tinyoscillator.domain.model.MacroEnvironment
+import com.tinyoscillator.domain.model.MacroSignalResult
 import com.tinyoscillator.domain.model.MarketRegimeResult
 import com.tinyoscillator.domain.model.StatisticalResult
 import com.tinyoscillator.domain.repository.StatisticalRepository
@@ -44,6 +47,7 @@ class StatisticalAnalysisEngine @Inject constructor(
     val signalCalibrator: SignalCalibrator,
     private val calibrationDao: CalibrationDao,
     private val marketRegimeClassifier: MarketRegimeClassifier,
+    private val macroRegimeOverlay: MacroRegimeOverlay,
     private val featureStore: FeatureStore,
     private val apiConfigProvider: ApiConfigProvider
 ) {
@@ -51,6 +55,10 @@ class StatisticalAnalysisEngine @Inject constructor(
     /** 캐시된 시장 레짐 결과 (주기적으로 갱신) */
     @Volatile
     private var cachedRegimeResult: MarketRegimeResult? = null
+
+    /** 캐시된 매크로 신호 결과 (주간 갱신) */
+    @Volatile
+    private var cachedMacroSignal: MacroSignalResult? = null
 
     /**
      * 종합 통계 분석 실행 (FeatureStore 캐시 적용)
@@ -188,6 +196,13 @@ class StatisticalAnalysisEngine @Inject constructor(
                 regimeResult.regimeName, regimeResult.confidence * 100, regimeResult.regimeDurationDays)
         }
 
+        // 매크로 신호 결과 첨부 (캐시에서 가져옴 — 업데이트는 워커가 담당)
+        val macroSignal = cachedMacroSignal
+        if (macroSignal != null) {
+            Timber.d("  매크로 환경: %s (금리YoY=%.2fpp, IIP=%.1f%%, CPI=%.1f%%)",
+                macroSignal.macroEnv, macroSignal.baseRateYoy, macroSignal.iipYoy, macroSignal.cpiYoy)
+        }
+
         val result = StatisticalResult(
             ticker = stockCode,
             stockName = stockName,
@@ -201,6 +216,7 @@ class StatisticalAnalysisEngine @Inject constructor(
             orderFlowResult = orderFlowResult,
             dartEventResult = dartEventResult,
             marketRegimeResult = regimeResult,
+            macroSignalResult = macroSignal,
             executionMetadata = ExecutionMetadata(
                 totalTimeMs = totalTime,
                 engineTimings = timings.toMap(),
@@ -245,11 +261,30 @@ class StatisticalAnalysisEngine @Inject constructor(
     }
 
     /**
-     * 현재 레짐에 따른 알고리즘 가중치 반환
+     * 현재 레짐 + 매크로 오버레이 적용된 알고리즘 가중치 반환
      */
     fun getRegimeWeights(): Map<String, Double> {
         val regime = cachedRegimeResult ?: return RegimeWeightTable.equalWeights()
-        return RegimeWeightTable.getWeights(regime.regimeName)
+        val baseWeights = RegimeWeightTable.getWeights(regime.regimeName)
+
+        // 매크로 오버레이 적용
+        val macroSignal = cachedMacroSignal
+        if (macroSignal != null && macroSignal.unavailableReason == null) {
+            val macroEnv = MacroEnvironment.fromString(macroSignal.macroEnv)
+            val adjusted = macroRegimeOverlay.adjustRegimeWeights(baseWeights, macroEnv)
+            Timber.d("가중치 조정 — 레짐: %s, 매크로: %s", regime.regimeName, macroEnv.name)
+            return adjusted
+        }
+
+        return baseWeights
+    }
+
+    /**
+     * 매크로 신호 캐시 갱신 (MacroUpdateWorker에서 호출)
+     */
+    fun updateMacroSignal(result: MacroSignalResult) {
+        cachedMacroSignal = result
+        Timber.d("매크로 신호 갱신: %s (금리YoY=%.2fpp)", result.macroEnv, result.baseRateYoy)
     }
 
     private suspend fun recordSignalHistory(stockCode: String, result: StatisticalResult) {

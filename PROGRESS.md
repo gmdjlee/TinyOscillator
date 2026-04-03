@@ -252,8 +252,47 @@ _Each completed PROMPT session appends one block below._
   - `AnalyzeStockProbabilityUseCaseTest.kt` — added dartEventEngine + apiConfigProvider parameters
   - `RegimeWeightTableTest.kt` — updated from 8 to 9 algorithms
 
-### [PENDING] PROMPT 06 — BOK ECOS Macro
-- Status: NOT STARTED
+### [COMPLETE] PROMPT 06 — BOK ECOS Macro (2026-04-03)
+- Status: COMPLETE
+- Decision: Pure Kotlin implementation (no Chaquopy/Python) — consistent with PROMPT 01–05
+- BOK ECOS API key stored in EncryptedSharedPreferences via Settings screen
+- 5 indicators: base_rate (722Y001), m2 (101Y004), iip (901Y033), usd_krw (731Y001), cpi (901Y009)
+- YoY computation: base_rate uses absolute change (pp), others use percentage change
+- 4 macro environments: EASING, TIGHTENING, NEUTRAL, STAGFLATION
+- Classification priority: STAGFLATION > TIGHTENING/EASING > NEUTRAL
+- Weight overlay: adjusts regime weights (momentum ↓/↑, HMM ↑/↓, DartEvent/OrderFlow ↑), normalizes to sum=1.0
+- Data lag: ECOS data 1-2 month lag → referenceDate minus 2 months for safety
+- Caching: FeatureStore with Weekly TTL + Room DB macro_indicator table
+- New source files:
+  - `core/api/BokEcosApiClient.kt` — ECOS REST API client (rate limited 1000ms, JSON parsing)
+  - `data/engine/macro/BokEcosCollector.kt` — 24-month fetch, YoY computation, ffill (max 3 months)
+  - `data/engine/macro/MacroRegimeOverlay.kt` — 4-env classification + ensemble weight adjustment (all rules as constants)
+  - `domain/model/MacroModels.kt` — EcosIndicatorSpec, EcosDataPoint, MacroEnvironment, MacroSignalResult
+  - `core/database/entity/MacroIndicatorEntity.kt` — Room entity (PK=id, indicator_key+year_month indexes)
+  - `core/database/dao/MacroDao.kt` — getByIndicator, getByMonth, insertAll, deleteOlderThan
+  - `core/worker/MacroUpdateWorker.kt` — Weekly HiltWorker (fetches, classifies, caches, cleans up 36-month cutoff)
+- Modified files:
+  - `core/database/AppDatabase.kt` — v17→v18, MacroIndicatorEntity + macroDao()
+  - `core/di/DatabaseModule.kt` — MIGRATION_17_18 (macro_indicator table), provideMacroDao()
+  - `core/di/AppModule.kt` — provideBokEcosApiClient()
+  - `core/config/ApiConfigProvider.kt` — getEcosApiKey() with volatile+mutex cache
+  - `data/engine/FeatureStore.kt` — Added put() method for direct cache writes
+  - `data/engine/StatisticalAnalysisEngine.kt` — MacroRegimeOverlay injection, cachedMacroSignal, updateMacroSignal(), macro overlay in getRegimeWeights(), macroSignalResult in analyzeInternal()
+  - `domain/model/StatisticalModels.kt` — macroSignalResult field in StatisticalResult
+  - `domain/usecase/ProbabilityInterpreter.kt` — interpretMacro(), macro section in buildPromptForAi()
+  - `data/mapper/ProbabilisticPromptBuilder.kt` — macro environment section in user prompt
+  - `presentation/ai/AiAnalysisScreen.kt` — Macro environment chip (color-coded, tappable) + expandable bottom sheet with 5 YoY values + expandable card
+  - `presentation/ai/AiAnalysisViewModel.kt` — interpretLocal() includes macro
+  - `presentation/settings/SettingsScreen.kt` — PrefsKeys.ECOS_API_KEY, loadEcosApiKey(), saveEcosApiKey(), ecosApiKey state
+  - `presentation/settings/ApiKeySettingsSection.kt` — BOK ECOS API section (API key field + info)
+  - `core/worker/WorkManagerHelper.kt` — scheduleMacroUpdate() (weekly), cancelMacroUpdate(), runMacroUpdateNow()
+  - `TinyOscillatorApp.kt` — Schedule macro update on startup (Sunday 05:30)
+- Tests added (2 files):
+  - `BokEcosCollectorTest.kt` — 9 tests: blank key, insufficient data, valid result, ffill, ffill gap limit, base_rate absolute change, percentage change, zero division, closest month fallback
+  - `MacroRegimeOverlayTest.kt` — 16 tests: all 4 environments classified, STAGFLATION priority, boundary value, NEUTRAL no-change, weight sum=1.0 for all regime×env combinations, TIGHTENING/EASING/STAGFLATION weight adjustments, empty weights, positive weights, normalize, applyClassification, MacroEnvironment round-trip
+- Existing tests updated:
+  - `StatisticalAnalysisEngineTest.kt` — added macroRegimeOverlay parameter
+  - `AnalyzeStockProbabilityUseCaseTest.kt` — added macroRegimeOverlay parameter
 
 ### [PENDING] PROMPT 07 — Stacking Ensemble
 - Status: NOT STARTED

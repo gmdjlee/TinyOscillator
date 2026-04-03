@@ -9,6 +9,7 @@ import com.tinyoscillator.presentation.settings.loadAiConfig
 import com.tinyoscillator.presentation.settings.loadDartApiKey
 import com.tinyoscillator.presentation.settings.loadKisConfig
 import com.tinyoscillator.presentation.settings.loadKiwoomConfig
+import com.tinyoscillator.presentation.settings.loadEcosApiKey
 import com.tinyoscillator.presentation.settings.loadKrxCredentials
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.sync.Mutex
@@ -34,12 +35,15 @@ class ApiConfigProvider @Inject constructor(
     private var cachedAiConfig: AiApiKeyConfig? = null
     @Volatile
     private var cachedDartApiKey: String? = null
+    @Volatile
+    private var cachedEcosApiKey: String? = null
 
     private val kiwoomMutex = Mutex()
     private val kisMutex = Mutex()
     private val krxMutex = Mutex()
     private val aiMutex = Mutex()
     private val dartMutex = Mutex()
+    private val ecosMutex = Mutex()
 
     suspend fun getKiwoomConfig(): KiwoomApiKeyConfig {
         cachedKiwoomConfig?.let { return it }
@@ -91,6 +95,16 @@ class ApiConfigProvider @Inject constructor(
         }
     }
 
+    suspend fun getEcosApiKey(): String? {
+        cachedEcosApiKey?.let { return it.ifBlank { null } }
+        return ecosMutex.withLock {
+            cachedEcosApiKey?.let { return@withLock it.ifBlank { null } }
+            val key = loadEcosApiKey(context)
+            cachedEcosApiKey = key
+            key.ifBlank { null }
+        }
+    }
+
     /** Invalidate all cached configs (call after settings changes). */
     fun invalidateAll() {
         cachedKiwoomConfig = null
@@ -98,6 +112,7 @@ class ApiConfigProvider @Inject constructor(
         cachedKrxCredentials = null
         cachedAiConfig = null
         cachedDartApiKey = null
+        cachedEcosApiKey = null
     }
 
     /** Invalidate only Kiwoom config cache. */

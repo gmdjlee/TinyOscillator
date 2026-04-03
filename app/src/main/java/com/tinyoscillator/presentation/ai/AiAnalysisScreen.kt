@@ -807,6 +807,70 @@ private fun ProbabilityResultContent(
                 Spacer(Modifier.height(8.dp))
             }
 
+            // 매크로 환경 배지
+            result.macroSignalResult?.let { macro ->
+                if (macro.unavailableReason == null) {
+                    val macroColor = when (macro.macroEnv) {
+                        "EASING" -> Color(0xFF4CAF50)
+                        "TIGHTENING" -> Color(0xFFF44336)
+                        "STAGFLATION" -> Color(0xFFFF9800)
+                        else -> Color(0xFF9E9E9E)
+                    }
+                    val macroLabel = when (macro.macroEnv) {
+                        "EASING" -> "완화"
+                        "TIGHTENING" -> "긴축"
+                        "STAGFLATION" -> "스태그플레이션"
+                        else -> "중립"
+                    }
+                    var showMacroSheet by remember { mutableStateOf(false) }
+                    SuggestionChip(
+                        onClick = { showMacroSheet = !showMacroSheet },
+                        label = {
+                            Text(
+                                "매크로: $macroLabel",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = macroColor.copy(alpha = 0.35f)
+                        ),
+                        border = BorderStroke(1.dp, macroColor.copy(alpha = 0.7f))
+                    )
+                    AnimatedVisibility(visible = showMacroSheet) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("매크로 YoY 변화율", fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelMedium)
+                                Spacer(Modifier.height(4.dp))
+                                Text("기준금리: ${String.format("%+.2f", macro.baseRateYoy)}pp",
+                                    style = MaterialTheme.typography.bodySmall)
+                                Text("M2 통화량: ${String.format("%+.1f", macro.m2Yoy)}%",
+                                    style = MaterialTheme.typography.bodySmall)
+                                Text("산업생산: ${String.format("%+.1f", macro.iipYoy)}%",
+                                    style = MaterialTheme.typography.bodySmall)
+                                Text("USD/KRW: ${String.format("%+.1f", macro.usdKrwYoy)}%",
+                                    style = MaterialTheme.typography.bodySmall)
+                                Text("소비자물가: ${String.format("%+.1f", macro.cpiYoy)}%",
+                                    style = MaterialTheme.typography.bodySmall)
+                                if (macro.referenceMonth.isNotEmpty()) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("기준월: ${macro.referenceMonth}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+
             // Bayes 확률 요약 (한국 주식 관례: 상승=빨강, 하락=파랑, 횡보=회색)
             result.bayesResult?.let { bayes ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1004,6 +1068,36 @@ private fun ProbabilityResultContent(
                         style = MaterialTheme.typography.bodySmall)
                 }
                 EngineInterpretationBlock(engineInterpretations["dartevent"])
+            }
+        }
+    }
+
+    result.macroSignalResult?.let { macro ->
+        if (macro.unavailableReason == null) {
+            val envLabel = when (macro.macroEnv) {
+                "EASING" -> "완화"
+                "TIGHTENING" -> "긴축"
+                "STAGFLATION" -> "스태그플레이션"
+                else -> "중립"
+            }
+            ProbExpandableCard("매크로 환경: $envLabel") {
+                Text("기준금리 YoY: ${String.format("%+.2f", macro.baseRateYoy)}pp",
+                    style = MaterialTheme.typography.bodySmall)
+                Text("M2 통화량 YoY: ${String.format("%+.1f", macro.m2Yoy)}%",
+                    style = MaterialTheme.typography.bodySmall)
+                Text("산업생산 YoY: ${String.format("%+.1f", macro.iipYoy)}%",
+                    style = MaterialTheme.typography.bodySmall)
+                Text("USD/KRW YoY: ${String.format("%+.1f", macro.usdKrwYoy)}%",
+                    style = MaterialTheme.typography.bodySmall)
+                Text("소비자물가 YoY: ${String.format("%+.1f", macro.cpiYoy)}%",
+                    style = MaterialTheme.typography.bodySmall)
+                if (macro.referenceMonth.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("기준월: ${macro.referenceMonth}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                EngineInterpretationBlock(engineInterpretations["macro"])
             }
         }
     }

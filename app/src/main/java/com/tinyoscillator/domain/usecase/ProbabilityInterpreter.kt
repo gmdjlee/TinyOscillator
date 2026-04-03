@@ -459,6 +459,35 @@ class ProbabilityInterpreter @Inject constructor() {
         return sb.toString()
     }
 
+    /** 매크로 환경 해석 */
+    fun interpretMacro(macro: MacroSignalResult): String {
+        if (macro.unavailableReason != null) {
+            return "매크로 환경 분석 불가: ${macro.unavailableReason}"
+        }
+
+        val sb = StringBuilder()
+        val env = MacroEnvironment.fromString(macro.macroEnv)
+        sb.appendLine("BOK ECOS 매크로 지표 기반으로 현재 경제 환경을 분석했습니다.")
+        sb.appendLine("매크로 환경: ${env.label} (${env.description})")
+        sb.appendLine()
+        sb.appendLine("지표별 YoY 변화율:")
+        sb.appendLine("  기준금리: ${String.format("%+.2f", macro.baseRateYoy)}pp")
+        sb.appendLine("  M2 통화량: ${String.format("%+.1f", macro.m2Yoy)}%")
+        sb.appendLine("  산업생산: ${String.format("%+.1f", macro.iipYoy)}%")
+        sb.appendLine("  USD/KRW: ${String.format("%+.1f", macro.usdKrwYoy)}%")
+        sb.appendLine("  소비자물가: ${String.format("%+.1f", macro.cpiYoy)}%")
+        sb.appendLine()
+
+        sb.append(when (env) {
+            MacroEnvironment.EASING -> "완화 국면에서는 유동성 확대로 위험자산(주식)에 유리합니다. 모멘텀 전략의 신뢰도가 높아집니다."
+            MacroEnvironment.TIGHTENING -> "긴축 국면에서는 유동성 축소로 주식시장 변동성이 커질 수 있습니다. 레짐 탐지와 방어 전략에 주목하세요."
+            MacroEnvironment.STAGFLATION -> "스태그플레이션 구간에서는 경기 둔화와 물가 상승이 동시에 발생합니다. 이벤트 기반 단기 전략과 자금흐름 추적이 중요합니다."
+            MacroEnvironment.NEUTRAL -> "현재 매크로 환경은 특별한 방향성이 없습니다. 기존 레짐 기반 전략을 유지합니다."
+        })
+
+        return sb.toString()
+    }
+
     /** AI 해석용 프롬프트 생성 */
     fun buildPromptForAi(result: StatisticalResult): String {
         val sb = StringBuilder()
@@ -519,6 +548,13 @@ class ProbabilityInterpreter @Inject constructor() {
 
         result.marketRegimeResult?.let { r ->
             sb.appendLine("[시장 레짐] ${r.regimeDescription}(${r.regimeName}) 신뢰도=${pct(r.confidence)} 지속=${r.regimeDurationDays}일")
+        }
+
+        result.macroSignalResult?.let { m ->
+            if (m.unavailableReason == null) {
+                val env = MacroEnvironment.fromString(m.macroEnv)
+                sb.appendLine("[매크로 환경] ${env.label}(${env.name}) 금리YoY=${String.format("%+.2f", m.baseRateYoy)}pp M2=${String.format("%+.1f", m.m2Yoy)}% IIP=${String.format("%+.1f", m.iipYoy)}% 환율=${String.format("%+.1f", m.usdKrwYoy)}% CPI=${String.format("%+.1f", m.cpiYoy)}%")
+            }
         }
 
         return sb.toString()
