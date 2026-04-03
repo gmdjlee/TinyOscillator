@@ -52,6 +52,12 @@ object SignalScoreExtractor {
             }
         }
 
+        result.korea5FactorResult?.let {
+            if (it.unavailableReason == null) {
+                scores.add(RawSignalScore("Korea5Factor", it.signalScore))
+            }
+        }
+
         return scores
     }
 

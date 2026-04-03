@@ -1172,6 +1172,32 @@ private fun ProbabilityResultContent(
         }
     }
 
+    result.korea5FactorResult?.let { k5 ->
+        if (k5.unavailableReason == null) {
+            val alphaDir = when {
+                k5.alphaZscore > 1.0 -> "강한 양(+)"
+                k5.alphaZscore > 0.3 -> "양(+)"
+                k5.alphaZscore < -1.0 -> "강한 음(-)"
+                k5.alphaZscore < -0.3 -> "음(-)"
+                else -> "중립"
+            }
+            ProbExpandableCard("5팩터 알파: $alphaDir (z=${String.format("%+.2f", k5.alphaZscore)})") {
+                Text("신호 점수: ${pctFmt(k5.signalScore)}")
+                Text("alpha: ${String.format("%+.4f", k5.alphaRaw)} (${k5.nObs}개월 윈도우)",
+                    style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(4.dp))
+                Text("팩터 베타:", style = MaterialTheme.typography.bodySmall)
+                Text("  MKT=${String.format("%.2f", k5.betas.mkt)}, SMB=${String.format("%+.3f", k5.betas.smb)}, HML=${String.format("%+.3f", k5.betas.hml)}",
+                    style = MaterialTheme.typography.bodySmall)
+                Text("  RMW=${String.format("%+.3f", k5.betas.rmw)}, CMA=${String.format("%+.3f", k5.betas.cma)}",
+                    style = MaterialTheme.typography.bodySmall)
+                Text("R²: ${String.format("%.1f%%", k5.rSquared * 100)}",
+                    style = MaterialTheme.typography.bodySmall)
+                EngineInterpretationBlock(engineInterpretations["korea5factor"])
+            }
+        }
+    }
+
     result.macroSignalResult?.let { macro ->
         if (macro.unavailableReason == null) {
             val envLabel = when (macro.macroEnv) {

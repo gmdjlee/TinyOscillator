@@ -1,9 +1,9 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-03 by PROMPT 09 Incremental Learning_
+_Last updated: 2026-04-03 by PROMPT 10 Korea 5-Factor Model_
 
 ## Current session
-**PROMPT 09 — Incremental Learning** COMPLETE. Ready to begin PROMPT 10.
+**PROMPT 10 — Korea 5-Factor Model** COMPLETE. Ready to begin PROMPT 11.
 
 ## Upcoming tasks (ordered)
 
@@ -143,15 +143,22 @@ _Last updated: 2026-04-03 by PROMPT 09 Incremental Learning_
 **Acceptance test:** dailyUpdate() < 200ms on 1-sample; save/load roundtrip identical predictions; drift detection fires
 
 ### PROMPT 10 — Korea 5-Factor Model
-**Status:** NOT STARTED
+**Status:** COMPLETE (2026-04-03)
 **Prerequisite:** PROMPT 03 (FeatureStore), PROMPT 06 (macro data for RF rate)
+**Decision:** Pure Kotlin implementation — consistent with PROMPT 01–09 (no Chaquopy/Python)
 **Delivers:**
-- `app/src/main/python/factors/factor_data_builder.py`
-- `app/src/main/python/factors/factor_model.py`
-- `app/src/main/python/factors/factor_cache.py`
-- Ensemble extended to 10 algorithms
-- Kotlin: `FactorAlphaDto`
-**Acceptance test:** rolling_alpha runs on 005930 with 36-month history
+- `data/engine/Korea5FactorEngine.kt` — 10th engine: OLS 5-factor regression, rolling alpha, z-score signal
+- `domain/model/FactorModels.kt` — Korea5FactorResult, FactorBetas, MonthlyFactorRow, FactorDataCache
+- Ensemble extended to 10 algorithms (10th: Korea5Factor)
+- `RegimeWeightTable` updated: Korea5Factor gets 0.07–0.13 weight (highest in BULL_LOW_VOL)
+- `SignalScoreExtractor`: extracts signalScore for Korea5Factor calibration
+- `SignalCalibrator`: Korea5Factor added to ALGO_NAMES
+- `ProbabilityInterpreter.interpretKorea5Factor()` — rule-based Korean interpretation
+- `ProbabilisticPromptBuilder` — Korea5Factor section in AI prompt (10개 알고리즘)
+- UI: 5팩터 알파 expandable card with betas, R², z-score
+- Factor data cached via FeatureStore (Weekly TTL) — no new DB table needed
+- `Korea5FactorEngineTest.kt` — 12 tests
+**Acceptance test:** OLS alpha recovery within 0.015 on synthetic data; rolling_alpha correct entry count; signal bounded [0,1]; guard for < 24 obs
 
 ### PROMPT 11 — Sector Network + Vectorized Indicators
 **Status:** NOT STARTED

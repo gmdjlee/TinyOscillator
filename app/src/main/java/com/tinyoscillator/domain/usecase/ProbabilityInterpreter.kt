@@ -62,6 +62,20 @@ class ProbabilityInterpreter @Inject constructor() {
             }
         }
 
+        // 5팩터 모델
+        result.korea5FactorResult?.let { k5 ->
+            if (k5.unavailableReason == null) {
+                val direction = when {
+                    k5.alphaZscore > 1.0 -> "강한 양(+) 알파"
+                    k5.alphaZscore > 0.3 -> "양(+) 알파"
+                    k5.alphaZscore < -1.0 -> "강한 음(-) 알파"
+                    k5.alphaZscore < -0.3 -> "음(-) 알파"
+                    else -> "중립 알파"
+                }
+                parts += "5팩터 알파: $direction (z=${String.format("%+.2f", k5.alphaZscore)})"
+            }
+        }
+
         if (parts.isEmpty()) return "분석 결과를 해석할 수 없습니다."
 
         // 종합 판단
@@ -488,6 +502,44 @@ class ProbabilityInterpreter @Inject constructor() {
         return sb.toString()
     }
 
+    /** 한국형 5팩터 모델 해석 */
+    fun interpretKorea5Factor(k5: Korea5FactorResult): String {
+        val sb = StringBuilder()
+        if (k5.unavailableReason != null) {
+            sb.appendLine("5팩터 모델: 사용 불가 (${k5.unavailableReason})")
+            return sb.toString()
+        }
+
+        sb.appendLine("한국형 Fama-French 5팩터 모델이 ${k5.nObs}개월 데이터를 분석했습니다.")
+        sb.appendLine("팩터 조정 후 초과 수익률(알파)을 기준으로 종목의 가치를 평가합니다.")
+        sb.appendLine()
+
+        // 알파 해석
+        val alphaDesc = when {
+            k5.alphaZscore > 1.5 -> "매우 강한 양(+)의 알파로, 팩터 대비 뚜렷한 초과 수익을 보입니다."
+            k5.alphaZscore > 0.5 -> "양(+)의 알파로, 팩터 대비 소폭 초과 수익이 관찰됩니다."
+            k5.alphaZscore > -0.5 -> "알파가 중립 수준으로, 팩터 모델이 수익률을 잘 설명합니다."
+            k5.alphaZscore > -1.5 -> "음(-)의 알파로, 팩터 대비 저조한 수익률을 보입니다."
+            else -> "매우 강한 음(-)의 알파로, 팩터 대비 현저히 부진합니다."
+        }
+        sb.appendLine("알파: ${String.format("%+.4f", k5.alphaRaw)} (z-score: ${String.format("%+.2f", k5.alphaZscore)})")
+        sb.appendLine(alphaDesc)
+        sb.appendLine()
+
+        // 베타 해석
+        sb.appendLine("팩터 노출도:")
+        val b = k5.betas
+        sb.appendLine("  시장(MKT): ${String.format("%.2f", b.mkt)} — ${if (b.mkt > 1.1) "공격적" else if (b.mkt < 0.9) "방어적" else "시장 수준"}")
+        sb.appendLine("  규모(SMB): ${String.format("%+.3f", b.smb)} — ${if (b.smb > 0.1) "소형주 특성" else if (b.smb < -0.1) "대형주 특성" else "중립"}")
+        sb.appendLine("  가치(HML): ${String.format("%+.3f", b.hml)} — ${if (b.hml > 0.1) "가치주" else if (b.hml < -0.1) "성장주" else "중립"}")
+        sb.appendLine("  수익성(RMW): ${String.format("%+.3f", b.rmw)} — ${if (b.rmw > 0.1) "고수익성" else if (b.rmw < -0.1) "저수익성" else "중립"}")
+        sb.appendLine("  투자(CMA): ${String.format("%+.3f", b.cma)} — ${if (b.cma > 0.1) "보수적 투자" else if (b.cma < -0.1) "공격적 투자" else "중립"}")
+        sb.appendLine()
+        sb.appendLine("설명력(R²): ${String.format("%.1f%%", k5.rSquared * 100)}")
+
+        return sb.toString()
+    }
+
     /** 포지션 사이징 추천 해석 */
     fun interpretPositionRecommendation(pr: PositionRecommendation): String {
         val sb = StringBuilder()
@@ -523,7 +575,7 @@ class ProbabilityInterpreter @Inject constructor() {
     /** AI 해석용 프롬프트 생성 */
     fun buildPromptForAi(result: StatisticalResult): String {
         val sb = StringBuilder()
-        sb.appendLine("다음은 ${result.stockName}(${result.ticker})의 9개 통계 알고리즘 확률분석 결과입니다.")
+        sb.appendLine("다음은 ${result.stockName}(${result.ticker})의 10개 통계 알고리즘 확률분석 결과입니다.")
         sb.appendLine("2-레벨 스태킹 앙상블로 메타 학습기가 학습된 경우 종합 확률이 제공됩니다.")
         sb.appendLine("각 결과를 종합하여 투자자에게 유용한 해석을 제공해주세요.")
         sb.appendLine()

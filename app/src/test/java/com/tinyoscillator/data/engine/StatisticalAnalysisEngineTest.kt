@@ -59,6 +59,11 @@ class StatisticalAnalysisEngineTest {
                 mockk(relaxed = true),
                 mockk(relaxed = true)
             ),
+            korea5FactorEngine = Korea5FactorEngine(
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true)
+            ),
             signalCalibrator = SignalCalibrator(),
             calibrationDao = calibrationDao,
             marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier(),

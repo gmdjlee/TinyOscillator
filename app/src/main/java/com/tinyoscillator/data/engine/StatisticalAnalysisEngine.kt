@@ -12,6 +12,7 @@ import com.tinyoscillator.data.engine.macro.MacroRegimeOverlay
 import com.tinyoscillator.data.engine.regime.MarketRegimeClassifier
 import com.tinyoscillator.data.engine.regime.RegimeWeightTable
 import com.tinyoscillator.data.engine.risk.PositionRecommendationEngine
+import com.tinyoscillator.domain.model.Korea5FactorResult
 import com.tinyoscillator.domain.model.MetaLearnerStatus
 import com.tinyoscillator.domain.model.CalibratedScore
 import com.tinyoscillator.domain.model.ExecutionMetadata
@@ -31,7 +32,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 통계 분석 오케스트레이터 — 9개 엔진을 coroutine으로 병렬 실행하고 결과를 통합
+ * 통계 분석 오케스트레이터 — 10개 엔진을 coroutine으로 병렬 실행하고 결과를 통합
  *
  * 각 엔진의 실패는 개별 처리 (하나가 실패해도 나머지 결과는 반환).
  * 보정기가 학습된 경우, 원시 점수를 보정된 확률로 변환.
@@ -49,6 +50,7 @@ class StatisticalAnalysisEngine @Inject constructor(
     private val bayesianUpdateEngine: BayesianUpdateEngine,
     private val orderFlowEngine: OrderFlowEngine,
     private val dartEventEngine: DartEventEngine,
+    private val korea5FactorEngine: Korea5FactorEngine,
     val signalCalibrator: SignalCalibrator,
     private val calibrationDao: CalibrationDao,
     private val marketRegimeClassifier: MarketRegimeClassifier,
@@ -107,7 +109,7 @@ class StatisticalAnalysisEngine @Inject constructor(
     /**
      * 종합 통계 분석 실행 (내부 — 캐시 미스 시 호출)
      *
-     * 9개 엔진을 병렬 실행하고 결과를 StatisticalResult로 통합.
+     * 10개 엔진을 병렬 실행하고 결과를 StatisticalResult로 통합.
      * 각 엔진 실패 시 해당 결과만 null로 표시.
      */
     private suspend fun analyzeInternal(stockCode: String): StatisticalResult = coroutineScope {
@@ -183,6 +185,12 @@ class StatisticalAnalysisEngine @Inject constructor(
             }
         }
 
+        val korea5FactorDeferred = async {
+            timedExecution("Korea5Factor", timings, failedEngines) {
+                korea5FactorEngine.analyze(prices, stockCode)
+            }
+        }
+
         // 패턴 분석 결과를 기다린 후 SignalScoring에 전달
         val patternResult = patternDeferred.await()
 
@@ -202,6 +210,7 @@ class StatisticalAnalysisEngine @Inject constructor(
         val bayesianUpdateResult = bayesianUpdateDeferred.await()
         val orderFlowResult = orderFlowDeferred.await()
         val dartEventResult = dartEventDeferred.await()
+        val korea5FactorResult = korea5FactorDeferred.await()
         val signalResult = signalDeferred.await()
 
         val totalTime = System.currentTimeMillis() - totalStart
@@ -231,8 +240,8 @@ class StatisticalAnalysisEngine @Inject constructor(
                 hmmResult = hmmResult, patternAnalysis = patternResult,
                 signalScoringResult = signalResult, correlationAnalysis = correlationResult,
                 bayesianUpdateResult = bayesianUpdateResult, orderFlowResult = orderFlowResult,
-                dartEventResult = dartEventResult, marketRegimeResult = regimeResult,
-                macroSignalResult = macroSignal
+                dartEventResult = dartEventResult, korea5FactorResult = korea5FactorResult,
+                marketRegimeResult = regimeResult, macroSignalResult = macroSignal
             )
             val ensembleProb = getEnsembleProbability(tempResult)
             positionRecommendationEngine.recommend(
@@ -257,6 +266,7 @@ class StatisticalAnalysisEngine @Inject constructor(
             bayesianUpdateResult = bayesianUpdateResult,
             orderFlowResult = orderFlowResult,
             dartEventResult = dartEventResult,
+            korea5FactorResult = korea5FactorResult,
             marketRegimeResult = regimeResult,
             macroSignalResult = macroSignal,
             positionRecommendation = positionRec,

@@ -38,7 +38,7 @@ $userPrompt<|im_end|>
     fun buildSystemPrompt(): String = """You are a Korean stock analyst. All numbers below are PRE-COMPUTED by statistical engines. NEVER recalculate any number. Your job is to INTERPRET and SYNTHESIZE the results.
 
 분석 가이드라인:
-1. 9개 알고리즘 결과를 2-레벨 스태킹 앙상블로 종합하여 투자 의견을 제시
+1. 10개 알고리즘 결과를 2-레벨 스태킹 앙상블로 종합하여 투자 의견을 제시
 2. 상충 신호가 있으면 과거 승률이 높은 쪽에 가중
 3. 레짐(HMM)에 따라 신호의 신뢰도를 조정
 4. 확률이 0.6 이상이면 유의미, 0.7 이상이면 강한 신호로 해석
@@ -156,6 +156,17 @@ JSON 출력 스키마:
                 de.eventStudies.take(3).forEach { es ->
                     sb.appendLine("  · ${es.eventDate} ${DartEventType.toKorean(es.eventType)}: CAR=${pct(es.carFinal)} t=${fmt2(es.tStat)}")
                 }
+                sb.appendLine()
+            }
+        }
+
+        // 5팩터 모델
+        result.korea5FactorResult?.let { k5 ->
+            if (k5.unavailableReason == null) {
+                sb.appendLine("[한국형 5팩터 모델]")
+                sb.appendLine("- 신호점수: ${pct(k5.signalScore)}, alpha: ${String.format("%+.4f", k5.alphaRaw)}, z-score: ${String.format("%+.2f", k5.alphaZscore)}")
+                sb.appendLine("- 베타: MKT=${fmt2(k5.betas.mkt)}, SMB=${fmt2(k5.betas.smb)}, HML=${fmt2(k5.betas.hml)}, RMW=${fmt2(k5.betas.rmw)}, CMA=${fmt2(k5.betas.cma)}")
+                sb.appendLine("- R²=${String.format("%.1f%%", k5.rSquared * 100)}, 관측치=${k5.nObs}개월")
                 sb.appendLine()
             }
         }

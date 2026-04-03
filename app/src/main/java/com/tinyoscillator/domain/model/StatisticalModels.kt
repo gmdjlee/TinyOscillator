@@ -26,6 +26,7 @@ data class StatisticalResult(
     val bayesianUpdateResult: BayesianUpdateResult? = null,
     val orderFlowResult: OrderFlowResult? = null,
     val dartEventResult: DartEventResult? = null,
+    val korea5FactorResult: Korea5FactorResult? = null,
     val marketRegimeResult: MarketRegimeResult? = null,
     val macroSignalResult: MacroSignalResult? = null,
     val positionRecommendation: PositionRecommendation? = null,

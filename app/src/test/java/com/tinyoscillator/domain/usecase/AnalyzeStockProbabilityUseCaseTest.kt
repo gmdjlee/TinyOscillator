@@ -64,6 +64,11 @@ class AnalyzeStockProbabilityUseCaseTest {
                 mockk(relaxed = true),
                 mockk(relaxed = true)
             ),
+            korea5FactorEngine = com.tinyoscillator.data.engine.Korea5FactorEngine(
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true)
+            ),
             signalCalibrator = SignalCalibrator(),
             calibrationDao = calibrationDao,
             marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier(),

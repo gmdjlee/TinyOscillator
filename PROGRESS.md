@@ -1,6 +1,6 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-02 | Session: PROMPT 00 — Baseline Sync_
+_Last updated: 2026-04-03 | Session: PROMPT 10 — Korea 5-Factor Model_
 
 ---
 
@@ -37,11 +37,14 @@ against which all future changes are measured._
 | 5 | Signal Scoring | `SignalScoringEngine` | `data/engine/SignalScoringEngine.kt` | 0–100 + direction | No | Win-rate weighted (internal) |
 | 6 | Rolling Correlation | `CorrelationEngine` | `data/engine/CorrelationEngine.kt` | r ∈ [-1,1] | No | Equal |
 | 7 | Bayesian Updating | `BayesianUpdateEngine` | `data/engine/BayesianUpdateEngine.kt` | [0.001,0.999] | No | Equal |
+| 8 | Order Flow | `OrderFlowEngine` | `data/engine/OrderFlowEngine.kt` | [0,1] buyerDominanceScore | No | Regime-weighted |
+| 9 | DART Event Study | `DartEventEngine` | `data/engine/DartEventEngine.kt` | [0,1] signalScore | No | Regime-weighted |
+| 10 | Korea 5-Factor | `Korea5FactorEngine` | `data/engine/Korea5FactorEngine.kt` | [0,1] signalScore (sigmoid(alpha_zscore)) | No | Regime-weighted |
 
 ### Ensemble orchestrator
 - **Class**: `StatisticalAnalysisEngine`
 - **File**: `data/engine/StatisticalAnalysisEngine.kt`
-- **Aggregation**: Regime-aware weighting via `RegimeWeightTable` — all 9 engines run in parallel via coroutineScope/async; results collected into `StatisticalResult` with individual fields + `MarketRegimeResult`. The AI API (via `ProbabilisticPromptBuilder`) or `ProbabilityInterpreter` synthesizes the final interpretation with regime context.
+- **Aggregation**: Regime-aware weighting via `RegimeWeightTable` — all 10 engines run in parallel via coroutineScope/async; results collected into `StatisticalResult` with individual fields + `MarketRegimeResult`. The AI API (via `ProbabilisticPromptBuilder`) or `ProbabilityInterpreter` synthesizes the final interpretation with regime context.
 - **Regime integration**: `MarketRegimeClassifier` provides current market regime (BULL_LOW_VOL/BEAR_HIGH_VOL/SIDEWAYS/CRISIS) and per-algorithm weight table. Regime result cached and updated weekly by `RegimeUpdateWorker`.
 
 ### Room database entities (v13)
