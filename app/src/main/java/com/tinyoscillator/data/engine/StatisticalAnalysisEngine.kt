@@ -10,6 +10,7 @@ import com.tinyoscillator.data.engine.ensemble.StackingEnsemble
 import com.tinyoscillator.data.engine.macro.MacroRegimeOverlay
 import com.tinyoscillator.data.engine.regime.MarketRegimeClassifier
 import com.tinyoscillator.data.engine.regime.RegimeWeightTable
+import com.tinyoscillator.data.engine.risk.PositionRecommendationEngine
 import com.tinyoscillator.domain.model.MetaLearnerStatus
 import com.tinyoscillator.domain.model.CalibratedScore
 import com.tinyoscillator.domain.model.ExecutionMetadata
@@ -55,6 +56,9 @@ class StatisticalAnalysisEngine @Inject constructor(
     private val apiConfigProvider: ApiConfigProvider,
     val signalHistoryStore: SignalHistoryStore
 ) {
+
+    /** 포지션 사이징 추천 엔진 */
+    val positionRecommendationEngine = PositionRecommendationEngine()
 
     /** 스태킹 앙상블 메타 학습기 */
     val stackingEnsemble = StackingEnsemble(
@@ -213,6 +217,28 @@ class StatisticalAnalysisEngine @Inject constructor(
                 macroSignal.macroEnv, macroSignal.baseRateYoy, macroSignal.iipYoy, macroSignal.cpiYoy)
         }
 
+        // 포지션 사이징 추천 계산 (앙상블 확률 + 가격 데이터 필요)
+        val positionRec = try {
+            val tempResult = StatisticalResult(
+                ticker = stockCode, stockName = stockName,
+                bayesResult = bayesResult, logisticResult = logisticResult,
+                hmmResult = hmmResult, patternAnalysis = patternResult,
+                signalScoringResult = signalResult, correlationAnalysis = correlationResult,
+                bayesianUpdateResult = bayesianUpdateResult, orderFlowResult = orderFlowResult,
+                dartEventResult = dartEventResult, marketRegimeResult = regimeResult,
+                macroSignalResult = macroSignal
+            )
+            val ensembleProb = getEnsembleProbability(tempResult)
+            positionRecommendationEngine.recommend(
+                ticker = stockCode,
+                signalProb = ensembleProb,
+                prices = prices
+            )
+        } catch (e: Exception) {
+            Timber.w(e, "포지션 사이징 추천 실패")
+            null
+        }
+
         val result = StatisticalResult(
             ticker = stockCode,
             stockName = stockName,
@@ -227,6 +253,7 @@ class StatisticalAnalysisEngine @Inject constructor(
             dartEventResult = dartEventResult,
             marketRegimeResult = regimeResult,
             macroSignalResult = macroSignal,
+            positionRecommendation = positionRec,
             executionMetadata = ExecutionMetadata(
                 totalTimeMs = totalTime,
                 engineTimings = timings.toMap(),

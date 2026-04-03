@@ -28,6 +28,7 @@ data class StatisticalResult(
     val dartEventResult: DartEventResult? = null,
     val marketRegimeResult: MarketRegimeResult? = null,
     val macroSignalResult: MacroSignalResult? = null,
+    val positionRecommendation: PositionRecommendation? = null,
     val executionMetadata: ExecutionMetadata = ExecutionMetadata()
 )
 

@@ -1,9 +1,9 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-03 by PROMPT 07 Stacking Ensemble_
+_Last updated: 2026-04-03 by PROMPT 08 Kelly + CVaR_
 
 ## Current session
-**PROMPT 07 — Stacking Ensemble** COMPLETE. Ready to begin PROMPT 08.
+**PROMPT 08 — Kelly + CVaR** COMPLETE. Ready to begin PROMPT 09.
 
 ## Upcoming tasks (ordered)
 
@@ -110,14 +110,19 @@ _Last updated: 2026-04-03 by PROMPT 07 Stacking Ensemble_
 **Acceptance test:** Cold-start fallback tested; meta-learner fits on 60+ synthetic samples; save/load roundtrip; MetaLearnerStatus in UI
 
 ### PROMPT 08 — Kelly + CVaR
-**Status:** NOT STARTED
+**Status:** COMPLETE (2026-04-03)
 **Prerequisite:** PROMPT 01 (calibration), PROMPT 07 (stacking)
+**Decision:** Pure Kotlin implementation — consistent with PROMPT 01–07 (no Chaquopy/Python)
 **Delivers:**
-- `app/src/main/python/risk/kelly_position_sizer.py`
-- `app/src/main/python/risk/cvar_risk_overlay.py`
-- `app/src/main/python/risk/position_recommendation.py`
-- Kotlin: `PositionRecommendationDto`, Position Guide UI card
-**Acceptance test:** CVaR bound reduces Kelly size in stress test with -15% daily returns
+- `data/engine/risk/KellyPositionSizer.kt` — Fractional Kelly criterion (quarter-Kelly default)
+- `data/engine/risk/CVaRRiskOverlay.kt` — Cornish-Fisher CVaR with position limit
+- `data/engine/risk/PositionRecommendationEngine.kt` — Orchestrates Kelly + CVaR → PositionRecommendation
+- `domain/model/PositionModels.kt` — PositionRecommendation, KellyResult, SizeReasonCode
+- StatisticalResult: `positionRecommendation` field computed after ensemble probability
+- UI: Position Guide card with horizontal bar, CVaR subtitle, disclaimer
+- ProbabilityInterpreter: `interpretPositionRecommendation()` + AI prompt section
+- 3 test files: KellyPositionSizerTest (17 tests), CVaRRiskOverlayTest (16 tests), PositionRecommendationEngineTest (14 tests)
+**Acceptance test:** CVaR bound reduces Kelly size in stress test; recommend() returns finite result for Samsung with 252 days; NO_EDGE when signal_prob=0.48
 
 ### PROMPT 09 — Incremental Learning
 **Status:** NOT STARTED

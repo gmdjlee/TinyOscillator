@@ -385,6 +385,7 @@ class AiAnalysisViewModel @Inject constructor(
         result.dartEventResult?.let { engines["dartevent"] = probabilityInterpreter.interpretDartEvent(it) }
         result.marketRegimeResult?.let { engines["regime"] = probabilityInterpreter.interpretMarketRegime(it) }
         result.macroSignalResult?.let { engines["macro"] = probabilityInterpreter.interpretMacro(it) }
+        result.positionRecommendation?.let { engines["position"] = probabilityInterpreter.interpretPositionRecommendation(it) }
 
         _interpretationState.value = InterpretationState.Success(
             summary = summary,

@@ -42,6 +42,7 @@ $userPrompt<|im_end|>
 2. 상충 신호가 있으면 과거 승률이 높은 쪽에 가중
 3. 레짐(HMM)에 따라 신호의 신뢰도를 조정
 4. 확률이 0.6 이상이면 유의미, 0.7 이상이면 강한 신호로 해석
+5. 포지션 가이드(Kelly+CVaR)가 있으면 추천 비중을 참고하여 행동 권고에 반영
 
 JSON 출력 스키마:
 {
@@ -169,6 +170,20 @@ JSON 출력 스키마:
                 sb.appendLine("- 산업생산 YoY: ${String.format("%+.1f", m.iipYoy)}%")
                 sb.appendLine("- USD/KRW YoY: ${String.format("%+.1f", m.usdKrwYoy)}%")
                 sb.appendLine("- CPI YoY: ${String.format("%+.1f", m.cpiYoy)}%")
+                sb.appendLine()
+            }
+        }
+
+        // 포지션 가이드
+        result.positionRecommendation?.let { pr ->
+            if (pr.unavailableReason == null) {
+                sb.appendLine("[포지션 가이드 (Kelly+CVaR)]")
+                sb.appendLine("- 추천 비중: ${String.format("%.1f%%", pr.recommendedPct * 100)}")
+                sb.appendLine("- 신호 우위: ${String.format("%+.1f%%p", pr.signalEdge * 100)}")
+                sb.appendLine("- Kelly(분율): ${String.format("%.1f%%", pr.kellyFractional * 100)}")
+                sb.appendLine("- CVaR(95%,1d): ${String.format("%.2f%%", pr.cvar1d * 100)}, 한도: ${String.format("%.1f%%", pr.cvarLimit * 100)}")
+                sb.appendLine("- 제한사유: ${pr.sizeReasonCode.label}")
+                sb.appendLine("※ 분석 참고용이며 투자 조언이 아닙니다.")
                 sb.appendLine()
             }
         }

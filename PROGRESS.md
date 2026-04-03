@@ -327,8 +327,30 @@ _Each completed PROMPT session appends one block below._
   - `StatisticalAnalysisEngineTest.kt` — added signalHistoryStore parameter
   - `AnalyzeStockProbabilityUseCaseTest.kt` — added signalHistoryStore parameter
 
-### [PENDING] PROMPT 08 — Kelly + CVaR
-- Status: NOT STARTED
+### [COMPLETE] PROMPT 08 — Kelly + CVaR (2026-04-03)
+- Status: COMPLETE
+- Decision: Pure Kotlin implementation (no Chaquopy/Python) — consistent with PROMPT 01–07
+- Fractional Kelly criterion: f* = (p·b − q)/b × 0.25 (quarter-Kelly), with volatility adjustment
+- Cornish-Fisher CVaR: skewness + excess kurtosis correction for tail risk, fallback to historical CVaR
+- Position limit: daily loss budget (2%) / |CVaR|, clipped to [0, 1]
+- 4 SizeReasonCodes: KELLY_BOUND, CVAR_BOUND, MAX_POSITION, NO_EDGE
+- No DB migration needed — recommendation is computed on-the-fly and cached via FeatureStore as part of StatisticalResult
+- New source files:
+  - `data/engine/risk/KellyPositionSizer.kt` — Fractional Kelly: estimateWinLossRatio, kellyFraction, size(), computeReturns, realizedVolatility
+  - `data/engine/risk/CVaRRiskOverlay.kt` — historicalCvar, cornishFisherCvar, positionLimit, riskAdjustedSize, normalPdf/Cdf/Quantile (Abramowitz-Stegun + Beasley-Springer-Moro)
+  - `data/engine/risk/PositionRecommendationEngine.kt` — Orchestrates Kelly + CVaR → PositionRecommendation with sizeReasonCode
+  - `domain/model/PositionModels.kt` — PositionRecommendation (13 fields), KellyResult, SizeReasonCode enum
+- Modified files:
+  - `domain/model/StatisticalModels.kt` — Added positionRecommendation field to StatisticalResult
+  - `data/engine/StatisticalAnalysisEngine.kt` — PositionRecommendationEngine integration, computes recommendation after ensemble probability
+  - `domain/usecase/ProbabilityInterpreter.kt` — interpretPositionRecommendation(), position guide in buildPromptForAi()
+  - `data/mapper/ProbabilisticPromptBuilder.kt` — Position Guide section in system + user prompts
+  - `presentation/ai/AiAnalysisScreen.kt` — PositionGuideCard (horizontal bar 0%→rec%→max%, CVaR subtitle, details toggle, disclaimer)
+  - `presentation/ai/AiAnalysisViewModel.kt` — interpretLocal() includes position recommendation
+- Tests added (3 files):
+  - `KellyPositionSizerTest.kt` — 17 tests: kellyFraction returns 0 when no edge, size bounds [0, maxPosition], WLR clipping, vol adjustment, computeReturns, realizedVolatility
+  - `CVaRRiskOverlayTest.kt` — 16 tests: historical CVaR negative, CF fallback for small samples, CF non-positive, stress scenario, positionLimit 0 when CVaR >= 0, riskAdjustedSize ≤ min(kelly, cvar), normalCdf/Quantile/Pdf accuracy
+  - `PositionRecommendationEngineTest.kt` — 14 tests: NO_EDGE when prob < 0.5, finite result for Samsung 252d, unavailable for insufficient data, CVaR bound in stress, signalEdge correctness, higher prob → larger position
 
 ### [PENDING] PROMPT 09 — Incremental Learning
 - Status: NOT STARTED

@@ -488,6 +488,38 @@ class ProbabilityInterpreter @Inject constructor() {
         return sb.toString()
     }
 
+    /** 포지션 사이징 추천 해석 */
+    fun interpretPositionRecommendation(pr: PositionRecommendation): String {
+        val sb = StringBuilder()
+        if (pr.unavailableReason != null) {
+            sb.appendLine("포지션 사이징: 사용 불가 (${pr.unavailableReason})")
+            return sb.toString()
+        }
+        if (pr.sizeReasonCode == SizeReasonCode.NO_EDGE) {
+            sb.appendLine("포지션 사이징: 신호 우위 없음 (edge=${String.format("%+.1f%%p", pr.signalEdge * 100)})")
+            sb.appendLine("앙상블 상승 확률이 50% 이하이므로 신규 매수 포지션을 추천하지 않습니다.")
+            return sb.toString()
+        }
+
+        sb.appendLine("Kelly Criterion + CVaR 기반 포지션 사이징 결과:")
+        sb.appendLine("  추천 비중: ${String.format("%.1f%%", pr.recommendedPct * 100)} (포트폴리오 대비)")
+        sb.appendLine("  Kelly(원시): ${String.format("%.1f%%", pr.kellyRaw * 100)} → Kelly(분율): ${String.format("%.1f%%", pr.kellyFractional * 100)}")
+        sb.appendLine("  CVaR(95%, 1일): ${String.format("%.2f%%", pr.cvar1d * 100)} | CVaR 한도: ${String.format("%.1f%%", pr.cvarLimit * 100)}")
+        sb.appendLine("  제한 사유: ${SizeReasonCode.toKorean(pr.sizeReasonCode)}")
+        sb.appendLine()
+
+        val sizeDesc = when {
+            pr.recommendedPct >= 0.15 -> "비교적 높은 비중으로, 신호 우위가 크고 변동성이 관리 가능한 수준입니다."
+            pr.recommendedPct >= 0.08 -> "적정 수준의 비중으로, 리스크와 수익의 균형을 고려한 결과입니다."
+            pr.recommendedPct > 0.0 -> "보수적 비중으로, CVaR 또는 변동성 제한이 적용되었습니다."
+            else -> "투자 비중 0%: 현재 조건에서 포지션 진입을 추천하지 않습니다."
+        }
+        sb.appendLine(sizeDesc)
+        sb.appendLine()
+        sb.appendLine("※ 분석 참고용이며 투자 조언이 아닙니다.")
+        return sb.toString()
+    }
+
     /** AI 해석용 프롬프트 생성 */
     fun buildPromptForAi(result: StatisticalResult): String {
         val sb = StringBuilder()
@@ -555,6 +587,12 @@ class ProbabilityInterpreter @Inject constructor() {
             if (m.unavailableReason == null) {
                 val env = MacroEnvironment.fromString(m.macroEnv)
                 sb.appendLine("[매크로 환경] ${env.label}(${env.name}) 금리YoY=${String.format("%+.2f", m.baseRateYoy)}pp M2=${String.format("%+.1f", m.m2Yoy)}% IIP=${String.format("%+.1f", m.iipYoy)}% 환율=${String.format("%+.1f", m.usdKrwYoy)}% CPI=${String.format("%+.1f", m.cpiYoy)}%")
+            }
+        }
+
+        result.positionRecommendation?.let { pr ->
+            if (pr.unavailableReason == null) {
+                sb.appendLine("[포지션 가이드] 추천=${String.format("%.1f%%", pr.recommendedPct * 100)} Kelly(분율)=${String.format("%.1f%%", pr.kellyFractional * 100)} CVaR(1d)=${String.format("%.2f%%", pr.cvar1d * 100)} 사유=${SizeReasonCode.toKorean(pr.sizeReasonCode)} edge=${String.format("%+.1f%%p", pr.signalEdge * 100)}")
             }
         }
 

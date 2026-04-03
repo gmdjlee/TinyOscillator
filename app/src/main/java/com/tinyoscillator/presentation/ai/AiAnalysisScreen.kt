@@ -588,6 +588,11 @@ private fun ProbabilityTabContent(
                         metaLearnerStatus = metaLearnerStatus
                     )
 
+                    // 포지션 가이드 카드
+                    state.result.positionRecommendation?.let { posRec ->
+                        PositionGuideCard(positionRecommendation = posRec)
+                    }
+
                     // 확률 분석 결과
                     ProbabilityResultContent(
                         result = state.result,
@@ -1263,6 +1268,168 @@ private fun ProbExpandableCard(title: String, content: @Composable ColumnScope.(
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.padding(top = 8.dp)) { content() }
             }
+        }
+    }
+}
+
+/** 포지션 가이드 카드 — Kelly + CVaR 기반 추천 비중 */
+@Composable
+private fun PositionGuideCard(
+    positionRecommendation: com.tinyoscillator.domain.model.PositionRecommendation
+) {
+    val financeColors = LocalFinanceColors.current
+    val pr = positionRecommendation
+
+    // 사용 불가 시 간략 표시
+    if (pr.unavailableReason != null) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Position Guide", style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text(pr.unavailableReason!!, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        return
+    }
+
+    val maxPos = 0.20 // 최대 비중 표시 기준
+    val recPct = pr.recommendedPct
+    val barFraction = (recPct / maxPos).toFloat().coerceIn(0f, 1f)
+
+    val barColor = when {
+        pr.sizeReasonCode == com.tinyoscillator.domain.model.SizeReasonCode.NO_EDGE ->
+            MaterialTheme.colorScheme.onSurfaceVariant
+        recPct >= 0.15 -> financeColors.positive
+        recPct >= 0.08 -> Color(0xFFFF9800)
+        recPct > 0.0 -> Color(0xFF2196F3)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    val reasonLabel = when (pr.sizeReasonCode) {
+        com.tinyoscillator.domain.model.SizeReasonCode.KELLY_BOUND -> "켈리 제한"
+        com.tinyoscillator.domain.model.SizeReasonCode.CVAR_BOUND -> "CVaR 제한"
+        com.tinyoscillator.domain.model.SizeReasonCode.MAX_POSITION -> "최대 비중"
+        com.tinyoscillator.domain.model.SizeReasonCode.NO_EDGE -> "신호 우위 없음"
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Analytics, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.tertiary)
+                Text("Position Guide", style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold)
+                SuggestionChip(
+                    onClick = {},
+                    label = { Text(reasonLabel, style = MaterialTheme.typography.labelSmall) },
+                    colors = SuggestionChipDefaults.suggestionChipColors(
+                        containerColor = barColor.copy(alpha = 0.2f)
+                    ),
+                    border = null
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // 추천 비중 텍스트
+            Text(
+                String.format("%.1f%%", recPct * 100),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = barColor
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            // 수평 바: 0% → recommended% → max_position%
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(12.dp)
+            ) {
+                // 배경 바 (0% ~ max%)
+                androidx.compose.foundation.Canvas(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // 배경
+                    drawRoundRect(
+                        color = Color.Gray.copy(alpha = 0.2f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f)
+                    )
+                    // 채워진 영역
+                    if (barFraction > 0f) {
+                        drawRoundRect(
+                            color = barColor.copy(alpha = 0.7f),
+                            size = size.copy(width = size.width * barFraction),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f)
+                        )
+                    }
+                }
+            }
+
+            // 바 범례
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("0%", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(String.format("%.1f%%", maxPos * 100),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // 세부 정보
+            var showDetails by remember { mutableStateOf(false) }
+            TextButton(
+                onClick = { showDetails = !showDetails },
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text(if (showDetails) "상세 접기" else "상세 보기",
+                    style = MaterialTheme.typography.labelSmall)
+            }
+
+            AnimatedVisibility(visible = showDetails) {
+                Column {
+                    Text("신호 우위: ${String.format("%+.1f%%p", pr.signalEdge * 100)}",
+                        style = MaterialTheme.typography.bodySmall)
+                    Text("Kelly(원시): ${String.format("%.1f%%", pr.kellyRaw * 100)} | " +
+                            "Kelly(분율): ${String.format("%.1f%%", pr.kellyFractional * 100)}",
+                        style = MaterialTheme.typography.bodySmall)
+                    Text("실현 변동성(20일): ${String.format("%.1f%%", pr.realizedVol * 100)} | " +
+                            "W/L Ratio: ${String.format("%.2f", pr.winLossRatio)}",
+                        style = MaterialTheme.typography.bodySmall)
+                    Text("1일 CVaR(95%): ${String.format("%.2f%%", pr.cvar1d * 100)} | " +
+                            "CVaR 한도: ${String.format("%.1f%%", pr.cvarLimit * 100)}",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // 면책 조항 (규제 요건)
+            Text(
+                "분석 참고용 자료이며 투자 조언이 아닙니다. 투자 판단의 책임은 본인에게 있습니다.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
         }
     }
 }
