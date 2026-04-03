@@ -492,6 +492,7 @@ class ProbabilityInterpreter @Inject constructor() {
     fun buildPromptForAi(result: StatisticalResult): String {
         val sb = StringBuilder()
         sb.appendLine("다음은 ${result.stockName}(${result.ticker})의 9개 통계 알고리즘 확률분석 결과입니다.")
+        sb.appendLine("2-레벨 스태킹 앙상블로 메타 학습기가 학습된 경우 종합 확률이 제공됩니다.")
         sb.appendLine("각 결과를 종합하여 투자자에게 유용한 해석을 제공해주세요.")
         sb.appendLine()
 

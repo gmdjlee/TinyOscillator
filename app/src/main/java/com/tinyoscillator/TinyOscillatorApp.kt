@@ -85,6 +85,9 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
             // 매크로 지표 주간 업데이트 (매주 일요일 05:30)
             WorkManagerHelper.scheduleMacroUpdate(this@TinyOscillatorApp)
 
+            // 메타 학습기 주간 재학습 (매주 일요일 06:30)
+            WorkManagerHelper.scheduleMetaLearnerRefit(this@TinyOscillatorApp)
+
             // Feature 캐시 만료 엔트리 정리 (매일 06:00)
             WorkManagerHelper.scheduleFeatureCacheEviction(this@TinyOscillatorApp)
         }

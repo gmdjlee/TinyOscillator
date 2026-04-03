@@ -252,6 +252,52 @@ object WorkManagerHelper {
     fun runMacroUpdateNow(context: Context) =
         runWorkerNow<MacroUpdateWorker>(context, MacroUpdateWorker.MANUAL_WORK_NAME, MacroUpdateWorker.TAG, "매크로 지표")
 
+    // ===== 메타 학습기 재학습 =====
+
+    fun scheduleMetaLearnerRefit(context: Context, hour: Int = 6, minute: Int = 30) {
+        require(hour in 0..23) { "hour must be 0-23, got $hour" }
+        require(minute in 0..59) { "minute must be 0-59, got $minute" }
+
+        val now = java.util.Calendar.getInstance()
+        val target = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.SUNDAY)
+            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.MINUTE, minute)
+            set(java.util.Calendar.SECOND, 0)
+            if (before(now)) add(java.util.Calendar.WEEK_OF_YEAR, 1)
+        }
+
+        val initialDelay = target.timeInMillis - now.timeInMillis
+
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+            .build()
+
+        val request = PeriodicWorkRequestBuilder<MetaLearnerRefitWorker>(
+            7, TimeUnit.DAYS
+        )
+            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .addTag(MetaLearnerRefitWorker.TAG)
+            .build()
+
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(
+                MetaLearnerRefitWorker.WORK_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                request
+            )
+
+        Timber.d("메타 학습기 주간 재학습 스케줄 등록: 매주 일요일 %02d:%02d (초기 딜레이: %d분)", hour, minute, initialDelay / 60000)
+    }
+
+    fun cancelMetaLearnerRefit(context: Context) =
+        cancelWorker(context, MetaLearnerRefitWorker.WORK_NAME, "메타 학습기")
+
+    fun runMetaLearnerRefitNow(context: Context) =
+        runWorkerNow<MetaLearnerRefitWorker>(context, MetaLearnerRefitWorker.MANUAL_WORK_NAME, MetaLearnerRefitWorker.TAG, "메타 학습기")
+
     // ===== 데이터 무결성 검사 =====
 
     fun runIntegrityCheckNow(context: Context) =

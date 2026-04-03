@@ -1,9 +1,9 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-03 by PROMPT 06 BOK ECOS Macro_
+_Last updated: 2026-04-03 by PROMPT 07 Stacking Ensemble_
 
 ## Current session
-**PROMPT 06 — BOK ECOS Macro** COMPLETE. Ready to begin PROMPT 07.
+**PROMPT 07 — Stacking Ensemble** COMPLETE. Ready to begin PROMPT 08.
 
 ## Upcoming tasks (ordered)
 
@@ -93,14 +93,21 @@ _Last updated: 2026-04-03 by PROMPT 06 BOK ECOS Macro_
 **Acceptance test:** macroSignalVector returns valid result; 4 environments classified correctly; adjusted weights sum to 1.0
 
 ### PROMPT 07 — Stacking Ensemble
-**Status:** NOT STARTED
-**Prerequisite:** PROMPT 01 (calibration) ✅, PROMPT 02 (regime) ✅
+**Status:** COMPLETE (2026-04-03)
+**Decision:** Pure Kotlin implementation — consistent with PROMPT 01–06 (no Chaquopy/Python)
 **Delivers:**
-- `app/src/main/python/ensemble/stacking_ensemble.py`
-- `app/src/main/python/ensemble/signal_history_store.py`
-- Room entity `SignalHistoryEntry`
-- Kotlin: `MetaLearnerStatusDto`
-**Acceptance test:** Cold-start fallback tested; meta-learner fits on 60+ synthetic samples
+- `data/engine/ensemble/StackingEnsemble.kt` — 2-level stacking: L2-regularized LogisticRegression meta-learner on OOF predictions
+- `data/engine/ensemble/RegimeStackingEnsemble.kt` — Regime-conditional meta-learner (per-regime subclass)
+- `data/engine/ensemble/SignalHistoryStore.kt` — Room-backed OOF training data store
+- `domain/model/StackingModels.kt` — MetaLearnerStatus, MetaLearnerState, EnsembleHistoryEntry
+- `core/database/entity/EnsembleHistoryEntity.kt` — Room entity for ensemble training history
+- `core/database/dao/EnsembleHistoryDao.kt` — DAO for ensemble history
+- `core/worker/MetaLearnerRefitWorker.kt` — Weekly refit WorkManager job (Sunday 06:30)
+- DB v18→v19 migration (ensemble_history table)
+- StatisticalAnalysisEngine: stacking ensemble integration, cold-start fallback, refitMetaLearner()
+- UI: Ensemble probability card with Meta-Learner/가중합 badge, training info
+- 2 test files with full coverage (StackingEnsembleTest: 14 tests, RegimeStackingEnsembleTest: 6 tests)
+**Acceptance test:** Cold-start fallback tested; meta-learner fits on 60+ synthetic samples; save/load roundtrip; MetaLearnerStatus in UI
 
 ### PROMPT 08 — Kelly + CVaR
 **Status:** NOT STARTED

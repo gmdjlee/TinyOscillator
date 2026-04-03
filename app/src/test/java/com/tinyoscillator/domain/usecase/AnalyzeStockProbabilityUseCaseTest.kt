@@ -74,7 +74,10 @@ class AnalyzeStockProbabilityUseCaseTest {
                 },
                 Json { ignoreUnknownKeys = true }
             ),
-            apiConfigProvider = mockk(relaxed = true)
+            apiConfigProvider = mockk(relaxed = true),
+            signalHistoryStore = com.tinyoscillator.data.engine.ensemble.SignalHistoryStore(
+                mockk<com.tinyoscillator.core.database.dao.EnsembleHistoryDao>(relaxed = true)
+            )
         )
 
         useCase = AnalyzeStockProbabilityUseCase(

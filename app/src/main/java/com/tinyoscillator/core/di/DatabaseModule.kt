@@ -11,6 +11,7 @@ import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
 import com.tinyoscillator.core.database.dao.CalibrationDao
 import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.dao.DartDao
+import com.tinyoscillator.core.database.dao.EnsembleHistoryDao
 import com.tinyoscillator.core.database.dao.MacroDao
 import com.tinyoscillator.core.database.dao.FeatureCacheDao
 import com.tinyoscillator.core.database.dao.RegimeDao
@@ -471,6 +472,33 @@ object DatabaseModule {
         }
     }
 
+    /** Migration v18→v19: added ensemble_history table */
+    private val MIGRATION_18_19 = object : Migration(18, 19) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            try {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `ensemble_history` (
+                        `ticker` TEXT NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `signals_json` TEXT NOT NULL,
+                        `actual_outcome` INTEGER,
+                        `next_day_return` REAL,
+                        `regime_id` TEXT,
+                        `created_at` INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(`ticker`, `date`)
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_ensemble_history_date` ON `ensemble_history` (`date`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_ensemble_history_ticker` ON `ensemble_history` (`ticker`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_ensemble_history_actual_outcome` ON `ensemble_history` (`actual_outcome`)")
+                Timber.d("Migration v18→v19 성공: ensemble_history 테이블 생성")
+            } catch (e: Exception) {
+                Timber.e(e, "Migration v18→v19 실패")
+                throw e
+            }
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -480,7 +508,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
@@ -497,7 +525,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                 .build()
         }
     }
@@ -552,4 +580,7 @@ object DatabaseModule {
 
     @Provides
     fun provideMacroDao(db: AppDatabase): MacroDao = db.macroDao()
+
+    @Provides
+    fun provideEnsembleHistoryDao(db: AppDatabase): EnsembleHistoryDao = db.ensembleHistoryDao()
 }

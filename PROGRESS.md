@@ -294,8 +294,38 @@ _Each completed PROMPT session appends one block below._
   - `StatisticalAnalysisEngineTest.kt` — added macroRegimeOverlay parameter
   - `AnalyzeStockProbabilityUseCaseTest.kt` — added macroRegimeOverlay parameter
 
-### [PENDING] PROMPT 07 — Stacking Ensemble
-- Status: NOT STARTED
+### [COMPLETE] PROMPT 07 — Stacking Ensemble (2026-04-03)
+- Status: COMPLETE
+- Decision: Pure Kotlin implementation (no Chaquopy/Python) — consistent with PROMPT 01–06
+- 2-level stacking ensemble: Level-0 = 9 existing calibrated algorithms, Level-1 = L2-regularized LogisticRegression
+- TimeSeriesSplit (not KFold) for OOF predictions — no future leakage
+- LogisticRegression C=0.5, minimum 60 labeled samples, gradient descent with L2 penalty
+- Cold-start fallback: regime-weighted sum when meta-learner not yet fitted
+- New source files:
+  - `data/engine/ensemble/StackingEnsemble.kt` — Core stacking: TimeSeriesSplit CV, OOF collection, fit/predict_proba, feature importance, save/load state
+  - `data/engine/ensemble/RegimeStackingEnsemble.kt` — Regime-conditional subclass: per-regime meta-learner, fallback to global if <60 samples in regime
+  - `data/engine/ensemble/SignalHistoryStore.kt` — Room-backed training data store: append, updateOutcome, getHistory, toTrainingData
+  - `domain/model/StackingModels.kt` — MetaLearnerStatus, MetaLearnerState, EnsembleHistoryEntry
+  - `core/database/entity/EnsembleHistoryEntity.kt` — Room entity (PK=ticker+date, signals_json, actual_outcome, regime_id)
+  - `core/database/dao/EnsembleHistoryDao.kt` — DAO (upsert, getCompleted, getPending, updateOutcome, getByRegime)
+  - `core/worker/MetaLearnerRefitWorker.kt` — Weekly HiltWorker (Sunday 06:30, extends BaseCollectionWorker)
+- Modified files:
+  - `core/database/AppDatabase.kt` — v18→v19, EnsembleHistoryEntity + ensembleHistoryDao()
+  - `core/di/DatabaseModule.kt` — MIGRATION_18_19 (ensemble_history table), provideEnsembleHistoryDao()
+  - `data/engine/StatisticalAnalysisEngine.kt` — StackingEnsemble injection, getEnsembleProbability(), refitMetaLearner(), getMetaLearnerStatus(), recordEnsembleHistory(), cold-start fallback
+  - `core/worker/WorkManagerHelper.kt` — scheduleMetaLearnerRefit(), cancelMetaLearnerRefit(), runMetaLearnerRefitNow()
+  - `core/worker/CollectionNotificationHelper.kt` — META_LEARNER_NOTIFICATION_ID = 1010
+  - `TinyOscillatorApp.kt` — Schedule meta learner refit on startup
+  - `presentation/ai/AiAnalysisViewModel.kt` — metaLearnerStatus, ensembleProbability StateFlows
+  - `presentation/ai/AiAnalysisScreen.kt` — EnsembleProbabilityCard (Meta-Learner/가중합 badge, probability display, training stats)
+  - `domain/usecase/ProbabilityInterpreter.kt` — Updated buildPromptForAi() mention of stacking
+  - `data/mapper/ProbabilisticPromptBuilder.kt` — Updated system prompt for stacking
+- Tests added (2 files):
+  - `StackingEnsembleTest.kt` — 14 tests: TimeSeriesSplit no overlap, train < test ordering, OOF in [0,1], insufficient samples rejection, fit/predict roundtrip, bullish vs bearish differentiation, feature importance sum=1, save/load identical predictions, getStatus fitted/unfitted, min 60 samples enforcement
+  - `RegimeStackingEnsembleTest.kt` — 6 tests: regime-specific model creation, insufficient samples skip, regime vs global differentiation, global fallback for unfitted regime, save/load roundtrip, fittedRegimes listing
+- Existing tests updated:
+  - `StatisticalAnalysisEngineTest.kt` — added signalHistoryStore parameter
+  - `AnalyzeStockProbabilityUseCaseTest.kt` — added signalHistoryStore parameter
 
 ### [PENDING] PROMPT 08 — Kelly + CVaR
 - Status: NOT STARTED

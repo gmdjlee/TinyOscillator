@@ -15,6 +15,7 @@ import com.tinyoscillator.core.util.DateFormats
 import com.tinyoscillator.data.engine.FeatureStore
 import com.tinyoscillator.data.engine.StatisticalAnalysisEngine
 import com.tinyoscillator.domain.model.CacheStats
+import com.tinyoscillator.domain.model.MetaLearnerStatus
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.ProbabilityInterpreter
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
@@ -134,6 +135,14 @@ class AiAnalysisViewModel @Inject constructor(
     // Feature Store 캐시 통계
     val cacheStats: StateFlow<CacheStats> = featureStore.cacheStats
         .stateIn(viewModelScope, SharingStarted.Lazily, CacheStats())
+
+    // 메타 학습기 상태
+    private val _metaLearnerStatus = MutableStateFlow(MetaLearnerStatus())
+    val metaLearnerStatus: StateFlow<MetaLearnerStatus> = _metaLearnerStatus.asStateFlow()
+
+    // 앙상블 확률
+    private val _ensembleProbability = MutableStateFlow<Double?>(null)
+    val ensembleProbability: StateFlow<Double?> = _ensembleProbability.asStateFlow()
 
     // 해석 상태
     private val _interpretationState = MutableStateFlow<InterpretationState>(InterpretationState.Idle)
@@ -342,6 +351,14 @@ class AiAnalysisViewModel @Inject constructor(
             try {
                 val result = statisticalAnalysisEngine.analyze(stock.ticker)
                 _probabilityState.value = ProbabilityAnalysisState.Success(result)
+
+                // 앙상블 확률 계산 (메타 학습기 또는 가중합 폴백)
+                try {
+                    _ensembleProbability.value = statisticalAnalysisEngine.getEnsembleProbability(result)
+                    _metaLearnerStatus.value = statisticalAnalysisEngine.getMetaLearnerStatus()
+                } catch (e2: Exception) {
+                    Timber.w(e2, "앙상블 확률 계산 실패")
+                }
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e
             } catch (e: Exception) {

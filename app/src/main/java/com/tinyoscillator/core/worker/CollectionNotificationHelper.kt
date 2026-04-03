@@ -25,6 +25,7 @@ object CollectionNotificationHelper {
     const val CONSENSUS_NOTIFICATION_ID = 1006
     const val FEAR_GREED_NOTIFICATION_ID = 1007
     const val REGIME_NOTIFICATION_ID = 1008
+    const val META_LEARNER_NOTIFICATION_ID = 1010
 
     fun createChannel(context: Context) {
         val channel = NotificationChannel(

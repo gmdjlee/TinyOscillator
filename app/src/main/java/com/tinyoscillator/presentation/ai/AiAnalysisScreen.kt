@@ -48,6 +48,8 @@ fun AiAnalysisScreen(
     val stockDataState by viewModel.stockDataState.collectAsStateWithLifecycle()
     val probabilityState by viewModel.probabilityState.collectAsStateWithLifecycle()
     val interpretationState by viewModel.interpretationState.collectAsStateWithLifecycle()
+    val metaLearnerStatus by viewModel.metaLearnerStatus.collectAsStateWithLifecycle()
+    val ensembleProbability by viewModel.ensembleProbability.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
     val themeModeState = LocalThemeModeState.current
@@ -113,6 +115,8 @@ fun AiAnalysisScreen(
                         selectedStock = selectedStock,
                         probabilityState = probabilityState,
                         interpretationState = interpretationState,
+                        metaLearnerStatus = metaLearnerStatus,
+                        ensembleProbability = ensembleProbability,
                         onAnalyze = { viewModel.analyzeProbability() },
                         onDismiss = { viewModel.dismissProbability() },
                         onSelectStock = { viewModel.selectTab(AiTab.STOCK) },
@@ -476,6 +480,8 @@ private fun ProbabilityTabContent(
     selectedStock: SelectedStockInfo?,
     probabilityState: ProbabilityAnalysisState,
     interpretationState: InterpretationState,
+    metaLearnerStatus: com.tinyoscillator.domain.model.MetaLearnerStatus,
+    ensembleProbability: Double?,
     onAnalyze: () -> Unit,
     onDismiss: () -> Unit,
     onSelectStock: () -> Unit,
@@ -574,6 +580,12 @@ private fun ProbabilityTabContent(
                         onDismiss = onDismissInterpretation,
                         onRetryLocal = onInterpretLocal,
                         onRetryAi = onInterpretAi
+                    )
+
+                    // 앙상블 확률 + 메타 학습기 상태
+                    EnsembleProbabilityCard(
+                        ensembleProbability = ensembleProbability,
+                        metaLearnerStatus = metaLearnerStatus
                     )
 
                     // 확률 분석 결과
@@ -726,6 +738,89 @@ private fun InterpretationResultCard(
                         color = MaterialTheme.colorScheme.onSecondaryContainer)
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = onRetryLocal) { Text("로컬 분석 사용") }
+                }
+            }
+        }
+    }
+}
+
+/** 앙상블 확률 + 메타 학습기 상태 카드 */
+@Composable
+private fun EnsembleProbabilityCard(
+    ensembleProbability: Double?,
+    metaLearnerStatus: com.tinyoscillator.domain.model.MetaLearnerStatus
+) {
+    val financeColors = LocalFinanceColors.current
+
+    ensembleProbability?.let { prob ->
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary)
+                    Text("앙상블 상승 확률", style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold)
+
+                    // 메타 학습기 상태 배지
+                    val source = if (metaLearnerStatus.isFitted) "Meta-Learner" else "가중합"
+                    SuggestionChip(
+                        onClick = {},
+                        label = { Text(source, style = MaterialTheme.typography.labelSmall) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = if (metaLearnerStatus.isFitted)
+                                Color(0xFF4CAF50).copy(alpha = 0.2f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        border = null
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // 확률 표시
+                val probPct = String.format("%.1f%%", prob * 100)
+                val probColor = when {
+                    prob >= 0.6 -> financeColors.positive
+                    prob <= 0.4 -> financeColors.negative
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
+                Text(probPct,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = probColor)
+
+                // 메타 학습기 상세 (학습된 경우)
+                if (metaLearnerStatus.isFitted) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "학습 샘플: ${metaLearnerStatus.nTrainingSamples} | " +
+                        "최근 학습: ${metaLearnerStatus.lastFitDate}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (metaLearnerStatus.topAlgo.isNotEmpty()) {
+                        Text(
+                            "핵심 알고리즘: ${metaLearnerStatus.topAlgo} " +
+                            "(${String.format("%.1f%%", metaLearnerStatus.topAlgoWeight * 100)})",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "학습 데이터 축적 중 (최소 60건 필요)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

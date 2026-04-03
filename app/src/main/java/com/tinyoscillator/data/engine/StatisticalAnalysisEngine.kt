@@ -5,9 +5,12 @@ import com.tinyoscillator.core.database.entity.SignalHistoryEntity
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.data.engine.calibration.SignalCalibrator
 import com.tinyoscillator.data.engine.calibration.SignalScoreExtractor
+import com.tinyoscillator.data.engine.ensemble.SignalHistoryStore
+import com.tinyoscillator.data.engine.ensemble.StackingEnsemble
 import com.tinyoscillator.data.engine.macro.MacroRegimeOverlay
 import com.tinyoscillator.data.engine.regime.MarketRegimeClassifier
 import com.tinyoscillator.data.engine.regime.RegimeWeightTable
+import com.tinyoscillator.domain.model.MetaLearnerStatus
 import com.tinyoscillator.domain.model.CalibratedScore
 import com.tinyoscillator.domain.model.ExecutionMetadata
 import com.tinyoscillator.domain.model.FeatureKey
@@ -49,8 +52,15 @@ class StatisticalAnalysisEngine @Inject constructor(
     private val marketRegimeClassifier: MarketRegimeClassifier,
     private val macroRegimeOverlay: MacroRegimeOverlay,
     private val featureStore: FeatureStore,
-    private val apiConfigProvider: ApiConfigProvider
+    private val apiConfigProvider: ApiConfigProvider,
+    val signalHistoryStore: SignalHistoryStore
 ) {
+
+    /** 스태킹 앙상블 메타 학습기 */
+    val stackingEnsemble = StackingEnsemble(
+        baseModelNames = RegimeWeightTable.ALL_ALGOS,
+        metaC = 0.5
+    )
 
     /** 캐시된 시장 레짐 결과 (주기적으로 갱신) */
     @Volatile
@@ -231,6 +241,13 @@ class StatisticalAnalysisEngine @Inject constructor(
             Timber.w(e, "신호 이력 저장 실패 — 분석 결과에는 영향 없음")
         }
 
+        // 앙상블 이력 저장 (스태킹 메타 학습기 학습 데이터 축적)
+        try {
+            recordEnsembleHistory(stockCode, result)
+        } catch (e: Exception) {
+            Timber.w(e, "앙상블 이력 저장 실패 — 분석 결과에는 영향 없음")
+        }
+
         result
     }
 
@@ -285,6 +302,94 @@ class StatisticalAnalysisEngine @Inject constructor(
     fun updateMacroSignal(result: MacroSignalResult) {
         cachedMacroSignal = result
         Timber.d("매크로 신호 갱신: %s (금리YoY=%.2fpp)", result.macroEnv, result.baseRateYoy)
+    }
+
+    /**
+     * 스태킹 앙상블 확률 예측.
+     *
+     * 메타 학습기가 학습되지 않은 경우 (cold start) 레짐 가중치 기반 가중합으로 폴백.
+     *
+     * @param result 9개 엔진의 분석 결과
+     * @return 상승 확률 [0, 1]
+     */
+    fun getEnsembleProbability(result: StatisticalResult): Double {
+        val calibratedSignals = getCalibratedSignals(result)
+
+        // 스태킹 메타 학습기 시도
+        if (stackingEnsemble.isFitted) {
+            return try {
+                stackingEnsemble.predictProba(calibratedSignals)
+            } catch (e: Exception) {
+                Timber.w(e, "메타 학습기 예측 실패 — 가중합 폴백")
+                weightedSumFallback(calibratedSignals)
+            }
+        }
+
+        // Cold start: 레짐 가중합 폴백
+        return weightedSumFallback(calibratedSignals)
+    }
+
+    /**
+     * 보정된 신호 추출 (스태킹 입력용).
+     */
+    private fun getCalibratedSignals(result: StatisticalResult): Map<String, Double> {
+        return SignalScoreExtractor.extract(result).associate { raw ->
+            raw.algoName to signalCalibrator.transform(raw.algoName, raw.rawScore)
+        }
+    }
+
+    /**
+     * 레짐 가중합 폴백 (cold start 시 사용).
+     */
+    private fun weightedSumFallback(signals: Map<String, Double>): Double {
+        val weights = getRegimeWeights()
+        var sum = 0.0
+        var weightSum = 0.0
+        for ((algo, weight) in weights) {
+            val signal = signals[algo] ?: continue
+            sum += weight * signal
+            weightSum += weight
+        }
+        return if (weightSum > 0) (sum / weightSum).coerceIn(0.0, 1.0) else 0.5
+    }
+
+    /**
+     * 메타 학습기 재학습 (MetaLearnerRefitWorker에서 호출).
+     */
+    fun refitMetaLearner(signals: Array<DoubleArray>, labels: IntArray) {
+        stackingEnsemble.fit(signals, labels)
+        Timber.i("메타 학습기 재학습 완료: %d 샘플", signals.size)
+    }
+
+    /**
+     * 메타 학습기 상태 조회 (UI용).
+     */
+    fun getMetaLearnerStatus(): MetaLearnerStatus {
+        return stackingEnsemble.getStatus()
+    }
+
+    /**
+     * 앙상블 특성 중요도 조회.
+     */
+    fun getEnsembleFeatureImportance(): Map<String, Float> {
+        return stackingEnsemble.featureImportance()
+    }
+
+    /**
+     * 앙상블 이력 기록 (분석 후 호출, T+0 시점).
+     */
+    private suspend fun recordEnsembleHistory(stockCode: String, result: StatisticalResult) {
+        val calibratedSignals = getCalibratedSignals(result)
+        if (calibratedSignals.isEmpty()) return
+
+        val today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
+        val regimeId = cachedRegimeResult?.regimeName
+        signalHistoryStore.append(
+            ticker = stockCode,
+            date = today,
+            signals = calibratedSignals,
+            regimeId = regimeId
+        )
     }
 
     private suspend fun recordSignalHistory(stockCode: String, result: StatisticalResult) {
