@@ -23,12 +23,13 @@ object RegimeWeightTable {
     const val ALGO_CORRELATION = "Correlation"
     const val ALGO_BAYESIAN_UPDATE = "BayesianUpdate"
     const val ALGO_ORDER_FLOW = "OrderFlow"
+    const val ALGO_DART_EVENT = "DartEvent"
 
     val ALL_ALGOS = listOf(
         ALGO_NAIVE_BAYES, ALGO_LOGISTIC, ALGO_HMM,
         ALGO_PATTERN_SCAN, ALGO_SIGNAL_SCORING,
         ALGO_CORRELATION, ALGO_BAYESIAN_UPDATE,
-        ALGO_ORDER_FLOW
+        ALGO_ORDER_FLOW, ALGO_DART_EVENT
     )
 
     /**
@@ -36,50 +37,54 @@ object RegimeWeightTable {
      *
      * 가중치 설계 원리:
      * - BULL_LOW_VOL: 추세 추종 전략이 효과적 → PatternScan, SignalScoring 가중
-     * - BEAR_HIGH_VOL: 레짐 탐지와 상관 분석이 중요 → HMM, Correlation, OrderFlow 가중
+     * - BEAR_HIGH_VOL: 레짐 탐지와 이벤트 반응이 중요 → HMM, DartEvent, OrderFlow 가중
      * - SIDEWAYS: 통계적 평균회귀가 작동 → NaiveBayes, Logistic, Correlation 가중
-     * - CRISIS: 위기 감지와 자금흐름이 핵심 → HMM, BayesianUpdate, OrderFlow 가중
+     * - CRISIS: 위기 감지와 이벤트 반응이 핵심 → HMM, BayesianUpdate, DartEvent 가중
      */
     val WEIGHT_TABLE: Map<String, Map<String, Double>> = mapOf(
         MarketRegimeClassifier.REGIME_BULL_LOW_VOL to mapOf(
-            ALGO_NAIVE_BAYES to 0.08,
-            ALGO_LOGISTIC to 0.13,
-            ALGO_HMM to 0.07,
-            ALGO_PATTERN_SCAN to 0.22,
-            ALGO_SIGNAL_SCORING to 0.19,
-            ALGO_CORRELATION to 0.07,
-            ALGO_BAYESIAN_UPDATE to 0.10,
-            ALGO_ORDER_FLOW to 0.14
+            ALGO_NAIVE_BAYES to 0.07,
+            ALGO_LOGISTIC to 0.12,
+            ALGO_HMM to 0.06,
+            ALGO_PATTERN_SCAN to 0.20,
+            ALGO_SIGNAL_SCORING to 0.17,
+            ALGO_CORRELATION to 0.06,
+            ALGO_BAYESIAN_UPDATE to 0.09,
+            ALGO_ORDER_FLOW to 0.13,
+            ALGO_DART_EVENT to 0.10
         ),
         MarketRegimeClassifier.REGIME_BEAR_HIGH_VOL to mapOf(
-            ALGO_NAIVE_BAYES to 0.10,
-            ALGO_LOGISTIC to 0.08,
-            ALGO_HMM to 0.19,
-            ALGO_PATTERN_SCAN to 0.08,
-            ALGO_SIGNAL_SCORING to 0.08,
-            ALGO_CORRELATION to 0.15,
-            ALGO_BAYESIAN_UPDATE to 0.15,
-            ALGO_ORDER_FLOW to 0.17
+            ALGO_NAIVE_BAYES to 0.08,
+            ALGO_LOGISTIC to 0.07,
+            ALGO_HMM to 0.17,
+            ALGO_PATTERN_SCAN to 0.06,
+            ALGO_SIGNAL_SCORING to 0.07,
+            ALGO_CORRELATION to 0.12,
+            ALGO_BAYESIAN_UPDATE to 0.13,
+            ALGO_ORDER_FLOW to 0.17,
+            ALGO_DART_EVENT to 0.13
         ),
         MarketRegimeClassifier.REGIME_SIDEWAYS to mapOf(
-            ALGO_NAIVE_BAYES to 0.16,
-            ALGO_LOGISTIC to 0.17,
-            ALGO_HMM to 0.07,
-            ALGO_PATTERN_SCAN to 0.10,
-            ALGO_SIGNAL_SCORING to 0.10,
-            ALGO_CORRELATION to 0.15,
-            ALGO_BAYESIAN_UPDATE to 0.10,
-            ALGO_ORDER_FLOW to 0.15
+            ALGO_NAIVE_BAYES to 0.14,
+            ALGO_LOGISTIC to 0.15,
+            ALGO_HMM to 0.06,
+            ALGO_PATTERN_SCAN to 0.09,
+            ALGO_SIGNAL_SCORING to 0.09,
+            ALGO_CORRELATION to 0.13,
+            ALGO_BAYESIAN_UPDATE to 0.09,
+            ALGO_ORDER_FLOW to 0.14,
+            ALGO_DART_EVENT to 0.11
         ),
         MarketRegimeClassifier.REGIME_CRISIS to mapOf(
-            ALGO_NAIVE_BAYES to 0.12,
-            ALGO_LOGISTIC to 0.06,
-            ALGO_HMM to 0.24,
+            ALGO_NAIVE_BAYES to 0.10,
+            ALGO_LOGISTIC to 0.05,
+            ALGO_HMM to 0.20,
             ALGO_PATTERN_SCAN to 0.04,
-            ALGO_SIGNAL_SCORING to 0.06,
-            ALGO_CORRELATION to 0.08,
-            ALGO_BAYESIAN_UPDATE to 0.22,
-            ALGO_ORDER_FLOW to 0.18
+            ALGO_SIGNAL_SCORING to 0.05,
+            ALGO_CORRELATION to 0.06,
+            ALGO_BAYESIAN_UPDATE to 0.19,
+            ALGO_ORDER_FLOW to 0.17,
+            ALGO_DART_EVENT to 0.14
         )
     )
 

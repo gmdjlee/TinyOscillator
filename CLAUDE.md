@@ -127,7 +127,7 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 | `AnalyzeStockProbabilityUseCase` | domain/usecase | `AnalyzeStockProbabilityUseCase.kt` | Full analysis pipeline (stats → cache → LLM) |
 | `ApiConfigProvider` | core/config | `ApiConfigProvider.kt` | Thread-safe credential cache (volatile + mutex) |
 | `WorkManagerHelper` | core/worker | `WorkManagerHelper.kt` | Centralized worker scheduling |
-| `AppDatabase` | core/database | `AppDatabase.kt` | Room DB v13, 15 entities, 12 DAOs |
+| `AppDatabase` | core/database | `AppDatabase.kt` | Room DB v17, 21 entities, 16 DAOs |
 | `ProbabilisticPromptBuilder` | data/mapper | `ProbabilisticPromptBuilder.kt` | ChatML prompt for LLM analysis |
 | `FearGreedCalculator` | domain/usecase | `FearGreedCalculator.kt` | 7-indicator fear/greed index |
 | `MarketOscillatorCalculator` | domain/usecase | `MarketOscillatorCalculator.kt` | Market overbought/oversold index |
@@ -171,7 +171,13 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 | FnGuideReportScraper | comp.fnguide.com | Analyst report summaries | 1-5s (random) |
 
 ### DART OpenAPI
-- **Integration status**: Absent
+- **Credential storage**: EncryptedSharedPreferences (`api_settings_encrypted`)
+- **Rate limiting**: 1000ms per request (mutex-based)
+- **Daily limit**: 10,000 API calls
+- **Corp code mapping**: corpCode.xml (ZIP download → XML parse), cached in Room `dart_corp_code` table (30-day TTL)
+- **Endpoints**: `/api/list.json` (disclosure list), `/api/corpCode.xml` (corp code master)
+- **Event study**: OLS beta (120-day estimation window), CAR with [-5, +20] event window
+- **Classification**: 7 event types via Korean keyword matching
 
 ### BOK ECOS
 - **Integration status**: Absent
@@ -187,11 +193,13 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 | 5 | Weighted Signal | `SignalScoringEngine` | `data/engine/SignalScoringEngine.kt` | 0–100 score + direction | No |
 | 6 | Rolling Correlation | `CorrelationEngine` | `data/engine/CorrelationEngine.kt` | r ∈ [-1,1], lag ∈ [-5,5] | No |
 | 7 | Bayesian Updating | `BayesianUpdateEngine` | `data/engine/BayesianUpdateEngine.kt` | [0.001,0.999] posterior | No |
+| 8 | Order Flow | `OrderFlowEngine` | `data/engine/OrderFlowEngine.kt` | [0,1] buyerDominanceScore | No |
+| 9 | DART Event Study | `DartEventEngine` | `data/engine/DartEventEngine.kt` | [0,1] signalScore | No |
 
 ### Ensemble orchestrator
 - **Class**: `StatisticalAnalysisEngine`
 - **File**: `data/engine/StatisticalAnalysisEngine.kt`
-- **Aggregation**: No weighted voting — runs all 7 engines in parallel via coroutines and returns individual results in `StatisticalResult`. The LLM (or AI API) synthesizes the final interpretation via `ProbabilisticPromptBuilder`.
+- **Aggregation**: Regime-aware weighting via `RegimeWeightTable` — runs all 9 engines in parallel via coroutines and returns individual results in `StatisticalResult`. The LLM (or AI API) synthesizes the final interpretation via `ProbabilisticPromptBuilder`.
 - **Failure isolation**: Each engine failure is caught individually; remaining results are returned with `null` for failed engines.
 
 ### Probability interpreter
@@ -235,7 +243,7 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 
 All workers: network-constrained, exponential backoff (30s initial), foreground service (DATA_SYNC), results logged to `worker_logs` table. Schedules are user-configurable in Settings and restored on app startup in `TinyOscillatorApp.onCreate()`.
 
-## Room database (v13)
+## Room database (v17)
 ### Entities
 | Entity | DAO | Purpose |
 |--------|-----|---------|
@@ -254,10 +262,16 @@ All workers: network-constrained, exponential backoff (30s initial), foreground 
 | `WorkerLogEntity` | `WorkerLogDao` | Background job execution logs |
 | `ConsensusReportEntity` | `ConsensusReportDao` | Analyst consensus reports |
 | `FearGreedEntity` | `FearGreedDao` | Fear & Greed index daily values |
+| `SignalHistoryEntity` | `CalibrationDao` | Signal calibration history |
+| `CalibrationStateEntity` | `CalibrationDao` | Calibrator state persistence |
+| `KospiIndexEntity` | `RegimeDao` | KOSPI daily close cache |
+| `RegimeStateEntity` | `RegimeDao` | HMM regime model state |
+| `FeatureCacheEntity` | `FeatureCacheDao` | Feature store cache |
+| `DartCorpCodeEntity` | `DartDao` | DART corp_code ↔ ticker mapping |
 
 ## Testing conventions
 - **Framework**: JUnit4 + MockK + Turbine (Flow) + coroutines-test + MockWebServer
-- **Test count**: 98 test files, ~1,384 tests total (all passing as of 2026-03-31)
+- **Test count**: 99 test files, ~1,404 tests total (all passing as of 2026-04-03)
 - **Location**: `app/src/test/` (unit tests only; no androidTest instrumented tests)
 - **Naming**: `ClassNameTest.kt` in same package structure as source
 - **Config**: `testOptions { unitTests.isReturnDefaultValues = true }`

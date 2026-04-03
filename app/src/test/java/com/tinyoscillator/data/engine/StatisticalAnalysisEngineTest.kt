@@ -54,6 +54,11 @@ class StatisticalAnalysisEngineTest {
             correlationEngine = CorrelationEngine(),
             bayesianUpdateEngine = BayesianUpdateEngine(),
             orderFlowEngine = OrderFlowEngine(),
+            dartEventEngine = DartEventEngine(
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true)
+            ),
             signalCalibrator = SignalCalibrator(),
             calibrationDao = calibrationDao,
             marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier(),
@@ -62,7 +67,8 @@ class StatisticalAnalysisEngineTest {
                     every { it.count() } returns flowOf(0)
                 },
                 Json { ignoreUnknownKeys = true }
-            )
+            ),
+            apiConfigProvider = mockk(relaxed = true)
         )
     }
 

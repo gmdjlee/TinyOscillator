@@ -1,9 +1,9 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-03 by PROMPT 04 Order Flow Features_
+_Last updated: 2026-04-03 by PROMPT 05 DART Event Study_
 
 ## Current session
-**PROMPT 04 — Order Flow Features** COMPLETE. Ready to begin PROMPT 05.
+**PROMPT 05 — DART Event Study** COMPLETE. Ready to begin PROMPT 06.
 
 ## Upcoming tasks (ordered)
 
@@ -55,16 +55,24 @@ _Last updated: 2026-04-03 by PROMPT 04 Order Flow Features_
 **Acceptance test:** Engine runs on 60-day data with correct direction/signal; OFI bounded [-1,1]; signal bounded [0,1]
 
 ### PROMPT 05 — DART Event Study
-**Status:** NOT STARTED
-**Prerequisite:** PROMPT 03 (FeatureStore)
+**Status:** COMPLETE (2026-04-03)
+**Decision:** Pure Kotlin implementation — consistent with PROMPT 01–04 (no Chaquopy/Python)
 **Delivers:**
-- `app/src/main/python/dart/dart_disclosure_fetcher.py`
-- `app/src/main/python/dart/event_study_engine.py`
-- `app/src/main/python/dart/disclosure_signal_adapter.py`
-- `app/src/main/python/dart/corp_code_mapper.py`
-- Ensemble extended to 9 algorithms
-- Kotlin: `DartEventDto`
-**Acceptance test:** CAR computed for 005930 on a known past rights offering date
+- `core/api/DartApiClient.kt` — DART REST API client (corp_code XML download, disclosure list)
+- `data/engine/DartEventEngine.kt` — 9th engine: disclosure classification, OLS beta, CAR, signal
+- `domain/model/DartModels.kt` — DartDisclosure, DartEventResult, EventStudyResult, DartEventType
+- `core/database/entity/DartCorpCodeEntity.kt` — Room entity for corp_code cache
+- `core/database/dao/DartDao.kt` — DAO for corp_code lookup
+- Ensemble extended to 9 algorithms (9th: DartEvent)
+- `RegimeWeightTable` updated: DartEvent gets 0.10–0.14 weight (highest in CRISIS/BEAR_HIGH_VOL)
+- `SignalScoreExtractor`: extracts signalScore for DartEvent calibration
+- `ProbabilityInterpreter.interpretDartEvent()` — rule-based Korean interpretation
+- `ProbabilisticPromptBuilder` — DartEvent section in AI prompt (9개 알고리즘)
+- UI: DART 공시 이벤트 expandable card in probability analysis results
+- Settings: DART API key field in EncryptedSharedPreferences
+- DB v16→v17 migration (dart_corp_code table)
+- `DartEventEngineTest.kt` — 20 tests
+**Acceptance test:** CAR computed for synthetic data; classify_disclosure covers all 7 event types; signal bounded [0,1]
 
 ### PROMPT 06 — BOK ECOS Macro
 **Status:** NOT STARTED

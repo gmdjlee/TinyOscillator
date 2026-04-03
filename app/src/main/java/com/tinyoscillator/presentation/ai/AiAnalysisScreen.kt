@@ -980,6 +980,34 @@ private fun ProbabilityResultContent(
         }
     }
 
+    result.dartEventResult?.let { de ->
+        if (de.nEvents > 0 || de.unavailableReason == null) {
+            val title = if (de.nEvents > 0) {
+                "DART 공시 이벤트: ${DartEventType.toKorean(de.dominantEventType)} (${de.nEvents}건)"
+            } else {
+                "DART 공시 이벤트: 최근 공시 없음"
+            }
+            ProbExpandableCard(title) {
+                if (de.nEvents > 0) {
+                    Text("신호 점수: ${pctFmt(de.signalScore)}")
+                    Text("최근 CAR: ${String.format("%+.2f%%", de.latestCar * 100)}",
+                        style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(4.dp))
+                    de.eventStudies.forEach { es ->
+                        Text("${es.eventDate} ${DartEventType.toKorean(es.eventType)}: " +
+                                "CAR=${String.format("%+.2f%%", es.carFinal * 100)} " +
+                                "(t=${String.format("%.2f", es.tStat)}${if (es.significant) " ★" else ""})",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                } else {
+                    Text("최근 30일 내 주요 공시가 없습니다.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                EngineInterpretationBlock(engineInterpretations["dartevent"])
+            }
+        }
+    }
+
     // 메타데이터
     Text("실행: ${result.executionMetadata.totalTimeMs}ms" +
             if (result.executionMetadata.failedEngines.isNotEmpty())

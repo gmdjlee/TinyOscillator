@@ -41,7 +41,7 @@ against which all future changes are measured._
 ### Ensemble orchestrator
 - **Class**: `StatisticalAnalysisEngine`
 - **File**: `data/engine/StatisticalAnalysisEngine.kt`
-- **Aggregation**: Regime-aware weighting via `RegimeWeightTable` — all 7 engines run in parallel via coroutineScope/async; results collected into `StatisticalResult` with individual fields + `MarketRegimeResult`. The AI API (via `ProbabilisticPromptBuilder`) or `ProbabilityInterpreter` synthesizes the final interpretation with regime context.
+- **Aggregation**: Regime-aware weighting via `RegimeWeightTable` — all 9 engines run in parallel via coroutineScope/async; results collected into `StatisticalResult` with individual fields + `MarketRegimeResult`. The AI API (via `ProbabilisticPromptBuilder`) or `ProbabilityInterpreter` synthesizes the final interpretation with regime context.
 - **Regime integration**: `MarketRegimeClassifier` provides current market regime (BULL_LOW_VOL/BEAR_HIGH_VOL/SIDEWAYS/CRISIS) and per-algorithm weight table. Regime result cached and updated weekly by `RegimeUpdateWorker`.
 
 ### Room database entities (v13)
@@ -216,8 +216,41 @@ _Each completed PROMPT session appends one block below._
   - `AnalyzeStockProbabilityUseCaseTest.kt` — added orderFlowEngine parameter
   - `RegimeWeightTableTest.kt` — updated from 7 to 8 algorithms
 
-### [PENDING] PROMPT 05 — DART Event Study
-- Status: NOT STARTED
+### [COMPLETE] PROMPT 05 — DART Event Study (2026-04-03)
+- Status: COMPLETE
+- Decision: Pure Kotlin implementation (no Chaquopy/Python) — consistent with PROMPT 01–04
+- DART API key stored in EncryptedSharedPreferences via Settings screen
+- Corp code mapping: DART corpCode.xml (ZIP) → Room `dart_corp_code` table (30-day cache)
+- Event study: OLS beta estimation (120-day window, min 60 obs), CAR with [-5, +20] event window
+- Classification: 7 event types (유상증자/자사주/지분변동/경영진변동/실적/배당/기타) via keyword matching
+- Signal: time-weighted CAR average → sigmoid → [0,1] signal score
+- New source files:
+  - `core/api/DartApiClient.kt` — DART REST API client (corp_code XML download/parse, disclosure list fetch, 1000ms rate limit)
+  - `data/engine/DartEventEngine.kt` — 9th engine: resolveCorpCode, fetchDisclosures, classify, estimateBeta, computeCar, buildSignal
+  - `domain/model/DartModels.kt` — DartDisclosure, CorpCodeEntry, EventStudyResult, DartEventResult, DartEventType (7 types + classify + toKorean)
+  - `core/database/entity/DartCorpCodeEntity.kt` — Room entity (PK=ticker, corp_code unique index)
+  - `core/database/dao/DartDao.kt` — getCorpCode, insertAll, count, lastUpdatedAt, deleteAll
+- Modified files:
+  - `core/database/AppDatabase.kt` — v16→v17, DartCorpCodeEntity + dartDao()
+  - `core/di/DatabaseModule.kt` — MIGRATION_16_17 (dart_corp_code table), provideDartDao()
+  - `core/di/AppModule.kt` — provideDartApiClient()
+  - `core/config/ApiConfigProvider.kt` — getDartApiKey() with volatile+mutex cache
+  - `presentation/settings/SettingsScreen.kt` — PrefsKeys.DART_API_KEY, loadDartApiKey(), saveDartApiKey(), dartApiKey state
+  - `presentation/settings/ApiKeySettingsSection.kt` — DART OpenAPI section (API key field + info)
+  - `domain/model/StatisticalModels.kt` — dartEventResult field in StatisticalResult
+  - `data/engine/StatisticalAnalysisEngine.kt` — DartEventEngine injection, parallel async execution, apiConfigProvider
+  - `data/engine/regime/RegimeWeightTable.kt` — ALGO_DART_EVENT constant, ALL_ALGOS updated to 9, weights redistributed (DartEvent: BULL 0.10, BEAR 0.13, SIDEWAYS 0.11, CRISIS 0.14)
+  - `data/engine/calibration/SignalScoreExtractor.kt` — Extracts signalScore for DartEvent (when nEvents > 0)
+  - `domain/usecase/ProbabilityInterpreter.kt` — interpretDartEvent(), updated summarize(), assessOverallDirection(), buildPromptForAi() (9개 알고리즘)
+  - `data/mapper/ProbabilisticPromptBuilder.kt` — DartEvent section in AI prompt (9개 알고리즘)
+  - `presentation/ai/AiAnalysisScreen.kt` — DART 공시 이벤트 expandable card (event type, CAR, t-stat, significance ★)
+  - `presentation/ai/AiAnalysisViewModel.kt` — interpretLocal() includes dartevent
+- Tests added (1 file):
+  - `DartEventEngineTest.kt` — 20 tests: classify covers all 7 event types, computeCar zero AR, positive CAR, insufficient data, estimateBeta default/correct, analyze null/blank key, corp_code not found, no disclosures, signal bounds [0,1], computeLogReturns, all types have Korean labels, corp_code cache
+- Existing tests updated:
+  - `StatisticalAnalysisEngineTest.kt` — added dartEventEngine + apiConfigProvider parameters
+  - `AnalyzeStockProbabilityUseCaseTest.kt` — added dartEventEngine + apiConfigProvider parameters
+  - `RegimeWeightTableTest.kt` — updated from 8 to 9 algorithms
 
 ### [PENDING] PROMPT 06 — BOK ECOS Macro
 - Status: NOT STARTED

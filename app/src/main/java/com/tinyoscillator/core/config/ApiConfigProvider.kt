@@ -6,6 +6,7 @@ import com.tinyoscillator.core.api.KisApiKeyConfig
 import com.tinyoscillator.domain.model.AiApiKeyConfig
 import com.tinyoscillator.domain.model.KrxCredentials
 import com.tinyoscillator.presentation.settings.loadAiConfig
+import com.tinyoscillator.presentation.settings.loadDartApiKey
 import com.tinyoscillator.presentation.settings.loadKisConfig
 import com.tinyoscillator.presentation.settings.loadKiwoomConfig
 import com.tinyoscillator.presentation.settings.loadKrxCredentials
@@ -31,11 +32,14 @@ class ApiConfigProvider @Inject constructor(
     private var cachedKrxCredentials: KrxCredentials? = null
     @Volatile
     private var cachedAiConfig: AiApiKeyConfig? = null
+    @Volatile
+    private var cachedDartApiKey: String? = null
 
     private val kiwoomMutex = Mutex()
     private val kisMutex = Mutex()
     private val krxMutex = Mutex()
     private val aiMutex = Mutex()
+    private val dartMutex = Mutex()
 
     suspend fun getKiwoomConfig(): KiwoomApiKeyConfig {
         cachedKiwoomConfig?.let { return it }
@@ -77,12 +81,23 @@ class ApiConfigProvider @Inject constructor(
         }
     }
 
+    suspend fun getDartApiKey(): String? {
+        cachedDartApiKey?.let { return it.ifBlank { null } }
+        return dartMutex.withLock {
+            cachedDartApiKey?.let { return@withLock it.ifBlank { null } }
+            val key = loadDartApiKey(context)
+            cachedDartApiKey = key
+            key.ifBlank { null }
+        }
+    }
+
     /** Invalidate all cached configs (call after settings changes). */
     fun invalidateAll() {
         cachedKiwoomConfig = null
         cachedKisConfig = null
         cachedKrxCredentials = null
         cachedAiConfig = null
+        cachedDartApiKey = null
     }
 
     /** Invalidate only Kiwoom config cache. */

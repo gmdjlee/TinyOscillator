@@ -79,6 +79,7 @@ internal object PrefsKeys {
     const val FEAR_GREED_SCHEDULE_HOUR = "fear_greed_schedule_hour"
     const val FEAR_GREED_SCHEDULE_MINUTE = "fear_greed_schedule_minute"
     const val FEAR_GREED_SCHEDULE_ENABLED = "fear_greed_schedule_enabled"
+    const val DART_API_KEY = "dart_api_key"
 }
 
 // KrxCredentials and EtfKeywordFilter moved to domain.model.EtfModels.kt
@@ -383,6 +384,17 @@ suspend fun saveAiConfig(context: Context, config: AiApiKeyConfig) = withContext
         .apply()
 }
 
+suspend fun loadDartApiKey(context: Context): String = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    prefs.getString(PrefsKeys.DART_API_KEY, "") ?: ""
+}
+
+suspend fun saveDartApiKey(context: Context, apiKey: String) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putString(PrefsKeys.DART_API_KEY, apiKey)
+        .apply()
+}
+
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface SettingsEntryPoint {
@@ -459,6 +471,8 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     var aiApiKey by remember { mutableStateOf("") }
     var aiProvider by remember { mutableStateOf(AiProvider.CLAUDE_HAIKU) }
+
+    var dartApiKey by remember { mutableStateOf("") }
 
     var includeKeywords by remember { mutableStateOf(DEFAULT_INCLUDE_KEYWORDS) }
     var excludeKeywords by remember { mutableStateOf(DEFAULT_EXCLUDE_KEYWORDS) }
@@ -555,6 +569,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             val aiConfig = loadAiConfig(context)
             aiApiKey = aiConfig.apiKey
             aiProvider = aiConfig.provider
+
+            dartApiKey = loadDartApiKey(context)
 
             val keywordFilter = loadEtfKeywordFilter(context)
             includeKeywords = keywordFilter.includeKeywords
@@ -673,6 +689,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onAiApiKeyChange = { aiApiKey = it },
                     aiProvider = aiProvider,
                     onAiProviderChange = { aiProvider = it },
+                    dartApiKey = dartApiKey,
+                    onDartApiKeyChange = { dartApiKey = it },
                     saveMessage = saveMessage,
                     onSave = {
                         scope.launch {
@@ -681,6 +699,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 kisAppKey, kisAppSecret, kisMode, krxId, krxPassword
                             )
                             saveAiConfig(context, AiApiKeyConfig(aiProvider, aiApiKey))
+                            saveDartApiKey(context, dartApiKey)
                         }
                     }
                 )

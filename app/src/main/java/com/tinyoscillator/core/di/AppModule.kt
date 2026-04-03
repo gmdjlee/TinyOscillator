@@ -1,6 +1,7 @@
 package com.tinyoscillator.core.di
 
 import com.tinyoscillator.core.api.AiApiClient
+import com.tinyoscillator.core.api.DartApiClient
 import com.tinyoscillator.core.api.KisApiClient
 import com.tinyoscillator.core.api.KiwoomApiClient
 import com.tinyoscillator.core.api.KrxApiClient
@@ -69,6 +70,11 @@ object AppModule {
     @Singleton
     fun provideAiApiClient(httpClient: OkHttpClient): AiApiClient =
         AiApiClient(httpClient = httpClient)
+
+    @Provides
+    @Singleton
+    fun provideDartApiClient(httpClient: OkHttpClient): DartApiClient =
+        DartApiClient(httpClient = httpClient)
 
     @Provides
     @Singleton

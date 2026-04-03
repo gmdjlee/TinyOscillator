@@ -55,6 +55,13 @@ class ProbabilityInterpreter @Inject constructor() {
             parts += "자금흐름: ${of.flowDirection} (${of.flowStrength})"
         }
 
+        // DART 이벤트
+        result.dartEventResult?.let { de ->
+            if (de.nEvents > 0) {
+                parts += "공시 이벤트: ${DartEventType.toKorean(de.dominantEventType)} (${de.nEvents}건, CAR ${pctSigned(de.latestCar)})"
+            }
+        }
+
         if (parts.isEmpty()) return "분석 결과를 해석할 수 없습니다."
 
         // 종합 판단
@@ -367,6 +374,64 @@ class ProbabilityInterpreter @Inject constructor() {
         return sb.toString()
     }
 
+    /** DART 공시 이벤트 해석 */
+    fun interpretDartEvent(de: DartEventResult): String {
+        val sb = StringBuilder()
+
+        if (de.unavailableReason != null) {
+            sb.appendLine("DART 공시 분석 불가: ${de.unavailableReason}")
+            return sb.toString()
+        }
+
+        if (de.nEvents == 0) {
+            sb.appendLine("최근 30일 이내 주요 공시가 없습니다.")
+            sb.appendLine("공시 이벤트 기반 신호는 중립(0.5)입니다.")
+            return sb.toString()
+        }
+
+        sb.appendLine("DART OpenAPI에서 최근 공시를 조회하여 이벤트 스터디(CAR)를 수행했습니다.")
+        sb.appendLine()
+
+        sb.appendLine("분석된 이벤트: ${de.nEvents}건")
+        sb.appendLine("주요 이벤트 유형: ${DartEventType.toKorean(de.dominantEventType)}")
+        sb.appendLine("이벤트 신호 점수: ${pct(de.signalScore)}")
+        sb.appendLine()
+
+        if (de.eventStudies.isNotEmpty()) {
+            sb.appendLine("이벤트 스터디 결과:")
+            for (study in de.eventStudies) {
+                val sigLabel = if (study.significant) "유의" else "비유의"
+                sb.appendLine("  - ${study.eventDate} ${DartEventType.toKorean(study.eventType)}: " +
+                        "CAR=${pctSigned(study.carFinal)} (t=${String.format("%.2f", study.tStat)}, $sigLabel)")
+            }
+            sb.appendLine()
+        }
+
+        // 방향성 해석
+        when {
+            de.signalScore > 0.6 -> {
+                sb.appendLine("공시 이벤트가 주가에 긍정적 영향을 미쳤습니다.")
+                sb.appendLine("  → 이벤트 기반 상승 모멘텀이 감지됩니다.")
+            }
+            de.signalScore < 0.4 -> {
+                sb.appendLine("공시 이벤트가 주가에 부정적 영향을 미쳤습니다.")
+                sb.appendLine("  → 이벤트 기반 하락 압력에 주의가 필요합니다.")
+            }
+            else -> {
+                sb.appendLine("공시 이벤트의 주가 영향이 제한적입니다.")
+            }
+        }
+
+        // 유의한 이벤트 강조
+        val significantEvents = de.eventStudies.filter { it.significant }
+        if (significantEvents.isNotEmpty()) {
+            sb.appendLine()
+            sb.appendLine("통계적으로 유의한 이벤트 ${significantEvents.size}건이 감지되었습니다 (|t| > 2.0).")
+        }
+
+        return sb.toString()
+    }
+
     /** 시장 레짐 해석 */
     fun interpretMarketRegime(regime: MarketRegimeResult): String {
         val sb = StringBuilder()
@@ -397,7 +462,7 @@ class ProbabilityInterpreter @Inject constructor() {
     /** AI 해석용 프롬프트 생성 */
     fun buildPromptForAi(result: StatisticalResult): String {
         val sb = StringBuilder()
-        sb.appendLine("다음은 ${result.stockName}(${result.ticker})의 8개 통계 알고리즘 확률분석 결과입니다.")
+        sb.appendLine("다음은 ${result.stockName}(${result.ticker})의 9개 통계 알고리즘 확률분석 결과입니다.")
         sb.appendLine("각 결과를 종합하여 투자자에게 유용한 해석을 제공해주세요.")
         sb.appendLine()
 
@@ -443,6 +508,15 @@ class ProbabilityInterpreter @Inject constructor() {
             sb.appendLine("[자금흐름] 방향=${of.flowDirection}(${of.flowStrength}) 점수=${pct(of.buyerDominanceScore)} OFI5d=${String.format("%.3f", of.ofi5d)} OFI20d=${String.format("%.3f", of.ofi20d)} 기관괴리=${pct(of.institutionalDivergence)} 외국인압력=${String.format("%.3f", of.foreignBuyPressure)}")
         }
 
+        result.dartEventResult?.let { de ->
+            if (de.nEvents > 0) {
+                sb.appendLine("[DART 이벤트] 점수=${pct(de.signalScore)} 유형=${DartEventType.toKorean(de.dominantEventType)} CAR=${pctSigned(de.latestCar)} 이벤트수=${de.nEvents}")
+                de.eventStudies.forEach { es ->
+                    sb.appendLine("  ${es.eventDate} ${DartEventType.toKorean(es.eventType)}: CAR=${pctSigned(es.carFinal)} t=${String.format("%.2f", es.tStat)} ${if (es.significant) "유의" else ""}")
+                }
+            }
+        }
+
         result.marketRegimeResult?.let { r ->
             sb.appendLine("[시장 레짐] ${r.regimeDescription}(${r.regimeName}) 신뢰도=${pct(r.confidence)} 지속=${r.regimeDurationDays}일")
         }
@@ -483,6 +557,12 @@ class ProbabilityInterpreter @Inject constructor() {
         result.orderFlowResult?.let {
             total++
             if (it.buyerDominanceScore > 0.55) bullScore++ else if (it.buyerDominanceScore < 0.45) bearScore++
+        }
+        result.dartEventResult?.let {
+            if (it.nEvents > 0) {
+                total++
+                if (it.signalScore > 0.55) bullScore++ else if (it.signalScore < 0.45) bearScore++
+            }
         }
 
         if (total == 0) return "판단 불가"

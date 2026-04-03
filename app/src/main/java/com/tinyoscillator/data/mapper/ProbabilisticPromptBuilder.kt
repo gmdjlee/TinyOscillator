@@ -38,7 +38,7 @@ $userPrompt<|im_end|>
     fun buildSystemPrompt(): String = """You are a Korean stock analyst. All numbers below are PRE-COMPUTED by statistical engines. NEVER recalculate any number. Your job is to INTERPRET and SYNTHESIZE the results.
 
 분석 가이드라인:
-1. 8개 알고리즘 결과를 종합하여 투자 의견을 제시
+1. 9개 알고리즘 결과를 종합하여 투자 의견을 제시
 2. 상충 신호가 있으면 과거 승률이 높은 쪽에 가중
 3. 레짐(HMM)에 따라 신호의 신뢰도를 조정
 4. 확률이 0.6 이상이면 유의미, 0.7 이상이면 강한 신호로 해석
@@ -144,6 +144,19 @@ JSON 출력 스키마:
             sb.appendLine("- 기관-외국인 괴리: ${pct(of.institutionalDivergence)}, 외국인 압력: ${fmt2(of.foreignBuyPressure)}")
             sb.appendLine("- 추세정렬: ${pct(of.trendAlignment)}, 평균회귀: ${pct(of.meanReversionSignal)}")
             sb.appendLine()
+        }
+
+        // DART 공시 이벤트
+        result.dartEventResult?.let { de ->
+            if (de.nEvents > 0) {
+                sb.appendLine("[DART 공시 이벤트]")
+                sb.appendLine("- 신호점수: ${pct(de.signalScore)}, 이벤트수: ${de.nEvents}")
+                sb.appendLine("- 주요유형: ${DartEventType.toKorean(de.dominantEventType)}, 최근CAR: ${pct(de.latestCar)}")
+                de.eventStudies.take(3).forEach { es ->
+                    sb.appendLine("  · ${es.eventDate} ${DartEventType.toKorean(es.eventType)}: CAR=${pct(es.carFinal)} t=${fmt2(es.tStat)}")
+                }
+                sb.appendLine()
+            }
         }
 
         sb.appendLine("위 데이터를 종합하여 JSON으로 응답하세요.")

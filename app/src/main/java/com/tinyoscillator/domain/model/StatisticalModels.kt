@@ -25,6 +25,7 @@ data class StatisticalResult(
     val correlationAnalysis: CorrelationAnalysis? = null,
     val bayesianUpdateResult: BayesianUpdateResult? = null,
     val orderFlowResult: OrderFlowResult? = null,
+    val dartEventResult: DartEventResult? = null,
     val marketRegimeResult: MarketRegimeResult? = null,
     val executionMetadata: ExecutionMetadata = ExecutionMetadata()
 )

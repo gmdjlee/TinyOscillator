@@ -59,6 +59,11 @@ class AnalyzeStockProbabilityUseCaseTest {
             correlationEngine = CorrelationEngine(),
             bayesianUpdateEngine = BayesianUpdateEngine(),
             orderFlowEngine = OrderFlowEngine(),
+            dartEventEngine = com.tinyoscillator.data.engine.DartEventEngine(
+                mockk(relaxed = true),
+                mockk(relaxed = true),
+                mockk(relaxed = true)
+            ),
             signalCalibrator = SignalCalibrator(),
             calibrationDao = calibrationDao,
             marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier(),
@@ -67,7 +72,8 @@ class AnalyzeStockProbabilityUseCaseTest {
                     every { it.count() } returns flowOf(0)
                 },
                 Json { ignoreUnknownKeys = true }
-            )
+            ),
+            apiConfigProvider = mockk(relaxed = true)
         )
 
         useCase = AnalyzeStockProbabilityUseCase(
