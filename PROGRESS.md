@@ -1,6 +1,32 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-04 | Session: CHART-K02 — Technical Indicator Overlay_
+_Last updated: 2026-04-04 | Session: CHART-K03 — Volume Profile Overlay_
+
+---
+
+## CHART-K03 — 거래량 프로파일 오버레이 (POC + Value Area + 버킷 바)
+
+### New files
+| File | Purpose |
+|------|---------|
+| `domain/model/VolumeProfile.kt` | VolumeBucket, VolumeProfile 도메인 모델 |
+| `domain/usecase/BuildVolumeProfileUseCase.kt` | 버킷 집계, POC, Value Area 70% 계산 (순수 Kotlin, IO 없음) |
+| `presentation/chart/overlay/VolumeProfileOverlay.kt` | Compose Canvas DrawScope 오버레이 (VA 배경 + bull/bear 버킷 바 + POC 라인) |
+| `presentation/chart/bridge/ChartAxisBridge.kt` | MPAndroidChart CombinedChart y축 범위 → Compose State 브릿지 |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `presentation/chart/composable/KoreanCandleChartView.kt` | Box 래퍼 추가, volumeProfile 파라미터, VolumeProfileOverlay 통합, axisBridge.update() |
+| `presentation/viewmodel/StockChartViewModel.kt` | volumeProfile StateFlow 추가 (VOLUME_PROFILE 선택 시 자동 계산) |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `BuildVolumeProfileUseCaseTest.kt` | 12 | PASS |
+| `VolumeProfileOverlayLogicTest.kt` | 5 | PASS |
+| `ChartAxisBridgeTest.kt` | 1 | PASS |
+| **Total** | **18** | **ALL PASS** |
 
 ---
 

@@ -3,6 +3,18 @@
 _Last updated: 2026-04-04 by CHART-K02 Technical Indicator Overlay_
 
 ## Current session
+**CHART-K03 — 거래량 프로파일 오버레이** COMPLETE.
+
+### Delivered
+- `domain/model/VolumeProfile.kt` — VolumeBucket, VolumeProfile 데이터 모델
+- `domain/usecase/BuildVolumeProfileUseCase.kt` — 버킷 집계, POC, Value Area 70% 계산 (순수 Kotlin)
+- `presentation/chart/overlay/VolumeProfileOverlay.kt` — Compose Canvas DrawScope 오버레이 (VA 배경 + 버킷 바 + POC 라인)
+- `presentation/chart/bridge/ChartAxisBridge.kt` — MPAndroidChart y축 범위 → Compose State 브릿지
+- `KoreanCandleChartView.kt` — Box 래퍼 + VolumeProfileOverlay 통합, volumeProfile 파라미터 추가
+- `StockChartViewModel.kt` — volumeProfile StateFlow (VOLUME_PROFILE 선택 시 자동 계산)
+- 3 test files, 18 tests — all passing
+
+## Previous session
 **CHART-K02 — 기술 지표 오버레이** COMPLETE.
 
 ### Delivered

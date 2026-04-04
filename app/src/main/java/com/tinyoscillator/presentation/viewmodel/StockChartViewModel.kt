@@ -8,6 +8,8 @@ import com.tinyoscillator.domain.model.Indicator
 import com.tinyoscillator.domain.model.IndicatorParams
 import com.tinyoscillator.domain.model.OhlcvPoint
 import com.tinyoscillator.domain.model.OverlayType
+import com.tinyoscillator.domain.model.VolumeProfile
+import com.tinyoscillator.domain.usecase.BuildVolumeProfileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -35,6 +37,15 @@ class StockChartViewModel @Inject constructor(
             else withContext(Dispatchers.Default) {
                 IndicatorCalculator.build(candles, selected, params)
             }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val buildVolumeProfile = BuildVolumeProfileUseCase()
+
+    val volumeProfile: StateFlow<VolumeProfile?> =
+        combine(_candleData, selectedIndicators) { candles, selected ->
+            if (Indicator.VOLUME_PROFILE in selected && candles.isNotEmpty())
+                withContext(Dispatchers.Default) { buildVolumeProfile(candles) }
+            else null
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val activeOscillator: StateFlow<Indicator?> =

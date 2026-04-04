@@ -1,7 +1,9 @@
 package com.tinyoscillator.presentation.chart.composable
 
 import android.graphics.Color
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -17,6 +19,9 @@ import com.github.mikephil.charting.highlight.Highlight
 import com.github.mikephil.charting.listener.OnChartValueSelectedListener
 import com.tinyoscillator.domain.indicator.IndicatorCalculator
 import com.tinyoscillator.domain.model.OhlcvPoint
+import com.tinyoscillator.domain.model.VolumeProfile
+import com.tinyoscillator.presentation.chart.bridge.ChartAxisBridge
+import com.tinyoscillator.presentation.chart.overlay.VolumeProfileOverlay
 import com.tinyoscillator.presentation.chart.ext.toCandleData
 import com.tinyoscillator.presentation.chart.ext.toCandlePriceOverlay
 import com.tinyoscillator.presentation.chart.ext.toVolumeBarData
@@ -40,6 +45,7 @@ fun KoreanCandleChartView(
     candles: List<OhlcvPoint>,
     dateLabels: Map<Int, String>,
     indicatorData: IndicatorCalculator.IndicatorData? = null,
+    volumeProfile: VolumeProfile? = null,
     patternMarkers: Map<Int, List<String>> = emptyMap(),
     onCrosshairIndex: ((Int?) -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -47,6 +53,7 @@ fun KoreanCandleChartView(
     var candleChart by remember { mutableStateOf<CombinedChart?>(null) }
     var volumeChart by remember { mutableStateOf<BarChart?>(null) }
     var syncManager by remember { mutableStateOf<ChartSyncManager?>(null) }
+    val axisBridge = remember { ChartAxisBridge() }
 
     LaunchedEffect(candleChart, volumeChart) {
         val cc = candleChart ?: return@LaunchedEffect
@@ -65,69 +72,80 @@ fun KoreanCandleChartView(
 
     Column(modifier = modifier) {
         // ── 캔들 + 지표 오버레이 차트 (70%) ──
-        AndroidView(
-            factory = { ctx ->
-                CombinedChart(ctx).apply {
-                    description.isEnabled = false
-                    legend.isEnabled = false
-                    setBackgroundColor(Color.TRANSPARENT)
-                    drawOrder = arrayOf(
-                        CombinedChart.DrawOrder.CANDLE,
-                        CombinedChart.DrawOrder.LINE,
-                    )
-                    xAxis.apply {
-                        position = XAxis.XAxisPosition.BOTTOM
-                        granularity = 1f
-                        valueFormatter = IndexDateFormatter(dateLabels)
-                    }
-                    axisLeft.apply {
-                        valueFormatter = KoreanPriceFormatter()
-                        setLabelCount(5, false)
-                    }
-                    axisRight.isEnabled = false
-                    isScaleXEnabled = true
-                    isScaleYEnabled = false
-                    isDoubleTapToZoomEnabled = true
-
-                    val handler = InertialScrollHandler(this)
-                    setOnTouchListener { _, event ->
-                        handler.onTouchEvent(event)
-                        false
-                    }
-                }.also { chart -> candleChart = chart }
-            },
-            update = { chart ->
-                if (candles.isNotEmpty()) {
-                    chart.data = CombinedData().apply {
-                        setData(candles.toCandleData())
-                        val overlay = indicatorData?.toCandlePriceOverlay()
-                        if (overlay != null && overlay.dataSetCount > 0) {
-                            setData(overlay)
-                        }
-                    }
-                    chart.marker = OhlcvMarkerView(chart.context, dateLabels, patternMarkers).also {
-                        it.chartView = chart
-                    }
-                    chart.notifyDataSetChanged()
-                    chart.invalidate()
-                }
-
-                onCrosshairIndex?.let { cb ->
-                    chart.setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
-                        override fun onValueSelected(e: Entry?, h: Highlight?) {
-                            cb(h?.x?.toInt())
-                        }
-                        override fun onNothingSelected() {
-                            cb(null)
-                        }
-                    })
-                }
-            },
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.7f)
-                .testTag("CandleStickChart"),
-        )
+                .weight(0.7f),
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    CombinedChart(ctx).apply {
+                        description.isEnabled = false
+                        legend.isEnabled = false
+                        setBackgroundColor(Color.TRANSPARENT)
+                        drawOrder = arrayOf(
+                            CombinedChart.DrawOrder.CANDLE,
+                            CombinedChart.DrawOrder.LINE,
+                        )
+                        xAxis.apply {
+                            position = XAxis.XAxisPosition.BOTTOM
+                            granularity = 1f
+                            valueFormatter = IndexDateFormatter(dateLabels)
+                        }
+                        axisLeft.apply {
+                            valueFormatter = KoreanPriceFormatter()
+                            setLabelCount(5, false)
+                        }
+                        axisRight.isEnabled = false
+                        isScaleXEnabled = true
+                        isScaleYEnabled = false
+                        isDoubleTapToZoomEnabled = true
+
+                        val handler = InertialScrollHandler(this)
+                        setOnTouchListener { _, event ->
+                            handler.onTouchEvent(event)
+                            false
+                        }
+                    }.also { chart -> candleChart = chart }
+                },
+                update = { chart ->
+                    if (candles.isNotEmpty()) {
+                        chart.data = CombinedData().apply {
+                            setData(candles.toCandleData())
+                            val overlay = indicatorData?.toCandlePriceOverlay()
+                            if (overlay != null && overlay.dataSetCount > 0) {
+                                setData(overlay)
+                            }
+                        }
+                        chart.marker = OhlcvMarkerView(chart.context, dateLabels, patternMarkers).also {
+                            it.chartView = chart
+                        }
+                        chart.notifyDataSetChanged()
+                        chart.invalidate()
+                        axisBridge.update(chart)
+                    }
+
+                    onCrosshairIndex?.let { cb ->
+                        chart.setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
+                            override fun onValueSelected(e: Entry?, h: Highlight?) {
+                                cb(h?.x?.toInt())
+                            }
+                            override fun onNothingSelected() {
+                                cb(null)
+                            }
+                        })
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("CandleStickChart"),
+            )
+            VolumeProfileOverlay(
+                profile = volumeProfile,
+                axisRange = axisBridge.axisRange.value,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
         // ── 거래량 차트 (30%) ──
         AndroidView(
