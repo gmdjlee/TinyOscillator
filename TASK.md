@@ -1,8 +1,24 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-04 by PROMPT 11 Sector Network + Vectorized Indicators_
+_Last updated: 2026-04-04 by CHART-K01 Chart Interaction Upgrade_
 
 ## Current session
+**CHART-K01 — MPAndroidChart 인터랙션 개선** COMPLETE.
+
+### Delivered
+- `presentation/chart/marker/OhlcvMarkerView.kt` — OHLCV 크로스헤어 MarkerView (경계 감지)
+- `presentation/chart/interaction/InertialScrollHandler.kt` — 핀치줌 후 관성 스크롤
+- `presentation/chart/interaction/ChartSyncManager.kt` — 캔들 ↔ 거래량 크로스헤어 동기화
+- `presentation/chart/formatter/KoreanVolumeFormatter.kt` — 거래량 축 한국식 단위 (조/억/만)
+- `presentation/chart/formatter/KoreanPriceFormatter.kt` — 가격 축 천 단위 쉼표
+- `presentation/chart/formatter/IndexDateFormatter.kt` — X축 인덱스→날짜 매핑
+- `presentation/chart/ext/FormatExt.kt` — Long/Float.formatKRW()
+- `presentation/chart/ext/CandleDataExt.kt` — toCandleData() / toVolumeBarData()
+- `presentation/chart/composable/KoreanCandleChartView.kt` — Compose 래퍼 (캔들 70% + 거래량 30%)
+- `res/layout/view_ohlcv_marker.xml` + `res/drawable/ohlcv_marker_bg.xml`
+- 4 test files, 22 tests — all passing
+
+## Previous session
 **PROMPT 11 — Sector Network + Vectorized Indicators** COMPLETE. All 11 algorithms registered.
 
 ## Upcoming tasks (ordered)

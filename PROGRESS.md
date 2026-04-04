@@ -1,6 +1,34 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-04 | Session: PROMPT 11 — Sector Network + Vectorized Indicators_
+_Last updated: 2026-04-04 | Session: CHART-K01 — Chart Interaction Upgrade_
+
+---
+
+## CHART-K01 — MPAndroidChart 인터랙션 개선
+
+### New files
+| File | Purpose |
+|------|---------|
+| `presentation/chart/marker/OhlcvMarkerView.kt` | OHLCV 크로스헤어 MarkerView (경계 감지, 시가/고가/저가/종가 + 패턴) |
+| `presentation/chart/interaction/InertialScrollHandler.kt` | VelocityTracker + OverScroller 관성 스크롤 |
+| `presentation/chart/interaction/ChartSyncManager.kt` | 캔들 ↔ 거래량 뷰포트/하이라이트 동기화 |
+| `presentation/chart/formatter/KoreanVolumeFormatter.kt` | 거래량 축 한국식 단위 (조/억/만) |
+| `presentation/chart/formatter/KoreanPriceFormatter.kt` | 가격 축 천 단위 쉼표 |
+| `presentation/chart/formatter/IndexDateFormatter.kt` | X축 인덱스→날짜 포매터 |
+| `presentation/chart/ext/FormatExt.kt` | Long/Float.formatKRW() 확장 |
+| `presentation/chart/ext/CandleDataExt.kt` | toCandleData() / toVolumeBarData() 확장 |
+| `presentation/chart/composable/KoreanCandleChartView.kt` | Compose 래퍼 (캔들 70% + 거래량 30%) |
+| `res/layout/view_ohlcv_marker.xml` | 마커 레이아웃 (6 TextViews) |
+| `res/drawable/ohlcv_marker_bg.xml` | 마커 배경 (rounded, semi-transparent white) |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `FormatExtTest.kt` | 5 | PASS |
+| `KoreanVolumeFormatterTest.kt` | 6 | PASS |
+| `CandleDataExtTest.kt` | 6 | PASS |
+| `MarkerOffsetTest.kt` | 5 | PASS |
+| **Total** | **22** | **ALL PASS** |
 
 ---
 
