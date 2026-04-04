@@ -622,7 +622,11 @@ fun OscillatorScreen(
                                             }
                                         }
                                     }
-                                    // 캔들 차트 + 패턴 오버레이
+                                    // 1. 수급 오실레이터 차트
+                                    item {
+                                        OscillatorChart(chartData = state.chartData)
+                                    }
+                                    // 2. 캔들 차트 + 3. 패턴 요약 카드
                                     if (state.dailyData.isNotEmpty()) {
                                         item {
                                             val candlePoints = remember(state.dailyData) {
@@ -654,10 +658,6 @@ fun OscillatorScreen(
                                                 )
                                             }
                                         }
-                                    }
-                                    // 수급 오실레이터 차트
-                                    item {
-                                        OscillatorChart(chartData = state.chartData)
                                     }
                                 }
 

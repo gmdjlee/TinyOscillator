@@ -38,21 +38,21 @@ fun PatternSummaryCard(
                         PatternSentiment.BEARISH -> "▽" to Color(0xFF378ADD)
                         PatternSentiment.NEUTRAL -> "◇" to Color(0xFF888780)
                     }
-                    Text(icon, color = color, fontSize = 12.sp)
+                    Text(
+                        dateLabels[result.index] ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Spacer(Modifier.width(8.dp))
+                    Text(icon, color = color, fontSize = 12.sp)
+                    Spacer(Modifier.width(4.dp))
                     Text(
                         result.type.labelKo,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
-                        "강도 ${(result.strength * 100).toInt()}%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        dateLabels[result.index] ?: "",
+                        "${(result.strength * 100).toInt()}%",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

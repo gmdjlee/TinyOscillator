@@ -14,7 +14,6 @@ import com.github.mikephil.charting.charts.CombinedChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.CombinedData
 import com.github.mikephil.charting.data.Entry
-import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.highlight.Highlight
 import com.github.mikephil.charting.listener.OnChartValueSelectedListener
 import com.tinyoscillator.domain.indicator.IndicatorCalculator
@@ -22,9 +21,8 @@ import com.tinyoscillator.domain.model.OhlcvPoint
 import com.tinyoscillator.domain.model.PatternResult
 import com.tinyoscillator.domain.model.VolumeProfile
 import com.tinyoscillator.presentation.chart.bridge.ChartAxisBridge
-import com.tinyoscillator.presentation.chart.bridge.ChartXBridge
-import com.tinyoscillator.presentation.chart.overlay.PatternMarkerOverlay
 import com.tinyoscillator.presentation.chart.overlay.VolumeProfileOverlay
+import com.tinyoscillator.presentation.chart.renderer.PatternCombinedChart
 import com.tinyoscillator.presentation.chart.ext.toCandleData
 import com.tinyoscillator.presentation.chart.ext.toCandlePriceOverlay
 import com.tinyoscillator.presentation.chart.ext.toVolumeBarData
@@ -34,11 +32,12 @@ import com.tinyoscillator.presentation.chart.formatter.KoreanVolumeFormatter
 import com.tinyoscillator.presentation.chart.interaction.ChartSyncManager
 import com.tinyoscillator.presentation.chart.interaction.InertialScrollHandler
 import com.tinyoscillator.presentation.chart.marker.OhlcvMarkerView
+import com.tinyoscillator.presentation.chart.renderer.PatternMarkerRenderer
 
 /**
  * 한국 주식 캔들 차트 Composable
  *
- * - 상단 70%: CombinedChart (캔들 + EMA/볼린저 오버레이)
+ * - 상단 70%: CombinedChart (캔들 + EMA/볼린저 오버레이 + 패턴 마커)
  * - 하단 30%: BarChart (거래량, 한국식 단위)
  * - 핀치줌 후 관성 스크롤
  * - 캔들 ↔ 거래량 크로스헤어 + 뷰포트 동기화
@@ -54,11 +53,10 @@ fun KoreanCandleChartView(
     onCrosshairIndex: ((Int?) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    var candleChart by remember { mutableStateOf<CombinedChart?>(null) }
+    var candleChart by remember { mutableStateOf<PatternCombinedChart?>(null) }
     var volumeChart by remember { mutableStateOf<BarChart?>(null) }
     var syncManager by remember { mutableStateOf<ChartSyncManager?>(null) }
     val axisBridge = remember { ChartAxisBridge() }
-    val xBridge = remember { ChartXBridge() }
 
     LaunchedEffect(candleChart, volumeChart) {
         val cc = candleChart ?: return@LaunchedEffect
@@ -84,7 +82,7 @@ fun KoreanCandleChartView(
         ) {
             AndroidView(
                 factory = { ctx ->
-                    CombinedChart(ctx).apply {
+                    PatternCombinedChart(ctx).apply {
                         description.isEnabled = false
                         legend.isEnabled = false
                         setBackgroundColor(Color.TRANSPARENT)
@@ -111,6 +109,11 @@ fun KoreanCandleChartView(
                             handler.onTouchEvent(event)
                             false
                         }
+
+                        // 패턴 마커 렌더러 — onDraw에서 캔들 위에 직접 그림
+                        patternRenderer = PatternMarkerRenderer(this).apply {
+                            patterns = detectedPatterns
+                        }
                     }.also { chart -> candleChart = chart }
                 },
                 update = { chart ->
@@ -125,10 +128,11 @@ fun KoreanCandleChartView(
                         chart.marker = OhlcvMarkerView(chart.context, dateLabels, patternMarkers).also {
                             it.chartView = chart
                         }
+                        // 패턴 렌더러 업데이트
+                        chart.patternRenderer?.patterns = detectedPatterns
                         chart.notifyDataSetChanged()
                         chart.invalidate()
                         axisBridge.update(chart)
-                        xBridge.update(chart)
                     }
 
                     onCrosshairIndex?.let { cb ->
@@ -149,11 +153,6 @@ fun KoreanCandleChartView(
             VolumeProfileOverlay(
                 profile = volumeProfile,
                 axisRange = axisBridge.axisRange.value,
-                modifier = Modifier.fillMaxSize(),
-            )
-            PatternMarkerOverlay(
-                patterns = detectedPatterns,
-                xBridge = xBridge,
                 modifier = Modifier.fillMaxSize(),
             )
         }
