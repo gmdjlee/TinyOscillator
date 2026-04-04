@@ -56,6 +56,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.presentation.chart.OscillatorChart
+import com.tinyoscillator.presentation.chart.composable.KoreanCandleChartView
+import com.tinyoscillator.presentation.chart.composable.PatternSummaryCard
+import com.tinyoscillator.presentation.chart.ext.toOhlcvPoints
+import com.tinyoscillator.presentation.chart.ext.toDateLabels
+import com.tinyoscillator.domain.usecase.CandlePatternDetector
 import com.tinyoscillator.presentation.common.WindowType
 import com.tinyoscillator.presentation.common.calculateWindowType
 import com.tinyoscillator.presentation.common.ScrollablePillTabRow
@@ -617,6 +622,40 @@ fun OscillatorScreen(
                                             }
                                         }
                                     }
+                                    // 캔들 차트 + 패턴 오버레이
+                                    if (state.dailyData.isNotEmpty()) {
+                                        item {
+                                            val candlePoints = remember(state.dailyData) {
+                                                state.dailyData.toOhlcvPoints()
+                                            }
+                                            val dateLabels = remember(state.dailyData) {
+                                                state.dailyData.toDateLabels()
+                                            }
+                                            val patterns = remember(candlePoints) {
+                                                CandlePatternDetector.detect(candlePoints)
+                                            }
+                                            val patternMarkers = remember(patterns) {
+                                                patterns.groupBy { it.index }
+                                                    .mapValues { (_, pats) -> pats.map { it.type.labelKo } }
+                                            }
+                                            Column {
+                                                KoreanCandleChartView(
+                                                    candles = candlePoints,
+                                                    dateLabels = dateLabels,
+                                                    detectedPatterns = patterns,
+                                                    patternMarkers = patternMarkers,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(360.dp),
+                                                )
+                                                PatternSummaryCard(
+                                                    patterns = patterns,
+                                                    dateLabels = dateLabels,
+                                                )
+                                            }
+                                        }
+                                    }
+                                    // 수급 오실레이터 차트
                                     item {
                                         OscillatorChart(chartData = state.chartData)
                                     }

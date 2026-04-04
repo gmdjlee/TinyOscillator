@@ -20,7 +20,11 @@ data class DailyTrading(
     val marketCap: Long,        // 시가총액 (원)
     val foreignNetBuy: Long,    // 외국인 순매수 (원)
     val instNetBuy: Long,       // 기관합계 순매수 (원)
-    val closePrice: Int = 0     // 종가 (원)
+    val closePrice: Int = 0,    // 종가 (원)
+    val openPrice: Int = 0,     // 시가 (원)
+    val highPrice: Int = 0,     // 고가 (원)
+    val lowPrice: Int = 0,      // 저가 (원)
+    val volume: Long = 0L,      // 거래량
 )
 
 /** 오실레이터 계산 중간 + 최종 결과 (엑셀 각 시트에 대응) */

@@ -184,8 +184,9 @@ class StockRepository @Inject constructor(
         // 상장주식수 (1000주 단위 → 주)
         val sharesOutstanding = stockInfo.floatingShares
 
-        // 종가 맵 (날짜 → 종가)
-        val closePriceMap = ohlcvData.associate { it.date to it.close }
+        // OHLCV 맵 (날짜 → 엔트리)
+        val ohlcvMap = ohlcvData.associateBy { it.date }
+        val closePriceMap = ohlcvMap.mapValues { it.value.close }
 
         Timber.d("━━━ API 데이터 수집 결과 ━━━")
         Timber.d("종목: $ticker | 상장주식수: ${sharesOutstanding}주")
@@ -211,12 +212,17 @@ class StockRepository @Inject constructor(
                     trend.marketCapWon
                 }
 
+                val ohlcv = ohlcvMap[trend.date]
                 DailyTrading(
                     date = trend.date,
                     marketCap = marketCap,
                     foreignNetBuy = trend.foreignNetWon,
                     instNetBuy = trend.instNetWon,
-                    closePrice = closePrice ?: 0
+                    closePrice = closePrice ?: 0,
+                    openPrice = ohlcv?.open ?: (closePrice ?: 0),
+                    highPrice = ohlcv?.high ?: (closePrice ?: 0),
+                    lowPrice = ohlcv?.low ?: (closePrice ?: 0),
+                    volume = ohlcv?.volume ?: 0L,
                 )
             }
             .sortedBy { it.date }
@@ -368,7 +374,14 @@ class StockRepository @Inject constructor(
         }.data?.mapNotNull { item ->
             val date = item.date ?: return@mapNotNull null
             val close = item.close ?: return@mapNotNull null
-            OhlcvEntry(date = date, close = close)
+            OhlcvEntry(
+                date = date,
+                open = item.open ?: close,
+                high = item.high ?: close,
+                low = item.low ?: close,
+                close = close,
+                volume = item.volume ?: 0L,
+            )
         } ?: emptyList()
     }
 
@@ -499,5 +512,9 @@ private data class StockInfoData(
 
 private data class OhlcvEntry(
     val date: String,
-    val close: Int
+    val open: Int = 0,
+    val high: Int = 0,
+    val low: Int = 0,
+    val close: Int,
+    val volume: Long = 0L,
 )

@@ -323,7 +323,8 @@ class OscillatorViewModel @Inject constructor(
             ),
             signals = signals,
             latestSignal = signals.lastOrNull(),
-            isIntradayMerged = _isIntradayMerged.value
+            isIntradayMerged = _isIntradayMerged.value,
+            dailyData = data,
         )
     }
 
@@ -394,7 +395,8 @@ sealed class OscillatorUiState {
         val chartData: ChartData,
         val signals: List<SignalAnalysis>,
         val latestSignal: SignalAnalysis?,
-        val isIntradayMerged: Boolean = false
+        val isIntradayMerged: Boolean = false,
+        val dailyData: List<DailyTrading> = emptyList(),
     ) : OscillatorUiState()
     data class Error(val message: String) : OscillatorUiState()
 }
