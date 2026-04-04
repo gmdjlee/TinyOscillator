@@ -2,41 +2,35 @@ package com.tinyoscillator.presentation.chart.renderer
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 import com.github.mikephil.charting.charts.CombinedChart
 import com.github.mikephil.charting.components.YAxis
+import com.github.mikephil.charting.data.CandleDataSet
+import com.github.mikephil.charting.data.CombinedData
 import com.tinyoscillator.domain.model.PatternResult
 import com.tinyoscillator.domain.model.PatternSentiment
 
 /**
- * MPAndroidChart 캔들 차트 위에 패턴 마커(▲/▽/◇)를 직접 그리는 렌더러.
+ * MPAndroidChart 캔들 차트 위에 패턴 마커를 직접 그리는 렌더러.
  *
- * - 상승(BULLISH) ▲: 캔들 저가 아래에 표시
- * - 하락(BEARISH) ▽: 캔들 고가 위에 표시
- * - 중립(NEUTRAL) ◇: 캔들 고가 위에 표시
+ * 각 패턴은 PatternType.marker (고유 문자)와 PatternType.colorArgb (고유 색상)로 표시.
+ * - 상승(BULLISH): 캔들 저가 아래에 배치
+ * - 하락(BEARISH)/중립(NEUTRAL): 캔들 고가 위에 배치
+ * - 배경 라운드렉트로 가독성 확보
  */
 class PatternMarkerRenderer(
     private val chart: CombinedChart,
     private val markerSizePx: Float = 28f,
 ) {
-    private val bullPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFFD85A30.toInt()
-        textSize = markerSizePx
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = markerSizePx * 0.52f
         textAlign = Paint.Align.CENTER
         typeface = Typeface.DEFAULT_BOLD
+        color = 0xFFFFFFFF.toInt()
     }
-    private val bearPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF378ADD.toInt()
-        textSize = markerSizePx
-        textAlign = Paint.Align.CENTER
-        typeface = Typeface.DEFAULT_BOLD
-    }
-    private val neutralPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF888780.toInt()
-        textSize = markerSizePx
-        textAlign = Paint.Align.CENTER
-        typeface = Typeface.DEFAULT_BOLD
-    }
+    private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val rect = RectF()
 
     var patterns: List<PatternResult> = emptyList()
 
@@ -46,56 +40,66 @@ class PatternMarkerRenderer(
         val transformer = chart.getTransformer(YAxis.AxisDependency.LEFT)
         val viewPort = chart.viewPortHandler
 
-        // CombinedData에서 CandleDataSet 조회
-        val combinedData = chart.data as? com.github.mikephil.charting.data.CombinedData
-        val candleDataSet = combinedData?.candleData?.dataSets?.firstOrNull()
-            as? com.github.mikephil.charting.data.CandleDataSet
+        val combinedData = chart.data as? CombinedData ?: return
+        val candleDataSet = combinedData.candleData?.dataSets?.firstOrNull()
+            as? CandleDataSet ?: return
 
         val padding = markerSizePx * 0.4f
+        val badgeH = markerSizePx * 0.72f
         val byIndex = patterns.groupBy { it.index }
 
         byIndex.forEach { (idx, pats) ->
-            // 해당 인덱스의 캔들 high/low 가격 조회
-            val candleEntry = candleDataSet?.getEntryForIndex(idx)
-            val highPrice = candleEntry?.high ?: return@forEach
-            val lowPrice = candleEntry?.low ?: return@forEach
+            val candleEntry = candleDataSet.getEntryForIndex(idx) ?: return@forEach
 
             // x 픽셀 좌표
             val xPts = floatArrayOf(idx.toFloat(), 0f)
             transformer.pointValuesToPixel(xPts)
             val pixelX = xPts[0]
-
             if (pixelX < viewPort.contentLeft() || pixelX > viewPort.contentRight()) return@forEach
 
-            // 고가/저가 → y 픽셀 좌표
-            val highPts = floatArrayOf(0f, highPrice)
+            // 고가/저가 y 픽셀 좌표
+            val highPts = floatArrayOf(0f, candleEntry.high)
             transformer.pointValuesToPixel(highPts)
             val highPixelY = highPts[1]
 
-            val lowPts = floatArrayOf(0f, lowPrice)
+            val lowPts = floatArrayOf(0f, candleEntry.low)
             transformer.pointValuesToPixel(lowPts)
             val lowPixelY = lowPts[1]
 
             pats.forEachIndexed { stackIdx, result ->
-                val (symbol, paint) = when (result.type.sentiment) {
-                    PatternSentiment.BULLISH -> "▲" to bullPaint
-                    PatternSentiment.BEARISH -> "▽" to bearPaint
-                    PatternSentiment.NEUTRAL -> "◇" to neutralPaint
-                }
+                val type = result.type
+                val label = type.marker
 
-                // 상승: 저가 아래, 하락/중립: 고가 위 (스태킹 오프셋 적용)
-                val y = when (result.type.sentiment) {
+                // 텍스트 너비 기반 배지 크기
+                val textW = textPaint.measureText(label)
+                val badgeW = textW + markerSizePx * 0.5f
+
+                // y 좌표: 상승=저가 아래, 하락/중립=고가 위
+                val centerY = when (type.sentiment) {
                     PatternSentiment.BULLISH ->
-                        lowPixelY + padding + markerSizePx + stackIdx * (markerSizePx + 2f)
+                        lowPixelY + padding + badgeH / 2f + stackIdx * (badgeH + 3f)
                     else ->
-                        highPixelY - padding - stackIdx * (markerSizePx + 2f)
+                        highPixelY - padding - badgeH / 2f - stackIdx * (badgeH + 3f)
                 }
 
-                // 차트 영역 내 클리핑
-                if (y < viewPort.contentTop() || y > viewPort.contentBottom()) return@forEachIndexed
+                if (centerY - badgeH / 2f < viewPort.contentTop() ||
+                    centerY + badgeH / 2f > viewPort.contentBottom()
+                ) return@forEachIndexed
 
-                paint.alpha = (result.strength * 255).toInt().coerceIn(128, 255)
-                canvas.drawText(symbol, pixelX, y, paint)
+                // 배경 라운드렉트
+                bgPaint.color = type.colorArgb.toInt()
+                bgPaint.alpha = (result.strength * 255).toInt().coerceIn(160, 255)
+                rect.set(
+                    pixelX - badgeW / 2f,
+                    centerY - badgeH / 2f,
+                    pixelX + badgeW / 2f,
+                    centerY + badgeH / 2f,
+                )
+                canvas.drawRoundRect(rect, badgeH * 0.3f, badgeH * 0.3f, bgPaint)
+
+                // 텍스트 (흰색)
+                val textY = centerY + textPaint.textSize * 0.35f
+                canvas.drawText(label, pixelX, textY, textPaint)
             }
         }
     }
