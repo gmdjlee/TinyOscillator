@@ -80,15 +80,17 @@ tasks.withType<Test> {
     setForkEvery(200)
 }
 
-// ── 빠른 테스트 태스크: afterEvaluate로 안전하게 등록 ──
+// ── 빠른 테스트 태스크: @Category(FastTest::class) 클래스만 실행 ──
 afterEvaluate {
     tasks.findByName("testDebugUnitTest")?.let { baseTest ->
         tasks.register<Test>("testFast") {
-            description = "Run only @FastTest annotated tests (pure JVM, < 30s)"
+            description = "Run only @Category(FastTest::class) tests (pure JVM, < 30s)"
             group = "verification"
             testClassesDirs = (baseTest as Test).testClassesDirs
             classpath = baseTest.classpath
-            useJUnit()
+            useJUnit {
+                includeCategories("com.tinyoscillator.core.testing.annotations.FastTest")
+            }
             jvmArgs("-Xmx1g", "-XX:+UseParallelGC")
             maxParallelForks = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
             setForkEvery(200)

@@ -19,8 +19,11 @@ import com.github.mikephil.charting.highlight.Highlight
 import com.github.mikephil.charting.listener.OnChartValueSelectedListener
 import com.tinyoscillator.domain.indicator.IndicatorCalculator
 import com.tinyoscillator.domain.model.OhlcvPoint
+import com.tinyoscillator.domain.model.PatternResult
 import com.tinyoscillator.domain.model.VolumeProfile
 import com.tinyoscillator.presentation.chart.bridge.ChartAxisBridge
+import com.tinyoscillator.presentation.chart.bridge.ChartXBridge
+import com.tinyoscillator.presentation.chart.overlay.PatternMarkerOverlay
 import com.tinyoscillator.presentation.chart.overlay.VolumeProfileOverlay
 import com.tinyoscillator.presentation.chart.ext.toCandleData
 import com.tinyoscillator.presentation.chart.ext.toCandlePriceOverlay
@@ -46,6 +49,7 @@ fun KoreanCandleChartView(
     dateLabels: Map<Int, String>,
     indicatorData: IndicatorCalculator.IndicatorData? = null,
     volumeProfile: VolumeProfile? = null,
+    detectedPatterns: List<PatternResult> = emptyList(),
     patternMarkers: Map<Int, List<String>> = emptyMap(),
     onCrosshairIndex: ((Int?) -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -54,6 +58,7 @@ fun KoreanCandleChartView(
     var volumeChart by remember { mutableStateOf<BarChart?>(null) }
     var syncManager by remember { mutableStateOf<ChartSyncManager?>(null) }
     val axisBridge = remember { ChartAxisBridge() }
+    val xBridge = remember { ChartXBridge() }
 
     LaunchedEffect(candleChart, volumeChart) {
         val cc = candleChart ?: return@LaunchedEffect
@@ -123,6 +128,7 @@ fun KoreanCandleChartView(
                         chart.notifyDataSetChanged()
                         chart.invalidate()
                         axisBridge.update(chart)
+                        xBridge.update(chart)
                     }
 
                     onCrosshairIndex?.let { cb ->
@@ -143,6 +149,11 @@ fun KoreanCandleChartView(
             VolumeProfileOverlay(
                 profile = volumeProfile,
                 axisRange = axisBridge.axisRange.value,
+                modifier = Modifier.fillMaxSize(),
+            )
+            PatternMarkerOverlay(
+                patterns = detectedPatterns,
+                xBridge = xBridge,
                 modifier = Modifier.fillMaxSize(),
             )
         }

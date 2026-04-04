@@ -2,10 +2,11 @@ package com.tinyoscillator.domain.usecase
 
 import com.tinyoscillator.core.testing.annotations.FastTest
 import com.tinyoscillator.core.testing.fixture.SyntheticData
+import org.junit.experimental.categories.Category
 import org.junit.Assert.*
 import org.junit.Test
 
-@FastTest
+@Category(FastTest::class)
 class BuildVolumeProfileUseCaseTest {
 
     private val useCase = BuildVolumeProfileUseCase()

@@ -4,11 +4,12 @@ import android.graphics.Color
 import com.github.mikephil.charting.data.CandleDataSet
 import com.tinyoscillator.core.testing.annotations.FastTest
 import com.tinyoscillator.core.testing.fixture.SyntheticData
+import org.junit.experimental.categories.Category
 import com.tinyoscillator.domain.model.OhlcvPoint
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-@FastTest
+@Category(FastTest::class)
 class CandleDataExtTest {
 
     @Test

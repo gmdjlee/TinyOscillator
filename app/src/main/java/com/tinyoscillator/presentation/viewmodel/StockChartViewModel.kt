@@ -8,8 +8,10 @@ import com.tinyoscillator.domain.model.Indicator
 import com.tinyoscillator.domain.model.IndicatorParams
 import com.tinyoscillator.domain.model.OhlcvPoint
 import com.tinyoscillator.domain.model.OverlayType
+import com.tinyoscillator.domain.model.PatternResult
 import com.tinyoscillator.domain.model.VolumeProfile
 import com.tinyoscillator.domain.usecase.BuildVolumeProfileUseCase
+import com.tinyoscillator.domain.usecase.CandlePatternDetector
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -52,6 +54,21 @@ class StockChartViewModel @Inject constructor(
         selectedIndicators.map { set ->
             set.firstOrNull { it.overlayType == OverlayType.OSCILLATOR }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val detectedPatterns: StateFlow<List<PatternResult>> =
+        _candleData
+            .map { candles ->
+                if (candles.isEmpty()) emptyList()
+                else withContext(Dispatchers.Default) {
+                    CandlePatternDetector.detect(candles)
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val patternSummary: StateFlow<List<PatternResult>> =
+        detectedPatterns
+            .map { it.sortedByDescending { p -> p.index }.take(5) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val showIndicatorSheet = MutableStateFlow(false)
 

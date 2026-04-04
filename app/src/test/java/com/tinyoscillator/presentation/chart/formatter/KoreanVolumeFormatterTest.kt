@@ -2,9 +2,10 @@ package com.tinyoscillator.presentation.chart.formatter
 
 import com.tinyoscillator.core.testing.annotations.FastTest
 import org.junit.Assert.assertEquals
+import org.junit.experimental.categories.Category
 import org.junit.Test
 
-@FastTest
+@Category(FastTest::class)
 class KoreanVolumeFormatterTest {
     private val fmt = KoreanVolumeFormatter()
 

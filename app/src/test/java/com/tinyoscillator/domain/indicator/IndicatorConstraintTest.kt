@@ -2,11 +2,12 @@ package com.tinyoscillator.domain.indicator
 
 import com.tinyoscillator.core.testing.annotations.FastTest
 import com.tinyoscillator.domain.model.Indicator
+import org.junit.experimental.categories.Category
 import com.tinyoscillator.domain.model.OverlayType
 import org.junit.Assert.*
 import org.junit.Test
 
-@FastTest
+@Category(FastTest::class)
 class IndicatorConstraintTest {
 
     @Test
