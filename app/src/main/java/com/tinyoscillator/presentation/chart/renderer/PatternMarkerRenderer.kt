@@ -10,7 +10,10 @@ import com.tinyoscillator.domain.model.PatternSentiment
 
 /**
  * MPAndroidChart 캔들 차트 위에 패턴 마커(▲/▽/◇)를 직접 그리는 렌더러.
- * chart.setOnDrawListener 또는 수동 drawMarkers 호출로 사용.
+ *
+ * - 상승(BULLISH) ▲: 캔들 저가 아래에 표시
+ * - 하락(BEARISH) ▽: 캔들 고가 위에 표시
+ * - 중립(NEUTRAL) ◇: 캔들 고가 위에 표시
  */
 class PatternMarkerRenderer(
     private val chart: CombinedChart,
@@ -42,28 +45,57 @@ class PatternMarkerRenderer(
 
         val transformer = chart.getTransformer(YAxis.AxisDependency.LEFT)
         val viewPort = chart.viewPortHandler
+
+        // CombinedData에서 CandleDataSet 조회
+        val combinedData = chart.data as? com.github.mikephil.charting.data.CombinedData
+        val candleDataSet = combinedData?.candleData?.dataSets?.firstOrNull()
+            as? com.github.mikephil.charting.data.CandleDataSet
+
+        val padding = markerSizePx * 0.4f
         val byIndex = patterns.groupBy { it.index }
-        val topMargin = markerSizePx * 0.5f
 
         byIndex.forEach { (idx, pats) ->
-            // 데이터 좌표 → 픽셀 좌표 변환
-            val pts = floatArrayOf(idx.toFloat(), 0f)
-            transformer.pointValuesToPixel(pts)
-            val pixelX = pts[0]
+            // 해당 인덱스의 캔들 high/low 가격 조회
+            val candleEntry = candleDataSet?.getEntryForIndex(idx)
+            val highPrice = candleEntry?.high ?: return@forEach
+            val lowPrice = candleEntry?.low ?: return@forEach
 
-            // 가시 범위 밖이면 스킵
+            // x 픽셀 좌표
+            val xPts = floatArrayOf(idx.toFloat(), 0f)
+            transformer.pointValuesToPixel(xPts)
+            val pixelX = xPts[0]
+
             if (pixelX < viewPort.contentLeft() || pixelX > viewPort.contentRight()) return@forEach
 
-            pats.forEachIndexed { stackIdx, result ->
-                val y = viewPort.contentTop() + topMargin + stackIdx * (markerSizePx + 4f)
+            // 고가/저가 → y 픽셀 좌표
+            val highPts = floatArrayOf(0f, highPrice)
+            transformer.pointValuesToPixel(highPts)
+            val highPixelY = highPts[1]
 
+            val lowPts = floatArrayOf(0f, lowPrice)
+            transformer.pointValuesToPixel(lowPts)
+            val lowPixelY = lowPts[1]
+
+            pats.forEachIndexed { stackIdx, result ->
                 val (symbol, paint) = when (result.type.sentiment) {
                     PatternSentiment.BULLISH -> "▲" to bullPaint
                     PatternSentiment.BEARISH -> "▽" to bearPaint
                     PatternSentiment.NEUTRAL -> "◇" to neutralPaint
                 }
+
+                // 상승: 저가 아래, 하락/중립: 고가 위 (스태킹 오프셋 적용)
+                val y = when (result.type.sentiment) {
+                    PatternSentiment.BULLISH ->
+                        lowPixelY + padding + markerSizePx + stackIdx * (markerSizePx + 2f)
+                    else ->
+                        highPixelY - padding - stackIdx * (markerSizePx + 2f)
+                }
+
+                // 차트 영역 내 클리핑
+                if (y < viewPort.contentTop() || y > viewPort.contentBottom()) return@forEachIndexed
+
                 paint.alpha = (result.strength * 255).toInt().coerceIn(128, 255)
-                canvas.drawText(symbol, pixelX, y + markerSizePx, paint)
+                canvas.drawText(symbol, pixelX, y, paint)
             }
         }
     }
