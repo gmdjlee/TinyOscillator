@@ -72,6 +72,12 @@ android {
     }
 }
 
+tasks.withType<Test> {
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+    jvmArgs("-Xmx512m", "-XX:+UseParallelGC")
+    outputs.cacheIf { true }
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
@@ -138,10 +144,12 @@ dependencies {
 
     // === Testing ===
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
     testImplementation("io.mockk:mockk:1.13.9")
-    testImplementation("app.cash.turbine:turbine:1.0.0")
+    testImplementation("app.cash.turbine:turbine:1.1.0")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.robolectric:robolectric:4.12.2")
+    testImplementation("androidx.test:core:1.5.0")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation("androidx.room:room-testing:2.6.1")
