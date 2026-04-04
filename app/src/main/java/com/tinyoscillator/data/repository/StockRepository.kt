@@ -39,6 +39,8 @@ class StockRepository @Inject constructor(
     private val fmt = DateFormats.yyyyMMdd
     private val lastFetchTime = ConcurrentHashMap<String, Long>()
     private val realtimeCache = ConcurrentHashMap<String, Pair<Long, RealtimeSupplyData>>()
+    // OHLCV 인메모리 캐시 (DB에 없는 시가/고가/저가/거래량 보관)
+    private val ohlcvCache = ConcurrentHashMap<String, Map<String, OhlcvEntry>>()
 
     /** 특정 종목의 API 쿨다운 초기화 */
     fun clearCooldown(ticker: String) { lastFetchTime.remove(ticker) }
@@ -71,6 +73,7 @@ class StockRepository @Inject constructor(
         if (latestCachedDate != null && latestCachedDate >= today) {
             // 캐시가 오늘까지 있음 → DB에서만 반환
             Timber.d("캐시가 최신 ($latestCachedDate >= $today) → DB에서 반환")
+            ensureOhlcvCache(ticker, endDate, config)
             return@withContext loadFromCache(ticker, startDate, endDate)
         }
 
@@ -79,6 +82,7 @@ class StockRepository @Inject constructor(
             val lastFetch = lastFetchTime[ticker] ?: 0L
             if (System.currentTimeMillis() - lastFetch < COOLDOWN_MS) {
                 Timber.d("쿨다운 중 → 캐시 반환: $ticker")
+                ensureOhlcvCache(ticker, endDate, config)
                 return@withContext loadFromCache(ticker, startDate, endDate)
             }
         }
@@ -111,6 +115,20 @@ class StockRepository @Inject constructor(
         }
 
         if (newData.isNotEmpty()) {
+            // OHLCV 인메모리 캐시 갱신 (DB에 없는 시가/고가/저가/거래량)
+            val existing = ohlcvCache[ticker].orEmpty().toMutableMap()
+            newData.forEach { d ->
+                existing[d.date] = OhlcvEntry(
+                    date = d.date,
+                    open = d.openPrice,
+                    high = d.highPrice,
+                    low = d.lowPrice,
+                    close = d.closePrice,
+                    volume = d.volume,
+                )
+            }
+            ohlcvCache[ticker] = existing
+
             // DB에 저장 + 365일 이전 정리 (atomic transaction)
             val entities = newData.map { daily ->
                 AnalysisCacheEntity(
@@ -127,7 +145,7 @@ class StockRepository @Inject constructor(
             Timber.d("캐시 저장: ${entities.size}건, 365일 정리: $cutoffDate 이전 삭제")
         }
 
-        // DB에서 전체 기간 데이터 반환
+        // DB에서 전체 기간 데이터 반환 + OHLCV 병합
         loadFromCache(ticker, startDate, endDate)
     }
 
@@ -140,15 +158,40 @@ class StockRepository @Inject constructor(
         endDate: String
     ): List<DailyTrading> {
         val cached = analysisCacheDao.getByTickerDateRange(ticker, startDate, endDate)
-        Timber.d("캐시에서 로드: ${cached.size}건 ($startDate~$endDate)")
+        val ohlcvMap = ohlcvCache[ticker].orEmpty()
+        Timber.d("캐시에서 로드: ${cached.size}건 ($startDate~$endDate), OHLCV캐시: ${ohlcvMap.size}건")
         return cached.map { entity ->
+            val ohlcv = ohlcvMap[entity.date]
             DailyTrading(
                 date = entity.date,
                 marketCap = entity.marketCap,
                 foreignNetBuy = entity.foreignNet,
                 instNetBuy = entity.instNet,
-                closePrice = entity.closePrice
+                closePrice = entity.closePrice,
+                openPrice = ohlcv?.open ?: entity.closePrice,
+                highPrice = ohlcv?.high ?: entity.closePrice,
+                lowPrice = ohlcv?.low ?: entity.closePrice,
+                volume = ohlcv?.volume ?: 0L,
             )
+        }
+    }
+
+    /**
+     * OHLCV 인메모리 캐시가 비어있으면 일봉 API를 호출하여 보충.
+     * DB 캐시는 수급 데이터만 저장하므로 시가/고가/저가/거래량은 별도 관리.
+     */
+    private suspend fun ensureOhlcvCache(ticker: String, endDate: String, config: KiwoomApiKeyConfig) {
+        if (ohlcvCache.containsKey(ticker)) return
+        try {
+            val ohlcvData = fetchDailyOhlcv(ticker, endDate, config)
+            if (ohlcvData.isNotEmpty()) {
+                ohlcvCache[ticker] = ohlcvData.associateBy { it.date }
+                Timber.d("OHLCV 캐시 보충: ${ohlcvData.size}건 ($ticker)")
+            }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w("OHLCV 캐시 보충 실패 (무시): ${e.message}")
         }
     }
 
