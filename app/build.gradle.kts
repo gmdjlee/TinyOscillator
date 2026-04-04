@@ -74,8 +74,27 @@ android {
 
 tasks.withType<Test> {
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
-    jvmArgs("-Xmx512m", "-XX:+UseParallelGC")
+    jvmArgs("-Xmx1g", "-XX:+UseParallelGC")
     outputs.cacheIf { true }
+    // JVM 포크 재사용: 200개 테스트마다 새 JVM (메모리 누수 방지 + 기동 비용 절감)
+    setForkEvery(200)
+}
+
+// ── 빠른 테스트 태스크: afterEvaluate로 안전하게 등록 ──
+afterEvaluate {
+    tasks.findByName("testDebugUnitTest")?.let { baseTest ->
+        tasks.register<Test>("testFast") {
+            description = "Run only @FastTest annotated tests (pure JVM, < 30s)"
+            group = "verification"
+            testClassesDirs = (baseTest as Test).testClassesDirs
+            classpath = baseTest.classpath
+            useJUnit()
+            jvmArgs("-Xmx1g", "-XX:+UseParallelGC")
+            maxParallelForks = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+            setForkEvery(200)
+            outputs.cacheIf { true }
+        }
+    }
 }
 
 ksp {
@@ -135,6 +154,9 @@ dependencies {
 
     // === Security (Encrypted Storage) ===
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // === DataStore (Preferences) ===
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 
     // === Browser (Custom Tabs fallback for WebView) ===
     implementation("androidx.browser:browser:1.8.0")

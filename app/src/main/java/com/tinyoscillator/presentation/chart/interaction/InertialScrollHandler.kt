@@ -4,7 +4,7 @@ import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.widget.OverScroller
-import com.github.mikephil.charting.charts.CandleStickChart
+import com.github.mikephil.charting.charts.BarLineChartBase
 
 /**
  * 핀치줌 후 관성 스크롤 핸들러
@@ -13,7 +13,7 @@ import com.github.mikephil.charting.charts.CandleStickChart
  * 부드러운 관성 애니메이션을 적용합니다.
  */
 class InertialScrollHandler(
-    private val chart: CandleStickChart,
+    private val chart: BarLineChartBase<*>,
 ) {
     private val scroller = OverScroller(chart.context)
     private val velocityTracker = VelocityTracker.obtain()

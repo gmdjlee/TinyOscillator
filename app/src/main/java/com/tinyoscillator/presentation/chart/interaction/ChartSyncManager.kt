@@ -2,7 +2,7 @@ package com.tinyoscillator.presentation.chart.interaction
 
 import android.view.MotionEvent
 import com.github.mikephil.charting.charts.BarChart
-import com.github.mikephil.charting.charts.CandleStickChart
+import com.github.mikephil.charting.charts.BarLineChartBase
 import com.github.mikephil.charting.highlight.Highlight
 import com.github.mikephil.charting.listener.ChartTouchListener
 import com.github.mikephil.charting.listener.OnChartGestureListener
@@ -14,7 +14,7 @@ import com.github.mikephil.charting.listener.OnChartGestureListener
  * 탭 시 같은 x 인덱스를 거래량 차트에도 하이라이트합니다.
  */
 class ChartSyncManager(
-    private val candleChart: CandleStickChart,
+    private val candleChart: BarLineChartBase<*>,
     private val volumeChart: BarChart,
 ) {
     private val syncListener = object : OnChartGestureListener {

@@ -1,5 +1,9 @@
 package com.tinyoscillator.core.di
 
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
 import com.tinyoscillator.core.api.AiApiClient
 import com.tinyoscillator.core.api.BokEcosApiClient
 import com.tinyoscillator.core.api.DartApiClient
@@ -17,6 +21,7 @@ import com.tinyoscillator.core.database.dao.PortfolioDao
 import com.tinyoscillator.core.scraper.EquityReportScraper
 import com.tinyoscillator.core.scraper.FnGuideReportScraper
 import com.tinyoscillator.core.scraper.NaverFinanceScraper
+import com.tinyoscillator.data.preferences.IndicatorPreferencesRepository
 import com.tinyoscillator.data.repository.ConsensusRepository
 import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.data.repository.FinancialRepository
@@ -32,14 +37,31 @@ import com.tinyoscillator.domain.usecase.MarketOscillatorCalculator
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import javax.inject.Singleton
 
+private val Context.indicatorDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "indicator_preferences"
+)
+
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+
+    @Provides
+    @Singleton
+    fun provideIndicatorDataStore(
+        @ApplicationContext context: Context,
+    ): DataStore<Preferences> = context.indicatorDataStore
+
+    @Provides
+    @Singleton
+    fun provideIndicatorPreferencesRepository(
+        dataStore: DataStore<Preferences>,
+    ): IndicatorPreferencesRepository = IndicatorPreferencesRepository(dataStore)
 
     @Provides
     @Singleton

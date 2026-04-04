@@ -1,6 +1,37 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-04 | Session: CHART-K01 — Chart Interaction Upgrade_
+_Last updated: 2026-04-04 | Session: CHART-K02 — Technical Indicator Overlay_
+
+---
+
+## CHART-K02 — 기술 지표 오버레이 (EMA/볼린저/MACD/RSI/스토캐스틱)
+
+### New files
+| File | Purpose |
+|------|---------|
+| `domain/model/Indicator.kt` | Indicator enum, OverlayType, IndicatorParams 도메인 모델 |
+| `domain/indicator/IndicatorCalculator.kt` | EMA, 볼린저밴드, MACD, RSI, 스토캐스틱 순수 Kotlin 계산 |
+| `presentation/chart/ext/IndicatorDataSetExt.kt` | FloatArray → LineDataSet, IndicatorData → LineData 변환 |
+| `presentation/chart/composable/OscillatorChartView.kt` | MACD (CombinedChart), RSI (LineChart), 스토캐스틱 서브차트 |
+| `presentation/chart/composable/IndicatorSheet.kt` | BottomSheet 지표 선택기 (최대 4 가격 / 1 오실레이터) |
+| `data/preferences/IndicatorPreferencesRepository.kt` | DataStore 기반 지표 선택 + 파라미터 영속화 |
+| `presentation/viewmodel/StockChartViewModel.kt` | 지표 계산 + preferences 연동 ViewModel |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `presentation/chart/composable/KoreanCandleChartView.kt` | CandleStickChart → CombinedChart, indicatorData 파라미터 추가 |
+| `presentation/chart/interaction/ChartSyncManager.kt` | CandleStickChart → BarLineChartBase<*> (CombinedChart 호환) |
+| `presentation/chart/interaction/InertialScrollHandler.kt` | CandleStickChart → BarLineChartBase<*> |
+| `core/di/AppModule.kt` | DataStore + IndicatorPreferencesRepository DI 등록 |
+| `build.gradle.kts` | DataStore preferences 의존성 추가 |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `IndicatorCalculatorTest.kt` | 17 | PASS |
+| `IndicatorConstraintTest.kt` | 2 | PASS |
+| **Total** | **19** | **ALL PASS** |
 
 ---
 

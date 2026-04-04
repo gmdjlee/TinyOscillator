@@ -1,8 +1,25 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-04 by CHART-K01 Chart Interaction Upgrade_
+_Last updated: 2026-04-04 by CHART-K02 Technical Indicator Overlay_
 
 ## Current session
+**CHART-K02 — 기술 지표 오버레이** COMPLETE.
+
+### Delivered
+- `domain/model/Indicator.kt` — Indicator enum (8종), OverlayType, IndicatorParams
+- `domain/indicator/IndicatorCalculator.kt` — EMA/볼린저/MACD/RSI/스토캐스틱 순수 Kotlin 계산
+- `presentation/chart/ext/IndicatorDataSetExt.kt` — FloatArray → LineDataSet, 가격 오버레이 변환
+- `presentation/chart/composable/OscillatorChartView.kt` — MACD/RSI/스토캐스틱 서브차트
+- `presentation/chart/composable/IndicatorSheet.kt` — ModalBottomSheet 지표 선택기
+- `data/preferences/IndicatorPreferencesRepository.kt` — Preferences DataStore 영속화
+- `presentation/viewmodel/StockChartViewModel.kt` — 지표 상태 + 계산 ViewModel
+- `KoreanCandleChartView.kt` — CandleStickChart → CombinedChart (EMA/볼린저 오버레이)
+- ChartSyncManager + InertialScrollHandler — CombinedChart 호환 타입 변경
+- build.gradle.kts — DataStore 의존성 추가
+- AppModule.kt — DataStore + Repository DI 등록
+- 2 test files, 19 tests — all passing
+
+## Previous session
 **CHART-K01 — MPAndroidChart 인터랙션 개선** COMPLETE.
 
 ### Delivered
