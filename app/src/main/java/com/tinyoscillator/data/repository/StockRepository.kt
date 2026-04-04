@@ -115,20 +115,6 @@ class StockRepository @Inject constructor(
         }
 
         if (newData.isNotEmpty()) {
-            // OHLCV 인메모리 캐시 갱신 (DB에 없는 시가/고가/저가/거래량)
-            val existing = ohlcvCache[ticker].orEmpty().toMutableMap()
-            newData.forEach { d ->
-                existing[d.date] = OhlcvEntry(
-                    date = d.date,
-                    open = d.openPrice,
-                    high = d.highPrice,
-                    low = d.lowPrice,
-                    close = d.closePrice,
-                    volume = d.volume,
-                )
-            }
-            ohlcvCache[ticker] = existing
-
             // DB에 저장 + 365일 이전 정리 (atomic transaction)
             val entities = newData.map { daily ->
                 AnalysisCacheEntity(
@@ -217,6 +203,13 @@ class StockRepository @Inject constructor(
                     ohlcvDeferred.await()
                 )
             }
+        }
+
+        // OHLCV 인메모리 캐시 갱신 (raw API 응답 → 날짜 키)
+        if (ohlcvData.isNotEmpty()) {
+            val existing = ohlcvCache[ticker].orEmpty().toMutableMap()
+            ohlcvData.forEach { entry -> existing[entry.date] = entry }
+            ohlcvCache[ticker] = existing
         }
 
         if (investorTrend.isEmpty()) {
