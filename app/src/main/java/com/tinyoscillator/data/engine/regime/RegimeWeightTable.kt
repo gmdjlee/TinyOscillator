@@ -25,13 +25,14 @@ object RegimeWeightTable {
     const val ALGO_ORDER_FLOW = "OrderFlow"
     const val ALGO_DART_EVENT = "DartEvent"
     const val ALGO_KOREA_5FACTOR = "Korea5Factor"
+    const val ALGO_SECTOR_CORRELATION = "SectorCorrelation"
 
     val ALL_ALGOS = listOf(
         ALGO_NAIVE_BAYES, ALGO_LOGISTIC, ALGO_HMM,
         ALGO_PATTERN_SCAN, ALGO_SIGNAL_SCORING,
         ALGO_CORRELATION, ALGO_BAYESIAN_UPDATE,
         ALGO_ORDER_FLOW, ALGO_DART_EVENT,
-        ALGO_KOREA_5FACTOR
+        ALGO_KOREA_5FACTOR, ALGO_SECTOR_CORRELATION
     )
 
     /**
@@ -46,51 +47,55 @@ object RegimeWeightTable {
     val WEIGHT_TABLE: Map<String, Map<String, Double>> = mapOf(
         MarketRegimeClassifier.REGIME_BULL_LOW_VOL to mapOf(
             ALGO_NAIVE_BAYES to 0.06,
-            ALGO_LOGISTIC to 0.10,
+            ALGO_LOGISTIC to 0.09,
             ALGO_HMM to 0.05,
-            ALGO_PATTERN_SCAN to 0.18,
-            ALGO_SIGNAL_SCORING to 0.15,
+            ALGO_PATTERN_SCAN to 0.17,
+            ALGO_SIGNAL_SCORING to 0.14,
             ALGO_CORRELATION to 0.05,
-            ALGO_BAYESIAN_UPDATE to 0.08,
-            ALGO_ORDER_FLOW to 0.11,
-            ALGO_DART_EVENT to 0.09,
-            ALGO_KOREA_5FACTOR to 0.13   // 팩터 지속성 높은 안정기에 가중
+            ALGO_BAYESIAN_UPDATE to 0.07,
+            ALGO_ORDER_FLOW to 0.10,
+            ALGO_DART_EVENT to 0.08,
+            ALGO_KOREA_5FACTOR to 0.12,  // 팩터 지속성 높은 안정기에 가중
+            ALGO_SECTOR_CORRELATION to 0.07  // 안정기 섹터 동조화 모니터링
         ),
         MarketRegimeClassifier.REGIME_BEAR_HIGH_VOL to mapOf(
             ALGO_NAIVE_BAYES to 0.07,
-            ALGO_LOGISTIC to 0.06,
-            ALGO_HMM to 0.16,
+            ALGO_LOGISTIC to 0.05,
+            ALGO_HMM to 0.15,
             ALGO_PATTERN_SCAN to 0.05,
-            ALGO_SIGNAL_SCORING to 0.06,
-            ALGO_CORRELATION to 0.11,
-            ALGO_BAYESIAN_UPDATE to 0.12,
-            ALGO_ORDER_FLOW to 0.16,
-            ALGO_DART_EVENT to 0.12,
-            ALGO_KOREA_5FACTOR to 0.09
+            ALGO_SIGNAL_SCORING to 0.05,
+            ALGO_CORRELATION to 0.10,
+            ALGO_BAYESIAN_UPDATE to 0.11,
+            ALGO_ORDER_FLOW to 0.15,
+            ALGO_DART_EVENT to 0.11,
+            ALGO_KOREA_5FACTOR to 0.08,
+            ALGO_SECTOR_CORRELATION to 0.08  // 하락장 상관 붕괴 감지 중요
         ),
         MarketRegimeClassifier.REGIME_SIDEWAYS to mapOf(
-            ALGO_NAIVE_BAYES to 0.12,
-            ALGO_LOGISTIC to 0.13,
+            ALGO_NAIVE_BAYES to 0.11,
+            ALGO_LOGISTIC to 0.12,
             ALGO_HMM to 0.05,
-            ALGO_PATTERN_SCAN to 0.08,
-            ALGO_SIGNAL_SCORING to 0.08,
-            ALGO_CORRELATION to 0.12,
-            ALGO_BAYESIAN_UPDATE to 0.08,
-            ALGO_ORDER_FLOW to 0.12,
-            ALGO_DART_EVENT to 0.10,
-            ALGO_KOREA_5FACTOR to 0.12   // 횡보장에서 팩터 알파 유효
+            ALGO_PATTERN_SCAN to 0.07,
+            ALGO_SIGNAL_SCORING to 0.07,
+            ALGO_CORRELATION to 0.11,
+            ALGO_BAYESIAN_UPDATE to 0.07,
+            ALGO_ORDER_FLOW to 0.11,
+            ALGO_DART_EVENT to 0.09,
+            ALGO_KOREA_5FACTOR to 0.11,  // 횡보장에서 팩터 알파 유효
+            ALGO_SECTOR_CORRELATION to 0.09  // 횡보장 섹터 이탈 감지
         ),
         MarketRegimeClassifier.REGIME_CRISIS to mapOf(
-            ALGO_NAIVE_BAYES to 0.09,
+            ALGO_NAIVE_BAYES to 0.08,
             ALGO_LOGISTIC to 0.05,
-            ALGO_HMM to 0.19,
+            ALGO_HMM to 0.18,
             ALGO_PATTERN_SCAN to 0.04,
             ALGO_SIGNAL_SCORING to 0.04,
             ALGO_CORRELATION to 0.05,
-            ALGO_BAYESIAN_UPDATE to 0.18,
-            ALGO_ORDER_FLOW to 0.16,
-            ALGO_DART_EVENT to 0.13,
-            ALGO_KOREA_5FACTOR to 0.07   // 위기 시 팩터 모델 신뢰도 낮음
+            ALGO_BAYESIAN_UPDATE to 0.17,
+            ALGO_ORDER_FLOW to 0.15,
+            ALGO_DART_EVENT to 0.12,
+            ALGO_KOREA_5FACTOR to 0.06,  // 위기 시 팩터 모델 신뢰도 낮음
+            ALGO_SECTOR_CORRELATION to 0.06  // 위기 시 전반적 상관 증가
         )
     )
 

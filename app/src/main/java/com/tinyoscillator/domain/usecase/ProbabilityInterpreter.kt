@@ -572,10 +572,42 @@ class ProbabilityInterpreter @Inject constructor() {
         return sb.toString()
     }
 
+    /** 섹터 상관 네트워크 해석 */
+    fun interpretSectorCorrelation(sc: SectorCorrelationResult): String {
+        val sb = StringBuilder()
+        if (sc.unavailableReason != null) {
+            sb.appendLine("섹터 상관 네트워크: 사용 불가 (${sc.unavailableReason})")
+            return sb.toString()
+        }
+
+        sb.appendLine("Ledoit-Wolf 축소 추정량으로 '${sc.sectorName}' 섹터 내 ${sc.nPeers}개 종목의 상관 네트워크를 분석했습니다.")
+        sb.appendLine()
+
+        if (sc.isOutlier) {
+            sb.appendLine("⚠ 이 종목은 섹터 클러스터에서 이탈한 아웃라이어입니다.")
+            sb.appendLine("이웃 종목과의 평균 상관계수가 ${String.format("%.3f", sc.meanNeighborCorr)}로 낮아,")
+            sb.appendLine("섹터 동조화에서 벗어나고 있습니다. 이는 다음을 의미할 수 있습니다:")
+            sb.appendLine("  · 독자적 재료(공시/실적)에 의한 개별 움직임")
+            sb.appendLine("  · 섹터 로테이션의 선행 신호")
+            sb.appendLine("  · 일시적 괴리 후 평균회귀 가능성")
+        } else {
+            sb.appendLine("이 종목은 섹터 내 정상 범위의 동조화를 보이고 있습니다.")
+            sb.appendLine("이웃 종목과의 평균 상관계수: ${String.format("%.3f", sc.meanNeighborCorr)}")
+        }
+        sb.appendLine()
+        sb.appendLine("네트워크 지표:")
+        sb.appendLine("  이웃(연결) 수: ${sc.nNeighbors}개")
+        sb.appendLine("  섹터 평균 |상관|: ${String.format("%.3f", sc.avgAbsCorr)}")
+        sb.appendLine("  상관 순위: ${sc.corrRank}/${sc.nPeers} (낮을수록 독립적)")
+        sb.appendLine("  축소 강도: ${String.format("%.3f", sc.shrinkageIntensity)}")
+
+        return sb.toString()
+    }
+
     /** AI 해석용 프롬프트 생성 */
     fun buildPromptForAi(result: StatisticalResult): String {
         val sb = StringBuilder()
-        sb.appendLine("다음은 ${result.stockName}(${result.ticker})의 10개 통계 알고리즘 확률분석 결과입니다.")
+        sb.appendLine("다음은 ${result.stockName}(${result.ticker})의 11개 통계 알고리즘 확률분석 결과입니다.")
         sb.appendLine("2-레벨 스태킹 앙상블로 메타 학습기가 학습된 경우 종합 확률이 제공됩니다.")
         sb.appendLine("각 결과를 종합하여 투자자에게 유용한 해석을 제공해주세요.")
         sb.appendLine()

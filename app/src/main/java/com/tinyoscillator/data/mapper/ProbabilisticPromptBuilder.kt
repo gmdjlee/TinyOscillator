@@ -38,7 +38,7 @@ $userPrompt<|im_end|>
     fun buildSystemPrompt(): String = """You are a Korean stock analyst. All numbers below are PRE-COMPUTED by statistical engines. NEVER recalculate any number. Your job is to INTERPRET and SYNTHESIZE the results.
 
 분석 가이드라인:
-1. 10개 알고리즘 결과를 2-레벨 스태킹 앙상블로 종합하여 투자 의견을 제시
+1. 11개 알고리즘 결과를 2-레벨 스태킹 앙상블로 종합하여 투자 의견을 제시
 2. 상충 신호가 있으면 과거 승률이 높은 쪽에 가중
 3. 레짐(HMM)에 따라 신호의 신뢰도를 조정
 4. 확률이 0.6 이상이면 유의미, 0.7 이상이면 강한 신호로 해석
@@ -167,6 +167,17 @@ JSON 출력 스키마:
                 sb.appendLine("- 신호점수: ${pct(k5.signalScore)}, alpha: ${String.format("%+.4f", k5.alphaRaw)}, z-score: ${String.format("%+.2f", k5.alphaZscore)}")
                 sb.appendLine("- 베타: MKT=${fmt2(k5.betas.mkt)}, SMB=${fmt2(k5.betas.smb)}, HML=${fmt2(k5.betas.hml)}, RMW=${fmt2(k5.betas.rmw)}, CMA=${fmt2(k5.betas.cma)}")
                 sb.appendLine("- R²=${String.format("%.1f%%", k5.rSquared * 100)}, 관측치=${k5.nObs}개월")
+                sb.appendLine()
+            }
+        }
+
+        // 섹터 상관 네트워크
+        result.sectorCorrelationResult?.let { sc ->
+            if (sc.unavailableReason == null) {
+                sb.appendLine("[섹터 상관 네트워크]")
+                sb.appendLine("- 신호점수: ${pct(sc.signalScore)}, 이상치: ${if (sc.isOutlier) "예" else "아니오"}")
+                sb.appendLine("- 이웃상관: ${fmt2(sc.meanNeighborCorr)}, 이웃수: ${sc.nNeighbors}, 섹터: ${sc.sectorName}")
+                sb.appendLine("- 피어수: ${sc.nPeers}, 축소강도: ${fmt2(sc.shrinkageIntensity)}, 평균|상관|: ${fmt2(sc.avgAbsCorr)}")
                 sb.appendLine()
             }
         }

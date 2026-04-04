@@ -384,6 +384,7 @@ class AiAnalysisViewModel @Inject constructor(
         result.orderFlowResult?.let { engines["orderflow"] = probabilityInterpreter.interpretOrderFlow(it) }
         result.dartEventResult?.let { engines["dartevent"] = probabilityInterpreter.interpretDartEvent(it) }
         result.korea5FactorResult?.let { engines["korea5factor"] = probabilityInterpreter.interpretKorea5Factor(it) }
+        result.sectorCorrelationResult?.let { engines["sectorcorr"] = probabilityInterpreter.interpretSectorCorrelation(it) }
         result.marketRegimeResult?.let { engines["regime"] = probabilityInterpreter.interpretMarketRegime(it) }
         result.macroSignalResult?.let { engines["macro"] = probabilityInterpreter.interpretMacro(it) }
         result.positionRecommendation?.let { engines["position"] = probabilityInterpreter.interpretPositionRecommendation(it) }

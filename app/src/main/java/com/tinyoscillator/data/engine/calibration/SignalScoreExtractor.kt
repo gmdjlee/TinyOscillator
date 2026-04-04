@@ -58,6 +58,12 @@ object SignalScoreExtractor {
             }
         }
 
+        result.sectorCorrelationResult?.let {
+            if (it.unavailableReason == null) {
+                scores.add(RawSignalScore("SectorCorrelation", it.signalScore))
+            }
+        }
+
         return scores
     }
 

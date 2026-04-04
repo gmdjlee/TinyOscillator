@@ -1,5 +1,6 @@
 package com.tinyoscillator.domain.usecase
 
+import com.tinyoscillator.data.engine.VectorizedIndicators
 import com.tinyoscillator.domain.model.*
 import com.tinyoscillator.domain.model.OscillatorConfig.Companion.MARKET_CAP_DIVISOR
 import timber.log.Timber
@@ -111,20 +112,11 @@ class CalcOscillatorUseCase(
     /**
      * EMA (지수이동평균) 계산
      *
-     * pandas.ewm(alpha=..., adjust=False) 와 동일
+     * pandas.ewm(alpha=..., adjust=False) 와 동일.
+     * VectorizedIndicators.emaArray를 래핑하여 DoubleArray 기반으로 최적화.
      */
     fun calcEma(values: List<Double>, period: Int): List<Double> {
-        if (values.isEmpty()) return emptyList()
-
-        val alpha = 2.0 / (period + 1)
-        val result = ArrayList<Double>(values.size)
-        result.add(values[0])
-
-        for (i in 1 until values.size) {
-            val ema = alpha * values[i] + (1.0 - alpha) * result[i - 1]
-            result.add(ema)
-        }
-        return result
+        return VectorizedIndicators.emaList(values, period)
     }
 
     /**

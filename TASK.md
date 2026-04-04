@@ -1,9 +1,9 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-03 by PROMPT 10 Korea 5-Factor Model_
+_Last updated: 2026-04-04 by PROMPT 11 Sector Network + Vectorized Indicators_
 
 ## Current session
-**PROMPT 10 — Korea 5-Factor Model** COMPLETE. Ready to begin PROMPT 11.
+**PROMPT 11 — Sector Network + Vectorized Indicators** COMPLETE. All 11 algorithms registered.
 
 ## Upcoming tasks (ordered)
 
@@ -161,15 +161,18 @@ _Last updated: 2026-04-03 by PROMPT 10 Korea 5-Factor Model_
 **Acceptance test:** OLS alpha recovery within 0.015 on synthetic data; rolling_alpha correct entry count; signal bounded [0,1]; guard for < 24 obs
 
 ### PROMPT 11 — Sector Network + Vectorized Indicators
-**Status:** NOT STARTED
+**Status:** COMPLETE (2026-04-04)
 **Prerequisite:** PROMPT 03 (FeatureStore)
+**Decision:** Pure Kotlin implementation — consistent with PROMPT 01–10 (no Chaquopy/Python)
 **Delivers:**
-- `app/src/main/python/network/sector_correlation_network.py`
-- `app/src/main/python/network/sector_mapper.py`
-- `app/src/main/python/indicators/vectorized_indicators.py`
-- Ensemble extended to 11 algorithms
-- Benchmark log: ema_numpy vs pandas speedup ratio
-**Acceptance test:** All 11 algorithms registered; regime weights sum to 1.0 per regime
+- `data/engine/network/SectorCorrelationNetwork.kt` — 11th engine: Ledoit-Wolf shrinkage, graph-based outlier detection
+- `data/engine/VectorizedIndicators.kt` — DoubleArray-based EMA/MACD/RSI, batch computation
+- `domain/model/SectorCorrelationModels.kt` — SectorCorrelationResult data class
+- Ensemble extended to 11 algorithms with regime weights summing to 1.0
+- CalcOscillatorUseCase.calcEma() delegates to VectorizedIndicators.emaList()
+- `SectorCorrelationNetworkTest.kt` — 7 tests
+- `VectorizedIndicatorsTest.kt` — 13 tests
+**Acceptance test:** All 11 algorithms registered in RegimeWeightTable; weights sum to 1.0 per regime; batchCompute 100×252 < 500ms
 
 ## Completed tasks
 
@@ -189,6 +192,10 @@ _Last updated: 2026-04-03 by PROMPT 10 Korea 5-Factor Model_
 - `StatisticalAnalysisEngine` integration: records signal history after each analysis, exposes `getCalibratedScores()`
 - 4 test files with full coverage
 **Next steps:** PROMPT 03 (Feature Store)
+
+### PROMPT 11 — Sector Network + Vectorized Indicators
+**Status:** COMPLETE (2026-04-04)
+See above.
 
 ## Deferred / backlog
 _Items discovered during PROMPT 00 audit that are not part of the 11-prompt roadmap:_

@@ -1,6 +1,6 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-03 | Session: PROMPT 10 — Korea 5-Factor Model_
+_Last updated: 2026-04-04 | Session: PROMPT 11 — Sector Network + Vectorized Indicators_
 
 ---
 
@@ -40,11 +40,12 @@ against which all future changes are measured._
 | 8 | Order Flow | `OrderFlowEngine` | `data/engine/OrderFlowEngine.kt` | [0,1] buyerDominanceScore | No | Regime-weighted |
 | 9 | DART Event Study | `DartEventEngine` | `data/engine/DartEventEngine.kt` | [0,1] signalScore | No | Regime-weighted |
 | 10 | Korea 5-Factor | `Korea5FactorEngine` | `data/engine/Korea5FactorEngine.kt` | [0,1] signalScore (sigmoid(alpha_zscore)) | No | Regime-weighted |
+| 11 | Sector Correlation | `SectorCorrelationNetwork` | `data/engine/network/SectorCorrelationNetwork.kt` | [0,1] signalScore (outlier=0.6~1.0, normal=0.3~0.5) | No | Regime-weighted |
 
 ### Ensemble orchestrator
 - **Class**: `StatisticalAnalysisEngine`
 - **File**: `data/engine/StatisticalAnalysisEngine.kt`
-- **Aggregation**: Regime-aware weighting via `RegimeWeightTable` — all 10 engines run in parallel via coroutineScope/async; results collected into `StatisticalResult` with individual fields + `MarketRegimeResult`. The AI API (via `ProbabilisticPromptBuilder`) or `ProbabilityInterpreter` synthesizes the final interpretation with regime context.
+- **Aggregation**: Regime-aware weighting via `RegimeWeightTable` — all 11 engines run in parallel via coroutineScope/async; results collected into `StatisticalResult` with individual fields + `MarketRegimeResult`. The AI API (via `ProbabilisticPromptBuilder`) or `ProbabilityInterpreter` synthesizes the final interpretation with regime context.
 - **Regime integration**: `MarketRegimeClassifier` provides current market regime (BULL_LOW_VOL/BEAR_HIGH_VOL/SIDEWAYS/CRISIS) and per-algorithm weight table. Regime result cached and updated weekly by `RegimeUpdateWorker`.
 
 ### Room database entities (v13)
@@ -385,8 +386,63 @@ _Each completed PROMPT session appends one block below._
   - `IncrementalLogisticRegressionTest.kt` — 11 tests: warmStart, SGD update stability, predict bounds, save/load roundtrip, adaptive LR, map-based predict, error cases
   - `IncrementalModelManagerTest.kt` — 10 tests: dailyUpdate <200ms, save/load roundtrip, drift detection, constants, both-model update
 
-### [PENDING] PROMPT 10 — Korea 5-Factor
-- Status: NOT STARTED
+### [COMPLETE] PROMPT 10 — Korea 5-Factor Model (2026-04-03)
+- Status: COMPLETE
+- Decision: Pure Kotlin implementation (no Chaquopy/Python) — consistent with PROMPT 01–09
+- 5-factor: MKT excess (KOSPI − base rate), SMB (market cap proxy), HML (PBR inverse), RMW (ROE proxy), CMA (asset growth proxy)
+- OLS rolling regression: 36-month window, 3-month step, min 24 observations
+- Signal: alpha z-score → sigmoid → [0,1]
+- Factor data cached via FeatureStore (Weekly TTL) — no new DB table needed
+- New source files:
+  - `data/engine/Korea5FactorEngine.kt` — 10th engine: OLS regression, rolling alpha, z-score signal
+  - `domain/model/FactorModels.kt` — Korea5FactorResult, FactorBetas, MonthlyFactorRow, FactorDataCache
+- Modified files:
+  - `data/engine/StatisticalAnalysisEngine.kt` — Korea5FactorEngine injection, parallel execution
+  - `data/engine/regime/RegimeWeightTable.kt` — ALGO_KOREA_5FACTOR constant, ALL_ALGOS updated to 10
+  - `data/engine/calibration/SignalScoreExtractor.kt` — Extracts signalScore for Korea5Factor
+  - `data/engine/calibration/SignalCalibrator.kt` — Korea5Factor added to ALGO_NAMES
+  - `domain/model/StatisticalModels.kt` — korea5FactorResult field in StatisticalResult
+  - `domain/usecase/ProbabilityInterpreter.kt` — interpretKorea5Factor(), updated summarize/AI prompt (10개 알고리즘)
+  - `data/mapper/ProbabilisticPromptBuilder.kt` — Korea5Factor section in AI prompt
+  - `presentation/ai/AiAnalysisScreen.kt` — 5팩터 알파 expandable card
+  - `presentation/ai/AiAnalysisViewModel.kt` — interpretLocal() includes korea5factor
+- Tests added (1 file):
+  - `Korea5FactorEngineTest.kt` — 12 tests: OLS alpha recovery, rolling_alpha, signal bounds, guard for < 24 obs
 
-### [PENDING] PROMPT 11 — Sector Network + Vectorized
-- Status: NOT STARTED
+### [COMPLETE] PROMPT 11 — Sector Network + Vectorized Indicators (2026-04-04)
+- Status: COMPLETE
+- Decision: Pure Kotlin implementation (no Chaquopy/Python) — consistent with PROMPT 01–10
+- Part A: Sector Correlation Network (11th engine)
+  - Ledoit-Wolf shrinkage covariance estimation (analytical optimal shrinkage formula)
+  - Correlation matrix from shrunk covariance with covToCorr transformation
+  - Graph-based outlier detection: edge threshold |corr| >= 0.5, mean neighbor correlation
+  - Outlier = potential divergence/reversal signal (signal_score → 0.6~1.0 for outliers, 0.3~0.5 for normal)
+  - Sector peers via StockMasterDao.getTickersBySector(), price data from AnalysisCacheDao
+  - Weekly update cadence (not intraday), cached via FeatureStore
+- Part B: Vectorized Indicators
+  - DoubleArray-based EMA/MACD/RSI (no autoboxing, pre-allocated arrays)
+  - RSI uses Wilder smoothing (not SMA)
+  - batchCompute: 100 tickers × 252 days in < 500ms
+  - CalcOscillatorUseCase.calcEma() now delegates to VectorizedIndicators.emaList()
+- New source files:
+  - `data/engine/network/SectorCorrelationNetwork.kt` — 11th engine: Ledoit-Wolf, graph construction, outlier detection
+  - `data/engine/VectorizedIndicators.kt` — DoubleArray-based emaArray, macdArray, rsiArray, batchCompute, emaList
+  - `domain/model/SectorCorrelationModels.kt` — SectorCorrelationResult (12 fields)
+- Modified files:
+  - `core/database/dao/StockMasterDao.kt` — getTickersBySector() query added
+  - `domain/model/StatisticalModels.kt` — sectorCorrelationResult field in StatisticalResult
+  - `data/engine/StatisticalAnalysisEngine.kt` — SectorCorrelationNetwork injection, parallel async execution (11개 엔진)
+  - `data/engine/regime/RegimeWeightTable.kt` — ALGO_SECTOR_CORRELATION constant, ALL_ALGOS updated to 11, weights redistributed per regime (sum=1.0)
+  - `data/engine/calibration/SignalScoreExtractor.kt` — Extracts signalScore for SectorCorrelation
+  - `data/engine/calibration/SignalCalibrator.kt` — SectorCorrelation added to ALGO_NAMES
+  - `domain/usecase/ProbabilityInterpreter.kt` — interpretSectorCorrelation(), updated AI prompt (11개 알고리즘)
+  - `data/mapper/ProbabilisticPromptBuilder.kt` — Sector correlation section in AI prompt (11개 알고리즘)
+  - `presentation/ai/AiAnalysisScreen.kt` — 섹터 상관 expandable card (outlier status, neighbors, avg corr, rank)
+  - `presentation/ai/AiAnalysisViewModel.kt` — interpretLocal() includes sectorcorr
+  - `domain/usecase/CalcOscillatorUseCase.kt` — calcEma() delegates to VectorizedIndicators.emaList()
+- Tests added (2 files):
+  - `SectorCorrelationNetworkTest.kt` — 7 tests: valid correlation matrix (diagonal=1, symmetric, [-1,1]), outlier detection (correlated→not outlier, uncorrelated→outlier), unavailable (no sector, too few peers), signal bounds, shrinkage intensity
+  - `VectorizedIndicatorsTest.kt` — 13 tests: EMA parity with pandas ewm, period=1, single element, empty throws, list/array match, MACD correctness, RSI bounds [0,100], NaN for first period, monotonic increase/decrease, batch shape, batch timing (<500ms), batch EMA match, CalcOscillatorUseCase compatibility
+- Existing tests updated:
+  - `StatisticalAnalysisEngineTest.kt` — added sectorCorrelationNetwork parameter
+  - `AnalyzeStockProbabilityUseCaseTest.kt` — added sectorCorrelationNetwork parameter

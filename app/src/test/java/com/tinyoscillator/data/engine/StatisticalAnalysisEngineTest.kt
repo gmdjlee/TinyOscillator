@@ -64,6 +64,10 @@ class StatisticalAnalysisEngineTest {
                 mockk(relaxed = true),
                 mockk(relaxed = true)
             ),
+            sectorCorrelationNetwork = com.tinyoscillator.data.engine.network.SectorCorrelationNetwork(
+                mockk(relaxed = true),
+                mockk(relaxed = true)
+            ),
             signalCalibrator = SignalCalibrator(),
             calibrationDao = calibrationDao,
             marketRegimeClassifier = com.tinyoscillator.data.engine.regime.MarketRegimeClassifier(),

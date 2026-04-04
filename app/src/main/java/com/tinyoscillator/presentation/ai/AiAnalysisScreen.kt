@@ -1198,6 +1198,22 @@ private fun ProbabilityResultContent(
         }
     }
 
+    result.sectorCorrelationResult?.let { sc ->
+        if (sc.unavailableReason == null) {
+            val statusLabel = if (sc.isOutlier) "이상치" else "정상"
+            ProbExpandableCard("섹터 상관: $statusLabel (${sc.sectorName}, 상관=${String.format("%.2f", sc.meanNeighborCorr)})") {
+                Text("신호 점수: ${pctFmt(sc.signalScore)}")
+                Text("이웃 수: ${sc.nNeighbors}개, 피어 수: ${sc.nPeers}개",
+                    style = MaterialTheme.typography.bodySmall)
+                Text("평균 |상관|: ${String.format("%.3f", sc.avgAbsCorr)}, 축소 강도: ${String.format("%.3f", sc.shrinkageIntensity)}",
+                    style = MaterialTheme.typography.bodySmall)
+                Text("상관 순위: ${sc.corrRank}/${sc.nPeers} (낮을수록 독립적)",
+                    style = MaterialTheme.typography.bodySmall)
+                EngineInterpretationBlock(engineInterpretations["sectorcorr"])
+            }
+        }
+    }
+
     result.macroSignalResult?.let { macro ->
         if (macro.unavailableReason == null) {
             val envLabel = when (macro.macroEnv) {

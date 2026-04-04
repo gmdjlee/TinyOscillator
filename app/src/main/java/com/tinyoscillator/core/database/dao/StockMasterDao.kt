@@ -46,6 +46,10 @@ interface StockMasterDao {
     /** 종목의 섹터 조회 */
     @Query("SELECT sector FROM stock_master WHERE ticker = :ticker")
     suspend fun getSector(ticker: String): String?
+
+    /** 동일 섹터 종목 조회 (시가총액 기준 상위 N개) */
+    @Query("SELECT ticker FROM stock_master WHERE sector = :sector AND sector != '' ORDER BY ticker ASC LIMIT :limit")
+    suspend fun getTickersBySector(sector: String, limit: Int): List<String>
 }
 
 data class TickerMarketPair(val ticker: String, val market: String)
