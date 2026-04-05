@@ -1,6 +1,39 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: SIGNAL-T03 — Signal History & Accuracy_
+_Last updated: 2026-04-05 | Session: SIGNAL-T04 — Signal Heatmap_
+
+---
+
+## SIGNAL-T04 — 신호 강도 히트맵 (날짜×종목)
+
+### New files
+| File | Purpose |
+|------|---------|
+| `domain/model/HeatmapData.kt` | 히트맵 데이터 모델 (행=종목, 열=날짜, 셀=점수) |
+| `domain/usecase/BuildHeatmapUseCase.kt` | 분석 이력 종목의 일별 앙상블 평균 점수 UseCase |
+| `presentation/common/SignalHeatmap.kt` | Canvas 기반 히트맵 Composable (색상+탭+스크롤) |
+| `presentation/common/HeatmapViewModel.kt` | 기간 선택 + 데이터 로드 ViewModel |
+| `presentation/common/HeatmapScreen.kt` | 히트맵 화면 + 기간 선택기 + 색상 범례 |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `core/database/dao/CalibrationDao.kt` | getAverageScoreForDay, getDistinctDates 쿼리 추가 |
+| `presentation/ai/AiAnalysisScreen.kt` | onHeatmapClick 콜백 + GridView 아이콘 버튼 추가 |
+| `MainActivity.kt` | heatmap NavHost 라우트, onHeatmapClick 콜백 전달 |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `HeatmapDataTest.kt` | 6 | PASS |
+| `HeatmapColorTest.kt` | 9 | PASS |
+
+### Design decisions
+- **WatchlistRepository 없음**: AnalysisHistoryDao.getAll()로 최근 분석 종목을 히트맵 행으로 사용
+- **날짜 형식 적응**: SignalHistoryEntity.date가 String "yyyyMMdd" → getAverageScoreForDay(ticker, date) 쿼리
+- **Canvas 직접 구현**: Vico/MPAndroidChart 불필요 — 28dp 셀 + nativeCanvas.drawText
+- **한국 관례 색상**: 강세=적색(D85A30), 약세=청색(378ADD), 5단계 구분
+- **네비게이션**: AiAnalysisScreen TopAppBar에 GridView 아이콘 → "heatmap" NavHost 라우트 → 셀 탭 시 stock_aggregated/{ticker}
 
 ---
 

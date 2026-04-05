@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -42,6 +43,7 @@ import com.tinyoscillator.data.engine.RationaleBuilder
 @Composable
 fun AiAnalysisScreen(
     onSettingsClick: () -> Unit,
+    onHeatmapClick: () -> Unit = {},
     viewModel: AiAnalysisViewModel = hiltViewModel()
 ) {
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
@@ -64,6 +66,9 @@ fun AiAnalysisScreen(
             TopAppBar(
                 title = { Text("AI 분석") },
                 actions = {
+                    IconButton(onClick = onHeatmapClick) {
+                        Icon(Icons.Default.GridView, contentDescription = "히트맵")
+                    }
                     ThemeToggleIcon(themeModeState)
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "설정")

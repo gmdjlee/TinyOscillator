@@ -79,6 +79,7 @@ import com.tinyoscillator.presentation.ai.AiAnalysisScreen
 import com.tinyoscillator.presentation.market.MarketIndicatorScreen
 import com.tinyoscillator.presentation.marketanalysis.MarketAnalysisScreen
 import com.tinyoscillator.presentation.portfolio.PortfolioScreen
+import com.tinyoscillator.presentation.common.HeatmapScreen
 import com.tinyoscillator.presentation.report.ReportDetailScreen
 import com.tinyoscillator.presentation.report.ReportScreen
 import com.tinyoscillator.presentation.settings.SettingsScreen
@@ -155,7 +156,8 @@ fun AppNavigation() {
                 onStockTrendClick = { etfTicker, stockTicker -> navController.navigate("stock_trend/$etfTicker/$stockTicker") },
                 onReportDetailClick = { report ->
                     navController.navigate("report_detail/${report.stockTicker}/${report.writeDate}")
-                }
+                },
+                onHeatmapClick = { navController.navigate("heatmap") }
             )
         }
         composable("settings") {
@@ -185,6 +187,13 @@ fun AppNavigation() {
         composable("report_detail/{ticker}/{writeDate}") {
             ReportDetailScreen(onBack = { navController.popBackStack() })
         }
+        composable("heatmap") {
+            HeatmapScreen(
+                onTickerClick = { ticker ->
+                    navController.navigate("stock_aggregated/$ticker")
+                }
+            )
+        }
     }
 }
 
@@ -196,7 +205,8 @@ private fun MainScaffold(
     onEtfDetailClick: (String) -> Unit,
     onStockClick: (String) -> Unit = {},
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
-    onReportDetailClick: (ConsensusReport) -> Unit = {}
+    onReportDetailClick: (ConsensusReport) -> Unit = {},
+    onHeatmapClick: () -> Unit = {}
 ) {
     var selectedNav by rememberSaveable { mutableStateOf(BottomNavItem.MARKET_ANALYSIS) }
 
@@ -237,7 +247,8 @@ private fun MainScaffold(
                 }
                 BottomNavItem.AI_ANALYSIS -> {
                     AiAnalysisScreen(
-                        onSettingsClick = onSettingsClick
+                        onSettingsClick = onSettingsClick,
+                        onHeatmapClick = onHeatmapClick
                     )
                 }
                 BottomNavItem.PORTFOLIO -> {

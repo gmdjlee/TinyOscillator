@@ -1,8 +1,22 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-05 by Signal History & Accuracy_
+_Last updated: 2026-04-05 by Signal Heatmap_
 
 ## Current session
+**SIGNAL-T04 — 신호 강도 히트맵 (날짜×종목)** COMPLETE.
+
+### Delivered
+- `domain/model/HeatmapData.kt` — 히트맵 데이터 모델 (tickers, dates, scores, scoreAt())
+- `domain/usecase/BuildHeatmapUseCase.kt` — 분석 이력 종목의 일별 앙상블 평균 점수 구축
+- `core/database/dao/CalibrationDao.kt` — getAverageScoreForDay, getDistinctDates 쿼리 추가
+- `presentation/common/SignalHeatmap.kt` — Canvas 기반 히트맵 (한국 관례 색상, 탭 감지, 수평 스크롤)
+- `presentation/common/HeatmapViewModel.kt` — 기간 선택 (7/14/20일) + 데이터 로드
+- `presentation/common/HeatmapScreen.kt` — 히트맵 화면 + WindowSelector + HeatmapLegend
+- `AiAnalysisScreen.kt` — 히트맵 버튼 (GridView 아이콘) 추가
+- `MainActivity.kt` — heatmap NavHost 라우트 + onHeatmapClick 콜백 전달
+- 2 test files, 15 tests — all passing (0.088s)
+
+## Previous session
 **SIGNAL-T03 — 신호 이력 저장 + T+N 수익률 수집 + 적중률 UI** COMPLETE.
 
 ### Delivered

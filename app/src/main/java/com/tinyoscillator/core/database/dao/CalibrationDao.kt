@@ -84,6 +84,17 @@ interface CalibrationDao {
     @Query("SELECT DISTINCT ticker FROM signal_history WHERE outcome_t1 IS NULL AND created_at < :cutoffMs")
     suspend fun getPendingTickers(cutoffMs: Long): List<String>
 
+    // ─── Heatmap ───
+
+    @Query("""
+        SELECT AVG(raw_score) FROM signal_history
+        WHERE ticker = :ticker AND date = :date
+    """)
+    suspend fun getAverageScoreForDay(ticker: String, date: String): Double?
+
+    @Query("SELECT DISTINCT date FROM signal_history WHERE ticker = :ticker AND date >= :sinceDate ORDER BY date ASC")
+    suspend fun getDistinctDates(ticker: String, sinceDate: String): List<String>
+
     // ─── Calibration State ───
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
