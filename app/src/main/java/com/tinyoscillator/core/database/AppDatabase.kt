@@ -3,7 +3,6 @@ package com.tinyoscillator.core.database
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.tinyoscillator.core.database.dao.UserThemeDao
-import com.tinyoscillator.core.database.dao.WatchlistDao
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
 import com.tinyoscillator.core.database.dao.CalibrationDao
@@ -48,8 +47,6 @@ import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
 import com.tinyoscillator.core.database.entity.SignalHistoryEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
 import com.tinyoscillator.core.database.entity.UserThemeEntity
-import com.tinyoscillator.core.database.entity.WatchlistGroupEntity
-import com.tinyoscillator.core.database.entity.WatchlistItemEntity
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
 
 @Database(
@@ -79,9 +76,7 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         EnsembleHistoryEntity::class,
         IncrementalModelStateEntity::class,
         ModelDriftAlertEntity::class,
-        UserThemeEntity::class,
-        WatchlistGroupEntity::class,
-        WatchlistItemEntity::class
+        UserThemeEntity::class
     ],
     version = 24,
     exportSchema = true
@@ -107,5 +102,4 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun ensembleHistoryDao(): EnsembleHistoryDao
     abstract fun incrementalModelDao(): IncrementalModelDao
     abstract fun userThemeDao(): UserThemeDao
-    abstract fun watchlistDao(): WatchlistDao
 }

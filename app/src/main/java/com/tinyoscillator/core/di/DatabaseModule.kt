@@ -7,7 +7,6 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.database.dao.UserThemeDao
-import com.tinyoscillator.core.database.dao.WatchlistDao
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
 import com.tinyoscillator.core.database.dao.CalibrationDao
@@ -714,7 +713,4 @@ object DatabaseModule {
 
     @Provides
     fun provideUserThemeDao(db: AppDatabase): UserThemeDao = db.userThemeDao()
-
-    @Provides
-    fun provideWatchlistDao(db: AppDatabase): WatchlistDao = db.watchlistDao()
 }
