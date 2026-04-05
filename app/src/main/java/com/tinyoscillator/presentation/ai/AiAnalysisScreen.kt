@@ -35,9 +35,11 @@ import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.ui.theme.LocalFinanceColors
 import com.tinyoscillator.presentation.common.PillTabRow
 import com.tinyoscillator.presentation.common.AlgoContributionView
+import com.tinyoscillator.presentation.common.ConflictWarningBanner
 import com.tinyoscillator.presentation.common.SignalRationaleCard
 import com.tinyoscillator.presentation.common.AlgoAccuracyCard
 import com.tinyoscillator.data.engine.RationaleBuilder
+import com.tinyoscillator.domain.usecase.SignalConflictDetector
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -605,6 +607,15 @@ private fun ProbabilityTabContent(
                         RationaleBuilder.build(state.result)
                     }
                     if (algoResults.isNotEmpty()) {
+                        // 충돌 경고 배너 (SignalRationaleCard 바로 위)
+                        val conflictResult = remember(algoResults) {
+                            SignalConflictDetector.detect(algoResults)
+                        }
+                        ConflictWarningBanner(
+                            conflictResult = conflictResult,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+
                         SignalRationaleCard(
                             algoResults = algoResults,
                             ensembleScore = (ensembleProbability ?: 0.5).toFloat()
@@ -618,9 +629,17 @@ private fun ProbabilityTabContent(
                     // 알고리즘 적중률 카드
                     AlgoAccuracyCard(accuracy = algoAccuracy)
 
-                    // 포지션 가이드 카드
+                    // 포지션 가이드 카드 (충돌 시 포지션 축소 적용)
                     state.result.positionRecommendation?.let { posRec ->
-                        PositionGuideCard(positionRecommendation = posRec)
+                        val multiplier = if (algoResults.isNotEmpty()) {
+                            remember(algoResults) {
+                                SignalConflictDetector.detect(algoResults)
+                            }.positionMultiplier
+                        } else 1f
+                        PositionGuideCard(
+                            positionRecommendation = posRec,
+                            conflictMultiplier = multiplier,
+                        )
                     }
 
                     // 확률 분석 결과
@@ -1347,10 +1366,12 @@ private fun ProbExpandableCard(title: String, content: @Composable ColumnScope.(
 /** 포지션 가이드 카드 — Kelly + CVaR 기반 추천 비중 */
 @Composable
 private fun PositionGuideCard(
-    positionRecommendation: com.tinyoscillator.domain.model.PositionRecommendation
+    positionRecommendation: com.tinyoscillator.domain.model.PositionRecommendation,
+    conflictMultiplier: Float = 1f,
 ) {
     val financeColors = LocalFinanceColors.current
     val pr = positionRecommendation
+    val isConflictReduced = conflictMultiplier < 1f
 
     // 사용 불가 시 간략 표시
     if (pr.unavailableReason != null) {
@@ -1372,7 +1393,7 @@ private fun PositionGuideCard(
     }
 
     val maxPos = 0.20 // 최대 비중 표시 기준
-    val recPct = pr.recommendedPct
+    val recPct = pr.recommendedPct * conflictMultiplier
     val barFraction = (recPct / maxPos).toFloat().coerceIn(0f, 1f)
 
     val barColor = when {
@@ -1414,6 +1435,19 @@ private fun PositionGuideCard(
                     ),
                     border = null
                 )
+                if (isConflictReduced) {
+                    SuggestionChip(
+                        onClick = {},
+                        label = { Text(
+                            "충돌 축소 ${(conflictMultiplier * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall
+                        ) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = Color(0xFFFCEBEB)
+                        ),
+                        border = null
+                    )
+                }
             }
 
             Spacer(Modifier.height(12.dp))

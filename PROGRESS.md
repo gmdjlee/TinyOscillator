@@ -1,6 +1,51 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: SIGNAL-T04 — Signal Heatmap_
+_Last updated: 2026-04-05 | Session: SIGNAL-T05 — Signal Conflict Detection_
+
+---
+
+## SIGNAL-T05 — 알고리즘 신호 충돌 감지 + 앰버 경고 배너
+
+### New files
+| File | Purpose |
+|------|---------|
+| `domain/usecase/SignalConflictDetector.kt` | σ 기반 4단계 충돌 감지 (NONE/LOW/HIGH/CRITICAL), 포지션 배수 산출 |
+| `presentation/common/ConflictWarningBanner.kt` | 충돌 경고 배너 + 강세/중립/약세 분포 바 + 추천 포지션 배수 |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `presentation/ai/AiAnalysisScreen.kt` | ConflictWarningBanner 통합 (SignalRationaleCard 상단), PositionGuideCard에 conflictMultiplier 파라미터 추가 + "충돌 축소" 칩 |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `SignalConflictDetectorTest.kt` | 16 | PASS |
+| `ConflictIntegrationTest.kt` | 4 | PASS |
+
+### Design decisions
+- **ViewModel 미생성**: SignalTransparencyViewModel 없음 — AiAnalysisViewModel에 이미 통합된 구조. `remember(algoResults)` 패턴으로 Screen에서 직접 계산
+- **Kelly 연동 방식**: Engine 레벨이 아닌 UI 레벨에서 `conflictMultiplier` 적용 — StatisticalAnalysisEngine 수정 불필요, 관심사 분리 유지
+- **충돌 수준 임계값**: σ < 0.12 NONE, 0.12~0.18 LOW(75%), 0.18~0.25 HIGH(50%), > 0.25 CRITICAL(25%)
+- **한국 관례 색상**: LOW=앰버(#FAEED0), HIGH=적갈색(#FAECE7), CRITICAL=적색(#FCEBEB)
+- **분포 바**: 강세(적색 #D85A30) / 중립(회색 #888780) / 약세(청색 #378ADD) — 히트맵 색상 관례와 일치
+
+### Signal Transparency Architecture Summary (S-T01 ~ S-T05)
+```
+StatisticalResult
+  └→ RationaleBuilder.build() → Map<String, AlgoResult>
+      ├→ SignalRationaleCard (점수 바 + 근거)
+      ├→ AlgoContributionView (레이더/폭포수 차트)
+      ├→ SignalConflictDetector.detect() → ConflictResult
+      │   ├→ ConflictWarningBanner (경고 배너 + 분포 바)
+      │   └→ PositionGuideCard (conflictMultiplier 적용)
+      └→ AlgoAccuracyCard (적중률)
+
+SignalHistoryEntity (Room)
+  ├→ T+N 수익률 수집 (SignalOutcomeUpdateWorker)
+  ├→ 적중률 집계 (CalibrationDao)
+  └→ 히트맵 (BuildHeatmapUseCase → SignalHeatmap)
+```
 
 ---
 

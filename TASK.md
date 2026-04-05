@@ -1,8 +1,18 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-05 by Signal Heatmap_
+_Last updated: 2026-04-05 by Signal Conflict Detection_
 
 ## Current session
+**SIGNAL-T05 — 알고리즘 신호 충돌 감지 + 앰버 경고 배너** COMPLETE.
+
+### Delivered
+- `domain/usecase/SignalConflictDetector.kt` — 순수 Kotlin 충돌 감지 계산기 (σ 기반 4단계 분류, 포지션 배수 산출)
+- `presentation/common/ConflictWarningBanner.kt` — 충돌 경고 배너 Composable (LOW/HIGH/CRITICAL 색상, 강세/중립/약세 분포 바)
+- `AiAnalysisScreen.kt` — ConflictWarningBanner 통합 (SignalRationaleCard 상단) + PositionGuideCard 충돌 축소 적용
+- Kelly 포지션 연동: conflictMultiplier → PositionGuideCard, "충돌 축소" 칩 표시
+- 2 test files, 20 tests — all passing
+
+## Previous session
 **SIGNAL-T04 — 신호 강도 히트맵 (날짜×종목)** COMPLETE.
 
 ### Delivered
