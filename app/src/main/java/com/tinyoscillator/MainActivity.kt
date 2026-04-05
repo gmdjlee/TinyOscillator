@@ -97,6 +97,7 @@ import com.tinyoscillator.presentation.viewmodel.OscillatorUiState
 import com.tinyoscillator.presentation.viewmodel.OscillatorViewModel
 import com.tinyoscillator.presentation.viewmodel.StockMasterStatus
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
+import com.tinyoscillator.presentation.common.skeleton.OscillatorScreenSkeleton
 import com.tinyoscillator.ui.theme.LocalThemeModeState
 import com.tinyoscillator.ui.theme.TinyOscillatorTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -568,18 +569,7 @@ fun OscillatorScreen(
                             when (val state = uiState) {
                                 is OscillatorUiState.Loading -> {
                                     item {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(32.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                CircularProgressIndicator()
-                                                Spacer(modifier = Modifier.height(8.dp))
-                                                Text(state.message)
-                                            }
-                                        }
+                                        OscillatorScreenSkeleton()
                                     }
                                 }
 

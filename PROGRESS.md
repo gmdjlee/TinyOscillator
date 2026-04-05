@@ -1,6 +1,55 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: SC-05 — 관심종목 리스트_
+_Last updated: 2026-04-05 | Session: UX-01 — Shimmer 스켈레톤 + UiState 통합_
+
+---
+
+## UX-01 — Shimmer 스켈레톤 로딩 + 공통 UiState + Stale-while-revalidate
+
+### New files
+| File | Purpose |
+|------|---------|
+| `core/ui/UiState.kt` | 공통 UiState sealed interface (Idle/Loading/Success/Error + staleData) |
+| `core/ui/modifier/ShimmerModifier.kt` | Compose 네이티브 Shimmer (InfiniteTransition + linearGradient) |
+| `core/ui/composable/UiStateContent.kt` | UiState 분기 래퍼 + StaleBanner + DefaultErrorContent |
+| `presentation/common/skeleton/ScreenSkeletons.kt` | 화면별 스켈레톤 6종 (Oscillator, Analysis, Watchlist, Screener, Comparison, MarketAnalysis, Chart) |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `MainActivity.kt` | 오실레이터 탭: CircularProgressIndicator → OscillatorScreenSkeleton |
+| `ScreenerScreen.kt` | 스크리너 로딩: CircularProgressIndicator → ScreenerResultSkeleton × 8 |
+| `ComparisonScreen.kt` | 수익률 비교 로딩: CircularProgressIndicator → ComparisonSkeleton |
+| `MarketAnalysisScreen.kt` | 공포탐욕/DeMark 로딩: CircularProgressIndicator → MarketAnalysisSkeleton |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `UiStateTest.kt` | 13 | PASS (0.44s) |
+| `UiStateViewModelTest.kt` | 3 | PASS (0.45s) |
+
+### Design decisions
+- **외부 라이브러리 불사용**: Shimmer를 InfiniteTransition + linearGradient로 구현 (Valentinilk 등 불필요)
+- **공통 UiState 도입**: 기존 10+ 개별 sealed class 패턴과 병행 — 점진적 마이그레이션 가능
+- **Stale-while-revalidate**: Error 상태에 staleData 필드로 이전 성공 데이터 유지 + StaleBanner 표시
+- **다크모드 자동 대응**: MaterialTheme.colorScheme.surfaceVariant/surface 토큰 사용
+
+### 기존 UiState 패턴 현황
+| 패턴 | 위치 | 상태 |
+|------|------|------|
+| `OscillatorUiState` | `OscillatorViewModel.kt` | 기존 유지 (Loading에 message 필드) |
+| `AnalysisUiState` | `StockAnalysisViewModel.kt` | 기존 유지 (Computing/LlmProcessing/Streaming 세분화) |
+| `ComparisonUiState` | `ComparisonViewModel.kt` | 기존 유지 |
+| `ScreenerUiState` | `ScreenerViewModel.kt` | 기존 유지 |
+| `FearGreedState` | `FearGreedViewModel.kt` | 기존 유지 |
+| `MarketDemarkState` | `MarketDemarkViewModel.kt` | 기존 유지 |
+| `DemarkTDState` | `DemarkTDViewModel.kt` | 기존 유지 |
+| `StockDataState` | `AiAnalysisViewModel.kt` | 기존 유지 |
+| `ProbabilityAnalysisState` | `AiAnalysisViewModel.kt` | 기존 유지 |
+| `InterpretationState` | `AiAnalysisViewModel.kt` | 기존 유지 |
+| `FundamentalHistoryState` | `FundamentalHistoryViewModel.kt` | 기존 유지 |
+
+> 공통 UiState<T>는 신규 화면 및 점진적 마이그레이션용. 기존 패턴은 세분화된 상태(Computing 등)가 있어 개별 유지.
 
 ---
 

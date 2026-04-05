@@ -1,8 +1,22 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-05 by SC-05 관심종목 리스트_
+_Last updated: 2026-04-05 by UX-01 Shimmer 스켈레톤 + UiState 통합_
 
 ## Current session
+**UX-01 — Shimmer 스켈레톤 로딩 + 공통 UiState + Stale-while-revalidate** COMPLETE.
+
+### Delivered
+- `core/ui/UiState.kt` — 공통 UiState<T> sealed interface (Idle/Loading/Success/Error) + 확장 프로퍼티 + Flow 변환 함수 (asUiState, asUiStateWithStale)
+- `core/ui/modifier/ShimmerModifier.kt` — Compose 네이티브 Shimmer 애니메이션 (shimmerEffect Modifier + ShimmerLine + ShimmerBox)
+- `core/ui/composable/UiStateContent.kt` — UiState 래퍼 컴포저블 (UiStateContent + StaleBanner + DefaultErrorContent)
+- `presentation/common/skeleton/ScreenSkeletons.kt` — 화면별 스켈레톤 6종 (Oscillator, Analysis, Watchlist, Screener, Comparison, MarketAnalysis, Chart)
+- `MainActivity.kt` — 오실레이터 탭 CircularProgressIndicator → OscillatorScreenSkeleton
+- `ScreenerScreen.kt` — 스크리너 로딩 → ScreenerResultSkeleton × 8
+- `ComparisonScreen.kt` — 수익률 비교 로딩 → ComparisonSkeleton
+- `MarketAnalysisScreen.kt` — 공포탐욕/DeMark 로딩 → MarketAnalysisSkeleton
+- 2 test files, 16 tests — all passing (0.88s)
+
+## Previous session
 **SC-05 — 관심종목 리스트 (신호 정렬 · 스와이프 삭제 · 드래그 순서 · 폴더)** COMPLETE.
 
 ### Delivered

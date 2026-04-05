@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tinyoscillator.presentation.common.skeleton.ComparisonSkeleton
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.LimitLine
 import com.github.mikephil.charting.components.XAxis
@@ -169,12 +170,7 @@ fun ComparisonScreen(
                     }
                 }
                 is ComparisonUiState.Loading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize().weight(1f),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    ComparisonSkeleton(modifier = Modifier.weight(1f))
                 }
                 is ComparisonUiState.Error -> {
                     Box(

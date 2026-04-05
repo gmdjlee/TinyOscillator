@@ -42,6 +42,7 @@ import com.tinyoscillator.presentation.common.CollectionProgressBar
 import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.presentation.common.PillTabRow
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
+import com.tinyoscillator.presentation.common.skeleton.MarketAnalysisSkeleton
 import com.tinyoscillator.ui.theme.LocalThemeModeState
 
 private enum class MarketAnalysisTab(val label: String) {
@@ -161,14 +162,7 @@ private fun FearGreedTab(viewModel: FearGreedViewModel) {
         // 상태 표시
         when (val currentState = state) {
             is FearGreedState.Loading -> {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
+                MarketAnalysisSkeleton()
             }
             is FearGreedState.Success -> {
                 FearGreedChart(
@@ -266,14 +260,7 @@ private fun MarketDemarkTab(viewModel: MarketDemarkViewModel) {
         // 상태 표시
         when (val currentState = state) {
             is MarketDemarkState.Loading -> {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
+                MarketAnalysisSkeleton()
             }
             is MarketDemarkState.Success -> {
                 MarketDemarkChart(

@@ -43,6 +43,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.ScreenerResultItem
 import com.tinyoscillator.domain.model.ScreenerSortKey
+import com.tinyoscillator.presentation.common.skeleton.ScreenerResultSkeleton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,15 +83,8 @@ fun ScreenerScreen(
 
             when (val s = state) {
                 is ScreenerUiState.Loading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator()
-                            Text(
-                                "스크리닝 중...",
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
+                    LazyColumn {
+                        items(8) { ScreenerResultSkeleton() }
                     }
                 }
                 is ScreenerUiState.Success -> {
