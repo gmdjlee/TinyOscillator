@@ -1,6 +1,36 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: SC-03 — 섹터/테마 그룹화_
+_Last updated: 2026-04-05 | Session: SC-04 — 수익률 비교_
+
+---
+
+## SC-04 — 수익률 비교 (종목·섹터·KOSPI 오버레이 차트)
+
+### New files
+| File | Purpose |
+|------|---------|
+| `domain/model/ComparisonData.kt` | ComparisonSeries, ComparisonData, ComparisonPeriod 도메인 모델 |
+| `domain/usecase/BuildComparisonUseCase.kt` | 수익률 정규화, OLS 베타 추정, 섹터 평균 계산 UseCase |
+| `presentation/comparison/ComparisonViewModel.kt` | 검색+기간+비교 상태 관리 HiltViewModel |
+| `presentation/comparison/ComparisonScreen.kt` | 수익률 비교 UI (LineChart 오버레이 + 신호 강도 + α/β 카드) |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `core/database/dao/RegimeDao.kt` | getKospiIndexByDateRange(fromDate, toDate) 쿼리 추가 |
+| `MainActivity.kt` | COMPARISON BottomNavItem + ComparisonScreen 라우팅 |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `ComparisonCalculationTest.kt` | 8 | PASS (0.092s) |
+
+### Design decisions
+- **Room 캐시 전용**: API 호출 없이 analysis_cache, kospi_index, signal_history에서만 데이터 수집 → 즉시 응답
+- **OLS 베타 추정**: 순수 Kotlin — 외부 라이브러리 불필요
+- **섹터 평균**: 동일 섹터 상위 20개 종목의 공통 날짜 종가 평균
+- **MPAndroidChart LineChart 재사용**: 수익률 차트 + 신호 강도 차트 (기존 의존성)
+- **ComparisonPeriod**: CUSTOM 포함 4개 기간 (3M/6M/1Y/직접)
 
 ---
 

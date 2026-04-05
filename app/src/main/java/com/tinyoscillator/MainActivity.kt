@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -86,6 +87,7 @@ import com.tinyoscillator.presentation.report.ReportDetailScreen
 import com.tinyoscillator.presentation.report.ReportScreen
 import com.tinyoscillator.presentation.sector.SectorGroupScreen
 import com.tinyoscillator.presentation.sector.GroupDetailScreen
+import com.tinyoscillator.presentation.comparison.ComparisonScreen
 import com.tinyoscillator.presentation.screener.ScreenerScreen
 import com.tinyoscillator.presentation.settings.SettingsScreen
 import com.tinyoscillator.presentation.viewmodel.OscillatorDateRange
@@ -142,6 +144,7 @@ private enum class BottomNavItem(val label: String, val icon: ImageVector) {
     AI_ANALYSIS("AI분석", Icons.Default.Psychology),
     SCREENER("스크리너", Icons.Default.Tune),
     SECTOR_THEME("섹터/테마", Icons.Default.Category),
+    COMPARISON("수익률비교", Icons.AutoMirrored.Filled.CompareArrows),
     PORTFOLIO("포트폴리오", Icons.Default.AccountBalance)
 }
 
@@ -279,6 +282,12 @@ private fun MainScaffold(
                     SectorGroupScreen(
                         onSettingsClick = onSettingsClick,
                         onGroupClick = onGroupClick,
+                    )
+                }
+                BottomNavItem.COMPARISON -> {
+                    ComparisonScreen(
+                        onSettingsClick = onSettingsClick,
+                        onTickerClick = onStockClick,
                     )
                 }
                 BottomNavItem.PORTFOLIO -> {

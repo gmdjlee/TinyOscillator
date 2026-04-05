@@ -1,8 +1,20 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-05 by SC-03 Sector/Theme Grouping_
+_Last updated: 2026-04-05 by SC-04 수익률 비교_
 
 ## Current session
+**SC-04 — 수익률 비교 (종목·섹터·KOSPI 오버레이 차트)** COMPLETE.
+
+### Delivered
+- `domain/model/ComparisonData.kt` — ComparisonSeries, ComparisonData, ComparisonPeriod 데이터 모델
+- `domain/usecase/BuildComparisonUseCase.kt` — 수익률 정규화, OLS 베타 추정, 섹터 평균 계산 (Room 캐시 전용)
+- `presentation/comparison/ComparisonViewModel.kt` — HiltViewModel (검색+기간+비교 StateFlow)
+- `presentation/comparison/ComparisonScreen.kt` — 수익률 비교 화면 (LineChart 오버레이 + 신호 강도 패널 + α/β 카드)
+- `core/database/dao/RegimeDao.kt` — getKospiIndexByDateRange() 쿼리 추가
+- `MainActivity.kt` — COMPARISON BottomNavItem (CompareArrows 아이콘)
+- 1 test file, 8 tests — all passing (0.092s)
+
+## Previous session
 **SC-03 — 섹터/테마 그룹화 (KRX 섹터 + 사용자 테마)** COMPLETE.
 
 ### Delivered

@@ -21,6 +21,9 @@ interface RegimeDao {
     @Query("SELECT * FROM kospi_index ORDER BY date DESC LIMIT :limit")
     suspend fun getRecentKospiIndex(limit: Int): List<KospiIndexEntity>
 
+    @Query("SELECT * FROM kospi_index WHERE date >= :fromDate AND date <= :toDate ORDER BY date ASC")
+    suspend fun getKospiIndexByDateRange(fromDate: String, toDate: String): List<KospiIndexEntity>
+
     @Query("SELECT COUNT(*) FROM kospi_index")
     suspend fun getKospiIndexCount(): Int
 
