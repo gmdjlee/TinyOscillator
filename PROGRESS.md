@@ -1,6 +1,43 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: SC-04 — 수익률 비교_
+_Last updated: 2026-04-05 | Session: SC-05 — 관심종목 리스트_
+
+---
+
+## SC-05 — 관심종목 리스트 (신호 정렬 · 스와이프 삭제 · 드래그 순서 · 폴더)
+
+### New files
+| File | Purpose |
+|------|---------|
+| `core/database/entity/WatchlistGroupEntity.kt` | 관심종목 그룹 Room 엔티티 (watchlist_groups) |
+| `core/database/entity/WatchlistItemEntity.kt` | 관심종목 아이템 Room 엔티티 (watchlist_items) + 캐시 필드 |
+| `core/database/dao/WatchlistDao.kt` | 그룹별/신호순 Flow 관찰, CRUD, 캐시 갱신, 순서/그룹 이동 |
+| `presentation/watchlist/SwipeToDeleteBox.kt` | Compose 네이티브 SwipeToDismissBox 래퍼 |
+| `presentation/watchlist/DraggableWatchlistColumn.kt` | PointerInput 롱프레스 → 드래그 순서 변경 |
+| `presentation/watchlist/WatchlistItemRow.kt` | 종목 행 (드래그 핸들 + 신호 바 + 등락률) |
+| `presentation/watchlist/WatchlistHeader.kt` | 정렬 FilterChip + 그룹 탭 + AddGroupDialog |
+| `presentation/watchlist/WatchlistViewModel.kt` | HiltViewModel (정렬/그룹 필터/undo 삭제/reorder) |
+| `presentation/watchlist/WatchlistScreen.kt` | 통합 화면 (Scaffold + Snackbar + Header + List) |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `core/database/AppDatabase.kt` | v23→v24: WatchlistGroupEntity, WatchlistItemEntity 등록 |
+| `core/di/DatabaseModule.kt` | MIGRATION_23_24 + WatchlistDao provider |
+| `MainActivity.kt` | WATCHLIST BottomNavItem (Star) + WatchlistScreen 라우팅 |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `WatchlistSortTest.kt` | 6 | PASS |
+| `WatchlistDaoTest.kt` | 6 | PASS (Robolectric) |
+
+### Design decisions
+- **Compose 네이티브 우선**: SwipeToDismissBox + PointerInput 드래그 — 외부 드래그 라이브러리 불사용
+- **Undo Snackbar**: 삭제 시 엔티티 임시 보관 → SnackbarResult.ActionPerformed 시 재삽입
+- **그룹 필터**: flatMapLatest로 그룹 선택 시 observeByGroup ↔ observeAll 전환
+- **정렬 키**: SIGNAL_DESC/ASC, CUSTOM_ORDER, CHANGE_DESC — FilterChip UI
+- **캐시 필드**: cachedPrice/cachedChange/cachedSignal — WorkManager가 주기적 갱신 (미래 확장점)
 
 ---
 
