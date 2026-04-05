@@ -146,9 +146,15 @@ private fun bindConsensusData(
     if (dates.isEmpty()) return
 
     val labels = dates.map { date ->
-        if (date.length >= 8) {
-            "${date.substring(4, 6)}/${date.substring(6, 8)}"
-        } else date
+        when {
+            // "yyyy-MM-dd" (10 chars)
+            date.length >= 10 && date[4] == '-' ->
+                "${date.substring(5, 7)}/${date.substring(8, 10)}"
+            // "yyyyMMdd" (8 chars)
+            date.length >= 8 ->
+                "${date.substring(4, 6)}/${date.substring(6, 8)}"
+            else -> date
+        }
     }
     chart.xAxis.valueFormatter = IndexAxisValueFormatter(labels)
 
