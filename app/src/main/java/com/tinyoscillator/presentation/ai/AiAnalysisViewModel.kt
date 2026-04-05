@@ -102,7 +102,8 @@ class AiAnalysisViewModel @Inject constructor(
     private val apiConfigProvider: ApiConfigProvider,
     private val statisticalAnalysisEngine: StatisticalAnalysisEngine,
     private val probabilityInterpreter: ProbabilityInterpreter,
-    private val featureStore: FeatureStore
+    private val featureStore: FeatureStore,
+    private val signalHistoryRepository: com.tinyoscillator.data.repository.SignalHistoryRepository
 ) : AndroidViewModel(application) {
 
     private val fmt = DateFormats.yyyyMMdd
@@ -131,6 +132,10 @@ class AiAnalysisViewModel @Inject constructor(
     // 확률 분석 상태
     private val _probabilityState = MutableStateFlow<ProbabilityAnalysisState>(ProbabilityAnalysisState.Idle)
     val probabilityState: StateFlow<ProbabilityAnalysisState> = _probabilityState.asStateFlow()
+
+    // 알고리즘 적중률
+    private val _algoAccuracy = MutableStateFlow<Map<String, AlgoAccuracyRow>>(emptyMap())
+    val algoAccuracy: StateFlow<Map<String, AlgoAccuracyRow>> = _algoAccuracy.asStateFlow()
 
     // Feature Store 캐시 통계
     val cacheStats: StateFlow<CacheStats> = featureStore.cacheStats
@@ -351,6 +356,13 @@ class AiAnalysisViewModel @Inject constructor(
             try {
                 val result = statisticalAnalysisEngine.analyze(stock.ticker)
                 _probabilityState.value = ProbabilityAnalysisState.Success(result)
+
+                // 적중률 로드
+                try {
+                    _algoAccuracy.value = signalHistoryRepository.getAccuracy(stock.ticker)
+                } catch (e: Exception) {
+                    Timber.w(e, "적중�� 로드 실패")
+                }
 
                 // 앙상블 확률 계산 (메타 학습기 또는 가중합 폴백)
                 try {

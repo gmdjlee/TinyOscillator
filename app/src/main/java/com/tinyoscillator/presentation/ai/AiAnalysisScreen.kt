@@ -35,6 +35,7 @@ import com.tinyoscillator.ui.theme.LocalFinanceColors
 import com.tinyoscillator.presentation.common.PillTabRow
 import com.tinyoscillator.presentation.common.AlgoContributionView
 import com.tinyoscillator.presentation.common.SignalRationaleCard
+import com.tinyoscillator.presentation.common.AlgoAccuracyCard
 import com.tinyoscillator.data.engine.RationaleBuilder
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,6 +54,7 @@ fun AiAnalysisScreen(
     val interpretationState by viewModel.interpretationState.collectAsStateWithLifecycle()
     val metaLearnerStatus by viewModel.metaLearnerStatus.collectAsStateWithLifecycle()
     val ensembleProbability by viewModel.ensembleProbability.collectAsStateWithLifecycle()
+    val algoAccuracy by viewModel.algoAccuracy.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
     val themeModeState = LocalThemeModeState.current
@@ -120,6 +122,7 @@ fun AiAnalysisScreen(
                         interpretationState = interpretationState,
                         metaLearnerStatus = metaLearnerStatus,
                         ensembleProbability = ensembleProbability,
+                        algoAccuracy = algoAccuracy,
                         onAnalyze = { viewModel.analyzeProbability() },
                         onDismiss = { viewModel.dismissProbability() },
                         onSelectStock = { viewModel.selectTab(AiTab.STOCK) },
@@ -485,6 +488,7 @@ private fun ProbabilityTabContent(
     interpretationState: InterpretationState,
     metaLearnerStatus: com.tinyoscillator.domain.model.MetaLearnerStatus,
     ensembleProbability: Double?,
+    algoAccuracy: Map<String, com.tinyoscillator.domain.model.AlgoAccuracyRow>,
     onAnalyze: () -> Unit,
     onDismiss: () -> Unit,
     onSelectStock: () -> Unit,
@@ -605,6 +609,9 @@ private fun ProbabilityTabContent(
                             ensembleScore = (ensembleProbability ?: 0.5).toFloat()
                         )
                     }
+
+                    // 알고리즘 적중률 카드
+                    AlgoAccuracyCard(accuracy = algoAccuracy)
 
                     // 포지션 가이드 카드
                     state.result.positionRecommendation?.let { posRec ->

@@ -309,6 +309,17 @@ object WorkManagerHelper {
     fun runIncrementalModelUpdateNow(context: Context) =
         runWorkerNow<IncrementalModelUpdateWorker>(context, IncrementalModelUpdateWorker.MANUAL_WORK_NAME, IncrementalModelUpdateWorker.TAG, "점진적 모델")
 
+    // ===== 신호 결과 수집 =====
+
+    fun scheduleSignalOutcomeUpdate(context: Context, hour: Int = 18, minute: Int = 0) =
+        scheduleDailyWorker<SignalOutcomeUpdateWorker>(context, SignalOutcomeUpdateWorker.WORK_NAME, SignalOutcomeUpdateWorker.TAG, "신호 결과", hour, minute)
+
+    fun cancelSignalOutcomeUpdate(context: Context) =
+        cancelWorker(context, SignalOutcomeUpdateWorker.WORK_NAME, "신호 결과")
+
+    fun runSignalOutcomeUpdateNow(context: Context) =
+        runWorkerNow<SignalOutcomeUpdateWorker>(context, SignalOutcomeUpdateWorker.MANUAL_WORK_NAME, SignalOutcomeUpdateWorker.TAG, "신호 결과")
+
     // ===== 데이터 무결성 검사 =====
 
     fun runIntegrityCheckNow(context: Context) =

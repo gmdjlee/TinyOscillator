@@ -1,6 +1,44 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: SIGNAL-T02 — Algorithm Contribution Visualization_
+_Last updated: 2026-04-05 | Session: SIGNAL-T03 — Signal History & Accuracy_
+
+---
+
+## SIGNAL-T03 — 신호 이력 저장 + T+N 수익률 수집 + 적중률 UI
+
+### New files
+| File | Purpose |
+|------|---------|
+| `data/repository/SignalHistoryRepository.kt` | 신호 기록·적중률 조회·T+N 업데이트 리포지토리 |
+| `core/worker/SignalOutcomeUpdateWorker.kt` | 매일 18:00 T+N 결과 수집 HiltWorker |
+| `presentation/common/AlgoAccuracyCard.kt` | 알고리즘 적중률 진행 바 + % + 건수 카드 |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `core/database/entity/SignalHistoryEntity.kt` | outcome_t1/t5/t20 Float? 컬럼 추가 |
+| `core/database/dao/CalibrationDao.kt` | T+N 업데이트, 적중률 집계, observeAllHistory, getPendingTickers 쿼리 추가 |
+| `domain/model/SignalTransparencyModels.kt` | AlgoAccuracyRow 데이터 클래스 추가 |
+| `core/database/AppDatabase.kt` | version 20→21 |
+| `core/di/DatabaseModule.kt` | MIGRATION_20_21 (signal_history 3컬럼 추가) |
+| `core/worker/WorkManagerHelper.kt` | scheduleSignalOutcomeUpdate/cancel/runNow |
+| `core/worker/CollectionNotificationHelper.kt` | SIGNAL_OUTCOME_NOTIFICATION_ID = 1012 |
+| `TinyOscillatorApp.kt` | SignalOutcomeUpdate 워커 자동 등록 |
+| `presentation/ai/AiAnalysisScreen.kt` | AlgoAccuracyCard 통합 + algoAccuracy 파라미터 전달 |
+| `presentation/ai/AiAnalysisViewModel.kt` | SignalHistoryRepository 주입, algoAccuracy StateFlow |
+| `test/.../AiAnalysisViewModelTest.kt` | SignalHistoryRepository mock 추가 |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `SignalAccuracyCalculationTest.kt` | 9 | PASS |
+| `SignalHistoryRepositoryTest.kt` | 7 | PASS |
+
+### Design decisions
+- **기존 signal_history 테이블 확장**: 새 테이블 대신 3개 컬럼(outcome_t1/t5/t20) 추가 — CalibrationDao와 공유
+- **CalibrationDao 확장**: 별도 DAO 대신 기존 CalibrationDao에 적중률 쿼리 추가 — 동일 테이블 접근
+- **적중률 기준**: raw_score > 0.5 AND outcome_t1 > 0 (강세 신호+양수 수익) OR raw_score < 0.5 AND outcome_t1 < 0 (약세 신호+음수 수익)
+- **워커 시간**: 18:00 KST — 장 마감(15:30) 후 충분한 여유, 19:00 IncrementalModel 워커 전
 
 ---
 

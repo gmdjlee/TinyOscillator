@@ -93,6 +93,9 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
 
             // 점진적 모델 야간 업데이트 (매일 19:00)
             WorkManagerHelper.scheduleIncrementalModelUpdate(this@TinyOscillatorApp)
+
+            // 신호 결과 수집 (매일 18:00)
+            WorkManagerHelper.scheduleSignalOutcomeUpdate(this@TinyOscillatorApp)
         }
     }
 

@@ -74,7 +74,8 @@ class AiAnalysisViewModelTest {
             marketIndicatorRepository, calcOscillator, calcDemarkTD,
             searchStocksUseCase, aiApiClient, aiPreparer, apiConfigProvider,
             statisticalAnalysisEngine, probabilityInterpreter,
-            mockk<com.tinyoscillator.data.engine.FeatureStore>(relaxed = true)
+            mockk<com.tinyoscillator.data.engine.FeatureStore>(relaxed = true),
+            mockk<com.tinyoscillator.data.repository.SignalHistoryRepository>(relaxed = true)
         )
     }
 

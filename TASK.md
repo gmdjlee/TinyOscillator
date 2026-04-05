@@ -1,8 +1,25 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-05 by Signal Transparency Rationale_
+_Last updated: 2026-04-05 by Signal History & Accuracy_
 
 ## Current session
+**SIGNAL-T03 — 신호 이력 저장 + T+N 수익률 수집 + 적중률 UI** COMPLETE.
+
+### Delivered
+- `core/database/entity/SignalHistoryEntity.kt` — outcome_t1/t5/t20 컬럼 추가 (DB v20→v21)
+- `core/database/dao/CalibrationDao.kt` — T+N 업데이트 쿼리, 적중률 집계 쿼리, observeAllHistory, getPendingTickers
+- `domain/model/SignalTransparencyModels.kt` — AlgoAccuracyRow 데이터 클래스 (accuracy 계산 프로퍼티)
+- `data/repository/SignalHistoryRepository.kt` — 신호 기록·적중률 조회·T+N 업데이트·pruneOldData
+- `core/worker/SignalOutcomeUpdateWorker.kt` — 매일 18:00 T+N 결과 수집 HiltWorker
+- `presentation/common/AlgoAccuracyCard.kt` — 적중��� 진행 바 + % + 건수 카드 (0건 시 안내 ��시지)
+- `AiAnalysisScreen.kt` — AlgoAccuracyCard 통합 (AlgoContributionView 하단)
+- `AiAnalysisViewModel.kt` — algoAccuracy StateFlow 추가, 분석 완료 시 자동 로드
+- DB v20→v21 마이그레이션 (signal_history 테이블 3개 컬럼 추가)
+- WorkManagerHelper: scheduleSignalOutcomeUpdate (매일 18:00)
+- TinyOscillatorApp: 워커 자동 등록
+- 2 test files, 16 tests — all passing (17s)
+
+## Previous session
 **SIGNAL-T02 — 알고리즘 기여도 시각화 (레이더 + 폭포수)** COMPLETE.
 
 ### Delivered

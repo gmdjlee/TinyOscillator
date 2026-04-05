@@ -32,3 +32,12 @@ data class SignalHistoryEntry(
     /** T+20 수익률 */
     val outcomeT20: Float? = null,
 )
+
+/** 알고리즘별 적중률 집계 행 (Room @Query 결과 매핑) */
+data class AlgoAccuracyRow(
+    val algoName: String,
+    val total: Int,
+    val hits: Int,
+) {
+    val accuracy: Float get() = if (total == 0) 0f else hits.toFloat() / total
+}
