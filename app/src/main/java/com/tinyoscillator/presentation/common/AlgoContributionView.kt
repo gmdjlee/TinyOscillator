@@ -59,7 +59,7 @@ fun AlgoContributionView(
                     AlgoWaterfallChart(
                         algoResults = algoResults,
                         ensembleScore = ensembleScore,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(220.dp),
                     )
             }
         }

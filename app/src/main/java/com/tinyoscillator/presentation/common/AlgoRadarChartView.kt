@@ -19,7 +19,9 @@ fun AlgoRadarChartView(
         factory = { ctx ->
             RadarChart(ctx).apply {
                 description.isEnabled = false
-                legend.isEnabled = true
+                legend.isEnabled = false
+                setExtraOffsets(-20f, -10f, -20f, -10f)
+                minOffset = 0f
                 webLineWidth = 0.5f
                 webColor = android.graphics.Color.parseColor("#33888780")
                 webLineWidthInner = 0.5f
@@ -37,6 +39,7 @@ fun AlgoRadarChartView(
                     axisMaximum = 1f
                     setLabelCount(3, false)
                     textSize = 8f
+                    isEnabled = false
                 }
                 isRotationEnabled = false
             }

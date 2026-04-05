@@ -36,11 +36,28 @@ fun AlgoWaterfallChart(
         name to contribution
     }
 
-    Canvas(modifier = modifier.fillMaxWidth().height(200.dp)) {
-        val paddingPx = 24.dp.toPx()
+    // 누적 상한/하한 + 앙상블 편차를 미리 계산해 auto-scale
+    val maxDeviation = run {
+        var cum = 0f
+        var maxUp = 0f
+        var maxDown = 0f
+        for ((_, contrib) in contributions) {
+            cum += contrib
+            if (cum > maxUp) maxUp = cum
+            if (cum < maxDown) maxDown = cum
+        }
+        val ensembleDev = abs(ensembleScore - 0.5f)
+        maxOf(maxUp, abs(maxDown), ensembleDev, 0.01f)
+    }
+
+    Canvas(modifier = modifier.fillMaxWidth()) {
+        val labelAreaBottom = 18.dp.toPx()
+        val topPad = 16.dp.toPx()          // 퍼센트 레이블 여유
+        val paddingPx = 28.dp.toPx()
         val barW = (size.width - paddingPx * 2) / (contributions.size + 1).toFloat()
-        val baseline = size.height / 2f
-        val scale = size.height / 2f
+        val chartHeight = size.height - labelAreaBottom - topPad
+        val baseline = topPad + chartHeight / 2f
+        val scale = (chartHeight / 2f) / maxDeviation   // 데이터에 맞춤
 
         // 기준선 (dashed)
         drawLine(
@@ -54,10 +71,10 @@ fun AlgoWaterfallChart(
         // 0.5 레이블
         drawContext.canvas.nativeCanvas.drawText(
             "0.5",
-            12.dp.toPx(),
-            baseline + 4.dp.toPx(),
+            14.dp.toPx(),
+            baseline + 5.dp.toPx(),
             android.graphics.Paint().apply {
-                textSize = 10.dp.toPx()
+                textSize = 11.dp.toPx()
                 color = android.graphics.Color.parseColor("#888780")
             }
         )
@@ -80,9 +97,9 @@ fun AlgoWaterfallChart(
             drawContext.canvas.nativeCanvas.drawText(
                 (ALGO_DISPLAY_NAMES[name] ?: name).take(4),
                 x + barW * 0.35f,
-                size.height - 4.dp.toPx(),
+                size.height - 2.dp.toPx(),
                 android.graphics.Paint().apply {
-                    textSize = 8.dp.toPx()
+                    textSize = 10.dp.toPx()
                     textAlign = android.graphics.Paint.Align.CENTER
                     color = android.graphics.Color.parseColor("#888780")
                 }
@@ -107,7 +124,7 @@ fun AlgoWaterfallChart(
             finalX + barW * 0.35f,
             finalTop - 4.dp.toPx(),
             android.graphics.Paint().apply {
-                textSize = 9.dp.toPx()
+                textSize = 11.dp.toPx()
                 textAlign = android.graphics.Paint.Align.CENTER
                 color = android.graphics.Color.parseColor("#BA7517")
                 isFakeBoldText = true
