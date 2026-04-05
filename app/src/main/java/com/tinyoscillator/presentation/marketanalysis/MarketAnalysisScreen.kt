@@ -43,7 +43,7 @@ import com.tinyoscillator.domain.model.MarketDemarkChartData
 import com.tinyoscillator.domain.model.MarketDemarkRow
 import com.tinyoscillator.presentation.common.CollectionProgressBar
 import com.tinyoscillator.presentation.common.GlassCard
-import com.tinyoscillator.presentation.common.PillTabRow
+import com.tinyoscillator.presentation.common.ScrollablePillTabRow
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
 import com.tinyoscillator.presentation.common.skeleton.MarketAnalysisSkeleton
 import com.tinyoscillator.presentation.market.MarketDepositTab
@@ -107,7 +107,7 @@ fun MarketAnalysisScreen(
                 }
             )
 
-            PillTabRow(
+            ScrollablePillTabRow(
                 tabs = MarketAnalysisTab.entries.toList(),
                 selectedTab = selectedTab,
                 onTabSelected = { selectedTab = it },
