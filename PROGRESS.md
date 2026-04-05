@@ -1,6 +1,78 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-04 | Session: CHART-K03 — Volume Profile Overlay_
+_Last updated: 2026-04-05 | Session: SIGNAL-T02 — Algorithm Contribution Visualization_
+
+---
+
+## SIGNAL-T02 — 알고리즘 기여도 시각화 (레이더 + 폭포수)
+
+### New files
+| File | Purpose |
+|------|---------|
+| `presentation/common/AlgoRadarChartView.kt` | MPAndroidChart RadarChart — 알고리즘 꼭짓점, 신호 강도 면적 채움 |
+| `presentation/common/AlgoWaterfallChart.kt` | Compose Canvas 폭포수 — 0.5 기준선, 기여분 누적 바, 앙상블 점수 |
+| `presentation/common/AlgoContributionView.kt` | SegmentedButton 토글 래퍼 (레이더 ↔ 폭포수), rememberSaveable 상태 |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `presentation/ai/AiAnalysisScreen.kt` | AlgoContributionView 통합 (SignalRationaleCard 하단) |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `AlgoContributionLogicTest.kt` | 10 | PASS (0.11s) |
+
+### Design decisions
+- **레이더 차트**: MPAndroidChart `RadarChart` 재사용 — 별도 라이브러리 추가 없음
+- **폭포수 차트**: Compose Canvas 직접 구현 — MPAndroidChart BarChart 대신 경량화
+- **기여분 계산**: `(score - 0.5) * weight` — 0.5 기준선 대비 편차 × 가중치
+- **정렬**: 폭포수는 가중치 내림차순, 레이더는 알고리즘명 오름차순
+- **색상**: 강세 적색(#D85A30), 약세 청색(#378ADD), 앙상블 금색(#BA7517)
+- **토글 상태**: `rememberSaveable`로 화면 회전 시 유지
+- **@OptIn(ExperimentalMaterial3Api::class)**: SegmentedButton API 사용
+
+---
+
+## SIGNAL-T01 — 신호 투명성: 알고리즘별 근거 카드
+
+### New files
+| File | Purpose |
+|------|---------|
+| `data/engine/RationaleBuilder.kt` | StatisticalResult → Map<String, AlgoResult> 변환, 10개 알고리즘별 한국어 근거 생성 |
+| `presentation/common/SignalRationaleCard.kt` | 펼치기/접기 카드 Composable (점수 바, ScoreBadge, AlgoRationaleRow) |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `presentation/ai/AiAnalysisScreen.kt` | SignalRationaleCard 통합 (EnsembleProbabilityCard 하단) |
+
+### Algorithm inventory (근거 생성 대상)
+| # | Algorithm | AlgoResult key | 근거 예시 |
+|---|-----------|---------------|-----------|
+| 1 | Naive Bayes | NaiveBayes | 상승65% RSI_14 기여 — 강세 |
+| 2 | Logistic Regression | Logistic | 점수72/100 ema_cross 1.2 — 강세 |
+| 3 | HMM Regime | HMM | 저변동상승 신뢰70% — 강세 |
+| 4 | Pattern Scan | PatternScan | 1개 활성 최고승률65% — 강세 |
+| 5 | Signal Scoring | SignalScoring | 점수68/100 RSI 35% — 강세 |
+| 6 | Bayesian Update | BayesianUpdate | 사전50%→사후58% ↑8p — 중립 |
+| 7 | Order Flow | OrderFlow | 매수우위65% 강도보통 — 강세 |
+| 8 | DART Event | DartEvent | 2건 CAR+1.5% 신호60% — 중립 |
+| 9 | Korea 5-Factor | Korea5Factor | 알파z=+1.2 신호70% — 강세 |
+| 10 | Sector Correlation | SectorCorrelation | IT 정상 신호50% — 중립 |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `RationaleBuilderTest.kt` | 12 | PASS |
+| `SignalRationaleDisplayTest.kt` | 11 | PASS |
+| **Total** | **23** | **ALL PASS** |
+
+### Design decisions
+- **No separate ViewModel**: SignalRationaleCard uses existing `StatisticalResult` from `ProbabilityAnalysisState.Success`, computed via `remember {}` — avoids duplicate analysis execution
+- **No Python/Chaquopy**: All rationale generation in pure Kotlin (`RationaleBuilder`)
+- **50자 제한**: `.take(50)` enforced on all rationale strings
+- **점수 바 색상**: `lerp()` 보간 — 0.0(청색) → 0.5(회색) → 1.0(적색)
 
 ---
 

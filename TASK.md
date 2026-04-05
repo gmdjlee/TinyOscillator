@@ -1,8 +1,27 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-04 by CHART-K02 Technical Indicator Overlay_
+_Last updated: 2026-04-05 by Signal Transparency Rationale_
 
 ## Current session
+**SIGNAL-T02 — 알고리즘 기여도 시각화 (레이더 + 폭포수)** COMPLETE.
+
+### Delivered
+- `presentation/common/AlgoRadarChartView.kt` — MPAndroidChart RadarChart, 알고리즘 꼭짓점 + 강도 면적
+- `presentation/common/AlgoWaterfallChart.kt` — Compose Canvas 폭포수, 0.5 기준선 → 기여분 누적 → 앙상블 점수
+- `presentation/common/AlgoContributionView.kt` — SegmentedButton 토글 래퍼 (레이더 ↔ 폭포수)
+- `AiAnalysisScreen.kt` — SignalRationaleCard 하단에 AlgoContributionView 통합
+- 1 test file, 10 tests — all passing (0.11s)
+
+## Previous session
+**SIGNAL-T01 — 신호 투명성: 알고리즘별 근거 카드** COMPLETE.
+
+### Delivered
+- `data/engine/RationaleBuilder.kt` — StatisticalResult → Map<String, AlgoResult> 변환, 10개 알고리즘 한국어 근거 생성 (50자 이내, 숫자+방향 포함)
+- `presentation/common/SignalRationaleCard.kt` — 펼치기/접기 카드, 점수 바 (청색↔회색↔적색), ScoreBadge, AlgoRationaleRow
+- `AiAnalysisScreen.kt` — EnsembleProbabilityCard 아래에 SignalRationaleCard 통합
+- 2 test files, 23 tests — all passing
+
+## Previous session
 **CHART-K03 — 거래량 프로파일 오버레이** COMPLETE.
 
 ### Delivered

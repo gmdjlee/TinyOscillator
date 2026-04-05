@@ -33,6 +33,9 @@ import com.tinyoscillator.presentation.common.AiAnalysisSection
 import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.ui.theme.LocalFinanceColors
 import com.tinyoscillator.presentation.common.PillTabRow
+import com.tinyoscillator.presentation.common.AlgoContributionView
+import com.tinyoscillator.presentation.common.SignalRationaleCard
+import com.tinyoscillator.data.engine.RationaleBuilder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -587,6 +590,21 @@ private fun ProbabilityTabContent(
                         ensembleProbability = ensembleProbability,
                         metaLearnerStatus = metaLearnerStatus
                     )
+
+                    // 신호 근거 카드 (펼치기/접기)
+                    val algoResults = remember(state.result) {
+                        RationaleBuilder.build(state.result)
+                    }
+                    if (algoResults.isNotEmpty()) {
+                        SignalRationaleCard(
+                            algoResults = algoResults,
+                            ensembleScore = (ensembleProbability ?: 0.5).toFloat()
+                        )
+                        AlgoContributionView(
+                            algoResults = algoResults,
+                            ensembleScore = (ensembleProbability ?: 0.5).toFloat()
+                        )
+                    }
 
                     // 포지션 가이드 카드
                     state.result.positionRecommendation?.let { posRec ->
