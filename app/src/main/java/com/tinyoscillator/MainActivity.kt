@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
@@ -82,6 +83,7 @@ import com.tinyoscillator.presentation.portfolio.PortfolioScreen
 import com.tinyoscillator.presentation.common.HeatmapScreen
 import com.tinyoscillator.presentation.report.ReportDetailScreen
 import com.tinyoscillator.presentation.report.ReportScreen
+import com.tinyoscillator.presentation.screener.ScreenerScreen
 import com.tinyoscillator.presentation.settings.SettingsScreen
 import com.tinyoscillator.presentation.viewmodel.OscillatorDateRange
 import com.tinyoscillator.presentation.viewmodel.OscillatorUiState
@@ -135,6 +137,7 @@ private enum class BottomNavItem(val label: String, val icon: ImageVector) {
     REPORT("리포트", Icons.Default.Description),
     MARKET_INDICATOR("시장지표", Icons.Default.BarChart),
     AI_ANALYSIS("AI분석", Icons.Default.Psychology),
+    SCREENER("스크리너", Icons.Default.Tune),
     PORTFOLIO("포트폴리오", Icons.Default.AccountBalance)
 }
 
@@ -249,6 +252,12 @@ private fun MainScaffold(
                     AiAnalysisScreen(
                         onSettingsClick = onSettingsClick,
                         onHeatmapClick = onHeatmapClick
+                    )
+                }
+                BottomNavItem.SCREENER -> {
+                    ScreenerScreen(
+                        onSettingsClick = onSettingsClick,
+                        onTickerClick = onStockClick,
                     )
                 }
                 BottomNavItem.PORTFOLIO -> {

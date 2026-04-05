@@ -1,8 +1,23 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-05 by Stock Search Autocomplete_
+_Last updated: 2026-04-05 by SC-02 Stock Screener_
 
 ## Current session
+**SC-02 — 종목 스크리��� (필터/정렬/DataStore 저장)** COMPLETE.
+
+### Delivered
+- `domain/model/ScreeningModels.kt` — ScreenerFilter, ScreenerSortKey 추가
+- `data/datasource/ScreenerDataSource.kt` — Room DB 기반 스크리너 엔진 (마스터+분석캐시+펀더멘탈+신호점수)
+- `data/preferences/ScreenerFilterPreferences.kt` — DataStore 기반 필터 조건 저장/복원
+- `presentation/screener/ScreenerViewModel.kt` — 필터/정렬 상태 관리, debounce 500ms
+- `presentation/screener/ScreenerScreen.kt` — 스크리너 결과 리스트 + 정렬 칩 + SignalBadge
+- `presentation/screener/ScreenerFilterSheet.kt` — ModalBottomSheet 필터 UI (RangeSlider, SegmentedButton, Dropdown)
+- `StockMasterDao` — getFilteredCandidates(), getAllSectors() 쿼리 추가
+- `CalibrationDao` — getLatestAvgScoresByTicker() 벌크 신호 점수 쿼리 추가
+- `MainActivity.kt` — SCREENER BottomNavItem 추가 (Icons.Default.Tune)
+- 1 test file, 9 tests — all passing (0.173s)
+
+## Previous session
 **SEARCH-01 — 종목 검색 자동완성 (초성 + 최근 검색)** COMPLETE.
 
 ### Delivered

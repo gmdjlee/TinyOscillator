@@ -77,6 +77,24 @@ interface StockMasterDao {
     /** 동일 섹터 종목 조회 (시가총액 기준 상위 N개) */
     @Query("SELECT ticker FROM stock_master WHERE sector = :sector AND sector != '' ORDER BY ticker ASC LIMIT :limit")
     suspend fun getTickersBySector(sector: String, limit: Int): List<String>
+
+    /** 스크리너용: 시장/섹터 필터링 후 후보 목록 */
+    @Query("""
+        SELECT * FROM stock_master
+        WHERE (:marketType IS NULL OR market = :marketType)
+          AND (:sectorCode IS NULL OR sector = :sectorCode)
+        ORDER BY ticker ASC
+        LIMIT :candidateLimit
+    """)
+    suspend fun getFilteredCandidates(
+        marketType: String?,
+        sectorCode: String?,
+        candidateLimit: Int,
+    ): List<StockMasterEntity>
+
+    /** 전체 섹터 목록 (중복 제거) */
+    @Query("SELECT DISTINCT sector FROM stock_master WHERE sector != '' ORDER BY sector ASC")
+    suspend fun getAllSectors(): List<String>
 }
 
 data class TickerMarketPair(val ticker: String, val market: String)

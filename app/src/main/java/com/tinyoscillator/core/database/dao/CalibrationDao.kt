@@ -8,6 +8,8 @@ import com.tinyoscillator.core.database.entity.CalibrationStateEntity
 import com.tinyoscillator.core.database.entity.SignalHistoryEntity
 import com.tinyoscillator.domain.model.AlgoAccuracyRow
 
+data class TickerAvgScore(val ticker: String, @androidx.room.ColumnInfo(name = "avg_score") val avgScore: Double)
+
 @Dao
 interface CalibrationDao {
 
@@ -94,6 +96,14 @@ interface CalibrationDao {
 
     @Query("SELECT DISTINCT date FROM signal_history WHERE ticker = :ticker AND date >= :sinceDate ORDER BY date ASC")
     suspend fun getDistinctDates(ticker: String, sinceDate: String): List<String>
+
+    /** 종목별 최신 평균 신호 점수 (스크리너용) */
+    @Query("""
+        SELECT ticker, AVG(raw_score) as avg_score FROM signal_history
+        WHERE date = (SELECT MAX(date) FROM signal_history sh2 WHERE sh2.ticker = signal_history.ticker)
+        GROUP BY ticker
+    """)
+    suspend fun getLatestAvgScoresByTicker(): List<TickerAvgScore>
 
     // ─── Calibration State ───
 

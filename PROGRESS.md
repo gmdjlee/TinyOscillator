@@ -1,6 +1,40 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: SEARCH-01 — 종목 검색 자동완성_
+_Last updated: 2026-04-05 | Session: SC-02 — 종목 스크리너_
+
+---
+
+## SC-02 — 종목 스크리너 (필터/정렬/DataStore 저장)
+
+### New files
+| File | Purpose |
+|------|---------|
+| `data/datasource/ScreenerDataSource.kt` | Room DB 기반 스크리너 엔진 (후보 필터링 → 지표 수집 → 필터/정렬) |
+| `data/preferences/ScreenerFilterPreferences.kt` | DataStore 기반 필터 조건 저장/복원 |
+| `presentation/screener/ScreenerViewModel.kt` | 필터/정렬 상태 관리 + debounce 500ms |
+| `presentation/screener/ScreenerScreen.kt` | 스크리�� 메인 화면 (결과 리스트 + 정렬 칩 + SignalBadge) |
+| `presentation/screener/ScreenerFilterSheet.kt` | 필터 BottomSheet (신호강도 RangeSlider, 시총 프리셋, PBR/외국인/거래량 슬라���더, 시장/섹터) |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `domain/model/ScreeningModels.kt` | ScreenerFilter data class, ScreenerSortKey enum 추가 |
+| `core/database/dao/StockMasterDao.kt` | getFilteredCandidates(), getAllSectors() 쿼리 추가 |
+| `core/database/dao/CalibrationDao.kt` | TickerAvgScore POJO, getLatestAvgScoresByTicker() 벌크 쿼리 추가 |
+| `MainActivity.kt` | SCREENER BottomNavItem (Icons.Default.Tune) + ScreenerScreen 라우팅 |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `ScreenerFilterTest.kt` | 9 | PASS (0.173s) |
+
+### Design decisions
+- **StockMasterEntity 미변경**: 시가총액은 analysis_cache에서, PBR은 fundamental_cache에서 조회 — 마스터 테이블 확장 불필요
+- **DB 마이그레이션 불필요**: 기존 테이블/엔티티만 활용, 새 테이블 없음
+- **DataStore 분리**: `screener_filter_preferences` 별도 DataStore — 기존 indicator_preferences와 격리
+- **meetsFilter companion**: ScreenerDataSource.Companion에 정적 메서드로 노출 → 테스트에서 직접 검증 가능
+- **���호 점수 소스**: signal_history 테이블의 최신 날짜 평균 점수 사용 (앙상블 결과 캐시)
+- **거래량 비율**: analysis_cache에 거래량 컬럼 없으므로 1.0 기본값 (향후 확장점)
 
 ---
 

@@ -32,6 +32,30 @@ data class ScreenerResultItem(
 )
 
 /**
+ * 스크리너 필터 조건.
+ */
+data class ScreenerFilter(
+    val minSignalScore: Float = 0.60f,
+    val maxSignalScore: Float = 1.00f,
+    val minMarketCapBil: Long = 0L,
+    val maxMarketCapBil: Long = Long.MAX_VALUE,
+    val minPbr: Float = 0f,
+    val maxPbr: Float = Float.MAX_VALUE,
+    val minForeignRatio: Float = 0f,
+    val maxForeignRatio: Float = 1f,
+    val minVolumeRatio: Float = 0f,
+    val marketType: MarketType? = null,
+    val sectorCode: String? = null,
+)
+
+/**
+ * 스크리너 정렬 키.
+ */
+enum class ScreenerSortKey {
+    SIGNAL_SCORE, MARKET_CAP, PBR, FOREIGN_RATIO, VOLUME_RATIO
+}
+
+/**
  * 관심종목(워치리스트) 항목.
  */
 data class WatchlistEntry(
