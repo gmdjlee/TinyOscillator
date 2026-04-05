@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Psychology
@@ -80,7 +79,6 @@ import com.tinyoscillator.presentation.financial.FinancialInfoContent
 import com.tinyoscillator.presentation.financial.NaverStockWebScreen
 import com.tinyoscillator.presentation.fundamental.FundamentalHistoryContent
 import com.tinyoscillator.presentation.ai.AiAnalysisScreen
-import com.tinyoscillator.presentation.market.MarketIndicatorScreen
 import com.tinyoscillator.presentation.marketanalysis.MarketAnalysisScreen
 import com.tinyoscillator.presentation.portfolio.PortfolioScreen
 import com.tinyoscillator.presentation.common.HeatmapScreen
@@ -143,7 +141,6 @@ private enum class BottomNavItem(val label: String, val icon: ImageVector) {
     STOCK_ANALYSIS("종목분석", Icons.AutoMirrored.Filled.ShowChart),
     ETF_ANALYSIS("ETF분석", Icons.Default.PieChart),
     REPORT("리포트", Icons.Default.Description),
-    MARKET_INDICATOR("시장지표", Icons.Default.BarChart),
     AI_ANALYSIS("AI분석", Icons.Default.Psychology),
     SCREENER("스크리너", Icons.Default.Tune),
     WATCHLIST("관심종목", Icons.Default.Star),
@@ -263,11 +260,6 @@ private fun MainScaffold(
                     ReportScreen(
                         onSettingsClick = onSettingsClick,
                         onReportClick = onReportDetailClick
-                    )
-                }
-                BottomNavItem.MARKET_INDICATOR -> {
-                    MarketIndicatorScreen(
-                        onSettingsClick = onSettingsClick
                     )
                 }
                 BottomNavItem.AI_ANALYSIS -> {

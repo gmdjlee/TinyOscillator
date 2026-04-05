@@ -36,6 +36,8 @@ import com.github.mikephil.charting.utils.MPPointF
 import com.github.mikephil.charting.utils.Utils
 import com.tinyoscillator.R
 import com.tinyoscillator.core.worker.FearGreedUpdateWorker
+import com.tinyoscillator.core.worker.MarketDepositUpdateWorker
+import com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker
 import com.tinyoscillator.domain.model.DemarkPeriodType
 import com.tinyoscillator.domain.model.MarketDemarkChartData
 import com.tinyoscillator.domain.model.MarketDemarkRow
@@ -44,11 +46,17 @@ import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.presentation.common.PillTabRow
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
 import com.tinyoscillator.presentation.common.skeleton.MarketAnalysisSkeleton
+import com.tinyoscillator.presentation.market.MarketDepositTab
+import com.tinyoscillator.presentation.market.MarketDepositViewModel
+import com.tinyoscillator.presentation.market.MarketOscillatorTab
+import com.tinyoscillator.presentation.market.MarketOscillatorViewModel
 import com.tinyoscillator.ui.theme.LocalThemeModeState
 
 private enum class MarketAnalysisTab(val label: String) {
     FEAR_GREED("Fear & Greed"),
-    DEMARK("DeMark")
+    DEMARK("DeMark"),
+    OSCILLATOR("과매수/과매도"),
+    DEPOSIT("자금 동향")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,6 +66,8 @@ fun MarketAnalysisScreen(
 ) {
     val fearGreedViewModel: FearGreedViewModel = hiltViewModel()
     val demarkViewModel: MarketDemarkViewModel = hiltViewModel()
+    val oscillatorViewModel: MarketOscillatorViewModel = hiltViewModel()
+    val depositViewModel: MarketDepositViewModel = hiltViewModel()
     var selectedTab by rememberSaveable { mutableStateOf(MarketAnalysisTab.FEAR_GREED) }
     val themeModeState = LocalThemeModeState.current
 
@@ -66,14 +76,18 @@ fun MarketAnalysisScreen(
             TopAppBar(
                 title = { Text("시장분석") },
                 actions = {
-                    if (selectedTab == MarketAnalysisTab.FEAR_GREED) {
-                        IconButton(onClick = { fearGreedViewModel.update() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "새로고침")
+                    when (selectedTab) {
+                        MarketAnalysisTab.FEAR_GREED -> {
+                            IconButton(onClick = { fearGreedViewModel.update() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "새로고침")
+                            }
                         }
-                    } else {
-                        IconButton(onClick = { demarkViewModel.loadData() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "새로고침")
+                        MarketAnalysisTab.DEMARK -> {
+                            IconButton(onClick = { demarkViewModel.loadData() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "새로고침")
+                            }
                         }
+                        else -> {}
                     }
                     ThemeToggleIcon(themeModeState)
                     IconButton(onClick = onSettingsClick) {
@@ -84,7 +98,14 @@ fun MarketAnalysisScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            CollectionProgressBar(tag = FearGreedUpdateWorker.TAG)
+            CollectionProgressBar(
+                tag = when (selectedTab) {
+                    MarketAnalysisTab.FEAR_GREED -> FearGreedUpdateWorker.TAG
+                    MarketAnalysisTab.OSCILLATOR -> MarketOscillatorUpdateWorker.TAG
+                    MarketAnalysisTab.DEPOSIT -> MarketDepositUpdateWorker.TAG
+                    else -> FearGreedUpdateWorker.TAG
+                }
+            )
 
             PillTabRow(
                 tabs = MarketAnalysisTab.entries.toList(),
@@ -96,6 +117,8 @@ fun MarketAnalysisScreen(
             when (selectedTab) {
                 MarketAnalysisTab.FEAR_GREED -> FearGreedTab(viewModel = fearGreedViewModel)
                 MarketAnalysisTab.DEMARK -> MarketDemarkTab(viewModel = demarkViewModel)
+                MarketAnalysisTab.OSCILLATOR -> MarketOscillatorTab(viewModel = oscillatorViewModel)
+                MarketAnalysisTab.DEPOSIT -> MarketDepositTab(viewModel = depositViewModel)
             }
         }
     }
