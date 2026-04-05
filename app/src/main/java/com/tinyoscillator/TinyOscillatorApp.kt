@@ -7,6 +7,7 @@ import com.tinyoscillator.core.worker.CollectionNotificationHelper
 import com.tinyoscillator.core.worker.WorkManagerHelper
 import com.tinyoscillator.data.engine.StatisticalAnalysisEngine
 import com.tinyoscillator.data.engine.regime.MarketRegimeClassifier
+import com.tinyoscillator.data.repository.StockMasterRepository
 import com.tinyoscillator.presentation.settings.loadConsensusScheduleTime
 import com.tinyoscillator.presentation.settings.loadDepositScheduleTime
 import com.tinyoscillator.presentation.settings.loadEtfScheduleTime
@@ -35,6 +36,9 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
 
     @Inject
     lateinit var statisticalAnalysisEngine: StatisticalAnalysisEngine
+
+    @Inject
+    lateinit var stockMasterRepository: StockMasterRepository
 
     override val workManagerConfiguration: Configuration
         get() = workerConfiguration
@@ -96,6 +100,13 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
 
             // 신호 결과 수집 (매일 18:00)
             WorkManagerHelper.scheduleSignalOutcomeUpdate(this@TinyOscillatorApp)
+
+            // 기존 종목 마스터에 초성 컬럼 백필 (v21→v22 마이그레이션 후 1회)
+            try {
+                stockMasterRepository.backfillChosung()
+            } catch (e: Exception) {
+                Timber.w(e, "초성 백필 실패 — 다음 시작 시 재시도")
+            }
         }
     }
 

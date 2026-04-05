@@ -21,6 +21,33 @@ interface StockMasterDao {
     )
     fun searchStocks(query: String): Flow<List<StockMasterEntity>>
 
+    /** 초성/이름/티커 동시 검색 (suspend, 결과 최대 30건) */
+    @Query(
+        """
+        SELECT * FROM stock_master
+        WHERE name    LIKE '%' || :query || '%'
+           OR ticker  LIKE '%' || :query || '%'
+        ORDER BY ticker ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun searchByText(query: String, limit: Int = 30): List<StockMasterEntity>
+
+    /** 초성 검색 (별도 쿼리) */
+    @Query(
+        """
+        SELECT * FROM stock_master
+        WHERE initial_consonants LIKE '%' || :chosung || '%'
+        ORDER BY ticker ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun searchByChosung(chosung: String, limit: Int = 30): List<StockMasterEntity>
+
+    /** 티커 단건 조회 */
+    @Query("SELECT * FROM stock_master WHERE ticker = :ticker LIMIT 1")
+    suspend fun getByTicker(ticker: String): StockMasterEntity?
+
     @Query("SELECT * FROM stock_master ORDER BY ticker ASC")
     suspend fun getAll(): List<StockMasterEntity>
 

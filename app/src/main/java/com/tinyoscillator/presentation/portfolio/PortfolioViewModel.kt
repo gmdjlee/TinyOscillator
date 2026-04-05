@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.entity.PortfolioEntity
+import com.tinyoscillator.core.util.KoreanUtils
 import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
 import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
 import com.tinyoscillator.data.repository.PortfolioRepository
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -53,7 +55,12 @@ class PortfolioViewModel @Inject constructor(
         .debounce(200)
         .flatMapLatest { query ->
             if (query.isBlank()) flowOf(emptyList())
-            else stockMasterDao.searchStocks(query)
+            else flow {
+                emit(
+                    if (KoreanUtils.isChosungOnly(query)) stockMasterDao.searchByChosung(query)
+                    else stockMasterDao.searchByText(query)
+                )
+            }
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 

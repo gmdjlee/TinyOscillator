@@ -7,6 +7,7 @@ import com.tinyoscillator.core.database.entity.StockMasterEntity
 import com.tinyoscillator.data.dto.StockApiEndpoints
 import com.tinyoscillator.data.dto.StockApiIds
 import com.tinyoscillator.data.dto.StockListItem
+import com.tinyoscillator.core.util.KoreanUtils
 import com.tinyoscillator.data.dto.StockListResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -89,6 +90,7 @@ class StockMasterRepository @Inject constructor(
                 name = name,
                 market = item.mrktNm ?: "",
                 sector = item.sector ?: "",
+                initialConsonants = KoreanUtils.extractChosung(name),
                 lastUpdated = now
             )
         }
@@ -104,10 +106,39 @@ class StockMasterRepository @Inject constructor(
     }
 
     /**
-     * 로컬 DB에서 종목 검색 (Flow).
+     * 로컬 DB에서 종목 검색 (Flow) — 기존 호환용.
      */
     fun searchStocks(query: String): Flow<List<StockMasterEntity>> {
         return stockMasterDao.searchStocks(query)
+    }
+
+    /**
+     * 초성/이름/티커 통합 검색 (suspend).
+     * 초성 전용 쿼리 감지 시 초성 컬럼으로 검색, 그 외 텍스트 검색.
+     */
+    suspend fun searchWithChosung(query: String): List<StockMasterEntity> = withContext(Dispatchers.IO) {
+        val q = query.trim()
+        if (q.isBlank()) return@withContext emptyList()
+        if (KoreanUtils.isChosungOnly(q)) stockMasterDao.searchByChosung(q)
+        else stockMasterDao.searchByText(q)
+    }
+
+    /** 티커 단건 조회 */
+    suspend fun getByTicker(ticker: String): StockMasterEntity? = withContext(Dispatchers.IO) {
+        stockMasterDao.getByTicker(ticker)
+    }
+
+    /**
+     * 기존 데이터에 초성 컬럼 백필.
+     * Migration 후 최초 1회 실행하면 기존 종목에도 초성 검색이 활성화됨.
+     */
+    suspend fun backfillChosung() = withContext(Dispatchers.IO) {
+        val all = stockMasterDao.getAll()
+        val needUpdate = all.filter { it.initialConsonants.isBlank() }
+        if (needUpdate.isEmpty()) return@withContext
+        val updated = needUpdate.map { it.copy(initialConsonants = KoreanUtils.extractChosung(it.name)) }
+        stockMasterDao.insertAll(updated)
+        Timber.d("초성 백필 완료: %d건", updated.size)
     }
 
     /**
@@ -172,6 +203,7 @@ class StockMasterRepository @Inject constructor(
                 name = name,
                 market = item.mrktNm ?: "",
                 sector = item.sector ?: "",
+                initialConsonants = KoreanUtils.extractChosung(name),
                 lastUpdated = now
             )
         }

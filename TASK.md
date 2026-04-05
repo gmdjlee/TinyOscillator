@@ -1,8 +1,20 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-05 by Signal Conflict Detection_
+_Last updated: 2026-04-05 by Stock Search Autocomplete_
 
 ## Current session
+**SEARCH-01 — 종목 검색 자동완성 (초성 + 최근 검색)** COMPLETE.
+
+### Delivered
+- `core/util/KoreanUtils.kt` — 초성 추출, 초성 쿼리 감지, 통합 매칭 (순수 Kotlin)
+- `data/preferences/RecentSearchPreferences.kt` — DataStore 기반 최근 검색 5개 기록
+- `presentation/common/StockSearchBar.kt` — 검색 결과 + 최근 검색 드롭다운 콘텐츠 Composable
+- `StockMasterEntity` + `StockMasterDao` — initial_consonants 컬럼 + 초성/텍스트 검색 쿼리
+- DB v21→v22 마이그레이션 + 앱 시작 시 초성 백필
+- OscillatorVM, AiAnalysisVM, PortfolioVM — 초성 통합 검색으로 교체
+- 1 test file, 25 tests — all passing (0.078s)
+
+## Previous session
 **SIGNAL-T05 — 알고리즘 신호 충돌 감지 + 앰버 경고 배너** COMPLETE.
 
 ### Delivered

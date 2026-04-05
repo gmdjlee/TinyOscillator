@@ -114,7 +114,12 @@ class AiAnalysisViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchResults: StateFlow<List<StockMasterEntity>> = _searchQuery
         .debounce(200)
-        .flatMapLatest { query -> searchStocksUseCase(query) }
+        .flatMapLatest { query ->
+            flow {
+                if (query.isBlank()) emit(emptyList())
+                else emit(searchStocksUseCase.searchWithChosung(query))
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _selectedStock = MutableStateFlow<SelectedStockInfo?>(null)

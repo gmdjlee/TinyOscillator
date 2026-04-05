@@ -23,6 +23,9 @@ data class StockMasterEntity(
     @ColumnInfo(name = "sector", defaultValue = "")
     val sector: String = "",
 
+    @ColumnInfo(name = "initial_consonants", defaultValue = "")
+    val initialConsonants: String = "",
+
     @ColumnInfo(name = "last_updated")
     val lastUpdated: Long
 )

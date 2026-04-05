@@ -83,11 +83,16 @@ class OscillatorViewModel @Inject constructor(
     private val _autoRefreshEnabled = MutableStateFlow(true)
     val autoRefreshEnabled: StateFlow<Boolean> = _autoRefreshEnabled.asStateFlow()
 
-    // 로컬 DB 검색 결과
+    // 로컬 DB 검색 결과 (초성/이름/티커 통합 검색)
     private val _searchQuery = MutableStateFlow("")
     val searchResults: StateFlow<List<StockMasterEntity>> = _searchQuery
         .debounce(200)
-        .flatMapLatest { query -> searchStocksUseCase(query) }
+        .flatMapLatest { query ->
+            flow {
+                if (query.isBlank()) emit(emptyList())
+                else emit(searchStocksUseCase.searchWithChosung(query))
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     // 분석 기록

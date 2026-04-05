@@ -1,6 +1,52 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: SIGNAL-T05 — Signal Conflict Detection_
+_Last updated: 2026-04-05 | Session: SEARCH-01 — 종목 검색 자동완성_
+
+---
+
+## SEARCH-01 — 종목 검색 자동완성 (초성 + 최근 검색)
+
+### 현황 파악 (TASK 0)
+종목 입력 진입점:
+1. **MainActivity.kt:450** — OutlinedTextField "종목명 또는 종목코드 검색" + autocomplete dropdown
+2. **AiAnalysisScreen.kt:304** — StockTabContent OutlinedTextField
+3. **AddHoldingDialog.kt:59** — 포트폴리오 종목 추가 다이얼로그
+4. **StockAnalysisTab.kt:41** — ETF 통계 종목 검색
+
+모두 `StockMasterDao.searchStocks()` (LIKE query + '%') 를 사용 → 초성 검색 불가, 부분 매칭만.
+
+### New files
+| File | Purpose |
+|------|---------|
+| `core/util/KoreanUtils.kt` | 초성 추출, 초성 쿼리 감지, 통합 매칭 (순수 Kotlin) |
+| `data/preferences/RecentSearchPreferences.kt` | DataStore 기반 최근 검색 5개 기록 |
+| `presentation/common/StockSearchBar.kt` | 검색 결과 + 최근 검색 드롭다운 콘텐츠 Composable |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `core/database/entity/StockMasterEntity.kt` | `initial_consonants` 컬럼 추가 |
+| `core/database/dao/StockMasterDao.kt` | `searchByText()`, `searchByChosung()`, `getByTicker()` 추가 |
+| `core/database/AppDatabase.kt` | version 21→22 |
+| `core/di/DatabaseModule.kt` | MIGRATION_21_22 (initial_consonants ALTER TABLE) |
+| `data/repository/StockMasterRepository.kt` | `searchWithChosung()`, `backfillChosung()`, `getByTicker()` 추가, 종목 삽입 시 초성 자동 계�� |
+| `domain/usecase/SearchStocksUseCase.kt` | `searchWithChosung()` suspend 메서드 추가 |
+| `presentation/viewmodel/OscillatorViewModel.kt` | 검색 Flow를 초성 통합 검색으로 변경 |
+| `presentation/ai/AiAnalysisViewModel.kt` | 검색 Flow를 초성 통합 검색으로 변경 |
+| `presentation/portfolio/PortfolioViewModel.kt` | 검색을 초성 통합 검색으로 변경 |
+| `TinyOscillatorApp.kt` | 앱 시작 시 기존 데이터 초성 백필 |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `KoreanUtilsTest.kt` | 25 | PASS (0.078s) |
+
+### Design decisions
+- **StockMasterEntity 확장**: 새 엔티티 생성 대신 기존 `stock_master` 테이블에 `initial_consonants` 컬럼 추가 — 기존 DAO/Repository 재사용
+- **Room 백필 전략**: MIGRATION_21_22는 ALTER TABLE만 수행, 앱 시작 시 `backfillChosung()` 으로 기존 종목에 초성 계산
+- **DataStore 분리**: `recent_search_preferences` 별도 DataStore — indicator_preferences와 키 충돌 방지
+- **ViewModel 미생성**: 기존 ViewModel(OscillatorVM, AiAnalysisVM, PortfolioVM)의 검색 로직을 chosung-aware로 교체
+- **SearchBar 미변경**: 기존 OutlinedTextField + dropdown 패턴 유지 — Material 3 SearchBar는 layout 변경이 큼
 
 ---
 

@@ -75,7 +75,7 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         IncrementalModelStateEntity::class,
         ModelDriftAlertEntity::class
     ],
-    version = 21,
+    version = 22,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
