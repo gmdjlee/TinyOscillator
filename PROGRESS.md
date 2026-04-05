@@ -1,6 +1,34 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: UX-01 — Shimmer 스켈레톤 + UiState 통합_
+_Last updated: 2026-04-05 | Session: UX-02 — 점진적 분석 표시_
+
+---
+
+## UX-02 — 점진적 분석 표시 (Progressive Analysis Display)
+
+### New files
+| File | Purpose |
+|------|---------|
+| `domain/model/AnalysisStep.kt` | 4단계 분석 sealed interface + ProgressiveAnalysisState (steps 누적) |
+| `domain/usecase/ProgressiveAnalysisUseCase.kt` | channelFlow로 단계별 emit (가격→지표→앙상블→외부) |
+| `presentation/progressive/ProgressiveAnalysisViewModel.kt` | HiltViewModel (flatMapLatest + UiState<ProgressiveAnalysisState>) |
+| `presentation/progressive/ProgressiveAnalysisScreen.kt` | LazyColumn + AnimatedVisibility 카드 4종 + ShimmerBox 대체 |
+| `presentation/progressive/AnalysisProgressIndicator.kt` | 4단계 진행 도트 (가격→지표→신호→외부) |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `ProgressiveAnalysisStateTest.kt` | 6 | PASS (0.06s) |
+| `ProgressiveAnalysisUseCaseTest.kt` | 6 | PASS (0.25s) |
+| `ProgressiveViewModelTest.kt` | 3 | PASS (22.8s — MockK class loading) |
+
+### Design decisions
+- **기존 엔진 재사용**: StatisticalAnalysisEngine.analyze() 한 번 호출로 앙상블 결과 획득 (별도 분리 불필요)
+- **외부 데이터 추출**: DART/기관 데이터는 StatisticalResult에서 추출 (별도 API 호출 불필요)
+- **순차 4단계**: 가격→기술지표→앙상블(11엔진 병렬)→외부 데이터(soft fail)
+- **AnimatedVisibility**: 2·3단계 fadeIn + expandVertically 애니메이션
+- **UseCase open class**: 테스트에서 invoke 오버라이드 가능 (FakeUseCase 패턴)
+- **ViewModel test 시간**: MockK relaxed mock으로 StatisticalAnalysisEngine 생성 → 22s (class loading dominant)
 
 ---
 

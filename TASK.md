@@ -1,8 +1,19 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-05 by UX-01 Shimmer 스켈레톤 + UiState 통합_
+_Last updated: 2026-04-05 by UX-02 점진적 분석 표시_
 
 ## Current session
+**UX-02 — 점진적 분석 표시 (Progressive Analysis Display)** COMPLETE.
+
+### Delivered
+- `domain/model/AnalysisStep.kt` — 4단계 분석 파이프라인 sealed interface (PriceData, TechnicalIndicators, EnsembleSignal, ExternalData) + ProgressiveAnalysisState
+- `domain/usecase/ProgressiveAnalysisUseCase.kt` — channelFlow 기반 단계별 emit UseCase (가격→지표→앙상블→외부 순차)
+- `presentation/progressive/ProgressiveAnalysisViewModel.kt` — HiltViewModel (flatMapLatest + UiState 매핑)
+- `presentation/progressive/ProgressiveAnalysisScreen.kt` — 점진적 UI (PriceHeaderCard, TechnicalIndicatorsCard, EnsembleSignalCard, ExternalDataCard + AnimatedVisibility)
+- `presentation/progressive/AnalysisProgressIndicator.kt` — 4단계 진행 도트 (완료 시 primary 색상, 미완료 시 shimmer)
+- 3 test files, 15 tests — all passing
+
+## Previous session
 **UX-01 — Shimmer 스켈레톤 로딩 + 공통 UiState + Stale-while-revalidate** COMPLETE.
 
 ### Delivered
