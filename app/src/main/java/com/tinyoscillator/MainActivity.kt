@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -83,6 +84,8 @@ import com.tinyoscillator.presentation.portfolio.PortfolioScreen
 import com.tinyoscillator.presentation.common.HeatmapScreen
 import com.tinyoscillator.presentation.report.ReportDetailScreen
 import com.tinyoscillator.presentation.report.ReportScreen
+import com.tinyoscillator.presentation.sector.SectorGroupScreen
+import com.tinyoscillator.presentation.sector.GroupDetailScreen
 import com.tinyoscillator.presentation.screener.ScreenerScreen
 import com.tinyoscillator.presentation.settings.SettingsScreen
 import com.tinyoscillator.presentation.viewmodel.OscillatorDateRange
@@ -138,6 +141,7 @@ private enum class BottomNavItem(val label: String, val icon: ImageVector) {
     MARKET_INDICATOR("시장지표", Icons.Default.BarChart),
     AI_ANALYSIS("AI분석", Icons.Default.Psychology),
     SCREENER("스크리너", Icons.Default.Tune),
+    SECTOR_THEME("섹터/테마", Icons.Default.Category),
     PORTFOLIO("포트폴리오", Icons.Default.AccountBalance)
 }
 
@@ -160,7 +164,11 @@ fun AppNavigation() {
                 onReportDetailClick = { report ->
                     navController.navigate("report_detail/${report.stockTicker}/${report.writeDate}")
                 },
-                onHeatmapClick = { navController.navigate("heatmap") }
+                onHeatmapClick = { navController.navigate("heatmap") },
+                onGroupClick = { group ->
+                    val tickers = group.tickers.joinToString(",")
+                    navController.navigate("group_detail/${group.name}/$tickers")
+                }
             )
         }
         composable("settings") {
@@ -190,6 +198,12 @@ fun AppNavigation() {
         composable("report_detail/{ticker}/{writeDate}") {
             ReportDetailScreen(onBack = { navController.popBackStack() })
         }
+        composable("group_detail/{groupName}/{tickers}") {
+            GroupDetailScreen(
+                onBack = { navController.popBackStack() },
+                onTickerClick = { ticker -> navController.navigate("stock_aggregated/$ticker") }
+            )
+        }
         composable("heatmap") {
             HeatmapScreen(
                 onTickerClick = { ticker ->
@@ -209,7 +223,8 @@ private fun MainScaffold(
     onStockClick: (String) -> Unit = {},
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
     onReportDetailClick: (ConsensusReport) -> Unit = {},
-    onHeatmapClick: () -> Unit = {}
+    onHeatmapClick: () -> Unit = {},
+    onGroupClick: (com.tinyoscillator.domain.model.StockGroup) -> Unit = {}
 ) {
     var selectedNav by rememberSaveable { mutableStateOf(BottomNavItem.MARKET_ANALYSIS) }
 
@@ -258,6 +273,12 @@ private fun MainScaffold(
                     ScreenerScreen(
                         onSettingsClick = onSettingsClick,
                         onTickerClick = onStockClick,
+                    )
+                }
+                BottomNavItem.SECTOR_THEME -> {
+                    SectorGroupScreen(
+                        onSettingsClick = onSettingsClick,
+                        onGroupClick = onGroupClick,
                     )
                 }
                 BottomNavItem.PORTFOLIO -> {

@@ -1,8 +1,26 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-05 by SC-02 Stock Screener_
+_Last updated: 2026-04-05 by SC-03 Sector/Theme Grouping_
 
 ## Current session
+**SC-03 — 섹터/테마 그룹화 (KRX 섹터 + 사용자 테마)** COMPLETE.
+
+### Delivered
+- `domain/model/StockGroup.kt` — StockGroup data class, GroupType enum, DEFAULT_THEMES (5개 기본 테마)
+- `core/database/entity/UserThemeEntity.kt` — Room 엔티티 (user_themes 테이블)
+- `core/database/dao/UserThemeDao.kt` — CRUD + Flow 관찰 + count/maxSortOrder
+- `data/repository/StockGroupRepository.kt` — KRX 섹터/사용자 테마 관찰, 신호 점수 집계, 기본 테마 초기화
+- `presentation/sector/SectorGroupViewModel.kt` — HiltViewModel (섹터+테마 StateFlow)
+- `presentation/sector/SectorGroupScreen.kt` — 메인 화면 (GroupCard, 내 테마/KRX 섹터 리스트)
+- `presentation/sector/AddThemeDialog.kt` — 테마 추가 다이얼로그 (종목코드 파싱)
+- `presentation/sector/GroupDetailScreen.kt` — 그룹 내 종목 리스트 드릴다운 화면
+- `StockMasterDao` — observeAllSectors(), getAllTickersBySector() 추가
+- `AppDatabase` v22→v23 (user_themes 테이블)
+- `DatabaseModule` — MIGRATION_22_23 + UserThemeDao provider
+- `MainActivity.kt` — SECTOR_THEME BottomNavItem (Icons.Default.Category) + group_detail 라우트
+- 1 test file, 11 tests — all passing
+
+## Previous session
 **SC-02 — 종목 스크리��� (필터/정렬/DataStore 저장)** COMPLETE.
 
 ### Delivered

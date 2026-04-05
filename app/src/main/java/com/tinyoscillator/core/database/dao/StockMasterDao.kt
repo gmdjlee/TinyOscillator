@@ -95,6 +95,14 @@ interface StockMasterDao {
     /** 전체 섹터 목록 (중복 제거) */
     @Query("SELECT DISTINCT sector FROM stock_master WHERE sector != '' ORDER BY sector ASC")
     suspend fun getAllSectors(): List<String>
+
+    /** 섹터 목록 Flow (변경 감지) */
+    @Query("SELECT DISTINCT sector FROM stock_master WHERE sector != '' ORDER BY sector ASC")
+    fun observeAllSectors(): Flow<List<String>>
+
+    /** 섹터별 전체 종목 티커 목록 */
+    @Query("SELECT ticker FROM stock_master WHERE sector = :sector AND sector != '' ORDER BY ticker ASC")
+    suspend fun getAllTickersBySector(sector: String): List<String>
 }
 
 data class TickerMarketPair(val ticker: String, val market: String)

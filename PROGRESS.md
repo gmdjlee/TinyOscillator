@@ -1,6 +1,43 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: SC-02 — 종목 스크리너_
+_Last updated: 2026-04-05 | Session: SC-03 — 섹터/테마 그룹화_
+
+---
+
+## SC-03 — 섹터/테마 그룹화 (KRX 섹터 + 사용자 테마)
+
+### New files
+| File | Purpose |
+|------|---------|
+| `domain/model/StockGroup.kt` | StockGroup 도메인 모델, GroupType enum, DEFAULT_THEMES |
+| `core/database/entity/UserThemeEntity.kt` | 사용자 테마 Room 엔티티 |
+| `core/database/dao/UserThemeDao.kt` | 사용자 테마 CRUD DAO |
+| `data/repository/StockGroupRepository.kt` | KRX 섹터/사용자 테마 통합 리포지토리 (신호 점수 집계) |
+| `presentation/sector/SectorGroupViewModel.kt` | 섹터/테마 화면 ViewModel |
+| `presentation/sector/SectorGroupScreen.kt` | 섹터/테마 메인 화면 + GroupCard |
+| `presentation/sector/AddThemeDialog.kt` | 테마 추가 다이얼로그 |
+| `presentation/sector/GroupDetailScreen.kt` | 그룹 내 종목 드릴다운 화면 + GroupDetailViewModel |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `core/database/AppDatabase.kt` | v22→v23, UserThemeEntity 추가, userThemeDao() |
+| `core/di/DatabaseModule.kt` | MIGRATION_22_23 (user_themes 테이블), provideUserThemeDao() |
+| `core/database/dao/StockMasterDao.kt` | observeAllSectors() Flow, getAllTickersBySector() 추가 |
+| `MainActivity.kt` | SECTOR_THEME BottomNavItem, group_detail 라우트, onGroupClick 콜백 |
+
+### Tests
+| Test file | Tests | Status |
+|-----------|-------|--------|
+| `StockGroupAggregationTest.kt` | 11 | PASS |
+
+### Design decisions
+- **DB v23**: user_themes 테이블 추가 (id, name, tickers JSON, sort_order, created_at)
+- **신호 점수 소스**: CalibrationDao.getLatestAvgScoresByTicker() 재사용 (SC-02 스크리너와 동일)
+- **scoreColor 재사용**: presentation/common/SignalRationaleCard.kt의 기존 함수 활용
+- **buildGroup companion**: StockGroupRepository.Companion에 정적 메서드 → 테스트에서 직접 검증
+- **GroupDetailScreen**: SavedStateHandle로 groupName/tickers 전달 → 종목명 + 신호점수 표시
+- **기본 테마**: 앱 최초 설치 시 5개 테마 자동 생성 (K-방산, 2차전지, 조선, 반도체, 바이오)
 
 ---
 
