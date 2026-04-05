@@ -1,6 +1,45 @@
 # PROGRESS.md — Implementation State
 
-_Last updated: 2026-04-05 | Session: UX-02 — 점진적 분석 표시_
+_Last updated: 2026-04-05 | Session: UX-03 — Compose 성능 최적화_
+
+---
+
+## UX-03 — Compose 성능 최적화 (Recomposition & Memory Leak Fixes)
+
+### New files
+| File | Purpose |
+|------|---------|
+| `core/ui/debug/RecompositionCounter.kt` | 디버그 전용 리컴포지션 카운터 (Logcat tag="Recompose") |
+
+### Modified files
+| File | Change |
+|------|--------|
+| `app/build.gradle.kts` | LeakCanary 2.14 debugImplementation 추가 |
+| `KoreanCandleChartView.kt` | OnChartValueSelectedListener 누수 수정 — update 블록에서 매번 새 리스너 생성 → rememberUpdatedState + factory 1회 설정 |
+| `StockAnalysisScreen.kt` | collectAsState → collectAsStateWithLifecycle (2건) |
+| `DemarkTDContent.kt` | collectAsState → collectAsStateWithLifecycle (2건) |
+| `PortfolioScreen.kt` | collectAsState → collectAsStateWithLifecycle (2건) |
+| `FundamentalHistoryContent.kt` | collectAsState → collectAsStateWithLifecycle (1건) |
+| `FinancialInfoContent.kt` | collectAsState → collectAsStateWithLifecycle (3건) |
+| `DuPontContent.kt` | collectAsState → collectAsStateWithLifecycle (2건) |
+| `MarketAnalysisScreen.kt` | collectAsState → collectAsStateWithLifecycle (6건) |
+| `MarketOscillatorTab.kt` | collectAsState → collectAsStateWithLifecycle (6건) |
+| `MarketDepositTab.kt` | collectAsState → collectAsStateWithLifecycle (3건) |
+| `StockSearchBar.kt` | 미사용 collectAsState import 제거 |
+
+### Design decisions
+- **collectAsStateWithLifecycle**: `lifecycle-runtime-compose:2.7.0` 이미 의존성에 존재하여 추가 설치 불필요. Activity/Fragment 생명주기에 맞춰 Flow 구독을 자동 관리하여 백그라운드 시 구독 해제
+- **OnChartValueSelectedListener 안정화**: `rememberUpdatedState`로 콜백 참조를 안정화하고, `remember`로 리스너 객체를 1회만 생성. factory에서 설정하여 update 블록의 리스너 재할당 방지
+- **LeakCanary**: debug 빌드에서만 동작. 종목 순차 분석, 화면 회전, 백그라운드 전환 시 메모리 누수 감지 가능
+- **RecompositionCounter**: `SideEffect` 기반으로 실제 커밋된 리컴포지션만 카운트. `BuildConfig.DEBUG` 가드로 release 빌드에서 완전 제거
+
+### Optimization summary
+| Category | Before | After |
+|----------|--------|-------|
+| collectAsState (lifecycle 미인식) | 27건 (10개 파일) | 0건 → 전부 collectAsStateWithLifecycle |
+| OnChartValueSelectedListener 재생성 | update마다 새 객체 | factory에서 1회 설정 (rememberUpdatedState) |
+| LeakCanary | 미설치 | debugImplementation 추가 |
+| 리컴포지션 측정 도구 | 없음 | LogRecompositions() 유틸 추가 |
 
 ---
 

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.*
 import com.tinyoscillator.presentation.viewmodel.AnalysisUiState
 import com.tinyoscillator.presentation.viewmodel.StockAnalysisViewModel
@@ -32,8 +33,8 @@ fun StockAnalysisScreen(
     stockName: String,
     viewModel: StockAnalysisViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val streamingText by viewModel.streamingText.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val streamingText by viewModel.streamingText.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = Modifier

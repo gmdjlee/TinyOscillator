@@ -166,6 +166,9 @@ dependencies {
     // === Logging ===
     implementation("com.jakewharton.timber:timber:5.0.1")
 
+    // === Debug ===
+    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
+
     // === Testing ===
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")

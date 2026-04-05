@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.mikephil.charting.charts.CombinedChart
 import com.github.mikephil.charting.components.Legend
 import com.github.mikephil.charting.components.MarkerView
@@ -104,9 +105,9 @@ fun MarketAnalysisScreen(
 
 @Composable
 private fun FearGreedTab(viewModel: FearGreedViewModel) {
-    val state by viewModel.state.collectAsState()
-    val selectedMarket by viewModel.selectedMarket.collectAsState()
-    val selectedRange by viewModel.selectedRange.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedMarket by viewModel.selectedMarket.collectAsStateWithLifecycle()
+    val selectedRange by viewModel.selectedRange.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -204,9 +205,9 @@ private fun FearGreedTab(viewModel: FearGreedViewModel) {
 
 @Composable
 private fun MarketDemarkTab(viewModel: MarketDemarkViewModel) {
-    val state by viewModel.state.collectAsState()
-    val selectedMarket by viewModel.selectedMarket.collectAsState()
-    val selectedPeriod by viewModel.selectedPeriod.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedMarket by viewModel.selectedMarket.collectAsStateWithLifecycle()
+    val selectedPeriod by viewModel.selectedPeriod.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier

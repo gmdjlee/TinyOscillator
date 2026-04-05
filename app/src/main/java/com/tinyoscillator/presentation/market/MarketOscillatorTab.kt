@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.DateRangeOption
 import com.tinyoscillator.domain.model.MarketOscillator
 import com.tinyoscillator.domain.model.MarketOscillatorState
@@ -26,12 +27,12 @@ import com.tinyoscillator.domain.model.OscillatorRangeOption
 fun MarketOscillatorTab(
     viewModel: MarketOscillatorViewModel
 ) {
-    val state by viewModel.state.collectAsState()
-    val selectedMarket by viewModel.selectedMarket.collectAsState()
-    val selectedRange by viewModel.selectedRange.collectAsState()
-    val marketData by viewModel.marketData.collectAsState()
-    val overboughtThreshold by viewModel.overboughtThreshold.collectAsState()
-    val oversoldThreshold by viewModel.oversoldThreshold.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedMarket by viewModel.selectedMarket.collectAsStateWithLifecycle()
+    val selectedRange by viewModel.selectedRange.collectAsStateWithLifecycle()
+    val marketData by viewModel.marketData.collectAsStateWithLifecycle()
+    val overboughtThreshold by viewModel.overboughtThreshold.collectAsStateWithLifecycle()
+    val oversoldThreshold by viewModel.oversoldThreshold.collectAsStateWithLifecycle()
 
     var showSettingsDialog by remember { mutableStateOf(false) }
 

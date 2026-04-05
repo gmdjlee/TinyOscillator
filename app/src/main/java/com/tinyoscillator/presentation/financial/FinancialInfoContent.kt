@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.FinancialState
 import com.tinyoscillator.domain.model.FinancialTab
 
@@ -20,9 +21,9 @@ fun FinancialInfoContent(
     modifier: Modifier = Modifier,
     viewModel: FinancialInfoViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
-    val selectedTab by viewModel.selectedTab.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
     LaunchedEffect(ticker, stockName) {
         if (ticker != null && stockName != null) {

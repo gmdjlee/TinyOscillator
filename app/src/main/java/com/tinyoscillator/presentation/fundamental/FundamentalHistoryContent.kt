@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.FundamentalHistoryState
 
 @Composable
@@ -17,7 +18,7 @@ fun FundamentalHistoryContent(
     modifier: Modifier = Modifier,
     viewModel: FundamentalHistoryViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(ticker, stockName) {
         if (ticker != null && stockName != null) {

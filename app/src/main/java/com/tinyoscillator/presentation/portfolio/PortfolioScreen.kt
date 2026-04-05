@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -19,7 +20,7 @@ fun PortfolioScreen(
     onSettingsClick: () -> Unit
 ) {
     val viewModel: PortfolioViewModel = hiltViewModel()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
     var showSettingsDialog by remember { mutableStateOf(false) }
     val themeModeState = LocalThemeModeState.current
@@ -62,7 +63,7 @@ fun PortfolioScreen(
     }
 
     if (showSettingsDialog) {
-        val portfolio by viewModel.portfolio.collectAsState()
+        val portfolio by viewModel.portfolio.collectAsStateWithLifecycle()
         portfolio?.let {
             PortfolioSettingsDialog(
                 name = it.name,

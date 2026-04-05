@@ -19,6 +19,7 @@ import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.components.YAxis
 import com.github.mikephil.charting.data.*
 import com.github.mikephil.charting.formatter.ValueFormatter
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.DateRangeOption
 import com.tinyoscillator.domain.model.MarketDepositChartData
 import com.tinyoscillator.domain.model.MarketDepositState
@@ -28,9 +29,9 @@ import com.tinyoscillator.presentation.financial.FinancialMarkerView
 fun MarketDepositTab(
     viewModel: MarketDepositViewModel
 ) {
-    val state by viewModel.state.collectAsState()
-    val selectedRange by viewModel.selectedRange.collectAsState()
-    val depositData by viewModel.depositData.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedRange by viewModel.selectedRange.collectAsStateWithLifecycle()
+    val depositData by viewModel.depositData.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier

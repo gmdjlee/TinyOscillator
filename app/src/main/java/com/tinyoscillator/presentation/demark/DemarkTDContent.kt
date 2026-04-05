@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.DemarkPeriodType
 
 @Composable
@@ -17,8 +18,8 @@ fun DemarkTDContent(
     modifier: Modifier = Modifier,
     viewModel: DemarkTDViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
-    val selectedPeriod by viewModel.selectedPeriod.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedPeriod by viewModel.selectedPeriod.collectAsStateWithLifecycle()
 
     LaunchedEffect(ticker, stockName) {
         if (ticker != null && stockName != null) {

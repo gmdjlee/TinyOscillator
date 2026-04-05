@@ -58,6 +58,19 @@ fun KoreanCandleChartView(
     var syncManager by remember { mutableStateOf<ChartSyncManager?>(null) }
     val axisBridge = remember { ChartAxisBridge() }
 
+    // Stable listener — avoids creating new OnChartValueSelectedListener on every update
+    val currentCrosshairCb = rememberUpdatedState(onCrosshairIndex)
+    val stableListener = remember {
+        object : OnChartValueSelectedListener {
+            override fun onValueSelected(e: Entry?, h: Highlight?) {
+                currentCrosshairCb.value?.invoke(h?.x?.toInt())
+            }
+            override fun onNothingSelected() {
+                currentCrosshairCb.value?.invoke(null)
+            }
+        }
+    }
+
     LaunchedEffect(candleChart, volumeChart) {
         val cc = candleChart ?: return@LaunchedEffect
         val vc = volumeChart ?: return@LaunchedEffect
@@ -114,6 +127,8 @@ fun KoreanCandleChartView(
                         patternRenderer = PatternMarkerRenderer(this).apply {
                             patterns = detectedPatterns
                         }
+                        // Listener는 factory에서 1회만 설정 — rememberUpdatedState로 콜백 안정화
+                        setOnChartValueSelectedListener(stableListener)
                     }.also { chart -> candleChart = chart }
                 },
                 update = { chart ->
@@ -133,17 +148,6 @@ fun KoreanCandleChartView(
                         chart.notifyDataSetChanged()
                         chart.invalidate()
                         axisBridge.update(chart)
-                    }
-
-                    onCrosshairIndex?.let { cb ->
-                        chart.setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
-                            override fun onValueSelected(e: Entry?, h: Highlight?) {
-                                cb(h?.x?.toInt())
-                            }
-                            override fun onNothingSelected() {
-                                cb(null)
-                            }
-                        })
                     }
                 },
                 modifier = Modifier

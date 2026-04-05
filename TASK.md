@@ -1,8 +1,18 @@
 # TASK.md — Active Work Queue
 
-_Last updated: 2026-04-05 by UX-02 점진적 분석 표시_
+_Last updated: 2026-04-05 by UX-03 Compose 성능 최적화_
 
 ## Current session
+**UX-03 — Compose 성능 최적화 (Recomposition & Memory Leak Fixes)** COMPLETE.
+
+### Delivered
+- `app/build.gradle.kts` — LeakCanary 2.14 debugImplementation 추가
+- `KoreanCandleChartView.kt` — OnChartValueSelectedListener 누수 수정 (rememberUpdatedState + factory 1회 설정)
+- 9개 화면 파일 — `collectAsState()` → `collectAsStateWithLifecycle()` 마이그레이션
+- `StockSearchBar.kt` — 미사용 collectAsState import 제거
+- `core/ui/debug/RecompositionCounter.kt` — 디버그 전용 리컴포지션 카운터 유틸
+
+## Previous session
 **UX-02 — 점진적 분석 표시 (Progressive Analysis Display)** COMPLETE.
 
 ### Delivered

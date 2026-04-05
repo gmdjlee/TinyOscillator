@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.mikephil.charting.charts.CombinedChart
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.Legend
@@ -36,8 +37,8 @@ fun DuPontContent(
     modifier: Modifier = Modifier,
     viewModel: FinancialInfoViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
     LaunchedEffect(ticker, stockName) {
         if (ticker != null && stockName != null) {
