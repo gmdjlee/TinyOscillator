@@ -14,3 +14,5 @@ local.properties
 /app/build/
 hs_err_pid*
 nul
+.kotlin/
+replay_pid*.log

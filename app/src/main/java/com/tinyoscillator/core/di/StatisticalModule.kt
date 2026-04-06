@@ -2,11 +2,9 @@ package com.tinyoscillator.core.di
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.tinyoscillator.data.local.llm.LlmRepositoryImpl
 import com.tinyoscillator.data.mapper.AnalysisResponseParser
 import com.tinyoscillator.data.mapper.ProbabilisticPromptBuilder
 import com.tinyoscillator.data.repository.StatisticalRepositoryImpl
-import com.tinyoscillator.domain.repository.LlmRepository
 import com.tinyoscillator.domain.repository.StatisticalRepository
 import dagger.Binds
 import dagger.Module
@@ -30,12 +28,6 @@ abstract class StatisticalBindsModule {
     abstract fun bindStatisticalRepository(
         impl: StatisticalRepositoryImpl
     ): StatisticalRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindLlmRepository(
-        impl: LlmRepositoryImpl
-    ): LlmRepository
 }
 
 @Module

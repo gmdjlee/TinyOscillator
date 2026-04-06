@@ -388,7 +388,6 @@ data class AlgorithmInsight(
 sealed class AnalysisState {
     data object Loading : AnalysisState()
     data class Computing(val message: String, val progress: Float = 0f) : AnalysisState()
-    data class LlmProcessing(val message: String) : AnalysisState()
     data class Streaming(val partialText: String) : AnalysisState()
     data class Success(val result: StockAnalysis, val statisticalResult: StatisticalResult) : AnalysisState()
     data class Error(val message: String, val cause: Throwable? = null) : AnalysisState()

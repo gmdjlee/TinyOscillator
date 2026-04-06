@@ -1,7 +1,7 @@
 # CLAUDE.md — TinyOscillator Project Guide
 
 ## Project overview
-TinyOscillator is a Korean stock market analysis Android app targeting retail investors. It provides oscillator-based technical analysis, DeMark TD Sequential, financial statement analysis, ETF sector analysis, market Fear & Greed index, analyst consensus reports, AI-powered analysis (Claude/Gemini API), and portfolio management. The app is written entirely in Kotlin with a llama.cpp JNI bridge for optional local LLM inference. It is in active development with ~1,384 passing tests and a mature MVVM + Clean Architecture codebase.
+TinyOscillator is a Korean stock market analysis Android app targeting retail investors. It provides oscillator-based technical analysis, DeMark TD Sequential, financial statement analysis, ETF sector analysis, market Fear & Greed index, analyst consensus reports, AI-powered analysis (Claude/Gemini API), and portfolio management. The app is written entirely in Kotlin. It is in active development with ~1,400 passing tests and a mature MVVM + Clean Architecture codebase.
 
 ## Repository layout
 ```
@@ -12,10 +12,6 @@ TinyOscillator/
 │   ├── schemas/                       # Room schema exports (v1–v13)
 │   └── src/
 │       ├── main/
-│       │   ├── cpp/                   # llama.cpp JNI bridge (C++)
-│       │   │   ├── CMakeLists.txt
-│       │   │   ├── llama_jni.cpp
-│       │   │   └── llama_jni_stub.cpp
 │       │   └── java/com/tinyoscillator/
 │       │       ├── TinyOscillatorApp.kt       # Application (@HiltAndroidApp)
 │       │       ├── MainActivity.kt            # Single-Activity + Compose NavHost
@@ -31,7 +27,6 @@ TinyOscillator/
 │       │       ├── data/
 │       │       │   ├── dto/           # API response DTOs
 │       │       │   ├── engine/        # 7 statistical engines + orchestrator
-│       │       │   ├── local/llm/     # LlmRepositoryImpl, ModelManager
 │       │       │   ├── mapper/        # PromptBuilder, ResponseParser
 │       │       │   └── repository/    # Repository implementations
 │       │       ├── domain/
@@ -56,8 +51,7 @@ TinyOscillator/
 │       │       └── ui/theme/          # Material3 theme (Color, Type, Theme)
 │       └── test/                      # 98 unit test files
 ├── build.gradle.kts                   # Root build (plugin versions)
-├── settings.gradle.kts                # includeBuild("../kotlin_krx")
-└── concen/                            # Standalone Python scraper (not in app)
+└── settings.gradle.kts                # includeBuild("../kotlin_krx")
 ```
 
 ## Tech stack
@@ -71,8 +65,6 @@ TinyOscillator/
 | AGP | 8.7.3 |
 | Compose BOM | 2024.02.00 |
 | JVM target | 17 |
-| NDK ABIs | arm64-v8a, armeabi-v7a |
-| CMake | 3.22.1 (C++17) |
 
 ### Dependencies
 | Library | Version | Purpose |
@@ -102,13 +94,13 @@ TinyOscillator/
 | KSP | 2.1.0-1.0.29 | Annotation processing |
 
 ### Python layer
-**None.** There is no Chaquopy integration, no Python files in the app module, and no Python bridge. The `concen/` directory at root contains a standalone Python scraper (`equity_report_scraper_450.py`) that is not part of the Android build.
+**None.** There is no Chaquopy integration, no Python files in the app module, and no Python bridge.
 
 ## Architecture
 ### Pattern
 MVVM + Clean Architecture confirmed. Clear layer separation:
 - **Domain**: interfaces (`StatisticalRepository`, `LlmRepository`), use cases (`AnalyzeStockProbabilityUseCase`, `CalcOscillatorUseCase`, etc.), domain models
-- **Data**: repository implementations, 7 statistical engines, LLM JNI wrapper, API clients, scrapers, mappers
+- **Data**: repository implementations, 7 statistical engines, API clients, scrapers, mappers
 - **Presentation**: Compose screens, ViewModels, theme
 - **Core**: cross-cutting concerns (API clients, database, DI, network, workers)
 
@@ -133,7 +125,7 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 | `MarketOscillatorCalculator` | domain/usecase | `MarketOscillatorCalculator.kt` | Market overbought/oversold index |
 
 ## Kotlin–Python bridge
-**Not applicable.** There is no Python bridge in this project. All analysis is implemented in pure Kotlin. The LLM integration uses C++ via JNI (llama.cpp).
+**Not applicable.** There is no Python bridge in this project. All analysis is implemented in pure Kotlin.
 
 ## Data sources
 ### KIS OpenAPI
@@ -295,7 +287,6 @@ None found in current codebase (no TODO/FIXME/HACK/XXX markers).
 - No KRX holiday calendar — app retries on holidays until cooldown
 - No androidTest infrastructure for Compose UI and Room DAO tests
 - MarketOscillatorCalculator does not cache raw KRX OHLCV in Room for incremental updates
-- LLM JNI bridge (`llama_jni.cpp`) present but local LLM inference is effectively unused in favor of AI API (Claude/Gemini)
 
 ## Naming conventions
 - Use case: `동사 + 명사 + UseCase` (e.g., `AnalyzeStockProbabilityUseCase`)
