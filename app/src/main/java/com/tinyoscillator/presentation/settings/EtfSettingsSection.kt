@@ -75,6 +75,13 @@ internal fun EtfTab(
             )
         }
 
+        Button(
+            onClick = onSave,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("저장")
+        }
+
         saveMessage?.let { msg ->
             Text(
                 text = msg,
