@@ -74,7 +74,16 @@ fun MarketAnalysisScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("시장분석") },
+                title = {
+                    Text(
+                        "시장분석",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
+                ),
                 actions = {
                     when (selectedTab) {
                         MarketAnalysisTab.FEAR_GREED -> {

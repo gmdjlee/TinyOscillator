@@ -5,133 +5,165 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.sp
 import com.tinyoscillator.R
 
 /**
- * Organic 타이포그래피 시스템:
- * - Display/Headline/Title: Manrope — 권위적이고 기하학적인 안정감
- * - Body/Label: Inter — 고밀도 데이터 가독성 최적
+ * Jade Terminal 타이포그래피 시스템:
  *
- * Material3 기본 Typography에서 모든 fontSize를 +2sp 적용.
+ * - Display/Headline/Title: **Syne** — 기하학적, 미래적, 독특한 리듬
+ *   (Google Fonts downloadable, 번들 폰트 폴백)
+ * - Body/Label: **DM Sans** — 따뜻한 기하학적, 고밀도 데이터 가독성
+ *   (Google Fonts downloadable, 번들 폰트 폴백)
+ *
+ * letterSpacing 를 적극 조정하여 독특한 시각적 리듬을 만듦.
+ * Display: 타이트한 -0.5sp, Body: 여유로운 0.3sp
  */
 
-val ManropeFamily = FontFamily(
+private val fontProvider = GoogleFont.Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage = "com.google.android.gms",
+    certificates = R.array.com_google_android_gms_fonts_certs
+)
+
+private val syneFont = GoogleFont("Syne")
+private val dmSansFont = GoogleFont("DM Sans")
+
+// Syne: 기하학적 Display/Headline 폰트 (번들 Manrope 폴백)
+val SyneFamily = FontFamily(
+    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.Normal),
+    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.Medium),
+    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.SemiBold),
+    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.Bold),
+    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.ExtraBold),
+    // 번들 폴백
     Font(R.font.manrope_regular, FontWeight.Normal),
     Font(R.font.manrope_medium, FontWeight.Medium),
     Font(R.font.manrope_semibold, FontWeight.SemiBold),
-    Font(R.font.manrope_bold, FontWeight.Bold)
+    Font(R.font.manrope_bold, FontWeight.Bold),
 )
 
-val InterFamily = FontFamily(
+// DM Sans: 따뜻한 기하학적 Body 폰트 (번들 Inter 폴백)
+val DmSansFamily = FontFamily(
+    Font(googleFont = dmSansFont, fontProvider = fontProvider, weight = FontWeight.Normal),
+    Font(googleFont = dmSansFont, fontProvider = fontProvider, weight = FontWeight.Medium),
+    Font(googleFont = dmSansFont, fontProvider = fontProvider, weight = FontWeight.SemiBold),
+    // 번들 폴백
     Font(R.font.inter_regular, FontWeight.Normal),
-    Font(R.font.inter_medium, FontWeight.Medium)
+    Font(R.font.inter_medium, FontWeight.Medium),
 )
 
 val AppTypography = Typography(
+    // ── Display: 대형 숫자/헤드라인, 타이트한 자간 ──
     displayLarge = TextStyle(
-        fontFamily = ManropeFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 59.sp,
-        lineHeight = 66.sp,
-        letterSpacing = (-0.25).sp
+        fontFamily = SyneFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 52.sp,
+        lineHeight = 58.sp,
+        letterSpacing = (-1.5).sp   // 극도로 타이트
     ),
     displayMedium = TextStyle(
-        fontFamily = ManropeFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 47.sp,
-        lineHeight = 54.sp,
-        letterSpacing = 0.sp
+        fontFamily = SyneFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 42.sp,
+        lineHeight = 48.sp,
+        letterSpacing = (-1.0).sp
     ),
     displaySmall = TextStyle(
-        fontFamily = ManropeFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 38.sp,
-        lineHeight = 46.sp,
-        letterSpacing = 0.sp
-    ),
-    headlineLarge = TextStyle(
-        fontFamily = ManropeFamily,
-        fontWeight = FontWeight.Normal,
+        fontFamily = SyneFamily,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 34.sp,
-        lineHeight = 42.sp,
-        letterSpacing = 0.sp
+        lineHeight = 40.sp,
+        letterSpacing = (-0.5).sp
     ),
-    headlineMedium = TextStyle(
-        fontFamily = ManropeFamily,
-        fontWeight = FontWeight.Normal,
+    // ── Headline: 섹션 타이틀, 약간 타이트 ──
+    headlineLarge = TextStyle(
+        fontFamily = SyneFamily,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 30.sp,
         lineHeight = 38.sp,
-        letterSpacing = 0.sp
+        letterSpacing = (-0.3).sp
     ),
-    headlineSmall = TextStyle(
-        fontFamily = ManropeFamily,
-        fontWeight = FontWeight.Normal,
+    headlineMedium = TextStyle(
+        fontFamily = SyneFamily,
+        fontWeight = FontWeight.Medium,
         fontSize = 26.sp,
         lineHeight = 34.sp,
-        letterSpacing = 0.sp
+        letterSpacing = (-0.2).sp
     ),
-    titleLarge = TextStyle(
-        fontFamily = ManropeFamily,
-        fontWeight = FontWeight.Normal,
-        fontSize = 24.sp,
+    headlineSmall = TextStyle(
+        fontFamily = SyneFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 22.sp,
         lineHeight = 30.sp,
+        letterSpacing = (-0.1).sp
+    ),
+    // ── Title: 카드/섹션 헤더, Syne의 캐릭터 살림 ──
+    titleLarge = TextStyle(
+        fontFamily = SyneFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 20.sp,
+        lineHeight = 28.sp,
         letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
-        fontFamily = ManropeFamily,
+        fontFamily = SyneFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 18.sp,
-        lineHeight = 26.sp,
-        letterSpacing = 0.15.sp
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.1.sp
     ),
     titleSmall = TextStyle(
-        fontFamily = ManropeFamily,
+        fontFamily = SyneFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 16.sp,
-        lineHeight = 22.sp,
-        letterSpacing = 0.1.sp
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.15.sp
     ),
+    // ── Body: 데이터 표시, 읽기 편한 DM Sans ──
     bodyLarge = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = DmSansFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 18.sp,
-        lineHeight = 26.sp,
-        letterSpacing = 0.5.sp
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.3.sp    // 약간 여유로운 자간
     ),
     bodyMedium = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = DmSansFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 22.sp,
-        letterSpacing = 0.25.sp
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.2.sp
     ),
     bodySmall = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = DmSansFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 18.sp,
-        letterSpacing = 0.4.sp
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.3.sp
     ),
+    // ── Label: 탭, 뱃지, 버튼 — DM Sans Medium ──
     labelLarge = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = DmSansFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 16.sp,
-        lineHeight = 22.sp,
-        letterSpacing = 0.1.sp
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.4.sp    // 라벨은 넉넉한 자간
     ),
     labelMedium = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = DmSansFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
-        lineHeight = 18.sp,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
         letterSpacing = 0.5.sp
     ),
     labelSmall = TextStyle(
-        fontFamily = InterFamily,
+        fontFamily = DmSansFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
+        fontSize = 11.sp,
+        lineHeight = 14.sp,
         letterSpacing = 0.5.sp
     )
 )

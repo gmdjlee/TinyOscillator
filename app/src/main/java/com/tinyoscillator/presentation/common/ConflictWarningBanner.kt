@@ -39,23 +39,24 @@ fun ConflictWarningBanner(
     val textColor: Color
     val icon: String
 
+    // 테마 색상 기반 — 다크/라이트 모드 양쪽에서 자연스러움
     when (level) {
         SignalConflictDetector.ConflictLevel.LOW -> {
-            backgroundColor = Color(0xFFFAEEDA)
-            borderColor = Color(0xFFBA7517)
-            textColor = Color(0xFF854F0B)
+            backgroundColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+            borderColor = MaterialTheme.colorScheme.secondary
+            textColor = MaterialTheme.colorScheme.onSecondaryContainer
             icon = "!"
         }
         SignalConflictDetector.ConflictLevel.HIGH -> {
-            backgroundColor = Color(0xFFFAECE7)
-            borderColor = Color(0xFF993C1D)
-            textColor = Color(0xFF712B13)
+            backgroundColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+            borderColor = MaterialTheme.colorScheme.tertiary
+            textColor = MaterialTheme.colorScheme.onTertiaryContainer
             icon = "!!"
         }
         SignalConflictDetector.ConflictLevel.CRITICAL -> {
-            backgroundColor = Color(0xFFFCEBEB)
-            borderColor = Color(0xFFA32D2D)
-            textColor = Color(0xFF791F1F)
+            backgroundColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+            borderColor = MaterialTheme.colorScheme.error
+            textColor = MaterialTheme.colorScheme.onErrorContainer
             icon = "!!!"
         }
         else -> return
@@ -146,21 +147,21 @@ fun ConflictDistributionBar(
                 modifier = Modifier
                     .weight(bullCount.toFloat())
                     .fillMaxHeight()
-                    .background(Color(0xFFD85A30))
+                    .background(Color(0xFFD05540))
             )
         if (neutralCount > 0)
             Box(
                 modifier = Modifier
                     .weight(neutralCount.toFloat())
                     .fillMaxHeight()
-                    .background(Color(0xFF888780))
+                    .background(Color(0xFF8A8580))
             )
         if (bearCount > 0)
             Box(
                 modifier = Modifier
                     .weight(bearCount.toFloat())
                     .fillMaxHeight()
-                    .background(Color(0xFF378ADD))
+                    .background(Color(0xFF4088CC))
             )
     }
     Row(
@@ -172,19 +173,19 @@ fun ConflictDistributionBar(
         Text(
             "강세 ${bullCount}개",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFD85A30),
+            color = Color(0xFFD05540),
             fontSize = 10.sp,
         )
         Text(
             "중립 ${neutralCount}개",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF888780),
+            color = Color(0xFF8A8580),
             fontSize = 10.sp,
         )
         Text(
             "약세 ${bearCount}개",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF378ADD),
+            color = Color(0xFF4088CC),
             fontSize = 10.sp,
         )
     }

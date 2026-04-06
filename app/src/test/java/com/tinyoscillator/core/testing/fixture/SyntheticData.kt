@@ -28,66 +28,123 @@ object SyntheticData {
         }
     }
 
-    fun patternCandles(type: PatternType): List<OhlcvPoint> = when (type) {
-        PatternType.DOJI ->
-            listOf(OhlcvPoint(0, 100f, 110f, 90f, 100.5f, 1000, ""))
+    /**
+     * 박병창 신호 테스트용 — 상승 추세 30봉 생성 (SMA5 > SMA20 구간 포함).
+     * 앞 20봉은 SMA 워밍업용, 이후 10봉에서 신호 발생 가능.
+     */
+    fun uptrend(count: Int = 30, basePrice: Float = 10_000f): List<OhlcvPoint> {
+        var price = basePrice
+        return (0 until count).map { i ->
+            val gain = price * 0.01f  // 매일 +1% 상승
+            val open = price
+            val close = price + gain
+            val high = close * 1.005f
+            val low = open * 0.995f
+            price = close
+            OhlcvPoint(i, open, high, low, close, 100_000L, "2025.01.${(i + 1).toString().padStart(2, '0')}")
+        }
+    }
 
-        PatternType.HAMMER ->
-            listOf(OhlcvPoint(0, 100f, 102f, 78f, 101f, 1000, ""))
+    /**
+     * 하락 추세 30봉 — 매도 신호 테스트용.
+     */
+    fun downtrend(count: Int = 30, basePrice: Float = 10_000f): List<OhlcvPoint> {
+        var price = basePrice
+        return (0 until count).map { i ->
+            val loss = price * 0.01f
+            val open = price
+            val close = price - loss
+            val high = open * 1.005f
+            val low = close * 0.995f
+            price = close
+            OhlcvPoint(i, open, high, low, close, 100_000L, "2025.01.${(i + 1).toString().padStart(2, '0')}")
+        }
+    }
 
-        PatternType.INVERTED_HAMMER ->
-            listOf(OhlcvPoint(0, 100f, 122f, 99f, 101f, 1000, ""))
+    /**
+     * 특정 신호 유형 테스트용 합성 데이터.
+     */
+    @Suppress("LongMethod")
+    fun signalCandles(type: PatternType): List<OhlcvPoint> = when (type) {
+        PatternType.BUY_TREND -> {
+            // 20봉 상승 + 양봉 + 거래량 급증(마지막 봉)
+            uptrend(25).mapIndexed { i, p ->
+                if (i == 24) p.copy(volume = 500_000L) else p
+            }
+        }
 
-        PatternType.SHOOTING_STAR ->
-            listOf(OhlcvPoint(0, 110f, 130f, 108f, 109f, 1000, ""))
+        PatternType.BUY_PULLBACK -> {
+            // 20봉 상승 후 5봉 조정 (5일선 아래, 20일선 위, 양봉 반등)
+            val rising = uptrend(20)
+            val lastPrice = rising.last().close
+            val pullback = (0 until 5).map { j ->
+                val i = 20 + j
+                val dip = lastPrice * (1f - 0.005f * (j + 1))
+                if (j == 4) {
+                    // 반등 양봉
+                    OhlcvPoint(i, dip * 0.99f, dip * 1.01f, dip * 0.985f, dip, 100_000L, "")
+                } else {
+                    // 조정 음봉
+                    OhlcvPoint(i, dip, dip * 1.005f, dip * 0.995f, dip * 0.99f, 80_000L, "")
+                }
+            }
+            rising + pullback
+        }
 
-        PatternType.HANGING_MAN -> listOf(
-            OhlcvPoint(0, 98f, 106f, 97f, 105f, 1000, ""),   // bullish prev
-            OhlcvPoint(1, 106f, 108f, 84f, 105f, 1000, ""),   // bearish with long lower
-        )
+        PatternType.BUY_REVERSAL -> {
+            // 하락 추세 20봉 + 거래량 폭증 + 아래꼬리 긴 봉
+            val falling = downtrend(24)
+            val lastPrice = falling.last().close
+            val reversal = OhlcvPoint(
+                24, lastPrice, lastPrice * 1.01f, lastPrice * 0.95f, lastPrice * 0.99f,
+                1_500_000L, "",  // 거래량 15배
+            )
+            falling + reversal
+        }
 
-        PatternType.BULLISH_ENGULFING -> listOf(
-            OhlcvPoint(0, 106f, 107f, 97f, 97f, 1000, ""),
-            OhlcvPoint(1, 94f, 110f, 93f, 109f, 2000, ""),
-        )
+        PatternType.SELL_TOP -> {
+            // 20봉 상승 후 음봉 + 거래량 급증
+            val rising = uptrend(24)
+            val peak = rising.last().close
+            val topCandle = OhlcvPoint(
+                24, peak * 1.01f, peak * 1.03f, peak * 0.98f, peak * 0.99f,
+                500_000L, "",
+            )
+            rising + topCandle
+        }
 
-        PatternType.BEARISH_ENGULFING -> listOf(
-            OhlcvPoint(0, 98f, 108f, 97f, 106f, 1000, ""),
-            OhlcvPoint(1, 108f, 110f, 95f, 96f, 2000, ""),
-        )
+        PatternType.SELL_BREAKDOWN -> {
+            // 상승 후 조정, 연속 음봉 2개 (5~20일선 사이)
+            val rising = uptrend(20)
+            val lastPrice = rising.last().close
+            val breakdown = (0 until 5).map { j ->
+                val i = 20 + j
+                val dip = lastPrice * (1f - 0.005f * (j + 1))
+                OhlcvPoint(i, dip, dip * 1.005f, dip * 0.99f, dip * 0.99f, 100_000L, "")
+            }
+            rising + breakdown
+        }
 
-        PatternType.PIERCING_LINE -> listOf(
-            OhlcvPoint(0, 110f, 111f, 98f, 98f, 1000, ""),    // bearish
-            OhlcvPoint(1, 96f, 108f, 95f, 106f, 1000, ""),    // bullish close > midpoint(104)
-        )
+        PatternType.BULL_FIFTY -> {
+            // 전일 양봉 + 당일 양봉으로 중간값 위 유지
+            val base = uptrend(24)
+            val prev = base.last()
+            val mid = (prev.open + prev.close) / 2f
+            val bullFifty = OhlcvPoint(
+                24, mid + 10f, mid + 50f, mid + 5f, mid + 40f, 100_000L, "",
+            )
+            base + bullFifty
+        }
 
-        PatternType.DARK_CLOUD_COVER -> listOf(
-            OhlcvPoint(0, 98f, 108f, 97f, 106f, 1000, ""),    // bullish
-            OhlcvPoint(1, 110f, 112f, 99f, 100f, 1000, ""),   // bearish open>high, close < midpoint(102)
-        )
-
-        PatternType.MORNING_STAR -> listOf(
-            OhlcvPoint(0, 110f, 112f, 100f, 100f, 1000, ""),
-            OhlcvPoint(1, 99f, 101f, 97f, 99f, 500, ""),
-            OhlcvPoint(2, 100f, 113f, 99f, 110f, 2000, ""),
-        )
-
-        PatternType.EVENING_STAR -> listOf(
-            OhlcvPoint(0, 100f, 112f, 99f, 110f, 1000, ""),
-            OhlcvPoint(1, 111f, 113f, 109f, 111f, 500, ""),
-            OhlcvPoint(2, 110f, 111f, 98f, 100f, 2000, ""),
-        )
-
-        PatternType.THREE_WHITE_SOLDIERS -> listOf(
-            OhlcvPoint(0, 100f, 106f, 98f, 105f, 1000, ""),
-            OhlcvPoint(1, 104f, 112f, 103f, 110f, 1000, ""),
-            OhlcvPoint(2, 109f, 118f, 108f, 116f, 1000, ""),
-        )
-
-        PatternType.THREE_BLACK_CROWS -> listOf(
-            OhlcvPoint(0, 110f, 112f, 103f, 103f, 1000, ""),
-            OhlcvPoint(1, 104f, 106f, 95f, 95f, 1000, ""),
-            OhlcvPoint(2, 96f, 98f, 84f, 84f, 1000, ""),
-        )
+        PatternType.BEAR_FIFTY -> {
+            // 전일 음봉 + 당일 음봉으로 중간값 아래
+            val base = downtrend(24)
+            val prev = base.last()
+            val mid = (prev.open + prev.close) / 2f
+            val bearFifty = OhlcvPoint(
+                24, mid - 10f, mid - 5f, mid - 50f, mid - 40f, 100_000L, "",
+            )
+            base + bearFifty
+        }
     }
 }

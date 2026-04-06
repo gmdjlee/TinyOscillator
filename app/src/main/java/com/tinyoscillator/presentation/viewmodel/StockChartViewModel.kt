@@ -11,7 +11,7 @@ import com.tinyoscillator.domain.model.OverlayType
 import com.tinyoscillator.domain.model.PatternResult
 import com.tinyoscillator.domain.model.VolumeProfile
 import com.tinyoscillator.domain.usecase.BuildVolumeProfileUseCase
-import com.tinyoscillator.domain.usecase.CandlePatternDetector
+import com.tinyoscillator.domain.usecase.ParkSignalDetector
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -60,7 +60,7 @@ class StockChartViewModel @Inject constructor(
             .map { candles ->
                 if (candles.isEmpty()) emptyList()
                 else withContext(Dispatchers.Default) {
-                    CandlePatternDetector.detect(candles)
+                    ParkSignalDetector.detect(candles)
                 }
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

@@ -60,7 +60,7 @@ fun SignalHeatmap(
                 val headerPaint = android.graphics.Paint().apply {
                     textSize = 9.dp.toPx()
                     textAlign = android.graphics.Paint.Align.CENTER
-                    color = android.graphics.Color.parseColor("#888780")
+                    color = android.graphics.Color.parseColor("#8A8580")
                     isAntiAlias = true
                 }
                 val rowPaint = android.graphics.Paint().apply {
@@ -129,9 +129,9 @@ fun SignalHeatmap(
 
 /** 점수 → 히트맵 색상 (한국 관례: 강세=적색, 약세=청색) */
 fun heatmapColor(score: Float): Color = when {
-    score >= 0.75f -> Color(0xFFD85A30)   // 강한 강세
+    score >= 0.75f -> Color(0xFFD05540)   // 강한 강세
     score >= 0.60f -> Color(0xFFE88A66)   // 약한 강세
-    score >= 0.40f -> Color(0xFF888780)   // 중립
+    score >= 0.40f -> Color(0xFF8A8580)   // 중립
     score >= 0.25f -> Color(0xFF6699CC)   // 약한 약세
-    else           -> Color(0xFF378ADD)   // 강한 약세
+    else           -> Color(0xFF4088CC)   // 강한 약세
 }

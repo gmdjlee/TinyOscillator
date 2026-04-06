@@ -44,7 +44,7 @@ class OhlcvMarkerView(
 
         val patterns = extraPatterns[idx]
         if (!patterns.isNullOrEmpty()) {
-            tvPattern.text = "패턴: ${patterns.joinToString(" · ")}"
+            tvPattern.text = "신호: ${patterns.joinToString(" · ")}"
             tvPattern.visibility = View.VISIBLE
         } else {
             tvPattern.visibility = View.GONE

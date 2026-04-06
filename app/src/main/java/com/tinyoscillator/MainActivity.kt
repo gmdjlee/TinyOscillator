@@ -60,7 +60,7 @@ import com.tinyoscillator.presentation.chart.composable.KoreanCandleChartView
 import com.tinyoscillator.presentation.chart.composable.PatternSummaryCard
 import com.tinyoscillator.presentation.chart.ext.toOhlcvPoints
 import com.tinyoscillator.presentation.chart.ext.toDateLabels
-import com.tinyoscillator.domain.usecase.CandlePatternDetector
+import com.tinyoscillator.domain.usecase.ParkSignalDetector
 import com.tinyoscillator.presentation.common.WindowType
 import com.tinyoscillator.presentation.common.calculateWindowType
 import com.tinyoscillator.presentation.common.ScrollablePillTabRow
@@ -275,16 +275,38 @@ private fun MainScaffold(
     }
 
     if (windowType == WindowType.COMPACT) {
-        // 일반 스마트폰: 기존 Bottom Navigation
         Scaffold(
             bottomBar = {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    tonalElevation = 0.dp
+                ) {
                     BottomNavItem.entries.forEach { item ->
                         NavigationBarItem(
                             selected = selectedNav == item,
                             onClick = { selectedNav = item },
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) }
+                            icon = {
+                                Icon(
+                                    item.icon,
+                                    contentDescription = item.label,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            },
+                            label = {
+                                Text(
+                                    item.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (selectedNav == item) FontWeight.SemiBold
+                                                 else FontWeight.Normal
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
                     }
                 }
@@ -293,16 +315,38 @@ private fun MainScaffold(
             screenContent(Modifier.padding(padding))
         }
     } else {
-        // 폴더블/태블릿: Navigation Rail + 넓은 콘텐츠
+        // 폴더블/태블릿: Navigation Rail
         Row(modifier = Modifier.fillMaxSize()) {
-            NavigationRail {
+            NavigationRail(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ) {
                 Spacer(modifier = Modifier.weight(1f))
                 BottomNavItem.entries.forEach { item ->
                     NavigationRailItem(
                         selected = selectedNav == item,
                         onClick = { selectedNav = item },
-                        icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label, style = MaterialTheme.typography.labelSmall) }
+                        icon = {
+                            Icon(
+                                item.icon,
+                                contentDescription = item.label,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        },
+                        label = {
+                            Text(
+                                item.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (selectedNav == item) FontWeight.SemiBold
+                                             else FontWeight.Normal
+                            )
+                        },
+                        colors = NavigationRailItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
                 Spacer(modifier = Modifier.weight(1f))
@@ -353,7 +397,16 @@ fun OscillatorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("종목분석") },
+                title = {
+                    Text(
+                        "종목분석",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
+                ),
                 actions = {
                     IconButton(
                         onClick = { viewModel.refreshStockMaster() },
@@ -650,7 +703,7 @@ fun OscillatorScreen(
                                                 state.dailyData.toDateLabels()
                                             }
                                             val patterns = remember(candlePoints) {
-                                                CandlePatternDetector.detect(candlePoints)
+                                                ParkSignalDetector.detect(candlePoints)
                                             }
                                             val patternMarkers = remember(patterns) {
                                                 patterns.groupBy { it.index }

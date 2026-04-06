@@ -3,33 +3,58 @@ package com.tinyoscillator.domain.model
 enum class PatternSentiment { BULLISH, BEARISH, NEUTRAL }
 
 /**
- * marker/color 규칙:
- * - 도형: 패턴별 고유 유니코드 심볼로 즉시 식별
- * - 색상: 0xAARRGGBB (Long). 상승=난색 계열, 하락=한색 계열, 중립=회색
+ * 박병창 매매의 기술 기반 매매 신호 유형.
+ *
+ * - 매수 3원칙 + 매도 2원칙 + 50% 룰 2종 = 총 7개 신호
+ * - marker: 차트 위 배지 텍스트
+ * - colorArgb: 0xAARRGGBB. 매수=녹색 계열, 매도=적색 계열, 50%룰=파란/주황
  */
 enum class PatternType(
     val labelKo: String,
     val sentiment: PatternSentiment,
-    val candleCount: Int,
     val marker: String,
     val colorArgb: Long,
 ) {
-    // 1-candle
-    DOJI("도지", PatternSentiment.NEUTRAL, 1, "+", 0xFF9E9E9E),
-    HAMMER("망치형", PatternSentiment.BULLISH, 1, "H", 0xFFE65100),
-    INVERTED_HAMMER("역망치형", PatternSentiment.BULLISH, 1, "h", 0xFFFF9800),
-    SHOOTING_STAR("유성형", PatternSentiment.BEARISH, 1, "S", 0xFF1565C0),
-    // 2-candle
-    HANGING_MAN("교수형", PatternSentiment.BEARISH, 2, "X", 0xFF7B1FA2),
-    BULLISH_ENGULFING("상승 장악형", PatternSentiment.BULLISH, 2, "BE", 0xFFD84315),
-    BEARISH_ENGULFING("하락 장악형", PatternSentiment.BEARISH, 2, "be", 0xFF0277BD),
-    PIERCING_LINE("관통형", PatternSentiment.BULLISH, 2, "P", 0xFFC62828),
-    DARK_CLOUD_COVER("먹구름형", PatternSentiment.BEARISH, 2, "D", 0xFF1A237E),
-    // 3-candle
-    MORNING_STAR("샛별형", PatternSentiment.BULLISH, 3, "MS", 0xFFFF6D00),
-    EVENING_STAR("저녁별형", PatternSentiment.BEARISH, 3, "ES", 0xFF283593),
-    THREE_WHITE_SOLDIERS("세 백색병사", PatternSentiment.BULLISH, 3, "3W", 0xFFBF360C),
-    THREE_BLACK_CROWS("세 흑색까마귀", PatternSentiment.BEARISH, 3, "3B", 0xFF0D47A1),
+    // ── 매수 신호 ──
+    /** 매수 제1원칙: 5일선 위 추세 추종 매수 */
+    BUY_TREND(
+        "매수1·추세추종", PatternSentiment.BULLISH,
+        "B1", 0xFF2E7D32,
+    ),
+    /** 매수 제2원칙: 5~20일선 사이 눌림목 반등 매수 */
+    BUY_PULLBACK(
+        "매수2·눌림목", PatternSentiment.BULLISH,
+        "B2", 0xFF558B2F,
+    ),
+    /** 매수 제3원칙: 20일선 아래 거래량 폭증 역발상 매수 (고위험) */
+    BUY_REVERSAL(
+        "매수3·역발상", PatternSentiment.BULLISH,
+        "B3", 0xFFE65100,
+    ),
+
+    // ── 매도 신호 ──
+    /** 매도 제1원칙: 5일선 위 상투 징후 수익 실현 */
+    SELL_TOP(
+        "매도1·수익실현", PatternSentiment.BEARISH,
+        "S1", 0xFFC62828,
+    ),
+    /** 매도 제2원칙: 5~20일선 사이 반등 실패 손절 */
+    SELL_BREAKDOWN(
+        "매도2·손절", PatternSentiment.BEARISH,
+        "S2", 0xFF8B2020,
+    ),
+
+    // ── 50% 룰 ──
+    /** 황소 50%: 전일 양봉 중간값 위 유지 → 매수 지속 */
+    BULL_FIFTY(
+        "황소50%·지지", PatternSentiment.BULLISH,
+        "50\u2191", 0xFF1B5E20,
+    ),
+    /** 곰 50%: 전일 음봉 중간값 아래 반등 실패 → 매도 */
+    BEAR_FIFTY(
+        "곰50%·이탈", PatternSentiment.BEARISH,
+        "50\u2193", 0xFF0D47A1,
+    ),
 }
 
 data class PatternResult(

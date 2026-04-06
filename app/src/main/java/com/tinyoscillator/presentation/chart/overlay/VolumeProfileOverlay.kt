@@ -17,10 +17,10 @@ fun VolumeProfileOverlay(
     axisRange: ChartAxisRange,
     modifier: Modifier = Modifier,
     barMaxWidthFraction: Float = 0.15f,
-    bullColor: Color = Color(0x55D85A30),
-    bearColor: Color = Color(0x55378ADD),
-    pocColor: Color = Color(0xFFBA7517),
-    vaColor: Color = Color(0x22378ADD),
+    bullColor: Color = Color(0x55D05540),
+    bearColor: Color = Color(0x554088CC),
+    pocColor: Color = Color(0xFFE8C36A),
+    vaColor: Color = Color(0x224088CC),
 ) {
     if (profile == null || profile.buckets.isEmpty()) return
 

@@ -78,11 +78,11 @@ fun AccuracyRow(algoName: String, accuracy: Float, sampleCount: Int) {
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp)),
             color = when {
-                accuracy >= 0.6f -> Color(0xFFD85A30)
-                accuracy <= 0.4f -> Color(0xFF378ADD)
-                else -> Color(0xFF888780)
+                accuracy >= 0.6f -> Color(0xFFD05540)
+                accuracy <= 0.4f -> Color(0xFF4088CC)
+                else -> Color(0xFF8A8580)
             },
-            trackColor = Color(0x22888780),
+            trackColor = Color(0x228A8580),
         )
         Spacer(Modifier.width(8.dp))
         Text(
@@ -90,7 +90,7 @@ fun AccuracyRow(algoName: String, accuracy: Float, sampleCount: Int) {
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.width(32.dp),
             textAlign = TextAlign.End,
-            color = if (accuracy >= 0.6f) Color(0xFFD85A30) else Color(0xFF888780),
+            color = if (accuracy >= 0.6f) Color(0xFFD05540) else Color(0xFF8A8580),
         )
         Spacer(Modifier.width(4.dp))
         Text(

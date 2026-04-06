@@ -26,7 +26,7 @@ fun PatternSummaryCard(
     Card(modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Column(Modifier.padding(12.dp)) {
             Text(
-                "최근 패턴",
+                "매매 신호",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )

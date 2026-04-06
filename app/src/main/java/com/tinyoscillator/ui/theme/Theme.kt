@@ -23,6 +23,23 @@ val LocalFinanceColors = staticCompositionLocalOf {
     )
 }
 
+/** Extended palette for charts, glows, and custom surfaces */
+data class ExtendedColors(
+    val glow: Color,
+    val shimmer: Color,
+    val inkWash: Color,
+    val cream: Color
+)
+
+val LocalExtendedColors = staticCompositionLocalOf {
+    ExtendedColors(
+        glow = JadeGlow,
+        shimmer = BrassShimmer,
+        inkWash = InkWash,
+        cream = HanjiCream
+    )
+}
+
 /** Theme mode preference: SYSTEM / LIGHT / DARK */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
@@ -165,8 +182,25 @@ fun TinyOscillatorTheme(
         )
     }
 
+    val extendedColors = if (resolvedDarkTheme) {
+        ExtendedColors(
+            glow = JadeGlow,
+            shimmer = BrassShimmer,
+            inkWash = InkWash,
+            cream = Color(0xFF1C2030)  // dark elevated surface
+        )
+    } else {
+        ExtendedColors(
+            glow = Color(0xFF2AB880),   // subdued jade for light mode
+            shimmer = Color(0xFFD4A830), // subdued gold for light mode
+            inkWash = Color(0xFFF0EAE0), // warm wash for light mode
+            cream = HanjiCream
+        )
+    }
+
     CompositionLocalProvider(
         LocalFinanceColors provides financeColors,
+        LocalExtendedColors provides extendedColors,
         LocalThemeModeState provides themeModeState
     ) {
         MaterialTheme(

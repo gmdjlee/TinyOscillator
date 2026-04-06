@@ -61,7 +61,7 @@ fun AlgoWaterfallChart(
 
         // 기준선 (dashed)
         drawLine(
-            color = Color(0xFF888780),
+            color = Color(0xFF8A8580),
             start = Offset(paddingPx, baseline),
             end = Offset(size.width - paddingPx, baseline),
             strokeWidth = 1.dp.toPx(),
@@ -75,7 +75,7 @@ fun AlgoWaterfallChart(
             baseline + 5.dp.toPx(),
             android.graphics.Paint().apply {
                 textSize = 11.dp.toPx()
-                color = android.graphics.Color.parseColor("#888780")
+                color = android.graphics.Color.parseColor("#8A8580")
             }
         )
 
@@ -88,7 +88,7 @@ fun AlgoWaterfallChart(
             val bottom = if (contrib >= 0f) cumY else cumY + barH
 
             drawRect(
-                color = if (contrib >= 0f) Color(0xCCD85A30) else Color(0xCC378ADD),
+                color = if (contrib >= 0f) Color(0xCCD05540) else Color(0xCC4088CC),
                 topLeft = Offset(x, top),
                 size = Size(barW * 0.7f, bottom - top),
             )
@@ -101,7 +101,7 @@ fun AlgoWaterfallChart(
                 android.graphics.Paint().apply {
                     textSize = 10.dp.toPx()
                     textAlign = android.graphics.Paint.Align.CENTER
-                    color = android.graphics.Color.parseColor("#888780")
+                    color = android.graphics.Color.parseColor("#8A8580")
                 }
             )
 

@@ -132,7 +132,7 @@ fun PriceHeaderCard(priceStep: AnalysisStep.PriceData) {
                 Text(
                     "${if (changePct >= 0) "▲" else "▼"}${"%.2f".format(abs(changePct))}%",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (changePct >= 0) Color(0xFFD85A30) else Color(0xFF378ADD),
+                    color = if (changePct >= 0) Color(0xFFD05540) else Color(0xFF4088CC),
                 )
             }
         }
@@ -163,8 +163,8 @@ fun TechnicalIndicatorsCard(techStep: AnalysisStep.TechnicalIndicators) {
 fun EnsembleSignalCard(ensembleStep: AnalysisStep.EnsembleSignal) {
     val score = ensembleStep.ensembleScore
     val scoreColor = when {
-        score >= 0.6f -> Color(0xFFD85A30)   // 강세 (적색)
-        score <= 0.4f -> Color(0xFF378ADD)   // 약세 (청색)
+        score >= 0.6f -> Color(0xFFD05540)   // 강세 (적색)
+        score <= 0.4f -> Color(0xFF4088CC)   // 약세 (청색)
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 

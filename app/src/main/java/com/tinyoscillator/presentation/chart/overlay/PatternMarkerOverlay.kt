@@ -40,9 +40,9 @@ fun PatternMarkerOverlay(
                 val y = topMargin + stackIdx * (markerSizePx + 2.dp.toPx())
 
                 val (symbol, color) = when (result.type.sentiment) {
-                    PatternSentiment.BULLISH -> "▲" to Color(0xFFD85A30)
-                    PatternSentiment.BEARISH -> "▽" to Color(0xFF378ADD)
-                    PatternSentiment.NEUTRAL -> "◇" to Color(0xFF888780)
+                    PatternSentiment.BULLISH -> "▲" to Color(0xFFD05540)
+                    PatternSentiment.BEARISH -> "▽" to Color(0xFF4088CC)
+                    PatternSentiment.NEUTRAL -> "◇" to Color(0xFF8A8580)
                 }
 
                 drawContext.canvas.nativeCanvas.apply {

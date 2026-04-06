@@ -105,11 +105,11 @@ fun HeatmapLegend() {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         listOf(
-            "강한 강세" to Color(0xFFD85A30),
+            "강한 강세" to Color(0xFFD05540),
             "강세" to Color(0xFFE88A66),
-            "중립" to Color(0xFF888780),
+            "중립" to Color(0xFF8A8580),
             "약세" to Color(0xFF6699CC),
-            "강한 약세" to Color(0xFF378ADD),
+            "강한 약세" to Color(0xFF4088CC),
         ).forEach { (label, color) ->
             Box(
                 modifier = Modifier
