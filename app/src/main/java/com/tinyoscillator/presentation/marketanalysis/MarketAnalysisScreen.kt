@@ -41,6 +41,8 @@ import com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker
 import com.tinyoscillator.domain.model.DemarkPeriodType
 import com.tinyoscillator.domain.model.MarketDemarkChartData
 import com.tinyoscillator.domain.model.MarketDemarkRow
+import com.tinyoscillator.domain.model.MarketPerChartData
+import com.tinyoscillator.domain.model.MarketPerDateRange
 import com.tinyoscillator.presentation.common.CollectionProgressBar
 import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.presentation.common.ScrollablePillTabRow
@@ -53,6 +55,7 @@ import com.tinyoscillator.presentation.market.MarketOscillatorViewModel
 import com.tinyoscillator.ui.theme.LocalThemeModeState
 
 private enum class MarketAnalysisTab(val label: String) {
+    INDEX("Index"),
     FEAR_GREED("Fear & Greed"),
     DEMARK("DeMark"),
     OSCILLATOR("과매수/과매도"),
@@ -64,11 +67,12 @@ private enum class MarketAnalysisTab(val label: String) {
 fun MarketAnalysisScreen(
     onSettingsClick: () -> Unit
 ) {
+    val marketPerViewModel: MarketPerViewModel = hiltViewModel()
     val fearGreedViewModel: FearGreedViewModel = hiltViewModel()
     val demarkViewModel: MarketDemarkViewModel = hiltViewModel()
     val oscillatorViewModel: MarketOscillatorViewModel = hiltViewModel()
     val depositViewModel: MarketDepositViewModel = hiltViewModel()
-    var selectedTab by rememberSaveable { mutableStateOf(MarketAnalysisTab.FEAR_GREED) }
+    var selectedTab by rememberSaveable { mutableStateOf(MarketAnalysisTab.INDEX) }
     val themeModeState = LocalThemeModeState.current
 
     Scaffold(
@@ -86,6 +90,11 @@ fun MarketAnalysisScreen(
                 ),
                 actions = {
                     when (selectedTab) {
+                        MarketAnalysisTab.INDEX -> {
+                            IconButton(onClick = { marketPerViewModel.refresh() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "새로고침")
+                            }
+                        }
                         MarketAnalysisTab.FEAR_GREED -> {
                             IconButton(onClick = { fearGreedViewModel.update() }) {
                                 Icon(Icons.Default.Refresh, contentDescription = "새로고침")
@@ -124,6 +133,7 @@ fun MarketAnalysisScreen(
             )
 
             when (selectedTab) {
+                MarketAnalysisTab.INDEX -> MarketPerTab(viewModel = marketPerViewModel)
                 MarketAnalysisTab.FEAR_GREED -> FearGreedTab(viewModel = fearGreedViewModel)
                 MarketAnalysisTab.DEMARK -> MarketDemarkTab(viewModel = demarkViewModel)
                 MarketAnalysisTab.OSCILLATOR -> MarketOscillatorTab(viewModel = oscillatorViewModel)
@@ -131,6 +141,458 @@ fun MarketAnalysisScreen(
             }
         }
     }
+}
+
+// ===== PER 추이 Tab =====
+
+@Composable
+private fun MarketPerTab(viewModel: MarketPerViewModel) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedMarket by viewModel.selectedMarket.collectAsStateWithLifecycle()
+    val selectedRange by viewModel.selectedRange.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // 시장 선택
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("시장 선택", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = selectedMarket == "KOSPI",
+                        onClick = { viewModel.selectMarket("KOSPI") },
+                        label = { Text("코스피") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = selectedMarket == "KOSDAQ",
+                        onClick = { viewModel.selectMarket("KOSDAQ") },
+                        label = { Text("코스닥") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
+        // 기간 선택
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            MarketPerDateRange.entries.forEach { range ->
+                FilterChip(
+                    selected = selectedRange == range,
+                    onClick = { viewModel.selectDateRange(range) },
+                    label = { Text(range.label) }
+                )
+            }
+        }
+
+        // 상태 표시
+        when (val currentState = state) {
+            is MarketPerState.Loading -> {
+                MarketAnalysisSkeleton()
+            }
+            is MarketPerState.Success -> {
+                MarketPerChart(
+                    chartData = currentState.chartData,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                MarketPbrChart(
+                    chartData = currentState.chartData,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            is MarketPerState.Error -> {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Text(
+                        currentState.message,
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+            is MarketPerState.Idle -> {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "KRX 로그인 후 데이터를 조회합니다.\n설정에서 KRX 계정을 등록해주세요.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(onClick = { viewModel.refresh() }) {
+                            Text("데이터 조회")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ===== PER 추이 Chart =====
+
+@Composable
+private fun MarketPerChart(
+    chartData: MarketPerChartData,
+    modifier: Modifier = Modifier
+) {
+    val lastBound = remember { arrayOfNulls<MarketPerChartData>(1) }
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val chartTextColor = if (isDarkTheme) Color.WHITE else Color.DKGRAY
+
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "${chartData.market} PER 추이",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            AndroidView(
+                factory = { context ->
+                    CombinedChart(context).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        setupMarketPerChart(this, chartTextColor)
+                    }
+                },
+                update = { chart ->
+                    chart.xAxis.textColor = chartTextColor
+                    chart.legend.textColor = chartTextColor
+                    chart.axisLeft.textColor = chartTextColor
+                    chart.axisRight.textColor = chartTextColor
+                    val gridColor = if (isDarkTheme) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
+                    chart.axisLeft.gridColor = gridColor
+                    if (chartData != lastBound[0]) {
+                        bindMarketPerData(chart, chartData, isDarkTheme)
+                        lastBound[0] = chartData
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+            )
+        }
+    }
+}
+
+private fun setupMarketPerChart(chart: CombinedChart, chartTextColor: Int) {
+    val isDark = chartTextColor == Color.WHITE
+    chart.apply {
+        description.isEnabled = false
+        setDrawGridBackground(false)
+        setDrawBarShadow(false)
+        isHighlightFullBarEnabled = false
+        setDrawOrder(arrayOf(CombinedChart.DrawOrder.LINE))
+
+        val gColor = if (isDark) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
+        val dashLen = Utils.convertDpToPixel(4f)
+        val dashGap = Utils.convertDpToPixel(4f)
+
+        setExtraOffsets(8f, 8f, 8f, 8f)
+
+        axisLeft.apply {
+            setDrawGridLines(true)
+            gridColor = gColor
+            gridLineWidth = 0.5f
+            enableGridDashedLine(dashLen, dashGap, 0f)
+            textColor = chartTextColor
+            setLabelCount(6, true)
+            valueFormatter = object : ValueFormatter() {
+                override fun getFormattedValue(value: Float): String {
+                    return String.format("%.0f", value)
+                }
+            }
+        }
+
+        axisRight.apply {
+            setDrawGridLines(false)
+            textColor = chartTextColor
+            setLabelCount(6, true)
+            valueFormatter = object : ValueFormatter() {
+                override fun getFormattedValue(value: Float): String {
+                    return String.format("%.1f", value)
+                }
+            }
+        }
+
+        xAxis.apply {
+            position = XAxis.XAxisPosition.BOTTOM
+            granularity = 1f
+            setDrawGridLines(false)
+            textColor = chartTextColor
+        }
+
+        legend.apply {
+            isEnabled = true
+            verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
+            horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
+            setDrawInside(false)
+            textColor = chartTextColor
+        }
+
+        setTouchEnabled(true)
+        isDragEnabled = true
+        setScaleEnabled(true)
+        setPinchZoom(true)
+    }
+}
+
+private fun bindMarketPerData(
+    chart: CombinedChart,
+    chartData: MarketPerChartData,
+    isDarkTheme: Boolean = false
+) {
+    val rows = chartData.rows.sortedBy { it.date }
+    if (rows.isEmpty()) return
+
+    val labels = rows.map { row ->
+        if (row.date.length >= 8) {
+            "${row.date.substring(4, 6)}/${row.date.substring(6, 8)}"
+        } else row.date
+    }
+    chart.xAxis.valueFormatter = IndexAxisValueFormatter(labels)
+
+    // 지수 — 좌측 Y축 (파란선)
+    val indexEntries = rows.mapIndexed { i, row ->
+        Entry(i.toFloat(), row.closeIndex.toFloat())
+    }
+    val indexDataSet = LineDataSet(indexEntries, "${chartData.market} 지수").apply {
+        color = Color.parseColor("#1976D2")
+        lineWidth = 2f
+        setDrawCircles(false)
+        setDrawValues(false)
+        axisDependency = YAxis.AxisDependency.LEFT
+        isHighlightEnabled = true
+        highLightColor = Color.parseColor("#1976D2")
+    }
+
+    // PER — 우측 Y축 (주황선)
+    val perEntries = rows.mapIndexed { i, row ->
+        Entry(i.toFloat(), row.per.toFloat())
+    }
+    val perDataSet = LineDataSet(perEntries, "PER").apply {
+        color = Color.parseColor("#FF9800")
+        lineWidth = 2f
+        setDrawCircles(false)
+        setDrawValues(false)
+        axisDependency = YAxis.AxisDependency.RIGHT
+        isHighlightEnabled = true
+        highLightColor = Color.parseColor("#FF9800")
+    }
+
+    // 좌측 Y축 범위
+    val indexValues = rows.map { it.closeIndex.toFloat() }
+    val indexMin = indexValues.min()
+    val indexMax = indexValues.max()
+    val indexPadding = (indexMax - indexMin) * 0.05f
+    chart.axisLeft.axisMinimum = indexMin - indexPadding
+    chart.axisLeft.axisMaximum = indexMax + indexPadding
+
+    // 우측 Y축 범위
+    val perValues = rows.map { it.per.toFloat() }.filter { it > 0f }
+    if (perValues.isNotEmpty()) {
+        val perMin = perValues.min()
+        val perMax = perValues.max()
+        val perPadding = (perMax - perMin) * 0.1f
+        chart.axisRight.axisMinimum = (perMin - perPadding).coerceAtLeast(0f)
+        chart.axisRight.axisMaximum = perMax + perPadding
+    }
+
+    val dataSets = listOf<ILineDataSet>(indexDataSet, perDataSet)
+
+    chart.data = CombinedData().apply {
+        setData(LineData(dataSets))
+    }
+
+    // 마커 설정
+    val marker = MarketPerMarkerView(chart.context, labels, chartData)
+    marker.chartView = chart
+    chart.marker = marker
+
+    chart.invalidate()
+}
+
+private class MarketPerMarkerView(
+    context: Context,
+    private val labels: List<String>,
+    private val chartData: MarketPerChartData
+) : MarkerView(context, R.layout.chart_marker_view) {
+
+    private val tvContent: TextView = findViewById(R.id.marker_text)
+
+    override fun refreshContent(e: Entry?, highlight: Highlight?) {
+        if (e == null || highlight == null) {
+            super.refreshContent(e, highlight)
+            return
+        }
+
+        val xIndex = e.x.toInt()
+        val date = labels.getOrElse(xIndex) { "" }
+        val row = chartData.rows.sortedBy { it.date }.getOrNull(xIndex)
+
+        val text = if (row != null) {
+            "$date\n${chartData.market}: ${String.format("%.2f", row.closeIndex)}\nPER: ${String.format("%.2f", row.per)}\nPBR: ${String.format("%.2f", row.pbr)}\n배당률: ${String.format("%.2f", row.dividendYield)}%"
+        } else {
+            date
+        }
+
+        tvContent.text = text
+        super.refreshContent(e, highlight)
+    }
+
+    override fun getOffset(): MPPointF {
+        return MPPointF(-(width / 2f), -height.toFloat())
+    }
+}
+
+// ===== PBR 추이 Chart =====
+
+@Composable
+private fun MarketPbrChart(
+    chartData: MarketPerChartData,
+    modifier: Modifier = Modifier
+) {
+    val lastBound = remember { arrayOfNulls<MarketPerChartData>(1) }
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val chartTextColor = if (isDarkTheme) Color.WHITE else Color.DKGRAY
+
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "${chartData.market} PBR 추이",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            AndroidView(
+                factory = { context ->
+                    CombinedChart(context).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        setupMarketPerChart(this, chartTextColor)
+                    }
+                },
+                update = { chart ->
+                    chart.xAxis.textColor = chartTextColor
+                    chart.legend.textColor = chartTextColor
+                    chart.axisLeft.textColor = chartTextColor
+                    chart.axisRight.textColor = chartTextColor
+                    val gridColor = if (isDarkTheme) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
+                    chart.axisLeft.gridColor = gridColor
+                    if (chartData != lastBound[0]) {
+                        bindMarketPbrData(chart, chartData)
+                        lastBound[0] = chartData
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+            )
+        }
+    }
+}
+
+private fun bindMarketPbrData(
+    chart: CombinedChart,
+    chartData: MarketPerChartData
+) {
+    val rows = chartData.rows.sortedBy { it.date }
+    if (rows.isEmpty()) return
+
+    val labels = rows.map { row ->
+        if (row.date.length >= 8) {
+            "${row.date.substring(4, 6)}/${row.date.substring(6, 8)}"
+        } else row.date
+    }
+    chart.xAxis.valueFormatter = IndexAxisValueFormatter(labels)
+
+    // 지수 — 좌측 Y축 (파란선)
+    val indexEntries = rows.mapIndexed { i, row ->
+        Entry(i.toFloat(), row.closeIndex.toFloat())
+    }
+    val indexDataSet = LineDataSet(indexEntries, "${chartData.market} 지수").apply {
+        color = Color.parseColor("#1976D2")
+        lineWidth = 2f
+        setDrawCircles(false)
+        setDrawValues(false)
+        axisDependency = YAxis.AxisDependency.LEFT
+        isHighlightEnabled = true
+        highLightColor = Color.parseColor("#1976D2")
+    }
+
+    // PBR — 우측 Y축 (초록선)
+    val pbrEntries = rows.mapIndexed { i, row ->
+        Entry(i.toFloat(), row.pbr.toFloat())
+    }
+    val pbrDataSet = LineDataSet(pbrEntries, "PBR").apply {
+        color = Color.parseColor("#4CAF50")
+        lineWidth = 2f
+        setDrawCircles(false)
+        setDrawValues(false)
+        axisDependency = YAxis.AxisDependency.RIGHT
+        isHighlightEnabled = true
+        highLightColor = Color.parseColor("#4CAF50")
+    }
+
+    // 좌측 Y축 범위
+    val indexValues = rows.map { it.closeIndex.toFloat() }
+    val indexMin = indexValues.min()
+    val indexMax = indexValues.max()
+    val indexPadding = (indexMax - indexMin) * 0.05f
+    chart.axisLeft.axisMinimum = indexMin - indexPadding
+    chart.axisLeft.axisMaximum = indexMax + indexPadding
+
+    // 우측 Y축 범위
+    val pbrValues = rows.map { it.pbr.toFloat() }.filter { it > 0f }
+    if (pbrValues.isNotEmpty()) {
+        val pbrMin = pbrValues.min()
+        val pbrMax = pbrValues.max()
+        val pbrPadding = (pbrMax - pbrMin) * 0.1f
+        chart.axisRight.axisMinimum = (pbrMin - pbrPadding).coerceAtLeast(0f)
+        chart.axisRight.axisMaximum = pbrMax + pbrPadding
+    }
+
+    val dataSets = listOf<ILineDataSet>(indexDataSet, pbrDataSet)
+
+    chart.data = CombinedData().apply {
+        setData(LineData(dataSets))
+    }
+
+    // 마커 설정
+    val marker = MarketPerMarkerView(chart.context, labels, chartData)
+    marker.chartView = chart
+    chart.marker = marker
+
+    chart.invalidate()
 }
 
 // ===== Fear & Greed Tab =====
