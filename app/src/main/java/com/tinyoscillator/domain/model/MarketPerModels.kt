@@ -12,6 +12,7 @@ data class MarketPerRow(
     val date: String,           // "yyyyMMdd"
     val closeIndex: Double,
     val per: Double,
+    val forwardPer: Double = 0.0,
     val pbr: Double,
     val dividendYield: Double
 )

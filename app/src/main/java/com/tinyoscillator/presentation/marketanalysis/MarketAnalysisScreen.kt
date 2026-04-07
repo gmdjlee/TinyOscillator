@@ -265,7 +265,7 @@ private fun MarketPerChart(
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = "${chartData.market} PER 추이",
+                text = "${chartData.market} PER 추이 (선행/Trailing)",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -392,18 +392,40 @@ private fun bindMarketPerData(
         highLightColor = Color.parseColor("#1976D2")
     }
 
-    // PER — 우측 Y축 (주황선)
+    // 선행 PER — 우측 Y축 (주황선, 데이터 있을 때)
+    val hasForwardPer = rows.any { it.forwardPer > 0.0 }
+
+    // Trailing PER — 우측 Y축 (선행PER 없으면 주황, 있으면 연한 회색 점선)
     val perEntries = rows.mapIndexed { i, row ->
         Entry(i.toFloat(), row.per.toFloat())
     }
     val perDataSet = LineDataSet(perEntries, "PER").apply {
-        color = Color.parseColor("#FF9800")
-        lineWidth = 2f
+        color = if (hasForwardPer) Color.parseColor("#BDBDBD") else Color.parseColor("#FF9800")
+        lineWidth = if (hasForwardPer) 1f else 2f
+        if (hasForwardPer) enableDashedLine(10f, 5f, 0f)
         setDrawCircles(false)
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.RIGHT
         isHighlightEnabled = true
-        highLightColor = Color.parseColor("#FF9800")
+        highLightColor = if (hasForwardPer) Color.parseColor("#BDBDBD") else Color.parseColor("#FF9800")
+    }
+
+    val dataSets = mutableListOf<ILineDataSet>(indexDataSet, perDataSet)
+
+    if (hasForwardPer) {
+        val fwdPerEntries = rows.mapIndexed { i, row ->
+            Entry(i.toFloat(), if (row.forwardPer > 0.0) row.forwardPer.toFloat() else Float.NaN)
+        }
+        val fwdPerDataSet = LineDataSet(fwdPerEntries, "선행PER").apply {
+            color = Color.parseColor("#FF9800")
+            lineWidth = 2f
+            setDrawCircles(false)
+            setDrawValues(false)
+            axisDependency = YAxis.AxisDependency.RIGHT
+            isHighlightEnabled = true
+            highLightColor = Color.parseColor("#FF9800")
+        }
+        dataSets.add(fwdPerDataSet)
     }
 
     // 좌측 Y축 범위
@@ -414,17 +436,20 @@ private fun bindMarketPerData(
     chart.axisLeft.axisMinimum = indexMin - indexPadding
     chart.axisLeft.axisMaximum = indexMax + indexPadding
 
-    // 우측 Y축 범위
-    val perValues = rows.map { it.per.toFloat() }.filter { it > 0f }
-    if (perValues.isNotEmpty()) {
-        val perMin = perValues.min()
-        val perMax = perValues.max()
+    // 우측 Y축 범위 (PER + 선행PER 모두 고려)
+    val allPerValues = rows.flatMap { row ->
+        listOfNotNull(
+            row.per.toFloat().takeIf { it > 0f },
+            row.forwardPer.toFloat().takeIf { it > 0f }
+        )
+    }
+    if (allPerValues.isNotEmpty()) {
+        val perMin = allPerValues.min()
+        val perMax = allPerValues.max()
         val perPadding = (perMax - perMin) * 0.1f
         chart.axisRight.axisMinimum = (perMin - perPadding).coerceAtLeast(0f)
         chart.axisRight.axisMaximum = perMax + perPadding
     }
-
-    val dataSets = listOf<ILineDataSet>(indexDataSet, perDataSet)
 
     chart.data = CombinedData().apply {
         setData(LineData(dataSets))
@@ -457,7 +482,15 @@ private class MarketPerMarkerView(
         val row = chartData.rows.sortedBy { it.date }.getOrNull(xIndex)
 
         val text = if (row != null) {
-            "$date\n${chartData.market}: ${String.format("%.2f", row.closeIndex)}\nPER: ${String.format("%.2f", row.per)}\nPBR: ${String.format("%.2f", row.pbr)}\n배당률: ${String.format("%.2f", row.dividendYield)}%"
+            buildString {
+                append("$date\n${chartData.market}: ${String.format("%.2f", row.closeIndex)}")
+                if (row.forwardPer > 0.0) {
+                    append("\n선행PER: ${String.format("%.2f", row.forwardPer)}")
+                }
+                append("\nPER: ${String.format("%.2f", row.per)}")
+                append("\nPBR: ${String.format("%.2f", row.pbr)}")
+                append("\n배당률: ${String.format("%.2f", row.dividendYield)}%")
+            }
         } else {
             date
         }

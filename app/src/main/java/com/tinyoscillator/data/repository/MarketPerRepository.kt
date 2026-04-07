@@ -116,6 +116,7 @@ class MarketPerRepository @Inject constructor(
                     date = item.date,
                     closeIndex = item.close,
                     per = item.per,
+                    forwardPer = item.forwardPer,
                     pbr = item.pbr,
                     dividendYield = item.dividendYield
                 )
@@ -139,6 +140,7 @@ class MarketPerRepository @Inject constructor(
                     date = entity.date,
                     closeIndex = entity.closeIndex,
                     per = entity.per,
+                    forwardPer = entity.forwardPer,
                     pbr = entity.pbr,
                     dividendYield = entity.dividendYield
                 )

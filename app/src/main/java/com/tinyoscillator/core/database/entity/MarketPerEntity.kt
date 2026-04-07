@@ -25,6 +25,9 @@ data class MarketPerEntity(
     @ColumnInfo(name = "per")
     val per: Double,
 
+    @ColumnInfo(name = "forward_per", defaultValue = "0.0")
+    val forwardPer: Double = 0.0,
+
     @ColumnInfo(name = "pbr")
     val pbr: Double,
 
