@@ -59,7 +59,8 @@ data class KrxApiBackup(
 @Serializable
 data class AiApiBackup(
     val apiKey: String,
-    val provider: String
+    val provider: String,
+    val modelId: String = ""
 )
 
 @Serializable
@@ -271,7 +272,7 @@ object BackupManager {
                         val aiConfig = loadAiConfig(context)
                         ApiBackup(
                             type = "ai",
-                            ai = AiApiBackup(aiConfig.apiKey, aiConfig.provider.name)
+                            ai = AiApiBackup(aiConfig.apiKey, aiConfig.provider.name, aiConfig.modelId)
                         )
                     }
                     else -> {
@@ -284,7 +285,7 @@ object BackupManager {
                             kiwoom = KiwoomApiBackup(kiwoomConfig.appKey, kiwoomConfig.secretKey, kiwoomConfig.investmentMode.name),
                             kis = KisApiBackup(kisConfig.appKey, kisConfig.appSecret, kisConfig.investmentMode.name),
                             krx = KrxApiBackup(krxCreds.id, krxCreds.password),
-                            ai = AiApiBackup(aiConfig.apiKey, aiConfig.provider.name)
+                            ai = AiApiBackup(aiConfig.apiKey, aiConfig.provider.name, aiConfig.modelId)
                         )
                     }
                 }
@@ -342,12 +343,18 @@ object BackupManager {
                     restoredParts.add("KRX")
                 }
                 backup.ai?.let { ai ->
-                    val provider = com.tinyoscillator.domain.model.AiProvider.entries.find { it.name == ai.provider }
-                        ?: com.tinyoscillator.domain.model.AiProvider.CLAUDE_HAIKU
+                    // 이전 버전 마이그레이션 (CLAUDE_HAIKU 등 → CLAUDE/GEMINI)
+                    val provider = when (ai.provider) {
+                        "CLAUDE_HAIKU", "CLAUDE_SONNET" -> com.tinyoscillator.domain.model.AiProvider.CLAUDE
+                        "GEMINI_FLASH", "GEMINI_2_5_FLASH" -> com.tinyoscillator.domain.model.AiProvider.GEMINI
+                        else -> com.tinyoscillator.domain.model.AiProvider.entries.find { it.name == ai.provider }
+                            ?: com.tinyoscillator.domain.model.AiProvider.CLAUDE
+                    }
                     val prefs = getEncryptedPrefsForBackup(context)
                     prefs.edit()
                         .putString("ai_api_key", ai.apiKey)
                         .putString("ai_provider", provider.name)
+                        .putString("ai_model_id", ai.modelId)
                         .apply()
                     restoredParts.add("AI")
                 }

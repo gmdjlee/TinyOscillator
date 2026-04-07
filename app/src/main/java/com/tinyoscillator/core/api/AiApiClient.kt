@@ -3,11 +3,16 @@ package com.tinyoscillator.core.api
 import com.tinyoscillator.domain.model.AiAnalysisResult
 import com.tinyoscillator.domain.model.AiAnalysisType
 import com.tinyoscillator.domain.model.AiApiKeyConfig
+import com.tinyoscillator.domain.model.AiModelInfo
 import com.tinyoscillator.domain.model.AiProvider
+import com.tinyoscillator.domain.model.ClaudeModelsResponse
 import com.tinyoscillator.domain.model.ClaudeResponse
+import com.tinyoscillator.domain.model.GeminiModelsResponse
 import com.tinyoscillator.domain.model.GeminiResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
@@ -33,6 +38,82 @@ class AiApiClient(
     }
 ) : BaseApiClient(rateLimitMs = RATE_LIMIT_MS) {
 
+    private val geminiRateMutex = Mutex()
+    @Volatile
+    private var geminiLastCallTime = 0L
+
+    private suspend fun waitForGeminiRateLimit() {
+        val delayMs: Long
+        geminiRateMutex.withLock {
+            val now = System.currentTimeMillis()
+            val elapsed = now - geminiLastCallTime
+            delayMs = if (elapsed < GEMINI_RATE_LIMIT_MS) GEMINI_RATE_LIMIT_MS - elapsed else 0L
+            geminiLastCallTime = now + delayMs
+        }
+        if (delayMs > 0L) delay(delayMs)
+    }
+
+    // region Model List Fetching
+
+    /** 제공자로부터 사용 가능한 모델 목록을 조회한다. */
+    suspend fun fetchModels(
+        provider: AiProvider,
+        apiKey: String
+    ): Result<List<AiModelInfo>> = withContext(Dispatchers.IO) {
+        try {
+            when (provider) {
+                AiProvider.CLAUDE -> fetchClaudeModels(apiKey)
+                AiProvider.GEMINI -> fetchGeminiModels(apiKey)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(ApiError.mapException(e))
+        }
+    }
+
+    private suspend fun fetchClaudeModels(apiKey: String): Result<List<AiModelInfo>> {
+        val request = Request.Builder()
+            .url("https://api.anthropic.com/v1/models")
+            .addHeader("x-api-key", apiKey)
+            .addHeader("anthropic-version", "2023-06-01")
+            .get()
+            .build()
+
+        val (body, code, ok) = httpClient.newCall(request).await().use { response ->
+            Triple(response.body?.string(), response.code, response.isSuccessful)
+        }
+        if (!ok || body == null) return Result.failure(mapHttpError(code))
+
+        val models = json.decodeFromString<ClaudeModelsResponse>(body)
+        return Result.success(
+            models.data.map { AiModelInfo(id = it.id, displayName = it.displayName) }
+        )
+    }
+
+    private suspend fun fetchGeminiModels(apiKey: String): Result<List<AiModelInfo>> {
+        val request = Request.Builder()
+            .url("https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey")
+            .get()
+            .build()
+
+        val (body, code, ok) = httpClient.newCall(request).await().use { response ->
+            Triple(response.body?.string(), response.code, response.isSuccessful)
+        }
+        if (!ok || body == null) return Result.failure(mapHttpError(code))
+
+        val models = json.decodeFromString<GeminiModelsResponse>(body)
+        return Result.success(
+            models.models
+                .filter { "generateContent" in it.supportedGenerationMethods }
+                .map { AiModelInfo(id = it.name.removePrefix("models/"), displayName = it.displayName) }
+        )
+    }
+
+    // endregion
+
+    // region Analysis
+
     suspend fun analyze(
         config: AiApiKeyConfig,
         systemPrompt: String,
@@ -48,8 +129,10 @@ class AiApiClient(
 
         var lastResult = analyzeOnce(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
 
-        // 재시도 (429, 5xx, network, timeout)
-        if (lastResult.isFailure && ApiError.isRetriableError(lastResult.exceptionOrNull())) {
+        // 재시도 (5xx, network, timeout — 429 제외: RPD 낭비 방지)
+        val retryError = lastResult.exceptionOrNull()
+        val isRateLimited = retryError is ApiError.ApiCallError && retryError.code == 429
+        if (lastResult.isFailure && !isRateLimited && ApiError.isRetriableError(retryError)) {
             for (attempt in 1..MAX_RETRIES) {
                 delay(RETRY_DELAYS[attempt - 1])
                 Timber.d("AI API 재시도 %d/%d", attempt, MAX_RETRIES)
@@ -72,12 +155,13 @@ class AiApiClient(
         temperature: Double
     ): Result<AiAnalysisResult> {
         try {
-            waitForRateLimit()
+            if (config.provider == AiProvider.GEMINI) waitForGeminiRateLimit()
+            else waitForRateLimit()
 
             return when (config.provider) {
-                AiProvider.CLAUDE_HAIKU, AiProvider.CLAUDE_SONNET ->
+                AiProvider.CLAUDE ->
                     callClaude(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
-                AiProvider.GEMINI_FLASH ->
+                AiProvider.GEMINI ->
                     callGemini(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
             }
         } catch (e: CancellationException) {
@@ -96,7 +180,7 @@ class AiApiClient(
         temperature: Double
     ): Result<AiAnalysisResult> {
         val requestBody = buildJsonObject {
-            put("model", config.provider.modelId)
+            put("model", config.modelId)
             put("max_tokens", maxTokens)
             put("temperature", temperature)
             put("system", systemPrompt)
@@ -116,7 +200,7 @@ class AiApiClient(
             .post(requestBody.toRequestBody("application/json".toMediaType()))
             .build()
 
-        Timber.d("Claude API call: %s", config.provider.modelId)
+        Timber.d("Claude API call: %s", config.modelId)
 
         val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).await().use { response ->
             Triple(response.body?.string(), response.code, response.isSuccessful)
@@ -150,6 +234,10 @@ class AiApiClient(
     ): Result<AiAnalysisResult> {
         val combinedMessage = "$systemPrompt\n\n$userMessage"
 
+        // Gemini 2.5+ 모델은 thinking 토큰이 maxOutputTokens에 포함됨
+        // thinking 오버헤드를 반영하여 실제 응답 토큰이 충분하도록 증가
+        val effectiveMaxTokens = maxTokens + GEMINI_THINKING_OVERHEAD
+
         val requestBody = buildJsonObject {
             put("contents", buildJsonArray {
                 add(buildJsonObject {
@@ -162,11 +250,11 @@ class AiApiClient(
             })
             put("generationConfig", buildJsonObject {
                 put("temperature", temperature)
-                put("maxOutputTokens", maxTokens)
+                put("maxOutputTokens", effectiveMaxTokens)
             })
         }.toString()
 
-        val url = "${config.getBaseUrl()}/v1beta/models/${config.provider.modelId}:generateContent"
+        val url = "${config.getBaseUrl()}/v1beta/models/${config.modelId}:generateContent"
 
         val request = Request.Builder()
             .url(url)
@@ -175,7 +263,7 @@ class AiApiClient(
             .post(requestBody.toRequestBody("application/json".toMediaType()))
             .build()
 
-        Timber.d("Gemini API call: %s", config.provider.modelId)
+        Timber.d("Gemini API call: %s", config.modelId)
 
         val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).await().use { response ->
             Triple(response.body?.string(), response.code, response.isSuccessful)
@@ -200,6 +288,8 @@ class AiApiClient(
         )
     }
 
+    // endregion
+
     private fun mapHttpError(code: Int): ApiError = when (code) {
         401, 403 -> ApiError.AuthError("AI API 인증 실패 (HTTP $code)")
         429 -> ApiError.ApiCallError(429, "요청 한도 초과, 잠시 후 다시 시도해주세요")
@@ -210,6 +300,8 @@ class AiApiClient(
     companion object {
         private const val MAX_RETRIES = 2
         private const val RATE_LIMIT_MS = 1000L
+        private const val GEMINI_RATE_LIMIT_MS = 12_000L
+        private const val GEMINI_THINKING_OVERHEAD = 8192
         private val RETRY_DELAYS = listOf(2000L, 4000L)
     }
 }

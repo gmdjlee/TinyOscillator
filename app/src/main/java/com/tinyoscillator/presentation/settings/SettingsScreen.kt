@@ -54,6 +54,7 @@ internal object PrefsKeys {
     const val KRX_PASSWORD = "krx_password"
     const val AI_API_KEY = "ai_api_key"
     const val AI_PROVIDER = "ai_provider"
+    const val AI_MODEL_ID = "ai_model_id"
     const val ETF_INCLUDE_KEYWORDS = "etf_include_keywords"
     const val ETF_EXCLUDE_KEYWORDS = "etf_exclude_keywords"
     const val ETF_SCHEDULE_HOUR = "etf_schedule_hour"
@@ -371,10 +372,30 @@ suspend fun loadKisConfig(context: Context): KisApiKeyConfig = withContext(Dispa
 
 suspend fun loadAiConfig(context: Context): AiApiKeyConfig = withContext(Dispatchers.IO) {
     val prefs = getEncryptedPrefs(context)
-    val providerName = prefs.getString(PrefsKeys.AI_PROVIDER, AiProvider.CLAUDE_HAIKU.name) ?: AiProvider.CLAUDE_HAIKU.name
+    val providerName = prefs.getString(PrefsKeys.AI_PROVIDER, AiProvider.CLAUDE.name) ?: AiProvider.CLAUDE.name
+
+    // 이전 버전 마이그레이션 (CLAUDE_HAIKU 등 → CLAUDE/GEMINI)
+    val provider = when (providerName) {
+        "CLAUDE_HAIKU", "CLAUDE_SONNET" -> AiProvider.CLAUDE
+        "GEMINI_FLASH", "GEMINI_2_5_FLASH" -> AiProvider.GEMINI
+        else -> AiProvider.entries.find { it.name == providerName } ?: AiProvider.CLAUDE
+    }
+
+    val modelId = (prefs.getString(PrefsKeys.AI_MODEL_ID, "") ?: "").ifBlank {
+        // modelId 미저장 시 이전 하드코딩 값으로 폴백
+        when (providerName) {
+            "CLAUDE_HAIKU" -> "claude-haiku-4-5-20251001"
+            "CLAUDE_SONNET" -> "claude-sonnet-4-6"
+            "GEMINI_FLASH" -> "gemini-2.0-flash"
+            "GEMINI_2_5_FLASH" -> "gemini-2.5-flash"
+            else -> ""
+        }
+    }
+
     AiApiKeyConfig(
-        provider = AiProvider.entries.find { it.name == providerName } ?: AiProvider.CLAUDE_HAIKU,
-        apiKey = prefs.getString(PrefsKeys.AI_API_KEY, "") ?: ""
+        provider = provider,
+        apiKey = prefs.getString(PrefsKeys.AI_API_KEY, "") ?: "",
+        modelId = modelId
     )
 }
 
@@ -382,6 +403,7 @@ suspend fun saveAiConfig(context: Context, config: AiApiKeyConfig) = withContext
     getEncryptedPrefs(context).edit()
         .putString(PrefsKeys.AI_PROVIDER, config.provider.name)
         .putString(PrefsKeys.AI_API_KEY, config.apiKey)
+        .putString(PrefsKeys.AI_MODEL_ID, config.modelId)
         .apply()
 }
 
@@ -482,7 +504,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     var krxPassword by remember { mutableStateOf("") }
 
     var aiApiKey by remember { mutableStateOf("") }
-    var aiProvider by remember { mutableStateOf(AiProvider.CLAUDE_HAIKU) }
+    var aiProvider by remember { mutableStateOf(AiProvider.CLAUDE) }
+    var aiModelId by remember { mutableStateOf("") }
 
     var dartApiKey by remember { mutableStateOf("") }
     var ecosApiKey by remember { mutableStateOf("") }
@@ -582,6 +605,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             val aiConfig = loadAiConfig(context)
             aiApiKey = aiConfig.apiKey
             aiProvider = aiConfig.provider
+            aiModelId = aiConfig.modelId
 
             dartApiKey = loadDartApiKey(context)
             ecosApiKey = loadEcosApiKey(context)
@@ -702,7 +726,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     aiApiKey = aiApiKey,
                     onAiApiKeyChange = { aiApiKey = it },
                     aiProvider = aiProvider,
-                    onAiProviderChange = { aiProvider = it },
+                    onAiProviderChange = { aiProvider = it; aiModelId = "" },
+                    aiModelId = aiModelId,
+                    onAiModelIdChange = { aiModelId = it },
                     dartApiKey = dartApiKey,
                     onDartApiKeyChange = { dartApiKey = it },
                     ecosApiKey = ecosApiKey,
@@ -714,7 +740,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 context, kiwoomAppKey, kiwoomSecretKey, kiwoomMode,
                                 kisAppKey, kisAppSecret, kisMode, krxId, krxPassword
                             )
-                            saveAiConfig(context, AiApiKeyConfig(aiProvider, aiApiKey))
+                            saveAiConfig(context, AiApiKeyConfig(aiProvider, aiApiKey, aiModelId))
                             saveDartApiKey(context, dartApiKey)
                             saveEcosApiKey(context, ecosApiKey)
                         }

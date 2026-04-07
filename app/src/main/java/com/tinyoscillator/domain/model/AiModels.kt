@@ -3,29 +3,33 @@ package com.tinyoscillator.domain.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** AI 분석 제공자 */
-enum class AiProvider(val displayName: String, val modelId: String) {
-    CLAUDE_HAIKU("Claude Haiku", "claude-haiku-4-5-20251001"),
-    CLAUDE_SONNET("Claude Sonnet", "claude-sonnet-4-6"),
-    GEMINI_FLASH("Gemini Flash", "gemini-2.0-flash")
+/** AI 제공자 (Claude / Gemini) */
+enum class AiProvider(val displayName: String) {
+    CLAUDE("Claude"),
+    GEMINI("Gemini")
 }
 
 /** AI API 키 설정 */
 data class AiApiKeyConfig(
     val provider: AiProvider,
-    val apiKey: String
+    val apiKey: String,
+    val modelId: String = ""
 ) {
-    fun isValid(): Boolean = apiKey.isNotBlank()
+    fun isValid(): Boolean = apiKey.isNotBlank() && modelId.isNotBlank()
 
     fun getBaseUrl(): String = when (provider) {
-        AiProvider.CLAUDE_HAIKU, AiProvider.CLAUDE_SONNET ->
-            "https://api.anthropic.com"
-        AiProvider.GEMINI_FLASH ->
-            "https://generativelanguage.googleapis.com"
+        AiProvider.CLAUDE -> "https://api.anthropic.com"
+        AiProvider.GEMINI -> "https://generativelanguage.googleapis.com"
     }
 
-    override fun toString() = "AiApiKeyConfig(provider=$provider, apiKey=*****)"
+    override fun toString() = "AiApiKeyConfig(provider=$provider, modelId=$modelId, apiKey=*****)"
 }
+
+/** 모델 정보 (UI 표시용) */
+data class AiModelInfo(
+    val id: String,
+    val displayName: String
+)
 
 /** AI 분석 유형 */
 enum class AiAnalysisType(val displayName: String) {
@@ -76,6 +80,19 @@ data class ClaudeUsage(
     @SerialName("output_tokens") val outputTokens: Int = 0
 )
 
+// --- Claude Models API 응답 ---
+
+@Serializable
+data class ClaudeModelsResponse(
+    val data: List<ClaudeModelEntry> = emptyList()
+)
+
+@Serializable
+data class ClaudeModelEntry(
+    val id: String = "",
+    @SerialName("display_name") val displayName: String = ""
+)
+
 // --- Gemini API 응답 ---
 
 @Serializable
@@ -103,4 +120,18 @@ data class GeminiPart(
 data class GeminiUsageMetadata(
     val promptTokenCount: Int = 0,
     val candidatesTokenCount: Int = 0
+)
+
+// --- Gemini Models API 응답 ---
+
+@Serializable
+data class GeminiModelsResponse(
+    val models: List<GeminiModelEntry> = emptyList()
+)
+
+@Serializable
+data class GeminiModelEntry(
+    val name: String = "",
+    val displayName: String = "",
+    val supportedGenerationMethods: List<String> = emptyList()
 )

@@ -42,7 +42,7 @@ class AiAnalysisViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
     private val validKiwoomConfig = KiwoomApiKeyConfig(appKey = "test-key", secretKey = "test-secret")
-    private val validAiConfig = AiApiKeyConfig(provider = AiProvider.CLAUDE_HAIKU, apiKey = "test-ai-key")
+    private val validAiConfig = AiApiKeyConfig(provider = AiProvider.CLAUDE, apiKey = "test-ai-key", modelId = "claude-sonnet-4-6")
 
     @Before
     fun setup() {
@@ -135,7 +135,7 @@ class AiAnalysisViewModelTest {
 
         val aiResult = AiAnalysisResult(
             type = AiAnalysisType.MARKET_OVERVIEW,
-            provider = AiProvider.CLAUDE_HAIKU,
+            provider = AiProvider.CLAUDE,
             content = "시장 분석 결과",
             inputTokens = 100,
             outputTokens = 200
@@ -155,7 +155,7 @@ class AiAnalysisViewModelTest {
         advanceUntilIdle()
 
         coEvery { apiConfigProvider.getAiConfig() } returns
-            AiApiKeyConfig(provider = AiProvider.CLAUDE_HAIKU, apiKey = "")
+            AiApiKeyConfig(provider = AiProvider.CLAUDE, apiKey = "")
 
         viewModel.analyzeMarketWithAi()
         advanceUntilIdle()
@@ -252,7 +252,7 @@ class AiAnalysisViewModelTest {
 
         val aiResult = AiAnalysisResult(
             type = AiAnalysisType.COMPREHENSIVE_STOCK,
-            provider = AiProvider.CLAUDE_HAIKU,
+            provider = AiProvider.CLAUDE,
             content = "종합 분석 결과",
             inputTokens = 300,
             outputTokens = 500
@@ -279,7 +279,7 @@ class AiAnalysisViewModelTest {
         advanceUntilIdle()
 
         coEvery { apiConfigProvider.getAiConfig() } returns
-            AiApiKeyConfig(provider = AiProvider.CLAUDE_HAIKU, apiKey = "")
+            AiApiKeyConfig(provider = AiProvider.CLAUDE, apiKey = "")
 
         viewModel.analyzeStockWithAi()
         advanceUntilIdle()
@@ -351,7 +351,7 @@ class AiAnalysisViewModelTest {
 
         val aiResult = AiAnalysisResult(
             type = AiAnalysisType.COMPREHENSIVE_STOCK,
-            provider = AiProvider.CLAUDE_HAIKU,
+            provider = AiProvider.CLAUDE,
             content = "결과",
             inputTokens = 100,
             outputTokens = 200
