@@ -365,6 +365,39 @@ class EtfRepositoryTest {
     }
 
     @Test
+    fun `getEnrichedAmountRanking - 비교일에 비중 데이터가 없으면 NONE으로 표시한다`() = runTest {
+        val date = "20260407"
+        val compDate = "20260402"
+
+        coEvery { etfDao.getAmountRanking(date) } returns listOf(
+            AmountRankingRow("207940", "삼성바이오로직스", 200_000_000_000L, 3, maxWeight = 8.57, avgWeight = 2.75)
+        )
+
+        // 비교일에 종목이 존재하지만 weight가 null
+        coEvery { etfDao.getAllHoldingsForDate(compDate) } returns listOf(
+            createHolding("ETF001", "207940", compDate, "삼성바이오로직스", weight = null)
+        )
+        coEvery { etfDao.getAllHoldingsForDate(date) } returns listOf(
+            createHolding("ETF001", "207940", date, "삼성바이오로직스", 8.57),
+            createHolding("ETF002", "207940", date, "삼성바이오로직스", 2.0),
+            createHolding("ETF003", "207940", date, "삼성바이오로직스", 1.0)
+        )
+        coEvery { etfDao.getEtf("ETF001") } returns createEtfEntity("ETF001", "테스트ETF1")
+        coEvery { etfDao.getEtf("ETF002") } returns createEtfEntity("ETF002", "테스트ETF2")
+        coEvery { etfDao.getEtf("ETF003") } returns createEtfEntity("ETF003", "테스트ETF3")
+
+        val result = repository.getEnrichedAmountRanking(date, compDate)
+
+        assertEquals(1, result.size)
+        val item = result[0]
+        assertEquals(8.57, item.maxWeight!!, 0.001)
+        assertEquals(2.75, item.avgWeight!!, 0.001)
+        // 비교일에 비중 데이터 없음 → NONE (수정 전에는 UP으로 잘못 판단)
+        assertEquals(WeightTrend.NONE, item.maxWeightTrend)
+        assertEquals(WeightTrend.NONE, item.avgWeightTrend)
+    }
+
+    @Test
     fun `getEnrichedAmountRanking - totalAmount를 억 단위로 변환한다`() = runTest {
         val date = "20260305"
 

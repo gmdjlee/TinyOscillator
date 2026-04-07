@@ -292,10 +292,16 @@ class EtfRepository(
             val compHoldings = if (excludedTickers.isEmpty()) etfDao.getAllHoldingsForDate(comparisonDate)
             else etfDao.getAllHoldingsForDateExcluding(comparisonDate, excludedTickers)
             val grouped = compHoldings.groupBy { it.stockTicker }
-            comparisonMaxWeights = grouped.mapValues { (_, holdings) -> holdings.mapNotNull { it.weight }.maxOrNull() ?: 0.0 }
-            comparisonAvgWeights = grouped.mapValues { (_, holdings) ->
-                val weights = holdings.mapNotNull { it.weight }
-                if (weights.isNotEmpty()) weights.average() else 0.0
+            comparisonMaxWeights = buildMap {
+                for ((ticker, holdings) in grouped) {
+                    holdings.mapNotNull { it.weight }.maxOrNull()?.let { put(ticker, it) }
+                }
+            }
+            comparisonAvgWeights = buildMap {
+                for ((ticker, holdings) in grouped) {
+                    val weights = holdings.mapNotNull { it.weight }
+                    if (weights.isNotEmpty()) put(ticker, weights.average())
+                }
             }
         } else {
             comparisonMaxWeights = emptyMap()
