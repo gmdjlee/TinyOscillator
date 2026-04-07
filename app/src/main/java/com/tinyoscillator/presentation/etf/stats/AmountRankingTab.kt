@@ -90,17 +90,6 @@ fun AmountRankingTab(
     onStockClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    if (items.isEmpty()) {
-        Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text(
-                "데이터가 없습니다.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        return
-    }
-
     // 다중 정렬: 클릭 순서대로 우선순위 부여, 3-state 순환 (중립→DESC→ASC→중립)
     val sortSpecs by remember(sortEncoded) { derivedStateOf { decodeSortSpecs(sortEncoded) } }
 
@@ -271,6 +260,22 @@ fun AmountRankingTab(
                         }
                     }
                 }
+            }
+
+            if (items.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "데이터가 없습니다.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                return@LazyColumn
             }
 
             // Header
