@@ -6,7 +6,8 @@ data class AmountRankingRow(
     val stock_name: String,
     val totalAmount: Long,
     val etfCount: Int,
-    val maxWeight: Double? = null
+    val maxWeight: Double? = null,
+    val avgWeight: Double? = null
 )
 
 data class CashDepositRow(
@@ -64,7 +65,9 @@ data class AmountRankingItem(
     val market: String? = null,
     val sector: String? = null,
     val maxWeight: Double? = null,
-    val maxWeightTrend: WeightTrend = WeightTrend.NONE
+    val maxWeightTrend: WeightTrend = WeightTrend.NONE,
+    val avgWeight: Double? = null,
+    val avgWeightTrend: WeightTrend = WeightTrend.NONE
 )
 
 // Stock trend time series models

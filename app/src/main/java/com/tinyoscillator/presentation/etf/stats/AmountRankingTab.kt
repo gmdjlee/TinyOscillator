@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.tinyoscillator.domain.model.AmountRankingItem
 import com.tinyoscillator.domain.model.WeightTrend
 
-private enum class SortColumn { AMOUNT, ETF_COUNT, MAX_WEIGHT, NEW, INCREASED, DECREASED, REMOVED }
+private enum class SortColumn { AMOUNT, ETF_COUNT, MAX_WEIGHT, AVG_WEIGHT, NEW, INCREASED, DECREASED, REMOVED }
 private enum class SortOrder { ASC, DESC }
 private data class SortSpec(val column: SortColumn, val order: SortOrder)
 
@@ -37,6 +37,7 @@ private object ColWeights {
     const val AMOUNT = 0.8f      // "1,234.5"
     const val ETF_COUNT = 0.7f   // 정수
     const val MAX_WEIGHT = 0.9f  // "12.34%▲"
+    const val AVG_WEIGHT = 0.8f  // "12.34%"
     const val NEW = 0.6f         // 카운트 배지
     const val INCREASED = 0.6f
     const val DECREASED = 0.6f
@@ -52,6 +53,7 @@ private object CompactWidths {
     val AMOUNT = 64.dp
     val ETF_COUNT = 64.dp
     val MAX_WEIGHT = 72.dp
+    val AVG_WEIGHT = 64.dp
     val NEW = 64.dp
     val INCREASED = 64.dp
     val DECREASED = 64.dp
@@ -122,6 +124,7 @@ fun AmountRankingTab(
                     SortColumn.AMOUNT -> compareBy<AmountRankingItem> { it.totalAmountBillion }
                     SortColumn.ETF_COUNT -> compareBy { it.etfCount }
                     SortColumn.MAX_WEIGHT -> compareBy { it.maxWeight ?: 0.0 }
+                    SortColumn.AVG_WEIGHT -> compareBy { it.avgWeight ?: 0.0 }
                     SortColumn.NEW -> compareBy { it.newCount }
                     SortColumn.INCREASED -> compareBy { it.increasedCount }
                     SortColumn.DECREASED -> compareBy { it.decreasedCount }
@@ -288,6 +291,7 @@ fun AmountRankingTab(
                         SortableHeaderCell("금액(억)", colModifier(useWeightLayout, ColWeights.AMOUNT, CompactWidths.AMOUNT), sortSpecs, SortColumn.AMOUNT) { onHeaderClick(SortColumn.AMOUNT) }
                         SortableHeaderCell("ETF수", colModifier(useWeightLayout, ColWeights.ETF_COUNT, CompactWidths.ETF_COUNT), sortSpecs, SortColumn.ETF_COUNT) { onHeaderClick(SortColumn.ETF_COUNT) }
                         SortableHeaderCell("최대비중", colModifier(useWeightLayout, ColWeights.MAX_WEIGHT, CompactWidths.MAX_WEIGHT), sortSpecs, SortColumn.MAX_WEIGHT) { onHeaderClick(SortColumn.MAX_WEIGHT) }
+                        SortableHeaderCell("평균비중", colModifier(useWeightLayout, ColWeights.AVG_WEIGHT, CompactWidths.AVG_WEIGHT), sortSpecs, SortColumn.AVG_WEIGHT) { onHeaderClick(SortColumn.AVG_WEIGHT) }
                         SortableHeaderCell("신규", colModifier(useWeightLayout, ColWeights.NEW, CompactWidths.NEW), sortSpecs, SortColumn.NEW) { onHeaderClick(SortColumn.NEW) }
                         SortableHeaderCell("증가", colModifier(useWeightLayout, ColWeights.INCREASED, CompactWidths.INCREASED), sortSpecs, SortColumn.INCREASED) { onHeaderClick(SortColumn.INCREASED) }
                         SortableHeaderCell("감소", colModifier(useWeightLayout, ColWeights.DECREASED, CompactWidths.DECREASED), sortSpecs, SortColumn.DECREASED) { onHeaderClick(SortColumn.DECREASED) }
@@ -357,6 +361,7 @@ fun AmountRankingTab(
                         textAlign = TextAlign.Center
                     )
                     WeightCell(item.maxWeight, item.maxWeightTrend, colModifier(useWeightLayout, ColWeights.MAX_WEIGHT, CompactWidths.MAX_WEIGHT))
+                    WeightCell(item.avgWeight, item.avgWeightTrend, colModifier(useWeightLayout, ColWeights.AVG_WEIGHT, CompactWidths.AVG_WEIGHT))
                     CountBadge(item.newCount, MaterialTheme.colorScheme.primary, colModifier(useWeightLayout, ColWeights.NEW, CompactWidths.NEW))
                     CountBadge(item.increasedCount, MaterialTheme.colorScheme.tertiary, colModifier(useWeightLayout, ColWeights.INCREASED, CompactWidths.INCREASED))
                     CountBadge(item.decreasedCount, MaterialTheme.colorScheme.error, colModifier(useWeightLayout, ColWeights.DECREASED, CompactWidths.DECREASED))

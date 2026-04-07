@@ -285,23 +285,41 @@ class EtfRepository(
         // Group change counts by stock
         val changeCounts = changes.groupBy { it.stockTicker }
 
-        // Compute comparison-date max weights per stock for trend calculation
-        val comparisonMaxWeights: Map<String, Double> = if (comparisonDate != null) {
+        // Compute comparison-date weights per stock for trend calculation
+        val comparisonMaxWeights: Map<String, Double>
+        val comparisonAvgWeights: Map<String, Double>
+        if (comparisonDate != null) {
             val compHoldings = if (excludedTickers.isEmpty()) etfDao.getAllHoldingsForDate(comparisonDate)
             else etfDao.getAllHoldingsForDateExcluding(comparisonDate, excludedTickers)
-            compHoldings.groupBy { it.stockTicker }
-                .mapValues { (_, holdings) -> holdings.mapNotNull { it.weight }.maxOrNull() ?: 0.0 }
-        } else emptyMap()
+            val grouped = compHoldings.groupBy { it.stockTicker }
+            comparisonMaxWeights = grouped.mapValues { (_, holdings) -> holdings.mapNotNull { it.weight }.maxOrNull() ?: 0.0 }
+            comparisonAvgWeights = grouped.mapValues { (_, holdings) ->
+                val weights = holdings.mapNotNull { it.weight }
+                if (weights.isNotEmpty()) weights.average() else 0.0
+            }
+        } else {
+            comparisonMaxWeights = emptyMap()
+            comparisonAvgWeights = emptyMap()
+        }
 
         return ranking.mapIndexed { index, row ->
             val stockChanges = changeCounts[row.stock_ticker] ?: emptyList()
             val currentMax = row.maxWeight
             val compMax = comparisonMaxWeights[row.stock_ticker]
-            val trend = when {
+            val maxTrend = when {
                 currentMax == null || comparisonDate == null -> WeightTrend.NONE
                 compMax == null -> WeightTrend.NONE
                 currentMax > compMax + 0.001 -> WeightTrend.UP
                 currentMax < compMax - 0.001 -> WeightTrend.DOWN
+                else -> WeightTrend.FLAT
+            }
+            val currentAvg = row.avgWeight
+            val compAvg = comparisonAvgWeights[row.stock_ticker]
+            val avgTrend = when {
+                currentAvg == null || comparisonDate == null -> WeightTrend.NONE
+                compAvg == null -> WeightTrend.NONE
+                currentAvg > compAvg + 0.001 -> WeightTrend.UP
+                currentAvg < compAvg - 0.001 -> WeightTrend.DOWN
                 else -> WeightTrend.FLAT
             }
             AmountRankingItem(
@@ -315,7 +333,9 @@ class EtfRepository(
                 decreasedCount = stockChanges.count { it.changeType == ChangeType.DECREASED },
                 removedCount = stockChanges.count { it.changeType == ChangeType.REMOVED },
                 maxWeight = currentMax,
-                maxWeightTrend = trend
+                maxWeightTrend = maxTrend,
+                avgWeight = currentAvg,
+                avgWeightTrend = avgTrend
             )
         }
     }

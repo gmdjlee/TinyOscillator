@@ -132,7 +132,7 @@ class EtfStatsViewModel @Inject constructor(
         items.filter { item ->
             (market == null || item.market == market) &&
                 (sector == null || item.sector == sector) &&
-                (weightTrend == null || item.maxWeightTrend == weightTrend)
+                (weightTrend == null || item.avgWeightTrend == weightTrend)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
