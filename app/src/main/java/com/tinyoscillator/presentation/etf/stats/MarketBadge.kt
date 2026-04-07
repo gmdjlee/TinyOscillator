@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 private val KospiColor = Color(0xFF1565C0)
@@ -35,28 +34,28 @@ fun normalizeMarketCode(market: String?): String? = when (market) {
 }
 
 @Composable
-fun MarketLabel(market: String?, width: Dp) {
+fun MarketLabel(market: String?, modifier: Modifier) {
     val name = marketDisplayName(market)
     if (name != null) {
         val color = if (normalizeMarketCode(market) == "KOSPI") KospiColor else KosdaqColor
         Text(
             name,
-            modifier = Modifier.width(width),
+            modifier = modifier,
             style = MaterialTheme.typography.labelSmall,
             textAlign = TextAlign.Center,
             color = color
         )
     } else {
-        Spacer(modifier = Modifier.width(width))
+        Spacer(modifier = modifier)
     }
 }
 
 @Composable
-fun SectorLabel(sector: String?, width: Dp) {
+fun SectorLabel(sector: String?, modifier: Modifier) {
     if (!sector.isNullOrBlank()) {
         Text(
             sector,
-            modifier = Modifier.width(width),
+            modifier = modifier,
             style = MaterialTheme.typography.labelSmall,
             textAlign = TextAlign.Center,
             color = SectorColor,
@@ -64,7 +63,7 @@ fun SectorLabel(sector: String?, width: Dp) {
             overflow = TextOverflow.Ellipsis
         )
     } else {
-        Spacer(modifier = Modifier.width(width))
+        Spacer(modifier = modifier)
     }
 }
 

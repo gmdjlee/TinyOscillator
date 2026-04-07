@@ -28,6 +28,39 @@ private enum class SortColumn { AMOUNT, ETF_COUNT, MAX_WEIGHT, NEW, INCREASED, D
 private enum class SortOrder { ASC, DESC }
 private data class SortSpec(val column: SortColumn, val order: SortOrder)
 
+/** Weight 레이아웃용 컬럼 비율 (셀 내용 크기 기반) */
+private object ColWeights {
+    const val RANK = 0.5f        // "100" (3자리)
+    const val MARKET = 0.7f      // "코스피" (3글자)
+    const val SECTOR = 0.9f      // 업종명 (가변, ellipsis)
+    const val STOCK_NAME = 1.8f  // 종목명 (최대 컬럼)
+    const val AMOUNT = 0.8f      // "1,234.5"
+    const val ETF_COUNT = 0.7f   // 정수
+    const val MAX_WEIGHT = 0.9f  // "12.34%▲"
+    const val NEW = 0.6f         // 카운트 배지
+    const val INCREASED = 0.6f
+    const val DECREASED = 0.6f
+    const val REMOVED = 0.6f
+}
+
+/** Compact(폰) 모드용 고정 컬럼 폭 */
+private object CompactWidths {
+    val RANK = 36.dp
+    val MARKET = 48.dp
+    val SECTOR = 72.dp
+    val STOCK_NAME = 150.dp
+    val AMOUNT = 64.dp
+    val ETF_COUNT = 64.dp
+    val MAX_WEIGHT = 72.dp
+    val NEW = 64.dp
+    val INCREASED = 64.dp
+    val DECREASED = 64.dp
+    val REMOVED = 64.dp
+}
+
+/** Weight 레이아웃 전환 임계값: 실제 가용 폭 기준 */
+private val WEIGHT_LAYOUT_THRESHOLD = 520.dp
+
 private fun encodeSortSpecs(specs: List<SortSpec>): String =
     specs.joinToString(",") { "${it.column.name}:${it.order.name}" }
 
@@ -100,227 +133,251 @@ fun AmountRankingTab(
         items.sortedWith(comparator)
     }
 
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        // Filter row
-        item {
-            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
-                // Market filter chips
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    listOf(null to "전체", "KOSPI" to "코스피", "KOSDAQ" to "코스닥").forEach { (value, label) ->
-                        FilterChip(
-                            selected = selectedMarket == value,
-                            onClick = { onMarketFilter(value) },
-                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
-                        )
-                    }
+    // BoxWithConstraints로 실제 가용 폭 측정 (NavigationRail 등 제외)
+    BoxWithConstraints(modifier = modifier) {
+        val useWeightLayout = maxWidth >= WEIGHT_LAYOUT_THRESHOLD
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Sector dropdown
-                    var sectorExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = sectorExpanded,
-                        onExpandedChange = { sectorExpanded = it }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            // Filter row
+            item {
+                Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                    // Market filter chips
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        FilterChip(
-                            selected = selectedSector != null,
-                            onClick = { sectorExpanded = true },
-                            label = {
-                                Text(
-                                    selectedSector ?: "업종 전체",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
-                            modifier = Modifier.menuAnchor()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = sectorExpanded,
-                            onDismissRequest = { sectorExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("전체") },
-                                onClick = {
-                                    onSectorFilter(null)
-                                    sectorExpanded = false
-                                }
+                        listOf(null to "전체", "KOSPI" to "코스피", "KOSDAQ" to "코스닥").forEach { (value, label) ->
+                            FilterChip(
+                                selected = selectedMarket == value,
+                                onClick = { onMarketFilter(value) },
+                                label = { Text(label, style = MaterialTheme.typography.labelSmall) }
                             )
-                            availableSectors.forEach { sector ->
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Sector dropdown
+                        var sectorExpanded by remember { mutableStateOf(false) }
+                        ExposedDropdownMenuBox(
+                            expanded = sectorExpanded,
+                            onExpandedChange = { sectorExpanded = it }
+                        ) {
+                            FilterChip(
+                                selected = selectedSector != null,
+                                onClick = { sectorExpanded = true },
+                                label = {
+                                    Text(
+                                        selectedSector ?: "업종 전체",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
+                                modifier = Modifier.menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = sectorExpanded,
+                                onDismissRequest = { sectorExpanded = false }
+                            ) {
                                 DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            sector,
-                                            color = if (sector == selectedSector) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    },
+                                    text = { Text("전체") },
                                     onClick = {
-                                        onSectorFilter(sector)
+                                        onSectorFilter(null)
                                         sectorExpanded = false
                                     }
                                 )
+                                availableSectors.forEach { sector ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                sector,
+                                                color = if (sector == selectedSector) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        onClick = {
+                                            onSectorFilter(sector)
+                                            sectorExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
 
-                    // Weight trend dropdown
-                    var trendExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = trendExpanded,
-                        onExpandedChange = { trendExpanded = it }
-                    ) {
-                        FilterChip(
-                            selected = selectedWeightTrend != null,
-                            onClick = { trendExpanded = true },
-                            label = {
-                                Text(
-                                    when (selectedWeightTrend) {
-                                        WeightTrend.UP -> "비중상승"
-                                        WeightTrend.DOWN -> "비중감소"
-                                        WeightTrend.FLAT -> "비중유지"
-                                        WeightTrend.NONE -> "비중없음"
-                                        null -> "비중추이"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            modifier = Modifier.menuAnchor()
-                        )
-                        ExposedDropdownMenu(
+                        // Weight trend dropdown
+                        var trendExpanded by remember { mutableStateOf(false) }
+                        ExposedDropdownMenuBox(
                             expanded = trendExpanded,
-                            onDismissRequest = { trendExpanded = false }
+                            onExpandedChange = { trendExpanded = it }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("전체") },
-                                onClick = {
-                                    onWeightTrendFilter(null)
-                                    trendExpanded = false
-                                }
+                            FilterChip(
+                                selected = selectedWeightTrend != null,
+                                onClick = { trendExpanded = true },
+                                label = {
+                                    Text(
+                                        when (selectedWeightTrend) {
+                                            WeightTrend.UP -> "비중상승"
+                                            WeightTrend.DOWN -> "비중감소"
+                                            WeightTrend.FLAT -> "비중유지"
+                                            WeightTrend.NONE -> "비중없음"
+                                            null -> "비중추이"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                },
+                                modifier = Modifier.menuAnchor()
                             )
-                            listOf(
-                                WeightTrend.UP to "비중상승",
-                                WeightTrend.FLAT to "비중유지",
-                                WeightTrend.DOWN to "비중감소",
-                                WeightTrend.NONE to "비중없음"
-                            ).forEach { (trend, label) ->
+                            ExposedDropdownMenu(
+                                expanded = trendExpanded,
+                                onDismissRequest = { trendExpanded = false }
+                            ) {
                                 DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            label,
-                                            color = if (trend == selectedWeightTrend) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    },
+                                    text = { Text("전체") },
                                     onClick = {
-                                        onWeightTrendFilter(trend)
+                                        onWeightTrendFilter(null)
                                         trendExpanded = false
                                     }
                                 )
+                                listOf(
+                                    WeightTrend.UP to "비중상승",
+                                    WeightTrend.FLAT to "비중유지",
+                                    WeightTrend.DOWN to "비중감소",
+                                    WeightTrend.NONE to "비중없음"
+                                ).forEach { (trend, label) ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                label,
+                                                color = if (trend == selectedWeightTrend) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        onClick = {
+                                            onWeightTrendFilter(trend)
+                                            trendExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
-        // Header
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 8.dp, horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                HeaderCell("#", 36.dp)
-                HeaderCell("시장", 48.dp)
-                HeaderCell("업종", 72.dp)
-                HeaderCell("종목명", 150.dp)
-                SortableHeaderCell("금액(억)", 64.dp, sortSpecs, SortColumn.AMOUNT) { onHeaderClick(SortColumn.AMOUNT) }
-                SortableHeaderCell("ETF수", 64.dp, sortSpecs, SortColumn.ETF_COUNT) { onHeaderClick(SortColumn.ETF_COUNT) }
-                SortableHeaderCell("최대비중", 72.dp, sortSpecs, SortColumn.MAX_WEIGHT) { onHeaderClick(SortColumn.MAX_WEIGHT) }
-                SortableHeaderCell("신규", 64.dp, sortSpecs, SortColumn.NEW) { onHeaderClick(SortColumn.NEW) }
-                SortableHeaderCell("증가", 64.dp, sortSpecs, SortColumn.INCREASED) { onHeaderClick(SortColumn.INCREASED) }
-                SortableHeaderCell("감소", 64.dp, sortSpecs, SortColumn.DECREASED) { onHeaderClick(SortColumn.DECREASED) }
-                SortableHeaderCell("제외", 64.dp, sortSpecs, SortColumn.REMOVED) { onHeaderClick(SortColumn.REMOVED) }
-                if (sortSpecs.isNotEmpty()) {
-                    Text(
-                        "↺",
+            // Header
+            item {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Row(
                         modifier = Modifier
-                            .padding(start = 4.dp)
-                            .clickable { onSortChange("") },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                            .fillMaxWidth()
+                            .then(if (!useWeightLayout) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        HeaderCell("#", colModifier(useWeightLayout, ColWeights.RANK, CompactWidths.RANK))
+                        HeaderCell("시장", colModifier(useWeightLayout, ColWeights.MARKET, CompactWidths.MARKET))
+                        HeaderCell("업종", colModifier(useWeightLayout, ColWeights.SECTOR, CompactWidths.SECTOR))
+                        HeaderCell("종목명", colModifier(useWeightLayout, ColWeights.STOCK_NAME, CompactWidths.STOCK_NAME))
+                        SortableHeaderCell("금액(억)", colModifier(useWeightLayout, ColWeights.AMOUNT, CompactWidths.AMOUNT), sortSpecs, SortColumn.AMOUNT) { onHeaderClick(SortColumn.AMOUNT) }
+                        SortableHeaderCell("ETF수", colModifier(useWeightLayout, ColWeights.ETF_COUNT, CompactWidths.ETF_COUNT), sortSpecs, SortColumn.ETF_COUNT) { onHeaderClick(SortColumn.ETF_COUNT) }
+                        SortableHeaderCell("최대비중", colModifier(useWeightLayout, ColWeights.MAX_WEIGHT, CompactWidths.MAX_WEIGHT), sortSpecs, SortColumn.MAX_WEIGHT) { onHeaderClick(SortColumn.MAX_WEIGHT) }
+                        SortableHeaderCell("신규", colModifier(useWeightLayout, ColWeights.NEW, CompactWidths.NEW), sortSpecs, SortColumn.NEW) { onHeaderClick(SortColumn.NEW) }
+                        SortableHeaderCell("증가", colModifier(useWeightLayout, ColWeights.INCREASED, CompactWidths.INCREASED), sortSpecs, SortColumn.INCREASED) { onHeaderClick(SortColumn.INCREASED) }
+                        SortableHeaderCell("감소", colModifier(useWeightLayout, ColWeights.DECREASED, CompactWidths.DECREASED), sortSpecs, SortColumn.DECREASED) { onHeaderClick(SortColumn.DECREASED) }
+                        SortableHeaderCell("제외", colModifier(useWeightLayout, ColWeights.REMOVED, CompactWidths.REMOVED), sortSpecs, SortColumn.REMOVED) { onHeaderClick(SortColumn.REMOVED) }
+                        if (!useWeightLayout && sortSpecs.isNotEmpty()) {
+                            Text(
+                                "↺",
+                                modifier = Modifier
+                                    .padding(start = 4.dp)
+                                    .clickable { onSortChange("") },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    // Weight 레이아웃: 정렬 초기화 버튼을 Row 외부 overlay로 배치
+                    if (useWeightLayout && sortSpecs.isNotEmpty()) {
+                        Text(
+                            "↺",
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(end = 4.dp)
+                                .clickable { onSortChange("") },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
+                HorizontalDivider()
             }
-            HorizontalDivider()
-        }
 
-        items(sortedItems, key = { it.stockTicker }) { item ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onStockClick(item.stockTicker) }
-                    .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 6.dp, horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    "${item.rank}",
-                    modifier = Modifier.width(36.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center
-                )
-                MarketLabel(item.market, 48.dp)
-                SectorLabel(item.sector, 72.dp)
-                Text(
-                    item.stockName,
-                    modifier = Modifier.width(150.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    "%.1f".format(item.totalAmountBillion),
-                    modifier = Modifier.width(64.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.End
-                )
-                Text(
-                    "${item.etfCount}",
-                    modifier = Modifier.width(64.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center
-                )
-                WeightCell(item.maxWeight, item.maxWeightTrend, 72.dp)
-                CountBadge(item.newCount, MaterialTheme.colorScheme.primary, 64.dp)
-                CountBadge(item.increasedCount, MaterialTheme.colorScheme.tertiary, 64.dp)
-                CountBadge(item.decreasedCount, MaterialTheme.colorScheme.error, 64.dp)
-                CountBadge(item.removedCount, MaterialTheme.colorScheme.outline, 64.dp)
+            items(sortedItems, key = { it.stockTicker }) { item ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onStockClick(item.stockTicker) }
+                        .then(if (!useWeightLayout) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
+                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "${item.rank}",
+                        modifier = colModifier(useWeightLayout, ColWeights.RANK, CompactWidths.RANK),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center
+                    )
+                    MarketLabel(item.market, colModifier(useWeightLayout, ColWeights.MARKET, CompactWidths.MARKET))
+                    SectorLabel(item.sector, colModifier(useWeightLayout, ColWeights.SECTOR, CompactWidths.SECTOR))
+                    Text(
+                        item.stockName,
+                        modifier = colModifier(useWeightLayout, ColWeights.STOCK_NAME, CompactWidths.STOCK_NAME),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "%.1f".format(item.totalAmountBillion),
+                        modifier = colModifier(useWeightLayout, ColWeights.AMOUNT, CompactWidths.AMOUNT),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.End
+                    )
+                    Text(
+                        "${item.etfCount}",
+                        modifier = colModifier(useWeightLayout, ColWeights.ETF_COUNT, CompactWidths.ETF_COUNT),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center
+                    )
+                    WeightCell(item.maxWeight, item.maxWeightTrend, colModifier(useWeightLayout, ColWeights.MAX_WEIGHT, CompactWidths.MAX_WEIGHT))
+                    CountBadge(item.newCount, MaterialTheme.colorScheme.primary, colModifier(useWeightLayout, ColWeights.NEW, CompactWidths.NEW))
+                    CountBadge(item.increasedCount, MaterialTheme.colorScheme.tertiary, colModifier(useWeightLayout, ColWeights.INCREASED, CompactWidths.INCREASED))
+                    CountBadge(item.decreasedCount, MaterialTheme.colorScheme.error, colModifier(useWeightLayout, ColWeights.DECREASED, CompactWidths.DECREASED))
+                    CountBadge(item.removedCount, MaterialTheme.colorScheme.outline, colModifier(useWeightLayout, ColWeights.REMOVED, CompactWidths.REMOVED))
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
         }
     }
 }
 
+/** RowScope 내에서 화면 크기에 따라 weight 또는 고정 폭 Modifier 반환 */
 @Composable
-private fun HeaderCell(text: String, width: Dp) {
+private fun RowScope.colModifier(useWeight: Boolean, weight: Float, fixedWidth: Dp): Modifier =
+    if (useWeight) Modifier.weight(weight) else Modifier.width(fixedWidth)
+
+@Composable
+private fun HeaderCell(text: String, modifier: Modifier) {
     Text(
         text,
-        modifier = Modifier.width(width),
+        modifier = modifier,
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         textAlign = TextAlign.Center,
@@ -331,7 +388,7 @@ private fun HeaderCell(text: String, width: Dp) {
 @Composable
 private fun SortableHeaderCell(
     text: String,
-    width: Dp,
+    modifier: Modifier,
     sortSpecs: List<SortSpec>,
     column: SortColumn,
     onClick: () -> Unit
@@ -348,9 +405,7 @@ private fun SortableHeaderCell(
     val label = if (spec != null) "$text$priorityLabel$arrow" else text
     Text(
         label,
-        modifier = Modifier
-            .width(width)
-            .clickable(onClick = onClick),
+        modifier = modifier.clickable(onClick = onClick),
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         textAlign = TextAlign.Center,
@@ -363,7 +418,7 @@ private fun SortableHeaderCell(
 private fun WeightCell(
     maxWeight: Double?,
     trend: WeightTrend,
-    width: Dp
+    modifier: Modifier
 ) {
     if (maxWeight != null) {
         val trendSymbol = when (trend) {
@@ -380,13 +435,13 @@ private fun WeightCell(
         }
         Text(
             "${"%.2f".format(maxWeight)}%$trendSymbol",
-            modifier = Modifier.width(width),
+            modifier = modifier,
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.End,
             color = trendColor
         )
     } else {
-        Spacer(modifier = Modifier.width(width))
+        Spacer(modifier = modifier)
     }
 }
 
@@ -394,11 +449,11 @@ private fun WeightCell(
 private fun CountBadge(
     count: Int,
     color: androidx.compose.ui.graphics.Color,
-    width: Dp
+    modifier: Modifier
 ) {
     if (count > 0) {
         Surface(
-            modifier = Modifier.width(width),
+            modifier = modifier,
             shape = MaterialTheme.shapes.extraSmall,
             color = color.copy(alpha = 0.15f)
         ) {
@@ -411,6 +466,6 @@ private fun CountBadge(
             )
         }
     } else {
-        Spacer(modifier = Modifier.width(width))
+        Spacer(modifier = modifier)
     }
 }
