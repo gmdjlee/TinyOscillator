@@ -15,7 +15,6 @@ import com.tinyoscillator.core.database.dao.DartDao
 import com.tinyoscillator.core.database.dao.EnsembleHistoryDao
 import com.tinyoscillator.core.database.dao.IncrementalModelDao
 import com.tinyoscillator.core.database.dao.MacroDao
-import com.tinyoscillator.core.database.dao.MarketPerDao
 import com.tinyoscillator.core.database.dao.FeatureCacheDao
 import com.tinyoscillator.core.database.dao.RegimeDao
 import com.tinyoscillator.core.database.dao.EtfDao
@@ -624,43 +623,6 @@ object DatabaseModule {
         }
     }
 
-    private val MIGRATION_24_25 = object : Migration(24, 25) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            try {
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS `market_per` (
-                        `market` TEXT NOT NULL,
-                        `date` TEXT NOT NULL,
-                        `close_index` REAL NOT NULL,
-                        `per` REAL NOT NULL,
-                        `pbr` REAL NOT NULL,
-                        `dividend_yield` REAL NOT NULL,
-                        PRIMARY KEY(`market`, `date`)
-                    )
-                """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_market_per_date` ON `market_per` (`date`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_market_per_market_date` ON `market_per` (`market`, `date`)")
-                Timber.d("Migration v24→v25 성공: market_per 테이블 생성")
-            } catch (e: Exception) {
-                Timber.e(e, "Migration v24→v25 실패")
-                throw e
-            }
-        }
-    }
-
-    /** Migration v25→v26: add forward_per column to market_per */
-    private val MIGRATION_25_26 = object : Migration(25, 26) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            try {
-                db.execSQL("ALTER TABLE `market_per` ADD COLUMN `forward_per` REAL NOT NULL DEFAULT 0.0")
-                Timber.d("Migration v25→v26 성공: market_per에 forward_per 컬럼 추가")
-            } catch (e: Exception) {
-                Timber.e(e, "Migration v25→v26 실패")
-                throw e
-            }
-        }
-    }
-
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -670,7 +632,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         super.onOpen(db)
@@ -687,7 +649,7 @@ object DatabaseModule {
                 AppDatabase::class.java,
                 "tiny_oscillator.db"
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
                 .build()
         }
     }
@@ -751,7 +713,4 @@ object DatabaseModule {
 
     @Provides
     fun provideUserThemeDao(db: AppDatabase): UserThemeDao = db.userThemeDao()
-
-    @Provides
-    fun provideMarketPerDao(db: AppDatabase): MarketPerDao = db.marketPerDao()
 }

@@ -11,7 +11,6 @@ import com.tinyoscillator.core.database.dao.DartDao
 import com.tinyoscillator.core.database.dao.EnsembleHistoryDao
 import com.tinyoscillator.core.database.dao.IncrementalModelDao
 import com.tinyoscillator.core.database.dao.MacroDao
-import com.tinyoscillator.core.database.dao.MarketPerDao
 import com.tinyoscillator.core.database.dao.FeatureCacheDao
 import com.tinyoscillator.core.database.dao.RegimeDao
 import com.tinyoscillator.core.database.dao.EtfDao
@@ -32,7 +31,6 @@ import com.tinyoscillator.core.database.entity.EnsembleHistoryEntity
 import com.tinyoscillator.core.database.entity.IncrementalModelStateEntity
 import com.tinyoscillator.core.database.entity.ModelDriftAlertEntity
 import com.tinyoscillator.core.database.entity.MacroIndicatorEntity
-import com.tinyoscillator.core.database.entity.MarketPerEntity
 import com.tinyoscillator.core.database.entity.KospiIndexEntity
 import com.tinyoscillator.core.database.entity.RegimeStateEntity
 import com.tinyoscillator.core.database.entity.FeatureCacheEntity
@@ -78,10 +76,9 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         EnsembleHistoryEntity::class,
         IncrementalModelStateEntity::class,
         ModelDriftAlertEntity::class,
-        UserThemeEntity::class,
-        MarketPerEntity::class
+        UserThemeEntity::class
     ],
-    version = 26,
+    version = 24,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -105,5 +102,4 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun ensembleHistoryDao(): EnsembleHistoryDao
     abstract fun incrementalModelDao(): IncrementalModelDao
     abstract fun userThemeDao(): UserThemeDao
-    abstract fun marketPerDao(): MarketPerDao
 }
