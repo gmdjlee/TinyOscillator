@@ -25,6 +25,7 @@ import com.tinyoscillator.data.preferences.IndicatorPreferencesRepository
 import com.tinyoscillator.data.repository.ConsensusRepository
 import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.data.repository.FinancialRepository
+import com.tinyoscillator.data.repository.InvestOpinionRepository
 import com.tinyoscillator.data.repository.FundamentalHistoryRepository
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.data.repository.PortfolioRepository
@@ -119,6 +120,13 @@ object AppModule {
         kisApiClient: KisApiClient,
         json: Json
     ): FinancialRepository = FinancialRepository(financialCacheDao, kisApiClient, json)
+
+    @Provides
+    @Singleton
+    fun provideInvestOpinionRepository(
+        kisApiClient: KisApiClient,
+        json: Json
+    ): InvestOpinionRepository = InvestOpinionRepository(kisApiClient, json)
 
     @Provides
     @Singleton

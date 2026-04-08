@@ -71,6 +71,7 @@ import com.tinyoscillator.presentation.etf.EtfScreen
 import com.tinyoscillator.presentation.etf.StockTrendScreen
 import com.tinyoscillator.domain.model.ConsensusReport
 import com.tinyoscillator.presentation.consensus.ConsensusContent
+import com.tinyoscillator.presentation.investopinion.InvestOpinionContent
 import com.tinyoscillator.presentation.financial.DuPontContent
 import com.tinyoscillator.presentation.financial.FinancialInfoContent
 import com.tinyoscillator.presentation.financial.NaverStockWebScreen
@@ -361,6 +362,7 @@ private enum class MainTab(val label: String) {
     DEMARK("DeMark"),
     FINANCIAL("재무정보"),
     CONSENSUS("컨센서스"),
+    INVEST_OPINION("투자의견"),
     INDICATOR("지표"),
     DUPONT("DuPont"),
     NAVER_STOCK("네이버증권")
@@ -751,6 +753,14 @@ fun OscillatorScreen(
 
                     MainTab.CONSENSUS -> {
                         ConsensusContent(
+                            ticker = currentTicker,
+                            stockName = currentStockName,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    MainTab.INVEST_OPINION -> {
+                        InvestOpinionContent(
                             ticker = currentTicker,
                             stockName = currentStockName,
                             modifier = Modifier.fillMaxSize()
