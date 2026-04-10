@@ -9,8 +9,10 @@
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">kiwoom.com</domain>
         <pin-set expiration="2027-01-01">
-            <!-- Sectigo RSA Extended Validation Secure Server CA (intermediate) -->
-            <pin digest="SHA-256">hEJ5FNYP7ZpNILySZtJgiP6UtW3ClYUTRFxXGqWSWQ0=</pin>
+            <!-- Sectigo Public Server Authentication CA EV R36 (intermediate, 2026-03 renewal) -->
+            <pin digest="SHA-256">0RfXDfccNqREsDzRXraedr+pPfaWA8fMplHCU30xYlo=</pin>
+            <!-- Sectigo Public Server Authentication Root R46 (cross-signed intermediate) -->
+            <pin digest="SHA-256">Douxi77vs4G+Ib/BogbTFymEYq0QSFXwSgVCaZcI09Q=</pin>
             <!-- USERTrust RSA Certification Authority (root backup) -->
             <pin digest="SHA-256">x4QzPSC810K5/cMjb05Qm4k3Bw5zBn4lTdO/nEW/Td4=</pin>
         </pin-set>

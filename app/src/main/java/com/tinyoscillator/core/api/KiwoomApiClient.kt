@@ -247,9 +247,12 @@ class KiwoomApiClient(
 
         /** Pin intermediate CA certificates for KIS/Kiwoom APIs. */
         fun createCertificatePinner(): CertificatePinner = CertificatePinner.Builder()
-            // Kiwoom API - Sectigo RSA EV Secure Server CA (intermediate) + USERTrust RSA (root backup)
+            // Kiwoom API - Sectigo Public Server Authentication CA EV R36 (intermediate, 2026-03 renewal)
+            //            + Sectigo Public Server Authentication Root R46 (cross-signed)
+            //            + USERTrust RSA (root backup)
             .add("*.kiwoom.com",
-                "sha256/hEJ5FNYP7ZpNILySZtJgiP6UtW3ClYUTRFxXGqWSWQ0=",
+                "sha256/0RfXDfccNqREsDzRXraedr+pPfaWA8fMplHCU30xYlo=",
+                "sha256/Douxi77vs4G+Ib/BogbTFymEYq0QSFXwSgVCaZcI09Q=",
                 "sha256/x4QzPSC810K5/cMjb05Qm4k3Bw5zBn4lTdO/nEW/Td4="
             )
             // KIS API - Sectigo RSA OV Secure Server CA (intermediate) + USERTrust RSA (root backup)
