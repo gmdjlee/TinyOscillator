@@ -81,7 +81,7 @@ class ReportViewModelTest {
         advanceUntilIdle()
 
         assertEquals(newFilter, vm.filter.value)
-        assertEquals(1, vm.reports.value.size)
+        assertEquals(1, vm.pagedReports.value.size)
     }
 
     @Test
@@ -106,7 +106,7 @@ class ReportViewModelTest {
         val vm = createViewModel()
         advanceUntilIdle()
 
-        assertEquals(2, vm.reports.value.size)
-        assertEquals(2, vm.reportCount.value)
+        assertEquals(2, vm.pagedReports.value.size)
+        assertEquals(2, vm.totalCount.value)
     }
 }

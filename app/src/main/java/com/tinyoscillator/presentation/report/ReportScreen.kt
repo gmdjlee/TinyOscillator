@@ -5,6 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FirstPage
+import androidx.compose.material.icons.filled.LastPage
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Clear
@@ -20,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -41,11 +46,13 @@ fun ReportScreen(
     onReportClick: (ConsensusReport) -> Unit = {},
     viewModel: ReportViewModel = hiltViewModel()
 ) {
-    val reports by viewModel.reports.collectAsStateWithLifecycle()
+    val pagedReports by viewModel.pagedReports.collectAsStateWithLifecycle()
     val filter by viewModel.filter.collectAsStateWithLifecycle()
     val filterOptions by viewModel.filterOptions.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    val reportCount by viewModel.reportCount.collectAsStateWithLifecycle()
+    val totalCount by viewModel.totalCount.collectAsStateWithLifecycle()
+    val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
+    val totalPages by viewModel.totalPages.collectAsStateWithLifecycle()
     val themeModeState = LocalThemeModeState.current
 
     // 화면 재진입 시 데이터 새로고침 (수집 후 최신 데이터 반영)
@@ -62,12 +69,12 @@ fun ReportScreen(
             TopAppBar(
                 title = { Text("리포트") },
                 actions = {
-                    if (reportCount > 0) {
+                    if (totalCount > 0) {
                         Badge(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                         ) {
-                            Text("$reportCount")
+                            Text("$totalCount")
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                     }
@@ -96,13 +103,14 @@ fun ReportScreen(
                 ) {
                     CircularProgressIndicator()
                 }
-            } else if (reports.isEmpty()) {
+            } else if (totalCount == 0) {
                 ReportTable(
                     reports = emptyList(),
                     filter = filter,
                     filterOptions = filterOptions,
                     onFilterChanged = { viewModel.updateFilter(it) },
-                    onReportClick = onReportClick
+                    onReportClick = onReportClick,
+                    onPageSizeChanged = { viewModel.setPageSize(it) }
                 )
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -116,12 +124,24 @@ fun ReportScreen(
                 }
             } else {
                 ReportTable(
-                    reports = reports,
+                    reports = pagedReports,
                     filter = filter,
                     filterOptions = filterOptions,
                     onFilterChanged = { viewModel.updateFilter(it) },
-                    onReportClick = onReportClick
+                    onReportClick = onReportClick,
+                    onPageSizeChanged = { viewModel.setPageSize(it) },
+                    modifier = Modifier.weight(1f)
                 )
+                if (totalPages > 1) {
+                    PaginationBar(
+                        currentPage = currentPage,
+                        totalPages = totalPages,
+                        onFirstPage = { viewModel.goToPage(0) },
+                        onPrevPage = { viewModel.prevPage() },
+                        onNextPage = { viewModel.nextPage() },
+                        onLastPage = { viewModel.goToPage(totalPages - 1) }
+                    )
+                }
             }
         }
     }
@@ -137,6 +157,9 @@ private object ColWeights {
     const val INST = 1.0f
 }
 
+/** 고정 행 높이: Card margin(2) + Row padding(12) + bodySmall 2lines(32) = 46dp */
+private val FIXED_ROW_HEIGHT: Dp = 46.dp
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReportTable(
@@ -144,7 +167,9 @@ private fun ReportTable(
     filter: ConsensusFilter,
     filterOptions: ConsensusFilterOptions,
     onFilterChanged: (ConsensusFilter) -> Unit,
-    onReportClick: (ConsensusReport) -> Unit = {}
+    onReportClick: (ConsensusReport) -> Unit = {},
+    onPageSizeChanged: (Int) -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
 
@@ -152,7 +177,7 @@ private fun ReportTable(
     var showDatePicker by remember { mutableStateOf(false) }
     var showStockNameSearch by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize()) {
         // Header row
         Row(
             modifier = Modifier
@@ -192,34 +217,42 @@ private fun ReportTable(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(reports, key = { "${it.writeDate}_${it.stockTicker}_${it.title}" }) { report ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 2.dp, vertical = 1.dp)
-                        .clickable { onReportClick(report) },
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-                ) {
-                    Row(
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val calculatedPageSize = (maxHeight / FIXED_ROW_HEIGHT).toInt().coerceAtLeast(1)
+            LaunchedEffect(calculatedPageSize) {
+                onPageSizeChanged(calculatedPageSize)
+            }
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                reports.forEach { report ->
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .height(FIXED_ROW_HEIGHT)
+                            .padding(horizontal = 2.dp, vertical = 1.dp)
+                            .clickable { onReportClick(report) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
                     ) {
-                        DataCell(formatShortDate(report.writeDate), Modifier.weight(ColWeights.DATE))
-                        DataCell(report.stockName, Modifier.weight(ColWeights.NAME))
-                        DataCell(report.title, Modifier.weight(ColWeights.TITLE), maxLines = 2)
-                        DataCell(report.opinion, Modifier.weight(ColWeights.OPINION))
-                        DataCell(
-                            text = if (report.targetPrice > 0) numberFormat.format(report.targetPrice) else "-",
-                            modifier = Modifier.weight(ColWeights.TARGET),
-                            textAlign = TextAlign.End
-                        )
-                        DataCell(report.institution, Modifier.weight(ColWeights.INST))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 4.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            DataCell(formatShortDate(report.writeDate), Modifier.weight(ColWeights.DATE))
+                            DataCell(report.stockName, Modifier.weight(ColWeights.NAME))
+                            DataCell(report.title, Modifier.weight(ColWeights.TITLE), maxLines = 2)
+                            DataCell(report.opinion, Modifier.weight(ColWeights.OPINION))
+                            DataCell(
+                                text = if (report.targetPrice > 0) numberFormat.format(report.targetPrice) else "-",
+                                modifier = Modifier.weight(ColWeights.TARGET),
+                                textAlign = TextAlign.End
+                            )
+                            DataCell(report.institution, Modifier.weight(ColWeights.INST))
+                        }
                     }
                 }
             }
@@ -664,4 +697,50 @@ private fun DataCell(
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis
     )
+}
+
+@Composable
+private fun PaginationBar(
+    currentPage: Int,
+    totalPages: Int,
+    onFirstPage: () -> Unit,
+    onPrevPage: () -> Unit,
+    onNextPage: () -> Unit,
+    onLastPage: () -> Unit
+) {
+    val isFirst = currentPage <= 0
+    val isLast = currentPage >= totalPages - 1
+
+    Surface(
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onFirstPage, enabled = !isFirst) {
+                Icon(Icons.Default.FirstPage, contentDescription = "첫 페이지")
+            }
+            IconButton(onClick = onPrevPage, enabled = !isFirst) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "이전 페이지")
+            }
+
+            Text(
+                text = "${currentPage + 1} / $totalPages",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+
+            IconButton(onClick = onNextPage, enabled = !isLast) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "다음 페이지")
+            }
+            IconButton(onClick = onLastPage, enabled = !isLast) {
+                Icon(Icons.Default.LastPage, contentDescription = "마지막 페이지")
+            }
+        }
+    }
 }

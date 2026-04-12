@@ -37,21 +37,20 @@ class EstimatedEarningsViewModelTest {
         info = EstimatedEarningsInfo(
             ticker = "005930",
             stockName = "삼성전자",
-            currentPrice = "75,000",
-            priceChange = "1,000",
-            changeSign = "2",
-            changeRate = "1.35",
-            volume = "12345678",
+            analystName = "김철수",
+            estimateDate = "2026.03.27",
+            recommendation = "매수",
+            targetPrice = "50,000",
         ),
         earningsData = listOf(
-            EstimatedEarningsRow("매출액", "2,589,354", "2,718,073", "2,850,000", "3,000,000"),
-            EstimatedEarningsRow("영업이익", "65,670", "153,833", "200,000", "250,000"),
+            EstimatedEarningsRow("매출액", "3,000,000", "2,589,354", "2,718,073", "2,850,000", "3,000,000"),
+            EstimatedEarningsRow("영업이익", "500,000", "656,700", "1,538,330", "2,000,000", "2,500,000"),
         ),
         valuationData = listOf(
-            EstimatedEarningsRow("EPS", "2,131", "3,835", "4,500", "5,200"),
-            EstimatedEarningsRow("PER", "35.2", "19.6", "16.7", "14.4"),
+            EstimatedEarningsRow("EPS", "1,800", "2,131", "3,835", "4,500", "5,200"),
+            EstimatedEarningsRow("PER", "4.2", "3.5", "2.0", "1.7", "1.4"),
         ),
-        periods = listOf("202312", "202412", "202512", "202612"),
+        periods = listOf("2022.12", "2023.12", "2024.12", "2025.12E", "2026.12E"),
     )
 
     @Before

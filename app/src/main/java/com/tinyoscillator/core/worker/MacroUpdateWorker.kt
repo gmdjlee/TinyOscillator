@@ -42,8 +42,7 @@ class MacroUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.d("매크로 지표 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
-        CollectionNotificationHelper.createChannel(applicationContext)
-        setForeground(createForegroundInfo("매크로 지표 수집 준비 중..."))
+        showInitialNotification("매크로 지표 수집 준비 중...")
 
         val ecosApiKey = try { apiConfigProvider.getEcosApiKey() } catch (_: Exception) { null }
         if (ecosApiKey.isNullOrBlank()) {

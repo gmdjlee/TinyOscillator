@@ -66,7 +66,6 @@ object CollectionNotificationHelper {
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(pendingIntent)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
     }
 
     fun buildCompletionNotification(

@@ -26,8 +26,7 @@ class ConsensusUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.d("리포트 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
-        CollectionNotificationHelper.createChannel(applicationContext)
-        setForeground(createForegroundInfo("리포트 데이터 수집 준비 중..."))
+        showInitialNotification("리포트 데이터 수집 준비 중...")
 
         val today = LocalDate.now()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)

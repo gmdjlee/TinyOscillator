@@ -38,7 +38,7 @@ class MetaLearnerRefitWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.i("━━━ MetaLearnerRefitWorker 시작 ━━━")
         return try {
-            setForeground(createForegroundInfo("메타 학습기 재학습 준비 중..."))
+            showInitialNotification("메타 학습기 재학습 준비 중...")
 
             val algoNames = RegimeWeightTable.ALL_ALGOS
             val trainingData = signalHistoryStore.toTrainingData(algoNames)

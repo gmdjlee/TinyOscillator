@@ -53,15 +53,25 @@ abstract class BaseCollectionWorker(
         )
     }
 
-    protected fun createForegroundInfo(message: String): ForegroundInfo {
+    /**
+     * OneTime Expedited Worker의 Android <12 폴백용.
+     * Periodic Worker의 doWork()에서는 호출하지 않는다.
+     */
+    override suspend fun getForegroundInfo(): ForegroundInfo {
+        CollectionNotificationHelper.createChannel(applicationContext)
         val notification = CollectionNotificationHelper.buildProgressNotification(
-            applicationContext, notificationTitle, message, indeterminate = true
+            applicationContext, notificationTitle, notificationTitle, indeterminate = true
         )
         return ForegroundInfo(
             notificationId,
             notification.build(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         )
+    }
+
+    protected fun showInitialNotification(message: String) {
+        CollectionNotificationHelper.createChannel(applicationContext)
+        updateNotification(message, 0)
     }
 
     /**

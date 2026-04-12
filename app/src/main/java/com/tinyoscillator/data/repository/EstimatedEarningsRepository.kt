@@ -4,6 +4,11 @@ import com.tinyoscillator.core.api.KisApiClient
 import com.tinyoscillator.core.api.KisApiKeyConfig
 import com.tinyoscillator.data.dto.KisEstimatedEarningsResponse
 import com.tinyoscillator.data.dto.mapToEstimatedEarningsInfo
+import com.tinyoscillator.data.dto.EARNINGS_FORMATS
+import com.tinyoscillator.data.dto.EARNINGS_LABELS
+import com.tinyoscillator.data.dto.VALUATION_FORMATS
+import com.tinyoscillator.data.dto.VALUATION_LABELS
+import com.tinyoscillator.data.dto.formatAmount
 import com.tinyoscillator.data.dto.mapToEstimatedEarningsRow
 import com.tinyoscillator.data.dto.mapToPeriod
 import com.tinyoscillator.domain.model.EstimatedEarningsSummary
@@ -59,8 +64,20 @@ class EstimatedEarningsRepository(
             }
 
             val info = mapToEstimatedEarningsInfo(output1, ticker)
-            val earningsData = apiResponse.output2?.map { mapToEstimatedEarningsRow(it) } ?: emptyList()
-            val valuationData = apiResponse.output3?.map { mapToEstimatedEarningsRow(it) } ?: emptyList()
+            val earningsData = apiResponse.output2?.mapIndexed { index, item ->
+                mapToEstimatedEarningsRow(
+                    item,
+                    EARNINGS_LABELS.getOrElse(index) { "" },
+                    EARNINGS_FORMATS.getOrElse(index) { ::formatAmount }
+                )
+            } ?: emptyList()
+            val valuationData = apiResponse.output3?.mapIndexed { index, item ->
+                mapToEstimatedEarningsRow(
+                    item,
+                    VALUATION_LABELS.getOrElse(index) { "" },
+                    VALUATION_FORMATS.getOrElse(index) { ::formatAmount }
+                )
+            } ?: emptyList()
             val periods = apiResponse.output4?.map { mapToPeriod(it) }?.filter { it.isNotBlank() } ?: emptyList()
 
             Timber.d("추정실적 매핑: output2=%d, output3=%d, periods=%d",

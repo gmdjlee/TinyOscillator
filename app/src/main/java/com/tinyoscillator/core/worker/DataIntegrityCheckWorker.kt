@@ -51,8 +51,7 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.d("데이터 무결성 검사 시작 (attempt: $runAttemptCount)")
 
-        CollectionNotificationHelper.createChannel(applicationContext)
-        setForeground(createForegroundInfo("데이터 무결성 검사 준비 중..."))
+        showInitialNotification("데이터 무결성 검사 준비 중...")
 
         val creds = loadKrxCredentials(applicationContext)
         val hasKrxCreds = creds.id.isNotBlank() && creds.password.isNotBlank()

@@ -3,14 +3,14 @@ package com.tinyoscillator.domain.model
 data class EstimatedEarningsInfo(
     val ticker: String,
     val stockName: String,
-    val currentPrice: String,
-    val priceChange: String,
-    val changeSign: String,
-    val changeRate: String,
-    val volume: String,
+    val analystName: String,
+    val estimateDate: String,
+    val recommendation: String,
+    val targetPrice: String,
 )
 
 data class EstimatedEarningsRow(
+    val label: String,
     val data1: String,
     val data2: String,
     val data3: String,

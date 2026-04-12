@@ -46,8 +46,7 @@ class RegimeUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.d("시장 레짐 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
-        CollectionNotificationHelper.createChannel(applicationContext)
-        setForeground(createForegroundInfo("시장 레짐 모델 학습 준비 중..."))
+        showInitialNotification("시장 레짐 모델 학습 준비 중...")
 
         val creds = loadKrxCredentials(applicationContext)
         if (creds.id.isBlank() || creds.password.isBlank()) {

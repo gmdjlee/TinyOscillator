@@ -60,8 +60,7 @@ class MarketCloseRefreshWorker @AssistedInject constructor(
             return Result.success()
         }
 
-        CollectionNotificationHelper.createChannel(applicationContext)
-        setForeground(createForegroundInfo("장 마감 데이터 교체 준비 중..."))
+        showInitialNotification("장 마감 데이터 교체 준비 중...")
 
         val todayStr = today.format(DateFormats.yyyyMMdd)
         val todayIso = today.toString() // yyyy-MM-dd

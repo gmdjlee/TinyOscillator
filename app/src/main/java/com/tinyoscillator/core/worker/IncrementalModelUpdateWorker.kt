@@ -49,7 +49,7 @@ class IncrementalModelUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.i("━━━ IncrementalModelUpdateWorker 시작 ━━━")
         return try {
-            setForeground(createForegroundInfo("점진적 모델 업데이트 준비 중..."))
+            showInitialNotification("점진적 모델 업데이트 준비 중...")
 
             val manager = statisticalAnalysisEngine.incrementalModelManager
 

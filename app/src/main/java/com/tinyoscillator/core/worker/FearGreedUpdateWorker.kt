@@ -23,8 +23,7 @@ class FearGreedUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.d("Fear & Greed 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
-        CollectionNotificationHelper.createChannel(applicationContext)
-        setForeground(createForegroundInfo("Fear & Greed 데이터 수집 준비 중..."))
+        showInitialNotification("Fear & Greed 데이터 수집 준비 중...")
 
         val creds = loadKrxCredentials(applicationContext)
         if (creds.id.isBlank() || creds.password.isBlank()) {

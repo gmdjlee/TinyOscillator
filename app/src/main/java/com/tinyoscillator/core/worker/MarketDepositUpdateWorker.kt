@@ -22,8 +22,7 @@ class MarketDepositUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.d("자금 동향 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
-        CollectionNotificationHelper.createChannel(applicationContext)
-        setForeground(createForegroundInfo("자금 동향 데이터 수집 준비 중..."))
+        showInitialNotification("자금 동향 데이터 수집 준비 중...")
 
         val period = loadMarketDepositCollectionPeriod(applicationContext)
 

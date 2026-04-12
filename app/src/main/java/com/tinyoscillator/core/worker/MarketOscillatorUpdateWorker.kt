@@ -24,8 +24,7 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.d("시장지표 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
-        CollectionNotificationHelper.createChannel(applicationContext)
-        setForeground(createForegroundInfo("과매수/과매도 데이터 수집 준비 중..."))
+        showInitialNotification("과매수/과매도 데이터 수집 준비 중...")
 
         val creds = loadKrxCredentials(applicationContext)
         if (creds.id.isBlank() || creds.password.isBlank()) {

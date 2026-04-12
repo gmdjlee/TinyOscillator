@@ -4,14 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -22,8 +19,6 @@ import com.tinyoscillator.domain.model.EstimatedEarningsInfo
 import com.tinyoscillator.domain.model.EstimatedEarningsRow
 import com.tinyoscillator.domain.model.EstimatedEarningsSummary
 import com.tinyoscillator.ui.theme.LocalFinanceColors
-import java.text.NumberFormat
-import java.util.Locale
 
 @Composable
 fun EstimatedEarningsContent(
@@ -168,24 +163,6 @@ private fun EstimatedEarningsTable(summary: EstimatedEarningsSummary) {
 
 @Composable
 private fun StockInfoCard(info: EstimatedEarningsInfo) {
-    val financeColors = LocalFinanceColors.current
-    val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
-
-    val priceValue = info.currentPrice.replace(",", "").toLongOrNull()
-    val changeValue = info.priceChange.replace(",", "").toLongOrNull()
-    val isPositive = info.changeSign == "2" || info.changeSign == "1"
-    val isNegative = info.changeSign == "5" || info.changeSign == "4"
-    val priceColor = when {
-        isPositive -> financeColors.positive
-        isNegative -> financeColors.negative
-        else -> MaterialTheme.colorScheme.onSurface
-    }
-    val signPrefix = when {
-        isPositive -> "+"
-        isNegative -> "-"
-        else -> ""
-    }
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -196,7 +173,7 @@ private fun StockInfoCard(info: EstimatedEarningsInfo) {
             if (info.stockName.isNotBlank()) {
                 Text(
                     text = info.stockName,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -205,30 +182,43 @@ private fun StockInfoCard(info: EstimatedEarningsInfo) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Current price
-                Text(
-                    text = priceValue?.let { "${numberFormat.format(it)}원" }
-                        ?: info.currentPrice.ifBlank { "-" },
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = priceColor
-                )
+                // Analyst + date
+                Column {
+                    if (info.analystName.isNotBlank()) {
+                        Text(
+                            text = info.analystName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (info.estimateDate.isNotBlank()) {
+                        Text(
+                            text = info.estimateDate,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
 
-                // Change info
+                // Recommendation + target price
                 Column(horizontalAlignment = Alignment.End) {
-                    val changeText = changeValue?.let {
-                        "$signPrefix${numberFormat.format(it)}"
-                    } ?: info.priceChange.ifBlank { "-" }
-                    val rateText = info.changeRate.ifBlank { null }
-
-                    Text(
-                        text = if (rateText != null) "$changeText ($rateText%)" else changeText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = priceColor
-                    )
+                    if (info.recommendation.isNotBlank()) {
+                        Text(
+                            text = info.recommendation,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (info.targetPrice.isNotBlank()) {
+                        Text(
+                            text = "목표 ${info.targetPrice}억원",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -241,7 +231,7 @@ private fun DataTable(
     rows: List<EstimatedEarningsRow>,
     scrollState: androidx.compose.foundation.ScrollState
 ) {
-    val columnCount = periods.size.coerceIn(1, 4)
+    val columnCount = periods.size.coerceIn(1, 5)
     val labelWidth = 80.dp
     val valueWidth = 90.dp
 
@@ -298,7 +288,7 @@ private fun DataTable(
 
             // Data rows
             rows.forEachIndexed { index, row ->
-                val values = listOf(row.data2, row.data3, row.data4, row.data5)
+                val values = listOf(row.data1, row.data2, row.data3, row.data4, row.data5)
 
                 Row(
                     modifier = Modifier
@@ -309,10 +299,10 @@ private fun DataTable(
                         .padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Row label (data1)
+                    // Row label (positional label from API spec)
                     Box(modifier = Modifier.width(labelWidth)) {
                         Text(
-                            text = row.data1.ifBlank { "-" },
+                            text = row.label.ifBlank { "-" },
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
@@ -320,7 +310,7 @@ private fun DataTable(
                         )
                     }
 
-                    // Value cells (data2-data5 mapped to periods)
+                    // Value cells (data1-data5 mapped to periods)
                     values.take(columnCount).forEach { value ->
                         Box(
                             modifier = Modifier.width(valueWidth),
@@ -360,10 +350,12 @@ private fun getValueColor(value: String): androidx.compose.ui.graphics.Color {
 }
 
 private fun formatPeriod(period: String): String {
-    // Convert "202412" or "2024/12" to "24/12" for compact display
-    val cleaned = period.replace("/", "").replace(".", "")
+    // "2024.12" → "24/12", "2025.12E" → "25/12E"
+    val isEstimate = period.endsWith("E")
+    val cleaned = period.replace("/", "").replace(".", "").removeSuffix("E")
     return if (cleaned.length >= 6) {
-        "${cleaned.substring(2, 4)}/${cleaned.substring(4, 6)}"
+        val ym = "${cleaned.substring(2, 4)}/${cleaned.substring(4, 6)}"
+        if (isEstimate) "${ym}E" else ym
     } else {
         period
     }

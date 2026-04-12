@@ -37,7 +37,7 @@ class SignalOutcomeUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.i("━━━ SignalOutcomeUpdateWorker 시작 ━━━")
         return try {
-            setForeground(createForegroundInfo("신호 결과 수집 준비 중..."))
+            showInitialNotification("신호 결과 수집 준비 중...")
 
             val config = apiConfigProvider.getKiwoomConfig()
             if (config == null || !config.isValid()) {

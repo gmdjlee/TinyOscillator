@@ -25,8 +25,7 @@ class EtfUpdateWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         Timber.d("ETF 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
-        CollectionNotificationHelper.createChannel(applicationContext)
-        setForeground(createForegroundInfo("ETF 데이터 수집 준비 중..."))
+        showInitialNotification("ETF 데이터 수집 준비 중...")
 
         val creds = loadKrxCredentials(applicationContext)
         if (creds.id.isBlank() || creds.password.isBlank()) {
