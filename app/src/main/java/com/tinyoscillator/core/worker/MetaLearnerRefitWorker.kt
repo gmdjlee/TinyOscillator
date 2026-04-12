@@ -35,7 +35,7 @@ class MetaLearnerRefitWorker @AssistedInject constructor(
         const val LABEL = "MetaLearnerRefit"
     }
 
-    override suspend fun doWork(): Result {
+    override suspend fun doCollectionWork(): Result {
         Timber.i("━━━ MetaLearnerRefitWorker 시작 ━━━")
         return try {
             showInitialNotification("메타 학습기 재학습 준비 중...")

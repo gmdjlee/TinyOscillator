@@ -39,7 +39,7 @@ class MacroUpdateWorker @AssistedInject constructor(
     override val notificationTitle = "매크로 지표 업데이트"
     override val notificationId = MACRO_NOTIFICATION_ID
 
-    override suspend fun doWork(): Result {
+    override suspend fun doCollectionWork(): Result {
         Timber.d("매크로 지표 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
         showInitialNotification("매크로 지표 수집 준비 중...")

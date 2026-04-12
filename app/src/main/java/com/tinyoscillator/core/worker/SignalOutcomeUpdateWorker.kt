@@ -34,7 +34,7 @@ class SignalOutcomeUpdateWorker @AssistedInject constructor(
         const val LABEL = "SignalOutcomeUpdate"
     }
 
-    override suspend fun doWork(): Result {
+    override suspend fun doCollectionWork(): Result {
         Timber.i("━━━ SignalOutcomeUpdateWorker 시작 ━━━")
         return try {
             showInitialNotification("신호 결과 수집 준비 중...")

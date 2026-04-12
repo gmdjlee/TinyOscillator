@@ -6,9 +6,12 @@ import com.tinyoscillator.domain.model.LogisticResult
 import com.tinyoscillator.domain.model.OscillatorRow
 import com.tinyoscillator.domain.repository.FundamentalSnapshot
 import com.tinyoscillator.core.di.LogisticPrefs
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -29,6 +32,7 @@ class LogisticScoringEngine @Inject constructor(
         private const val LOOK_AHEAD_DAYS = 20
         private const val LEARNING_RATE = 0.01
         private const val EPOCHS = 100
+        private const val CONVERGENCE_THRESHOLD = 1e-6
         private const val NORMALIZATION_WINDOW = 60
         private const val PREFS_PREFIX = "logistic_weight_"
         private const val PREFS_BIAS = "logistic_bias"
@@ -142,19 +146,25 @@ class LogisticScoringEngine @Inject constructor(
 
         if (features.isEmpty()) return
 
-        // 경사하강법
+        // 경사하강법 (수렴 시 조기 종료)
         val numFeatures = FEATURE_NAMES.size
         val weights = DoubleArray(numFeatures) { 0.0 }
         var bias = 0.0
+        var prevLoss = Double.MAX_VALUE
 
         for (epoch in 0 until EPOCHS) {
             val gradW = DoubleArray(numFeatures) { 0.0 }
             var gradB = 0.0
+            var totalLoss = 0.0
 
             for (j in features.indices) {
                 val z = dotProduct(weights.toList(), features[j]) + bias
                 val pred = sigmoid(z)
                 val error = pred - labels[j]
+
+                // Binary cross-entropy loss
+                val clampedPred = pred.coerceIn(1e-15, 1.0 - 1e-15)
+                totalLoss += -(labels[j] * ln(clampedPred) + (1 - labels[j]) * ln(1 - clampedPred))
 
                 for (k in 0 until numFeatures) {
                     gradW[k] += error * features[j][k]
@@ -163,10 +173,19 @@ class LogisticScoringEngine @Inject constructor(
             }
 
             val n = features.size.toDouble()
+            val avgLoss = totalLoss / n
+
             for (k in 0 until numFeatures) {
                 weights[k] -= LEARNING_RATE * gradW[k] / n
             }
             bias -= LEARNING_RATE * gradB / n
+
+            // 수렴 검사: loss 변화가 임계값 이하이면 조기 종료
+            if (abs(prevLoss - avgLoss) < CONVERGENCE_THRESHOLD) {
+                Timber.d("LogisticScoring 수렴: epoch=%d, loss=%.6f", epoch, avgLoss)
+                break
+            }
+            prevLoss = avgLoss
         }
 
         // 가중치 저장

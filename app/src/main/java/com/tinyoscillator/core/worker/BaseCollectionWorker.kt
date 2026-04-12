@@ -12,6 +12,9 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
+import timber.log.Timber
 
 /**
  * Base class for data collection workers that share notification and progress reporting logic.
@@ -26,6 +29,29 @@ abstract class BaseCollectionWorker(
 
     /** Notification ID from CollectionNotificationHelper */
     abstract val notificationId: Int
+
+    /** 워커 최대 실행 시간 (기본 30분). 하위 클래스에서 override 가능. */
+    open val maxDurationMs: Long = 30L * 60 * 1000
+
+    /**
+     * 하위 클래스가 구현하는 실제 작업 로직.
+     * doWork()에서 withTimeout으로 감싸서 호출된다.
+     */
+    abstract suspend fun doCollectionWork(): Result
+
+    override suspend fun doWork(): Result {
+        return try {
+            withTimeout(maxDurationMs) {
+                doCollectionWork()
+            }
+        } catch (e: TimeoutCancellationException) {
+            val msg = "$notificationTitle 타임아웃 (${maxDurationMs / 1000}초 초과)"
+            Timber.e(msg)
+            showCompletion(msg, isError = true)
+            saveLog(notificationTitle, STATUS_ERROR, msg)
+            if (runAttemptCount < 3) Result.retry() else Result.failure()
+        }
+    }
 
     protected suspend fun updateProgress(message: String, status: String, progress: Float = 0f) {
         setProgress(workDataOf(

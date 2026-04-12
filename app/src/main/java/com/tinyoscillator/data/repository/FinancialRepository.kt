@@ -332,7 +332,7 @@ class FinancialRepository(
     companion object {
         private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L  // 24시간
         private const val CLEANUP_INTERVAL_MS = 60 * 60 * 1000L  // 1시간
-        private const val API_BATCH_TIMEOUT_MS = 120_000L  // 120초 (5 parallel API calls)
+        private const val API_BATCH_TIMEOUT_MS = 180_000L  // 180초 (5 parallel API calls, 각 ~30초 여유)
 
         private const val TR_BALANCE_SHEET = "FHKST66430100"
         private const val TR_INCOME_STATEMENT = "FHKST66430200"

@@ -20,7 +20,7 @@ class FearGreedUpdateWorker @AssistedInject constructor(
     override val notificationTitle = "Fear & Greed 업데이트"
     override val notificationId = CollectionNotificationHelper.FEAR_GREED_NOTIFICATION_ID
 
-    override suspend fun doWork(): Result {
+    override suspend fun doCollectionWork(): Result {
         Timber.d("Fear & Greed 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
         showInitialNotification("Fear & Greed 데이터 수집 준비 중...")

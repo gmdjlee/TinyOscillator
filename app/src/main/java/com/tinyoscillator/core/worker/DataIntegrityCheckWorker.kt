@@ -48,7 +48,9 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
     override val notificationTitle = "데이터 무결성 검사"
     override val notificationId = CollectionNotificationHelper.INTEGRITY_CHECK_NOTIFICATION_ID
 
-    override suspend fun doWork(): Result {
+    override val maxDurationMs = 60L * 60 * 1000  // 무결성 검사는 오래 걸릴 수 있어 60분
+
+    override suspend fun doCollectionWork(): Result {
         Timber.d("데이터 무결성 검사 시작 (attempt: $runAttemptCount)")
 
         showInitialNotification("데이터 무결성 검사 준비 중...")

@@ -19,7 +19,7 @@ class MarketDepositUpdateWorker @AssistedInject constructor(
     override val notificationTitle = "자금 동향 데이터 수집"
     override val notificationId = CollectionNotificationHelper.DEPOSIT_NOTIFICATION_ID
 
-    override suspend fun doWork(): Result {
+    override suspend fun doCollectionWork(): Result {
         Timber.d("자금 동향 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
         showInitialNotification("자금 동향 데이터 수집 준비 중...")

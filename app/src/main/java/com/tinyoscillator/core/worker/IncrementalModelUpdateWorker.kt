@@ -46,7 +46,7 @@ class IncrementalModelUpdateWorker @AssistedInject constructor(
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
 
-    override suspend fun doWork(): Result {
+    override suspend fun doCollectionWork(): Result {
         Timber.i("━━━ IncrementalModelUpdateWorker 시작 ━━━")
         return try {
             showInitialNotification("점진적 모델 업데이트 준비 중...")

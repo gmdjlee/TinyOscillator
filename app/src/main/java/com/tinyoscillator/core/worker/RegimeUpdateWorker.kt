@@ -43,7 +43,7 @@ class RegimeUpdateWorker @AssistedInject constructor(
     override val notificationTitle = "시장 레짐 업데이트"
     override val notificationId = REGIME_NOTIFICATION_ID
 
-    override suspend fun doWork(): Result {
+    override suspend fun doCollectionWork(): Result {
         Timber.d("시장 레짐 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
         showInitialNotification("시장 레짐 모델 학습 준비 중...")

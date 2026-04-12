@@ -21,7 +21,7 @@ class MarketOscillatorUpdateWorker @AssistedInject constructor(
     override val notificationTitle = "과매수/과매도 데이터 수집"
     override val notificationId = CollectionNotificationHelper.OSCILLATOR_NOTIFICATION_ID
 
-    override suspend fun doWork(): Result {
+    override suspend fun doCollectionWork(): Result {
         Timber.d("시장지표 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
         showInitialNotification("과매수/과매도 데이터 수집 준비 중...")

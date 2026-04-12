@@ -23,7 +23,9 @@ class ConsensusUpdateWorker @AssistedInject constructor(
     override val notificationTitle = "리포트 데이터 수집"
     override val notificationId = CollectionNotificationHelper.CONSENSUS_NOTIFICATION_ID
 
-    override suspend fun doWork(): Result {
+    override val maxDurationMs = 45L * 60 * 1000  // 스크래핑 딜레이가 길어 45분
+
+    override suspend fun doCollectionWork(): Result {
         Timber.d("리포트 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
         showInitialNotification("리포트 데이터 수집 준비 중...")

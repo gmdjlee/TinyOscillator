@@ -49,7 +49,7 @@ class MarketCloseRefreshWorker @AssistedInject constructor(
     override val notificationTitle = "장 마감 데이터 교체"
     override val notificationId = CollectionNotificationHelper.MARKET_CLOSE_REFRESH_NOTIFICATION_ID
 
-    override suspend fun doWork(): Result {
+    override suspend fun doCollectionWork(): Result {
         Timber.d("장 마감 데이터 교체 워커 시작 (attempt: $runAttemptCount)")
 
         // 평일 체크 (토/일이면 건너뜀)

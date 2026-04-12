@@ -22,7 +22,9 @@ class EtfUpdateWorker @AssistedInject constructor(
     override val notificationTitle = "ETF 데이터 수집"
     override val notificationId = CollectionNotificationHelper.ETF_NOTIFICATION_ID
 
-    override suspend fun doWork(): Result {
+    override val maxDurationMs = 45L * 60 * 1000  // ETF 수집은 대량이므로 45분
+
+    override suspend fun doCollectionWork(): Result {
         Timber.d("ETF 업데이트 워커 시작 (attempt: $runAttemptCount)")
 
         showInitialNotification("ETF 데이터 수집 준비 중...")

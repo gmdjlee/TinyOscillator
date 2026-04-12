@@ -148,7 +148,7 @@ class EquityReportScraper(
         }
     }
 
-    private fun fetchPageWithRetry(pageNo: Int): String? {
+    private suspend fun fetchPageWithRetry(pageNo: Int): String? {
         for (attempt in 1..MAX_RETRY) {
             try {
                 val body = FormBody.Builder()
@@ -166,7 +166,7 @@ class EquityReportScraper(
                 httpClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
                         Timber.e("HTTP ${response.code} for page $pageNo (attempt $attempt)")
-                        if (attempt < MAX_RETRY) Thread.sleep(3000)
+                        if (attempt < MAX_RETRY) delay(3000)
                         return@use
                     }
                     val html = response.body?.string()
@@ -174,7 +174,7 @@ class EquityReportScraper(
                 }
             } catch (e: IOException) {
                 Timber.e(e, "HTTP request failed for page $pageNo (attempt $attempt)")
-                if (attempt < MAX_RETRY) Thread.sleep(5000)
+                if (attempt < MAX_RETRY) delay(5000)
             }
         }
         return null
