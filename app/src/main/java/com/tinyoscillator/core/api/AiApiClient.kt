@@ -5,6 +5,8 @@ import com.tinyoscillator.domain.model.AiAnalysisType
 import com.tinyoscillator.domain.model.AiApiKeyConfig
 import com.tinyoscillator.domain.model.AiModelInfo
 import com.tinyoscillator.domain.model.AiProvider
+import com.tinyoscillator.domain.model.ChatMessage
+import com.tinyoscillator.domain.model.ChatRole
 import com.tinyoscillator.domain.model.ClaudeModelsResponse
 import com.tinyoscillator.domain.model.ClaudeResponse
 import com.tinyoscillator.domain.model.GeminiModelsResponse
@@ -286,6 +288,167 @@ class AiApiClient(
                 outputTokens = geminiResponse.usageMetadata.candidatesTokenCount
             )
         )
+    }
+
+    // endregion
+
+    // region Chat (multi-turn)
+
+    /**
+     * 멀티턴 대화. systemPrompt + 대화 히스토리를 전송하고 응답을 반환한다.
+     */
+    suspend fun chat(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        messages: List<ChatMessage>,
+        maxTokens: Int = 1024,
+        temperature: Double = 0.3
+    ): Result<String> = withContext(Dispatchers.IO) {
+        if (circuitBreaker.isOpen) {
+            return@withContext Result.failure(ApiError.NetworkError("AI API 일시 중단 (연속 실패)"))
+        }
+
+        var lastResult = chatOnce(config, systemPrompt, messages, maxTokens, temperature)
+
+        val retryError = lastResult.exceptionOrNull()
+        val isRateLimited = retryError is ApiError.ApiCallError && retryError.code == 429
+        if (lastResult.isFailure && !isRateLimited && ApiError.isRetriableError(retryError)) {
+            for (attempt in 1..MAX_RETRIES) {
+                delay(RETRY_DELAYS[attempt - 1])
+                Timber.d("AI Chat 재시도 %d/%d", attempt, MAX_RETRIES)
+                lastResult = chatOnce(config, systemPrompt, messages, maxTokens, temperature)
+                if (lastResult.isSuccess || !ApiError.isRetriableError(lastResult.exceptionOrNull())) break
+            }
+        }
+
+        updateCircuitBreaker(lastResult.isSuccess)
+        lastResult
+    }
+
+    private suspend fun chatOnce(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        messages: List<ChatMessage>,
+        maxTokens: Int,
+        temperature: Double
+    ): Result<String> {
+        try {
+            if (config.provider == AiProvider.GEMINI) waitForGeminiRateLimit()
+            else waitForRateLimit()
+
+            return when (config.provider) {
+                AiProvider.CLAUDE -> callClaudeChat(config, systemPrompt, messages, maxTokens, temperature)
+                AiProvider.GEMINI -> callGeminiChat(config, systemPrompt, messages, maxTokens, temperature)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return Result.failure(ApiError.mapException(e))
+        }
+    }
+
+    private suspend fun callClaudeChat(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        messages: List<ChatMessage>,
+        maxTokens: Int,
+        temperature: Double
+    ): Result<String> {
+        val requestBody = buildJsonObject {
+            put("model", config.modelId)
+            put("max_tokens", maxTokens)
+            put("temperature", temperature)
+            put("system", systemPrompt)
+            put("messages", buildJsonArray {
+                for (msg in messages) {
+                    add(buildJsonObject {
+                        put("role", if (msg.role == ChatRole.USER) "user" else "assistant")
+                        put("content", msg.content)
+                    })
+                }
+            })
+        }.toString()
+
+        val request = Request.Builder()
+            .url("${config.getBaseUrl()}/v1/messages")
+            .addHeader("x-api-key", config.apiKey)
+            .addHeader("anthropic-version", "2023-06-01")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        Timber.d("Claude Chat call: %s (%d messages)", config.modelId, messages.size)
+
+        val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).await().use { response ->
+            Triple(response.body?.string(), response.code, response.isSuccessful)
+        }
+
+        if (!isSuccessful || responseBody == null) {
+            return Result.failure(mapHttpError(responseCode))
+        }
+
+        val claudeResponse = json.decodeFromString<ClaudeResponse>(responseBody)
+        val text = claudeResponse.content.firstOrNull { it.type == "text" }?.text ?: ""
+        return Result.success(text)
+    }
+
+    private suspend fun callGeminiChat(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        messages: List<ChatMessage>,
+        maxTokens: Int,
+        temperature: Double
+    ): Result<String> {
+        val effectiveMaxTokens = maxTokens + GEMINI_THINKING_OVERHEAD
+
+        val requestBody = buildJsonObject {
+            put("contents", buildJsonArray {
+                // 시스템 프롬프트를 첫 user 메시지에 포함
+                for ((index, msg) in messages.withIndex()) {
+                    add(buildJsonObject {
+                        put("role", if (msg.role == ChatRole.USER) "user" else "model")
+                        put("parts", buildJsonArray {
+                            add(buildJsonObject {
+                                val text = if (index == 0 && msg.role == ChatRole.USER) {
+                                    "$systemPrompt\n\n${msg.content}"
+                                } else {
+                                    msg.content
+                                }
+                                put("text", text)
+                            })
+                        })
+                    })
+                }
+            })
+            put("generationConfig", buildJsonObject {
+                put("temperature", temperature)
+                put("maxOutputTokens", effectiveMaxTokens)
+            })
+        }.toString()
+
+        val url = "${config.getBaseUrl()}/v1beta/models/${config.modelId}:generateContent"
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("x-goog-api-key", config.apiKey)
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        Timber.d("Gemini Chat call: %s (%d messages)", config.modelId, messages.size)
+
+        val (responseBody, responseCode, isSuccessful) = httpClient.newCall(request).await().use { response ->
+            Triple(response.body?.string(), response.code, response.isSuccessful)
+        }
+
+        if (!isSuccessful || responseBody == null) {
+            return Result.failure(mapHttpError(responseCode))
+        }
+
+        val geminiResponse = json.decodeFromString<GeminiResponse>(responseBody)
+        val text = geminiResponse.candidates.firstOrNull()
+            ?.content?.parts?.firstOrNull()?.text ?: ""
+        return Result.success(text)
     }
 
     // endregion

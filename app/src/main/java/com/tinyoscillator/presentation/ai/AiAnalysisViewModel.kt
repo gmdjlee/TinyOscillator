@@ -10,6 +10,8 @@ import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.data.repository.StockRepository
 import com.tinyoscillator.domain.model.*
+import com.tinyoscillator.domain.model.ChatMessage
+import com.tinyoscillator.domain.model.ChatRole
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.util.DateFormats
 import com.tinyoscillator.data.engine.FeatureStore
@@ -134,6 +136,43 @@ class AiAnalysisViewModel @Inject constructor(
     private val _stockAiState = MutableStateFlow<AiAnalysisState>(AiAnalysisState.Idle)
     val stockAiState: StateFlow<AiAnalysisState> = _stockAiState.asStateFlow()
 
+    // ─── 채팅 상태 ───
+
+    /** 시장지표 탭: 데이터 준비 완료 여부 */
+    private val _marketDataPrepared = MutableStateFlow(false)
+    val marketDataPrepared: StateFlow<Boolean> = _marketDataPrepared.asStateFlow()
+
+    /** 시장지표 탭: 준비된 데이터 요약 텍스트 (사용자에게 표시) */
+    private val _marketDataSummary = MutableStateFlow("")
+    val marketDataSummary: StateFlow<String> = _marketDataSummary.asStateFlow()
+
+    /** 시장지표 탭: 데이터 로딩 중 */
+    private val _marketDataLoading = MutableStateFlow(false)
+    val marketDataLoading: StateFlow<Boolean> = _marketDataLoading.asStateFlow()
+
+    /** 시장 채팅 시스템 프롬프트 (데이터 컨텍스트 포함) */
+    private var marketSystemPrompt: String = ""
+
+    /** 시장 채팅 메시지 목록 */
+    private val _marketChatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val marketChatMessages: StateFlow<List<ChatMessage>> = _marketChatMessages.asStateFlow()
+
+    /** 시장 채팅 응답 대기 중 */
+    private val _marketChatLoading = MutableStateFlow(false)
+    val marketChatLoading: StateFlow<Boolean> = _marketChatLoading.asStateFlow()
+
+    /** 종목 탭: 데이터 준비된 컨텍스트 */
+    private var stockSystemPrompt: String = ""
+    private var stockDataContext: String = ""
+
+    /** 종목 채팅 메시지 목록 */
+    private val _stockChatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val stockChatMessages: StateFlow<List<ChatMessage>> = _stockChatMessages.asStateFlow()
+
+    /** 종목 채팅 응답 대기 중 */
+    private val _stockChatLoading = MutableStateFlow(false)
+    val stockChatLoading: StateFlow<Boolean> = _stockChatLoading.asStateFlow()
+
     // 확률 분석 상태
     private val _probabilityState = MutableStateFlow<ProbabilityAnalysisState>(ProbabilityAnalysisState.Idle)
     val probabilityState: StateFlow<ProbabilityAnalysisState> = _probabilityState.asStateFlow()
@@ -169,6 +208,9 @@ class AiAnalysisViewModel @Inject constructor(
     fun selectStock(ticker: String, name: String, market: String?, sector: String?) {
         _selectedStock.value = SelectedStockInfo(ticker, name, market, sector)
         _stockAiState.value = AiAnalysisState.Idle
+        _stockChatMessages.value = emptyList()
+        stockDataContext = ""
+        stockSystemPrompt = ""
         loadStockData(ticker, name)
     }
 
@@ -262,6 +304,24 @@ class AiAnalysisViewModel @Inject constructor(
                             financialData = financialData,
                             etfAggregated = etfAggregated
                         )
+
+                        // 채팅용 데이터 컨텍스트 자동 준비
+                        val stock = _selectedStock.value
+                        if (stock != null && oscillatorRows.isNotEmpty()) {
+                            stockDataContext = aiPreparer.prepareComprehensiveStockAnalysis(
+                                stockName = stock.name,
+                                ticker = stock.ticker,
+                                oscillatorRows = oscillatorRows,
+                                signals = signals,
+                                demarkRows = demarkRows,
+                                financialData = financialData,
+                                etfAggregated = etfAggregated,
+                                market = stock.market,
+                                sector = stock.sector
+                            )
+                            stockSystemPrompt = aiPreparer.getSystemPrompt(AiAnalysisType.COMPREHENSIVE_STOCK) +
+                                "\n\n아래는 분석 대상 종목의 데이터입니다. 사용자의 질문에 이 데이터를 참고하여 답변해주세요.\n\n$stockDataContext"
+                        }
                     }
                 }
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
@@ -350,6 +410,136 @@ class AiAnalysisViewModel @Inject constructor(
                 _marketAiState.value = AiAnalysisState.Error(e.message ?: "AI 분석 실패")
             }
         }
+    }
+
+    // ─── 채팅 기능 ───
+
+    /** 시장지표 데이터 준비 (채팅 컨텍스트 로드) */
+    fun prepareMarketData() {
+        viewModelScope.launch {
+            _marketDataLoading.value = true
+            try {
+                val kospiData = marketIndicatorRepository.getRecentData("KOSPI", 14)
+                val kosdaqData = marketIndicatorRepository.getRecentData("KOSDAQ", 14)
+                val deposits = marketIndicatorRepository.getRecentDeposits(10)
+
+                val dataSummary = aiPreparer.prepareMarketAnalysis(
+                    kospiData = kospiData,
+                    kosdaqData = kosdaqData,
+                    deposits = deposits
+                )
+                _marketDataSummary.value = dataSummary
+                marketSystemPrompt = aiPreparer.getSystemPrompt(AiAnalysisType.MARKET_OVERVIEW) +
+                    "\n\n아래는 현재 시장 데이터입니다. 사용자의 질문에 이 데이터를 참고하여 답변해주세요.\n\n$dataSummary"
+                _marketDataPrepared.value = true
+                _marketChatMessages.value = emptyList()
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _marketDataSummary.value = "데이터 로드 실패: ${e.message}"
+            } finally {
+                _marketDataLoading.value = false
+            }
+        }
+    }
+
+    /** 시장지표 채팅 메시지 전송 */
+    fun sendMarketChat(userMessage: String) {
+        if (userMessage.isBlank() || !_marketDataPrepared.value) return
+
+        viewModelScope.launch {
+            val aiConfig = apiConfigProvider.getAiConfig()
+            if (!aiConfig.isValid()) {
+                _marketChatMessages.value = _marketChatMessages.value +
+                    ChatMessage(ChatRole.ASSISTANT, "AI API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요.")
+                return@launch
+            }
+
+            // 유저 메시지 추가
+            val userMsg = ChatMessage(ChatRole.USER, userMessage)
+            _marketChatMessages.value = _marketChatMessages.value + userMsg
+            _marketChatLoading.value = true
+
+            try {
+                val result = aiApiClient.chat(
+                    config = aiConfig,
+                    systemPrompt = marketSystemPrompt,
+                    messages = _marketChatMessages.value,
+                    maxTokens = 1024
+                )
+                result.fold(
+                    onSuccess = { response ->
+                        _marketChatMessages.value = _marketChatMessages.value +
+                            ChatMessage(ChatRole.ASSISTANT, response)
+                    },
+                    onFailure = { e ->
+                        _marketChatMessages.value = _marketChatMessages.value +
+                            ChatMessage(ChatRole.ASSISTANT, "오류: ${e.message}")
+                    }
+                )
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _marketChatMessages.value = _marketChatMessages.value +
+                    ChatMessage(ChatRole.ASSISTANT, "오류: ${e.message}")
+            } finally {
+                _marketChatLoading.value = false
+            }
+        }
+    }
+
+    /** 종목 채팅 메시지 전송 */
+    fun sendStockChat(userMessage: String) {
+        if (userMessage.isBlank() || stockDataContext.isBlank()) return
+
+        viewModelScope.launch {
+            val aiConfig = apiConfigProvider.getAiConfig()
+            if (!aiConfig.isValid()) {
+                _stockChatMessages.value = _stockChatMessages.value +
+                    ChatMessage(ChatRole.ASSISTANT, "AI API 키가 설정되지 않았습니다. 설정에서 API 키를 입력해주세요.")
+                return@launch
+            }
+
+            val userMsg = ChatMessage(ChatRole.USER, userMessage)
+            _stockChatMessages.value = _stockChatMessages.value + userMsg
+            _stockChatLoading.value = true
+
+            try {
+                val result = aiApiClient.chat(
+                    config = aiConfig,
+                    systemPrompt = stockSystemPrompt,
+                    messages = _stockChatMessages.value,
+                    maxTokens = 1024
+                )
+                result.fold(
+                    onSuccess = { response ->
+                        _stockChatMessages.value = _stockChatMessages.value +
+                            ChatMessage(ChatRole.ASSISTANT, response)
+                    },
+                    onFailure = { e ->
+                        _stockChatMessages.value = _stockChatMessages.value +
+                            ChatMessage(ChatRole.ASSISTANT, "오류: ${e.message}")
+                    }
+                )
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _stockChatMessages.value = _stockChatMessages.value +
+                    ChatMessage(ChatRole.ASSISTANT, "오류: ${e.message}")
+            } finally {
+                _stockChatLoading.value = false
+            }
+        }
+    }
+
+    /** 시장 채팅 초기화 */
+    fun clearMarketChat() {
+        _marketChatMessages.value = emptyList()
+    }
+
+    /** 종목 채팅 초기화 */
+    fun clearStockChat() {
+        _stockChatMessages.value = emptyList()
     }
 
     /** 확률 분석 실행 — 7개 통계 엔진 병렬 실행 (API 키 불필요) */

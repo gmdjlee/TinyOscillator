@@ -59,6 +59,16 @@ sealed class AiAnalysisState {
     data object NoApiKey : AiAnalysisState()
 }
 
+/** 채팅 메시지 역할 */
+enum class ChatRole { USER, ASSISTANT }
+
+/** 채팅 메시지 */
+data class ChatMessage(
+    val role: ChatRole,
+    val content: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 // --- Claude Messages API 응답 ---
 
 @Serializable

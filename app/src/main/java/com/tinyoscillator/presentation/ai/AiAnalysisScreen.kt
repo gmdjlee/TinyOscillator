@@ -2,18 +2,29 @@ package com.tinyoscillator.presentation.ai
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
@@ -24,13 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.*
-import com.tinyoscillator.presentation.common.AiAnalysisSection
 import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.ui.theme.LocalFinanceColors
 import com.tinyoscillator.presentation.common.PillTabRow
@@ -40,6 +48,7 @@ import com.tinyoscillator.presentation.common.SignalRationaleCard
 import com.tinyoscillator.presentation.common.AlgoAccuracyCard
 import com.tinyoscillator.data.engine.RationaleBuilder
 import com.tinyoscillator.domain.usecase.SignalConflictDetector
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,8 +58,6 @@ fun AiAnalysisScreen(
     viewModel: AiAnalysisViewModel = hiltViewModel()
 ) {
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
-    val marketAiState by viewModel.marketAiState.collectAsStateWithLifecycle()
-    val stockAiState by viewModel.stockAiState.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val selectedStock by viewModel.selectedStock.collectAsStateWithLifecycle()
     val stockDataState by viewModel.stockDataState.collectAsStateWithLifecycle()
@@ -59,6 +66,15 @@ fun AiAnalysisScreen(
     val metaLearnerStatus by viewModel.metaLearnerStatus.collectAsStateWithLifecycle()
     val ensembleProbability by viewModel.ensembleProbability.collectAsStateWithLifecycle()
     val algoAccuracy by viewModel.algoAccuracy.collectAsStateWithLifecycle()
+
+    // 채팅 상태
+    val marketDataPrepared by viewModel.marketDataPrepared.collectAsStateWithLifecycle()
+    val marketDataSummary by viewModel.marketDataSummary.collectAsStateWithLifecycle()
+    val marketDataLoading by viewModel.marketDataLoading.collectAsStateWithLifecycle()
+    val marketChatMessages by viewModel.marketChatMessages.collectAsStateWithLifecycle()
+    val marketChatLoading by viewModel.marketChatLoading.collectAsStateWithLifecycle()
+    val stockChatMessages by viewModel.stockChatMessages.collectAsStateWithLifecycle()
+    val stockChatLoading by viewModel.stockChatLoading.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
     val themeModeState = LocalThemeModeState.current
@@ -95,9 +111,14 @@ fun AiAnalysisScreen(
             when (selectedTab) {
                 AiTab.MARKET -> {
                     MarketTabContent(
-                        marketAiState = marketAiState,
-                        onAnalyze = { viewModel.analyzeMarketWithAi() },
-                        onDismiss = { viewModel.dismissMarketAi() }
+                        marketDataPrepared = marketDataPrepared,
+                        marketDataSummary = marketDataSummary,
+                        marketDataLoading = marketDataLoading,
+                        chatMessages = marketChatMessages,
+                        chatLoading = marketChatLoading,
+                        onPrepareData = { viewModel.prepareMarketData() },
+                        onSendChat = { viewModel.sendMarketChat(it) },
+                        onClearChat = { viewModel.clearMarketChat() }
                     )
                 }
 
@@ -116,9 +137,10 @@ fun AiAnalysisScreen(
                         },
                         selectedStock = selectedStock,
                         stockDataState = stockDataState,
-                        stockAiState = stockAiState,
-                        onAnalyze = { viewModel.analyzeStockWithAi() },
-                        onDismiss = { viewModel.dismissStockAi() }
+                        chatMessages = stockChatMessages,
+                        chatLoading = stockChatLoading,
+                        onSendChat = { viewModel.sendStockChat(it) },
+                        onClearChat = { viewModel.clearStockChat() }
                     )
                 }
 
@@ -145,143 +167,71 @@ fun AiAnalysisScreen(
 
 @Composable
 private fun MarketTabContent(
-    marketAiState: com.tinyoscillator.domain.model.AiAnalysisState,
-    onAnalyze: () -> Unit,
-    onDismiss: () -> Unit
+    marketDataPrepared: Boolean,
+    marketDataSummary: String,
+    marketDataLoading: Boolean,
+    chatMessages: List<ChatMessage>,
+    chatLoading: Boolean,
+    onPrepareData: () -> Unit,
+    onSendChat: (String) -> Unit,
+    onClearChat: () -> Unit
 ) {
-    val financeColors = LocalFinanceColors.current
-
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxSize()
     ) {
-        // Glass Card — 시장 종합 분석 요약
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                "시장 종합 분석",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "KOSPI/KOSDAQ 과매수·과매도 지표와 투자자 예탁금 동향을 종합하여 시장 상태를 분석합니다.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
-            // 시장 심리 인디케이터
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Default.Psychology,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(
-                    "시장 심리 지표",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(Modifier.height(4.dp))
-            LinearProgressIndicator(
-                progress = { 0.72f },
+        if (!marketDataPrepared) {
+            // 데이터 미준비 상태: 안내 + 데이터 준비 버튼
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp),
-                color = financeColors.neutral,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            )
-        }
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "시장 종합 분석",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "KOSPI/KOSDAQ 과매수·과매도 지표와 투자자 예탁금 동향을 불러온 뒤, AI와 채팅으로 분석을 진행합니다.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-        // 2x2 시장 지표 카드 그리드
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MarketIndicatorMiniCard(
-                label = "KOSPI",
-                value = "—",
-                change = null,
-                modifier = Modifier.weight(1f)
-            )
-            MarketIndicatorMiniCard(
-                label = "KOSDAQ",
-                value = "—",
-                change = null,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MarketIndicatorMiniCard(
-                label = "USD/KRW",
-                value = "—",
-                change = null,
-                modifier = Modifier.weight(1f)
-            )
-            MarketIndicatorMiniCard(
-                label = "예탁금",
-                value = "—",
-                change = null,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        AiAnalysisSection(
-            state = marketAiState,
-            onAnalyze = onAnalyze,
-            onDismiss = onDismiss
-        )
-    }
-}
-
-/** 시장 지표 미니 카드 (2x2 그리드용) */
-@Composable
-private fun MarketIndicatorMiniCard(
-    label: String,
-    value: String,
-    change: String?,
-    modifier: Modifier = Modifier
-) {
-    val financeColors = LocalFinanceColors.current
-    Card(
-        modifier = modifier,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            change?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (it.startsWith("+") || it.startsWith("▲")) financeColors.positive
-                    else if (it.startsWith("-") || it.startsWith("▼")) financeColors.negative
-                    else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Button(
+                    onClick = onPrepareData,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !marketDataLoading
+                ) {
+                    if (marketDataLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("데이터 수집 중...")
+                    } else {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("시장 데이터 불러오기")
+                    }
+                }
             }
+        } else {
+            // 데이터 준비 완료: 데이터 요약 + 채팅 UI
+            ChatSection(
+                dataSummary = marketDataSummary,
+                chatMessages = chatMessages,
+                chatLoading = chatLoading,
+                onSendChat = onSendChat,
+                onClearChat = onClearChat,
+                placeholder = "시장 지표에 대해 질문하세요..."
+            )
         }
     }
 }
@@ -294,9 +244,10 @@ private fun StockTabContent(
     onStockSelect: (com.tinyoscillator.core.database.entity.StockMasterEntity) -> Unit,
     selectedStock: SelectedStockInfo?,
     stockDataState: StockDataState,
-    stockAiState: com.tinyoscillator.domain.model.AiAnalysisState,
-    onAnalyze: () -> Unit,
-    onDismiss: () -> Unit
+    chatMessages: List<ChatMessage>,
+    chatLoading: Boolean,
+    onSendChat: (String) -> Unit,
+    onClearChat: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -320,95 +271,118 @@ private fun StockTabContent(
             )
 
             // Content below search
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (selectedStock != null) {
-                    // Selected stock info card
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                selectedStock.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                "${selectedStock.ticker} | ${selectedStock.market ?: "-"} | ${selectedStock.sector ?: "-"}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+            if (selectedStock != null) {
+                // Selected stock info card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            selectedStock.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "${selectedStock.ticker} | ${selectedStock.market ?: "-"} | ${selectedStock.sector ?: "-"}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-
-                    // Data loading state
-                    when (val dataState = stockDataState) {
-                        is StockDataState.Loading -> {
-                            Card(modifier = Modifier.fillMaxWidth()) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                                    Text("데이터 수집 중...")
-                                }
-                            }
-                        }
-
-                        is StockDataState.Loaded -> {
-                            // Data summary chips
-                            DataSummaryChips(dataState)
-
-                            // AI Analysis section
-                            AiAnalysisSection(
-                                state = stockAiState,
-                                onAnalyze = onAnalyze,
-                                onDismiss = onDismiss
-                            )
-                        }
-
-                        is StockDataState.Error -> {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer
-                                )
-                            ) {
-                                Text(
-                                    dataState.message,
-                                    modifier = Modifier.padding(16.dp),
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
-                        }
-
-                        is StockDataState.Idle -> {}
-                    }
-                } else {
-                    // No stock selected
-                    Spacer(modifier = Modifier.height(32.dp))
-                    Text(
-                        "종목을 검색하여 AI 분석을 시작하세요",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
-                    Text(
-                        "오실레이터 + DeMark + 재무정보 + ETF 편입 데이터를 종합하여 분석합니다.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Data loading state
+                when (val dataState = stockDataState) {
+                    is StockDataState.Loading -> {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                Text("데이터 수집 중...")
+                            }
+                        }
+                    }
+
+                    is StockDataState.Loaded -> {
+                        // Data summary chips
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DataChip("오실레이터", dataState.oscillatorRows.isNotEmpty())
+                            DataChip("DeMark", dataState.demarkRows.isNotEmpty())
+                            DataChip("재무", dataState.financialData != null)
+                            DataChip("ETF", dataState.etfAggregated.isNotEmpty())
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 채팅 UI (데이터 로드 완료 시)
+                        ChatSection(
+                            dataSummary = null,
+                            chatMessages = chatMessages,
+                            chatLoading = chatLoading,
+                            onSendChat = onSendChat,
+                            onClearChat = onClearChat,
+                            placeholder = "${selectedStock.name}에 대해 질문하세요...",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    is StockDataState.Error -> {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Text(
+                                dataState.message,
+                                modifier = Modifier.padding(16.dp),
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+
+                    is StockDataState.Idle -> {}
+                }
+            } else {
+                // No stock selected
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(modifier = Modifier.height(32.dp))
+                    Text(
+                        "종목을 검색하여 AI 채팅을 시작하세요",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "데이터를 먼저 수집한 뒤, 채팅으로 분석을 진행합니다.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
@@ -455,19 +429,6 @@ private fun StockTabContent(
 }
 
 @Composable
-private fun DataSummaryChips(dataState: StockDataState.Loaded) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        DataChip("오실레이터", dataState.oscillatorRows.isNotEmpty())
-        DataChip("DeMark", dataState.demarkRows.isNotEmpty())
-        DataChip("재무", dataState.financialData != null)
-        DataChip("ETF", dataState.etfAggregated.isNotEmpty())
-    }
-}
-
-@Composable
 private fun DataChip(label: String, available: Boolean) {
     SuggestionChip(
         onClick = {},
@@ -484,6 +445,233 @@ private fun DataChip(label: String, available: Boolean) {
         ),
         border = if (available) BorderStroke(1.dp, Color(0xFF66BB6A)) else null
     )
+}
+
+// ─── 채팅 UI ───
+
+/** 채팅 섹션: 데이터 요약(선택) + 메시지 목록 + 입력 필드 */
+@Composable
+private fun ChatSection(
+    dataSummary: String?,
+    chatMessages: List<ChatMessage>,
+    chatLoading: Boolean,
+    onSendChat: (String) -> Unit,
+    onClearChat: () -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier
+) {
+    var inputText by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+
+    // 새 메시지가 추가되면 하단으로 스크롤
+    LaunchedEffect(chatMessages.size) {
+        if (chatMessages.isNotEmpty()) {
+            listState.animateScrollToItem(chatMessages.size - 1)
+        }
+    }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        // 메시지 목록
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            // 데이터 요약 카드 (시장 탭에서 사용)
+            if (!dataSummary.isNullOrBlank()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Analytics,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+                                    "수집된 데이터",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                dataSummary,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 채팅이 비어있을 때 안내 메시지
+            if (chatMessages.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "AI에게 질문하세요",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "예: 현재 시장 상태를 분석해줘, 매수 타이밍인가?",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+
+            // 채팅 메시지
+            items(chatMessages) { message ->
+                ChatBubble(message = message)
+            }
+
+            // AI 응답 대기 중
+            if (chatLoading) {
+                item {
+                    Row(
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Text(
+                            "AI 응답 중...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider()
+
+        // 입력 영역
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 대화 초기화 버튼
+            if (chatMessages.isNotEmpty()) {
+                IconButton(
+                    onClick = onClearChat,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        Icons.Default.DeleteSweep,
+                        contentDescription = "대화 초기화",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = inputText,
+                onValueChange = { inputText = it },
+                placeholder = { Text(placeholder, style = MaterialTheme.typography.bodyMedium) },
+                modifier = Modifier.weight(1f),
+                singleLine = false,
+                maxLines = 3,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = {
+                    if (inputText.isNotBlank() && !chatLoading) {
+                        onSendChat(inputText)
+                        inputText = ""
+                    }
+                }),
+                shape = RoundedCornerShape(24.dp)
+            )
+
+            IconButton(
+                onClick = {
+                    if (inputText.isNotBlank() && !chatLoading) {
+                        onSendChat(inputText)
+                        inputText = ""
+                    }
+                },
+                enabled = inputText.isNotBlank() && !chatLoading,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "전송",
+                    tint = if (inputText.isNotBlank() && !chatLoading)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                )
+            }
+        }
+    }
+}
+
+/** 채팅 메시지 말풍선 */
+@Composable
+private fun ChatBubble(message: ChatMessage) {
+    val isUser = message.role == ChatRole.USER
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .clip(
+                    RoundedCornerShape(
+                        topStart = 16.dp,
+                        topEnd = 16.dp,
+                        bottomStart = if (isUser) 16.dp else 4.dp,
+                        bottomEnd = if (isUser) 4.dp else 16.dp
+                    )
+                )
+                .background(
+                    if (isUser) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceContainerHigh
+                )
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Text(
+                text = message.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isUser) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
 }
 
 // ─── 확률 분석 탭 ───
