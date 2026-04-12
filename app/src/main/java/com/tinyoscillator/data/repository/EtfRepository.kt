@@ -157,7 +157,8 @@ class EtfRepository(
                                 amount = p.valuationAmount
                             )
                         }
-                        etfDao.insertHoldings(holdings)
+                        // 트랜잭션: 기존 부분 데이터 삭제 → 전체 삽입 (원자적)
+                        etfDao.replaceHoldingsForEtfAndDate(item.ticker, item.date, holdings)
                         totalHoldings += holdings.size
                     }
                 } catch (e: CancellationException) {

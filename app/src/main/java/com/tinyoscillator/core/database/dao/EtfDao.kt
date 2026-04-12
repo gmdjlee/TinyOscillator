@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.RoomWarnings
+import androidx.room.Transaction
 import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.domain.model.AmountRankingRow
@@ -64,8 +65,29 @@ interface EtfDao {
     @Query("DELETE FROM etf_holdings WHERE date = :date")
     suspend fun deleteHoldingsForDate(date: String)
 
+    @Query("DELETE FROM etf_holdings WHERE etf_ticker = :etfTicker AND date = :date")
+    suspend fun deleteHoldingsForEtfAndDate(etfTicker: String, date: String)
+
+    @Query("""
+        SELECT etf_ticker || '|' || date || '|' || COUNT(*)
+        FROM etf_holdings
+        WHERE date IN (:dates)
+        GROUP BY etf_ticker, date
+    """)
+    suspend fun getHoldingCountsByDates(dates: List<String>): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHoldings(holdings: List<EtfHoldingEntity>)
+
+    /**
+     * 특정 ETF/날짜의 기존 holdings를 삭제하고 새 데이터를 삽입 (원자적)
+     * 부분 삽입 방지를 위해 @Transaction으로 감싸짐
+     */
+    @Transaction
+    suspend fun replaceHoldingsForEtfAndDate(etfTicker: String, date: String, holdings: List<EtfHoldingEntity>) {
+        deleteHoldingsForEtfAndDate(etfTicker, date)
+        insertHoldings(holdings)
+    }
 
     @Query("DELETE FROM etfs WHERE ticker NOT IN (:tickers)")
     suspend fun deleteEtfsNotIn(tickers: List<String>)

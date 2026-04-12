@@ -149,6 +149,11 @@ class MarketCloseRefreshWorker @AssistedInject constructor(
 
     /**
      * ETF분석: 당일 holdings 삭제 → KRX 재수집
+     *
+     * 안전한 교체: 먼저 당일 데이터를 삭제하여 updateData의 incremental 로직이
+     * 해당 날짜를 재수집 대상으로 인식하게 한 뒤, 재수집합니다.
+     * updateData 내부에서 트랜잭션으로 원자적 삽입을 보장하므로
+     * 실패 시에도 부분 데이터가 남지 않습니다.
      */
     private suspend fun refreshEtfHoldings(todayStr: String): String {
         return try {
@@ -158,20 +163,24 @@ class MarketCloseRefreshWorker @AssistedInject constructor(
                 return "ETF 건너뜀"
             }
 
-            // 당일 holdings 삭제
+            // 당일 holdings 삭제 (updateData가 이 날짜를 재수집하도록)
             etfDao.deleteHoldingsForDate(todayStr)
             Timber.d("ETF: 당일($todayStr) holdings 삭제 완료")
 
             // 재수집 (당일만, daysBack=1)
+            // updateData 내부에서 트랜잭션 보장 — 실패 시 해당 pair는 DB에 없으므로
+            // 다음 실행(EtfUpdateWorker 또는 무결성 검사) 시 자동 재수집됨
             val keywords = loadEtfKeywordFilter(applicationContext)
             var resultMsg = "ETF 재수집 중"
+            var succeeded = false
             etfRepository.updateData(creds, keywords, daysBack = 1).collect { progress ->
                 when (progress) {
                     is EtfDataProgress.Success -> {
                         resultMsg = "ETF ${progress.holdingCount}건"
+                        succeeded = true
                     }
                     is EtfDataProgress.Error -> {
-                        resultMsg = "ETF 실패"
+                        resultMsg = "ETF 실패 (다음 실행 시 자동 재수집)"
                         Timber.w("ETF 재수집 실패: ${progress.message}")
                     }
                     is EtfDataProgress.Loading -> {
@@ -179,17 +188,22 @@ class MarketCloseRefreshWorker @AssistedInject constructor(
                     }
                 }
             }
+            if (!succeeded) {
+                Timber.w("ETF 재수집 실패 — 삭제된 당일 데이터는 다음 EtfUpdateWorker/무결성 검사에서 자동 보충됩니다")
+            }
             resultMsg
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (e: Exception) {
             Timber.e(e, "ETF 교체 실패")
-            "ETF 실패"
+            "ETF 실패 (다음 실행 시 자동 재수집)"
         }
     }
 
     /**
      * 시장지표 과매수/과매도: 당일 삭제 → KRX 재수집
+     * updateMarketData는 OnConflictStrategy.REPLACE를 사용하므로
+     * 삭제 후 재수집 실패 시 다음 MarketOscillatorUpdateWorker에서 자동 보충됨
      */
     private suspend fun refreshMarketOscillator(todayIso: String): String {
         return try {
@@ -199,7 +213,7 @@ class MarketCloseRefreshWorker @AssistedInject constructor(
                 return "지표 건너뜀"
             }
 
-            // 당일 데이터 삭제
+            // 당일 데이터 삭제 — REPLACE 전략이므로 재수집 시 덮어쓰기됨
             oscillatorDao.deleteByDate(todayIso)
             Timber.d("시장지표: 당일($todayIso) oscillator 삭제 완료")
 
@@ -218,6 +232,9 @@ class MarketCloseRefreshWorker @AssistedInject constructor(
 
             val kospi = kospiResult.getOrNull() ?: 0
             val kosdaq = kosdaqResult.getOrNull() ?: 0
+            if (kospi == 0 && kosdaq == 0) {
+                Timber.w("시장지표 재수집 실패 — 다음 MarketOscillatorUpdateWorker에서 자동 보충")
+            }
             "지표 KOSPI${kospi}+KOSDAQ${kosdaq}건"
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e

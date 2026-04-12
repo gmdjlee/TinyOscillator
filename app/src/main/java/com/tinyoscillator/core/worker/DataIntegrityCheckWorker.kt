@@ -144,14 +144,37 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
         return try {
             val keywords = loadEtfKeywordFilter(applicationContext)
             val period = loadEtfCollectionPeriod(applicationContext)
+            val creds = com.tinyoscillator.domain.model.KrxCredentials(krxId, krxPassword)
 
-            // ETF updateData는 incremental — 이미 존재하는 pair는 스킵하고 누락된 것만 수집
-            // 따라서 updateData를 실행하면 누락된 데이터가 자동으로 채워짐
+            // 1단계: 불완전 데이터 감지 — holdings 건수가 비정상적으로 적은 pair 삭제
+            val dates = getBusinessDates(period.daysBack)
+            var purgedCount = 0
+            if (dates.isNotEmpty()) {
+                val countStrings = etfDao.getHoldingCountsByDates(dates)
+                // 형식: "etf_ticker|date|count"
+                val pairCounts = countStrings.mapNotNull { str ->
+                    val parts = str.split("|")
+                    if (parts.size == 3) Triple(parts[0], parts[1], parts[2].toIntOrNull() ?: 0) else null
+                }
+
+                // holdings 건수가 MIN_HOLDINGS_THRESHOLD 미만인 pair는 불완전 데이터로 간주
+                val incompletePairs = pairCounts.filter { it.third in 1 until MIN_HOLDINGS_THRESHOLD }
+                for ((ticker, date, count) in incompletePairs) {
+                    Timber.w("ETF 불완전 데이터 감지: $ticker/$date — ${count}건 (최소 ${MIN_HOLDINGS_THRESHOLD}건 필요)")
+                    etfDao.deleteHoldingsForEtfAndDate(ticker, date)
+                    purgedCount++
+                }
+                if (purgedCount > 0) {
+                    Timber.i("ETF 불완전 데이터 ${purgedCount}건 제거 → 재수집 대상으로 전환")
+                }
+            }
+
+            // 2단계: updateData로 누락 + 방금 제거한 불완전 데이터 재수집
             var fixedCount = 0
             var errorMsg: String? = null
 
             etfRepository.updateData(
-                creds = com.tinyoscillator.domain.model.KrxCredentials(krxId, krxPassword),
+                creds = creds,
                 keywords = keywords,
                 daysBack = period.daysBack
             ).collect { progress ->
@@ -169,11 +192,12 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
                 }
             }
 
+            val totalFixed = purgedCount + fixedCount
             if (errorMsg != null) {
                 Timber.w("ETF 무결성 검사 실패: $errorMsg")
-                Pair("ETF: 검사 실패 ($errorMsg)", 0)
-            } else if (fixedCount > 0) {
-                Pair("ETF: ${fixedCount}건 보유종목 동기화", fixedCount)
+                Pair("ETF: 검사 실패 ($errorMsg)", purgedCount)
+            } else if (totalFixed > 0) {
+                Pair("ETF: ${purgedCount}건 불완전 제거 + ${fixedCount}건 재수집", totalFixed)
             } else {
                 Pair("ETF: 정상", 0)
             }
@@ -181,6 +205,20 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
             Timber.e(e, "ETF 무결성 검사 오류")
             Pair("ETF: 오류 (${e.message})", 0)
         }
+    }
+
+    private fun getBusinessDates(daysBack: Int): List<String> {
+        val dates = mutableListOf<String>()
+        var date = java.time.LocalDate.now()
+        for (i in 0 until daysBack * 2) {
+            if (dates.size >= daysBack) break
+            if (i > 0) date = date.minusDays(1)
+            val dayOfWeek = date.dayOfWeek
+            if (dayOfWeek != java.time.DayOfWeek.SATURDAY && dayOfWeek != java.time.DayOfWeek.SUNDAY) {
+                dates.add(date.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")))
+            }
+        }
+        return dates
     }
 
     private suspend fun checkOscillatorIntegrity(krxId: String, krxPassword: String): Pair<String, Int>? {
@@ -361,5 +399,7 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
         const val LABEL = "무결성 검사"
         private const val KRX_RATE_LIMIT_MS = 5000L
         private const val REPORT_CHECK_DAYS = 7L
+        /** ETF 1종목당 최소 구성종목 수 — 이보다 적으면 불완전 데이터로 간주 */
+        private const val MIN_HOLDINGS_THRESHOLD = 3
     }
 }

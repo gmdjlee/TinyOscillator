@@ -459,7 +459,7 @@ class EtfRepositoryTest {
         assertTrue("마지막 emission은 Success여야 한다: $success", success is EtfDataProgress.Success)
 
         coVerify { etfDao.insertEtfs(any()) }
-        coVerify { etfDao.insertHoldings(any()) }
+        coVerify { etfDao.replaceHoldingsForEtfAndDate(any(), any(), any()) }
         coVerify { krxApiClient.close() }
     }
 
