@@ -108,19 +108,29 @@ class EtfRepository(
             // Pair-based incremental logic:
             // Check which (etf_ticker, date) pairs already exist in DB (scoped to target dates)
             val existingPairs = etfDao.getExistingPairsForDates(dates).toSet()
+            // weight가 NULL인 미완결 데이터 → 재수집 대상
+            val incompletePairs = etfDao.getIncompletePairsForDates(dates).toSet()
+            // 완결 pair = 존재하면서 미완결이 아닌 것
+            val completePairs = existingPairs - incompletePairs
+
+            if (incompletePairs.isNotEmpty()) {
+                Timber.w("비중 누락 데이터 ${incompletePairs.size}건 발견 → 재수집 대상 포함")
+            }
 
             data class WorkItem(val ticker: String, val name: String, val date: String)
             val workItems = mutableListOf<WorkItem>()
             for (etf in filteredEtfs) {
                 for (date in dates) {
-                    if ("${etf.ticker}|$date" !in existingPairs) {
+                    if ("${etf.ticker}|$date" !in completePairs) {
                         workItems.add(WorkItem(etf.ticker, etf.name, date))
                     }
                 }
             }
 
+            val newCount = workItems.count { "${it.ticker}|${it.date}" !in existingPairs }
+            val retryCount = workItems.size - newCount
             val skippedCount = (filteredEtfs.size * dates.size) - workItems.size
-            Timber.i("수집 대상: ${workItems.size}건, 스킵: ${skippedCount}건 (이미 수집됨)")
+            Timber.i("수집 대상: ${workItems.size}건 (신규=${newCount}, 비중재수집=${retryCount}), 스킵: ${skippedCount}건 (완결)")
             if (workItems.isNotEmpty()) {
                 val byEtf = workItems.groupBy { it.ticker }
                 for ((ticker, items) in byEtf.entries.take(5)) {
@@ -156,6 +166,10 @@ class EtfRepository(
                                 shares = p.shares,
                                 amount = p.valuationAmount
                             )
+                        }
+                        val nullWeightCount = holdings.count { it.weight == null }
+                        if (nullWeightCount > 0) {
+                            Timber.w("비중 누락: ${item.name}(${item.ticker}) ${item.date} — ${nullWeightCount}/${holdings.size}건 weight=null")
                         }
                         // 트랜잭션: 기존 부분 데이터 삭제 → 전체 삽입 (원자적)
                         etfDao.replaceHoldingsForEtfAndDate(item.ticker, item.date, holdings)

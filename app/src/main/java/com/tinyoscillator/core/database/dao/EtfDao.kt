@@ -59,6 +59,13 @@ interface EtfDao {
     @Query("SELECT DISTINCT etf_ticker || '|' || date FROM etf_holdings WHERE date IN (:dates)")
     suspend fun getExistingPairsForDates(dates: List<String>): List<String>
 
+    /**
+     * weight가 NULL인 holdings가 있는 (etf_ticker, date) 쌍 조회.
+     * 비중 데이터가 누락된 미완결 데이터를 재수집하기 위해 사용.
+     */
+    @Query("SELECT DISTINCT etf_ticker || '|' || date FROM etf_holdings WHERE date IN (:dates) AND weight IS NULL")
+    suspend fun getIncompletePairsForDates(dates: List<String>): List<String>
+
     @Query("SELECT ticker, name FROM etfs WHERE ticker IN (:tickers)")
     suspend fun getEtfsByTickers(tickers: List<String>): List<EtfTickerName>
 
