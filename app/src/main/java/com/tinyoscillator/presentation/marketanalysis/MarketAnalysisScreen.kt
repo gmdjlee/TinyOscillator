@@ -41,6 +41,10 @@ import com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker
 import com.tinyoscillator.domain.model.DemarkPeriodType
 import com.tinyoscillator.domain.model.MarketDemarkChartData
 import com.tinyoscillator.domain.model.MarketDemarkRow
+import com.tinyoscillator.core.ui.composable.DefaultErrorContent
+import com.tinyoscillator.core.ui.composable.EmptyStateContent
+import com.tinyoscillator.core.ui.composable.LastUpdatedText
+import com.tinyoscillator.core.ui.composable.NeedDataCollectionContent
 import com.tinyoscillator.presentation.common.CollectionProgressBar
 import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.presentation.common.ScrollablePillTabRow
@@ -123,6 +127,15 @@ fun MarketAnalysisScreen(
                 tabLabel = { it.label }
             )
 
+            // 마지막 갱신 시간
+            val lastUpdated by when (selectedTab) {
+                MarketAnalysisTab.FEAR_GREED -> fearGreedViewModel.lastUpdatedAt
+                MarketAnalysisTab.OSCILLATOR -> oscillatorViewModel.lastUpdatedAt
+                MarketAnalysisTab.DEPOSIT -> depositViewModel.lastUpdatedAt
+                MarketAnalysisTab.DEMARK -> fearGreedViewModel.lastUpdatedAt // DeMark shares Fear&Greed data timing
+            }.collectAsStateWithLifecycle()
+            LastUpdatedText(epochMillis = lastUpdated)
+
             when (selectedTab) {
                 MarketAnalysisTab.FEAR_GREED -> FearGreedTab(viewModel = fearGreedViewModel)
                 MarketAnalysisTab.DEMARK -> MarketDemarkTab(viewModel = demarkViewModel)
@@ -204,30 +217,13 @@ private fun FearGreedTab(viewModel: FearGreedViewModel) {
                 )
             }
             is FearGreedState.Error -> {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                ) {
-                    Text(
-                        currentState.message,
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
+                DefaultErrorContent(
+                    message = currentState.message,
+                    onRetry = { viewModel.update() }
+                )
             }
             is FearGreedState.Idle -> {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            "설정 > Schedule에서 데이터를 수집해주세요.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                NeedDataCollectionContent()
             }
         }
     }
@@ -302,34 +298,20 @@ private fun MarketDemarkTab(viewModel: MarketDemarkViewModel) {
                 )
             }
             is MarketDemarkState.Error -> {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                ) {
-                    Text(
-                        currentState.message,
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
+                DefaultErrorContent(
+                    message = currentState.message,
+                    onRetry = { viewModel.loadData() }
+                )
             }
             is MarketDemarkState.Idle -> {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            "시장을 선택하고 데이터를 불러와주세요.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+                EmptyStateContent(
+                    message = "시장을 선택하고 데이터를 불러와주세요.",
+                    action = {
                         Button(onClick = { viewModel.loadData() }) {
                             Text("데이터 조회")
                         }
                     }
-                }
+                )
             }
         }
     }

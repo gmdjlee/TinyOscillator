@@ -12,6 +12,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tinyoscillator.core.ui.composable.EmptyStateContent
 import com.tinyoscillator.presentation.chart.ConsensusChart
 import com.tinyoscillator.ui.theme.LocalFinanceColors
 import java.text.NumberFormat
@@ -34,17 +35,7 @@ fun ConsensusContent(
 
     Column(modifier = modifier.fillMaxSize()) {
         if (ticker == null) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "종목을 검색하여 컨센서스 데이터를 확인하세요",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-            }
+            EmptyStateContent(message = "종목을 검색하여 컨센서스 데이터를 확인하세요")
         } else if (isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize(),

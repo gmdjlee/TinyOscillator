@@ -39,6 +39,9 @@ class MarketOscillatorViewModel @Inject constructor(
     private val _oversoldThreshold = MutableStateFlow(-80.0)
     val oversoldThreshold: StateFlow<Double> = _oversoldThreshold.asStateFlow()
 
+    private val _lastUpdatedAt = MutableStateFlow<Long?>(null)
+    val lastUpdatedAt: StateFlow<Long?> = _lastUpdatedAt.asStateFlow()
+
     init {
         checkData()
         observeDateRangeChanges()
@@ -75,6 +78,7 @@ class MarketOscillatorViewModel @Inject constructor(
             val hasData = kospiCount > 0 || kosdaqCount > 0
             val latestData = repository.getLatestData(_selectedMarket.value)
             _state.value = MarketOscillatorState.Idle(hasData, latestData?.date)
+            _lastUpdatedAt.value = repository.getOscillatorLastUpdateTime()
         }
     }
 

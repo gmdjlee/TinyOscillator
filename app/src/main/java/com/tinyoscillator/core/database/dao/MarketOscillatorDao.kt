@@ -29,6 +29,9 @@ interface MarketOscillatorDao {
     @Query("SELECT COUNT(*) FROM market_oscillator WHERE market = :market")
     suspend fun getDataCount(market: String): Int
 
+    @Query("SELECT MAX(last_updated) FROM market_oscillator")
+    suspend fun getLastUpdateTime(): Long?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(data: List<MarketOscillatorEntity>)
 

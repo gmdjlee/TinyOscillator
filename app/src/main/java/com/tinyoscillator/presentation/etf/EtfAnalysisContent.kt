@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.core.database.entity.EtfEntity
+import com.tinyoscillator.core.ui.composable.NeedDataCollectionContent
+import com.tinyoscillator.core.ui.composable.NoSearchResultContent
 import com.tinyoscillator.presentation.common.CategoryBadge
 import com.tinyoscillator.presentation.common.KrxCredentialDialog
 
@@ -64,16 +66,10 @@ fun EtfAnalysisContent(
 
         // ETF List
         if (filteredList.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    if (etfList.isEmpty()) "설정 > Schedule에서 데이터를 수집해주세요."
-                    else "검색 결과가 없습니다.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (etfList.isEmpty()) {
+                NeedDataCollectionContent()
+            } else {
+                NoSearchResultContent(query = searchQuery)
             }
         } else {
             LazyColumn(

@@ -42,6 +42,9 @@ class FearGreedViewModel @Inject constructor(
     private val _selectedRange = MutableStateFlow(FearGreedDateRange.ONE_YEAR)
     val selectedRange: StateFlow<FearGreedDateRange> = _selectedRange.asStateFlow()
 
+    private val _lastUpdatedAt = MutableStateFlow<Long?>(null)
+    val lastUpdatedAt: StateFlow<Long?> = _lastUpdatedAt.asStateFlow()
+
     private val isoFmt = DateTimeFormatter.ISO_LOCAL_DATE
     private var loadJob: Job? = null
 
@@ -57,6 +60,7 @@ class FearGreedViewModel @Inject constructor(
             } else {
                 loadData()
             }
+            _lastUpdatedAt.value = repository.getLastUpdateTime(_selectedMarket.value)
         }
     }
 

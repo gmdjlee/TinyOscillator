@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.ConsensusFilter
 import com.tinyoscillator.domain.model.ConsensusFilterOptions
 import com.tinyoscillator.domain.model.ConsensusReport
+import com.tinyoscillator.core.ui.composable.NeedDataCollectionContent
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -112,16 +113,7 @@ fun ReportScreen(
                     onReportClick = onReportClick,
                     onPageSizeChanged = { viewModel.setPageSize(it) }
                 )
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "리포트가 없습니다.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                NeedDataCollectionContent()
             } else {
                 ReportTable(
                     reports = pagedReports,

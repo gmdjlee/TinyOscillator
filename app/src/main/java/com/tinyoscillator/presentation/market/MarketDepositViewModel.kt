@@ -29,8 +29,18 @@ class MarketDepositViewModel @Inject constructor(
     private val _depositData = MutableStateFlow(MarketDepositChartData.empty())
     val depositData: StateFlow<MarketDepositChartData> = _depositData.asStateFlow()
 
+    private val _lastUpdatedAt = MutableStateFlow<Long?>(null)
+    val lastUpdatedAt: StateFlow<Long?> = _lastUpdatedAt.asStateFlow()
+
     init {
         observeDateRangeChanges()
+        loadLastUpdatedTime()
+    }
+
+    private fun loadLastUpdatedTime() {
+        viewModelScope.launch {
+            _lastUpdatedAt.value = repository.getDepositLastUpdateTime()
+        }
     }
 
     private fun observeDateRangeChanges() {

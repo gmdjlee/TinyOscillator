@@ -71,6 +71,9 @@ class FearGreedRepository(
     suspend fun getLatestDate(market: String): String? =
         withContext(Dispatchers.IO) { fearGreedDao.getLatestDate(market) }
 
+    suspend fun getLastUpdateTime(market: String): Long? =
+        withContext(Dispatchers.IO) { fearGreedDao.getLastUpdateTime(market) }
+
     suspend fun getRecentData(market: String, limit: Int): List<FearGreedEntity> =
         withContext(Dispatchers.IO) { fearGreedDao.getRecentData(market, limit) }
 

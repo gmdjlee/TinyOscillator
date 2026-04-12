@@ -68,6 +68,16 @@ class MarketIndicatorRepository(
             oscillatorDao.getRecentData(market, limit).map { it.toDomain() }
         }
 
+    suspend fun getOscillatorLastUpdateTime(): Long? =
+        withContext(Dispatchers.IO) {
+            oscillatorDao.getLastUpdateTime()
+        }
+
+    suspend fun getDepositLastUpdateTime(): Long? =
+        withContext(Dispatchers.IO) {
+            depositDao.getLastUpdateTime()
+        }
+
     suspend fun getRecentDeposits(limit: Int): List<MarketDeposit> =
         withContext(Dispatchers.IO) {
             depositDao.getRecentDeposits(limit).map { it.toDomain() }

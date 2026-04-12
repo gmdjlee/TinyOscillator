@@ -23,6 +23,8 @@ import com.tinyoscillator.domain.model.DateRangeOption
 import com.tinyoscillator.domain.model.MarketOscillator
 import com.tinyoscillator.domain.model.MarketOscillatorState
 import com.tinyoscillator.domain.model.OscillatorRangeOption
+import com.tinyoscillator.core.ui.composable.DefaultErrorContent
+import com.tinyoscillator.core.ui.composable.NeedDataCollectionContent
 @Composable
 fun MarketOscillatorTab(
     viewModel: MarketOscillatorViewModel
@@ -150,33 +152,14 @@ fun MarketOscillatorTab(
                 }
             }
             is MarketOscillatorState.Error -> {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                ) {
-                    Text(
-                        currentState.message,
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
+                DefaultErrorContent(
+                    message = currentState.message,
+                    onRetry = { viewModel.clearMessage() }
+                )
             }
             is MarketOscillatorState.Idle -> {
                 if (!currentState.hasData || marketData.isEmpty()) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                "설정 > Schedule에서 데이터를 수집해주세요.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
+                    NeedDataCollectionContent()
                 }
             }
         }

@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.DateRangeOption
 import com.tinyoscillator.domain.model.MarketDepositChartData
 import com.tinyoscillator.domain.model.MarketDepositState
+import com.tinyoscillator.core.ui.composable.DefaultErrorContent
 import com.tinyoscillator.presentation.financial.FinancialMarkerView
 
 @Composable
@@ -79,16 +80,10 @@ fun MarketDepositTab(
                     }
                 }
                 is MarketDepositState.Error -> {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                    ) {
-                        Text(
-                            currentState.message,
-                            modifier = Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
+                    DefaultErrorContent(
+                        message = currentState.message,
+                        onRetry = { viewModel.clearMessage() }
+                    )
                 }
                 is MarketDepositState.Idle -> {}
             }
