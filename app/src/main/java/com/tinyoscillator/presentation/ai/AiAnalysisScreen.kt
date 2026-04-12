@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -43,6 +44,7 @@ import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.ui.theme.LocalFinanceColors
 import com.tinyoscillator.presentation.common.PillTabRow
 import com.tinyoscillator.presentation.common.AlgoContributionView
+import com.tinyoscillator.presentation.common.AlgorithmGuideContent
 import com.tinyoscillator.presentation.common.ConflictWarningBanner
 import com.tinyoscillator.presentation.common.SignalRationaleCard
 import com.tinyoscillator.presentation.common.AlgoAccuracyCard
@@ -66,6 +68,7 @@ fun AiAnalysisScreen(
     val metaLearnerStatus by viewModel.metaLearnerStatus.collectAsStateWithLifecycle()
     val ensembleProbability by viewModel.ensembleProbability.collectAsStateWithLifecycle()
     val algoAccuracy by viewModel.algoAccuracy.collectAsStateWithLifecycle()
+    val snapshots by viewModel.snapshots.collectAsStateWithLifecycle()
 
     // 채팅 상태
     val marketDataPrepared by viewModel.marketDataPrepared.collectAsStateWithLifecycle()
@@ -152,6 +155,7 @@ fun AiAnalysisScreen(
                         metaLearnerStatus = metaLearnerStatus,
                         ensembleProbability = ensembleProbability,
                         algoAccuracy = algoAccuracy,
+                        snapshots = snapshots,
                         onAnalyze = { viewModel.analyzeProbability() },
                         onDismiss = { viewModel.dismissProbability() },
                         onSelectStock = { viewModel.selectTab(AiTab.STOCK) },
@@ -676,6 +680,7 @@ private fun ChatBubble(message: ChatMessage) {
 
 // ─── 확률 분석 탭 ───
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProbabilityTabContent(
     selectedStock: SelectedStockInfo?,
@@ -684,6 +689,7 @@ private fun ProbabilityTabContent(
     metaLearnerStatus: com.tinyoscillator.domain.model.MetaLearnerStatus,
     ensembleProbability: Double?,
     algoAccuracy: Map<String, com.tinyoscillator.domain.model.AlgoAccuracyRow>,
+    snapshots: List<com.tinyoscillator.core.database.entity.AnalysisSnapshotEntity>,
     onAnalyze: () -> Unit,
     onDismiss: () -> Unit,
     onSelectStock: () -> Unit,
@@ -691,6 +697,14 @@ private fun ProbabilityTabContent(
     onInterpretAi: () -> Unit,
     onDismissInterpretation: () -> Unit
 ) {
+    var showAlgoGuide by remember { mutableStateOf(false) }
+
+    if (showAlgoGuide) {
+        ModalBottomSheet(onDismissRequest = { showAlgoGuide = false }) {
+            AlgorithmGuideContent()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -700,10 +714,21 @@ private fun ProbabilityTabContent(
     ) {
         // 설명 카드
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("확률적 기대값 분석", style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("확률적 기대값 분석", style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold)
+                TextButton(onClick = { showAlgoGuide = true }) {
+                    Icon(Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("알고리즘 해설")
+                }
+            }
             Spacer(Modifier.height(8.dp))
-            Text("7개 통계 알고리즘을 병렬 실행하여 상승/하락 확률을 산출합니다. API 키 없이 로컬에서 실행됩니다.",
+            Text("9개 통계 알고리즘을 병렬 실행하여 상승/하락 확률을 산출합니다. API 키 없이 로컬에서 실행됩니다.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -835,10 +860,194 @@ private fun ProbabilityTabContent(
                         result = state.result,
                         interpretationState = interpretationState
                     )
+
+                    // 분석 히스토리 비교
+                    if (snapshots.size >= 2) {
+                        SnapshotComparisonCard(snapshots = snapshots)
+                    }
                 }
             }
         }
     }
+}
+
+// ─── 분석 히스토리 비교 카드 ───
+
+@Composable
+private fun SnapshotComparisonCard(
+    snapshots: List<com.tinyoscillator.core.database.entity.AnalysisSnapshotEntity>
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val dateFormat = remember { java.text.SimpleDateFormat("MM/dd HH:mm", java.util.Locale.KOREA) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { expanded = !expanded }
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Analytics, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    Text("분석 히스토리 비교", style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold)
+                }
+                Text("${snapshots.size}회", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            // 최근 2개 비교 요약 (항상 표시)
+            if (snapshots.size >= 2) {
+                val current = snapshots[0]
+                val previous = snapshots[1]
+                val currentScore = (current.ensembleScore * 100).toInt()
+                val previousScore = (previous.ensembleScore * 100).toInt()
+                val diff = currentScore - previousScore
+                val diffColor = when {
+                    diff > 0 -> MaterialTheme.colorScheme.tertiary
+                    diff < 0 -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
+                val diffText = if (diff >= 0) "+$diff" else "$diff"
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("이전 $previousScore → 현재 $currentScore ($diffText)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = diffColor)
+                    Text(dateFormat.format(java.util.Date(current.analyzedAt)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // 펼치면 전체 히스토리 + 알고리즘별 비교
+            AnimatedVisibility(visible = expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    HorizontalDivider()
+
+                    // 앙상블 점수 추이
+                    snapshots.reversed().forEach { snapshot ->
+                        val score = (snapshot.ensembleScore * 100).toInt()
+                        val direction = when {
+                            score >= 65 -> "강세"
+                            score <= 35 -> "약세"
+                            else -> "중립"
+                        }
+                        val dirColor = when {
+                            score >= 65 -> MaterialTheme.colorScheme.tertiary
+                            score <= 35 -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                dateFormat.format(java.util.Date(snapshot.analyzedAt)),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(80.dp)
+                            )
+                            LinearProgressIndicator(
+                                progress = { score / 100f },
+                                modifier = Modifier.weight(1f).height(6.dp).padding(horizontal = 8.dp),
+                                color = dirColor,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            )
+                            Text("$score $direction",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = dirColor,
+                                modifier = Modifier.width(60.dp),
+                                textAlign = TextAlign.End)
+                        }
+                    }
+
+                    // 알고리즘별 변화 비교 (최근 2개)
+                    if (snapshots.size >= 2) {
+                        HorizontalDivider()
+                        Text("알고리즘별 변화", style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold)
+
+                        val currentScores = parseAlgoScores(snapshots[0].algoScores)
+                        val previousScores = parseAlgoScores(snapshots[1].algoScores)
+
+                        val algoNameMap = mapOf(
+                            "naiveBayes" to "나이브베이즈",
+                            "logistic" to "로지스틱",
+                            "hmm" to "HMM",
+                            "pattern" to "패턴",
+                            "signal" to "시그널",
+                            "correlation" to "상관관계",
+                            "bayesianUpdate" to "베이지안",
+                            "orderFlow" to "수급",
+                            "dartEvent" to "DART"
+                        )
+
+                        currentScores.forEach { (key, currentVal) ->
+                            val prevVal = previousScores[key]
+                            if (prevVal != null) {
+                                val change = ((currentVal - prevVal) * 100).toInt()
+                                val changeColor = when {
+                                    change > 5 -> MaterialTheme.colorScheme.tertiary
+                                    change < -5 -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                                val changeText = if (change >= 0) "+$change" else "$change"
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(algoNameMap[key] ?: key,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.width(80.dp))
+                                    Text("${(prevVal * 100).toInt()} → ${(currentVal * 100).toInt()}",
+                                        style = MaterialTheme.typography.labelSmall)
+                                    Text(changeText,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = changeColor,
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.width(40.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** JSON {"key": score, ...} 파싱 (경량 — kotlinx.serialization 사용하지 않음) */
+private fun parseAlgoScores(json: String): Map<String, Float> {
+    val result = mutableMapOf<String, Float>()
+    val content = json.trim().removePrefix("{").removeSuffix("}")
+    if (content.isBlank()) return result
+
+    content.split(",").forEach { pair ->
+        val parts = pair.split(":")
+        if (parts.size == 2) {
+            val key = parts[0].trim().removeSurrounding("\"")
+            val value = parts[1].trim().toFloatOrNull()
+            if (value != null) result[key] = value
+        }
+    }
+    return result
 }
 
 /** 해석 제공자 선택 (로컬/AI) */

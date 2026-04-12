@@ -196,8 +196,28 @@ private fun bindConsensusData(
         highLightColor = targetColor
     }
 
+    // 평균 목표가 추이 라인: 같은 날짜의 목표가를 평균 → 누적 이동평균 라인
+    val avgTargetColor = Color.parseColor("#FF9800")
+    val avgTargetEntries = buildAvgTargetEntries(chartData, dates)
+    val avgTargetDataSet = if (avgTargetEntries.size >= 2) {
+        LineDataSet(avgTargetEntries, "평균 목표가 추이").apply {
+            color = avgTargetColor
+            lineWidth = 1.5f
+            setDrawCircles(false)
+            setDrawValues(false)
+            axisDependency = YAxis.AxisDependency.LEFT
+            isHighlightEnabled = false
+            enableDashedLine(
+                Utils.convertDpToPixel(6f),
+                Utils.convertDpToPixel(3f),
+                0f
+            )
+        }
+    } else null
+
     // Y축 범위: 현재가 + 목표가 전체를 포함
-    val allValues = priceEntries.map { it.y } + targetEntries.map { it.y }
+    val allValues = priceEntries.map { it.y } + targetEntries.map { it.y } +
+        (avgTargetEntries.map { it.y })
     if (allValues.isEmpty()) return
     val yMin = allValues.min()
     val yMax = allValues.max()
@@ -209,6 +229,9 @@ private fun bindConsensusData(
     if (targetEntries.isNotEmpty()) {
         lineDataSets.add(targetDataSet)
     }
+    if (avgTargetDataSet != null) {
+        lineDataSets.add(avgTargetDataSet)
+    }
     chart.data = CombinedData().apply {
         setData(LineData(lineDataSets as List<com.github.mikephil.charting.interfaces.datasets.ILineDataSet>))
     }
@@ -219,6 +242,43 @@ private fun bindConsensusData(
     chart.marker = marker
 
     chart.invalidate()
+}
+
+/**
+ * 날짜별 목표가 평균을 구하여 누적 이동평균 라인 엔트리를 생성한다.
+ * 리포트가 발행된 날짜에만 점을 찍되, 이전까지의 모든 리포트 평균을 사용한다.
+ */
+private fun buildAvgTargetEntries(
+    chartData: ConsensusChartData,
+    dates: List<String>
+): List<Entry> {
+    if (chartData.reportDates.isEmpty()) return emptyList()
+
+    // 날짜별 목표가 그룹핑
+    val dateTargetMap = linkedMapOf<String, MutableList<Long>>()
+    chartData.reportDates.forEachIndexed { i, date ->
+        dateTargetMap.getOrPut(date) { mutableListOf() }
+            .add(chartData.reportTargetPrices[i])
+    }
+
+    // 시간순 정렬 후 누적 평균 계산
+    val sortedDates = dateTargetMap.keys.sorted()
+    val entries = mutableListOf<Entry>()
+    var totalSum = 0L
+    var totalCount = 0
+
+    for (date in sortedDates) {
+        val targets = dateTargetMap[date]!!
+        totalSum += targets.sum()
+        totalCount += targets.size
+
+        val xIndex = dates.indexOf(date)
+        if (xIndex >= 0) {
+            entries.add(Entry(xIndex.toFloat(), (totalSum.toDouble() / totalCount).toFloat()))
+        }
+    }
+
+    return entries
 }
 
 /** 차트 데이터 포인트 선택 시 값을 표시하는 MarkerView */
@@ -242,6 +302,7 @@ class ConsensusMarkerView(
         val valueText = when (highlight.dataSetIndex) {
             0 -> "현재가: ${numberFormat.format(e.y.toLong())}원"
             1 -> "목표가: ${numberFormat.format(e.y.toLong())}원"
+            2 -> "평균 목표가: ${numberFormat.format(e.y.toLong())}원"
             else -> String.format("%.2f", e.y)
         }
 

@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import com.tinyoscillator.core.database.dao.UserThemeDao
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
+import com.tinyoscillator.core.database.dao.AnalysisSnapshotDao
 import com.tinyoscillator.core.database.dao.CalibrationDao
 import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.dao.DartDao
@@ -24,6 +25,7 @@ import com.tinyoscillator.core.database.dao.FearGreedDao
 import com.tinyoscillator.core.database.dao.WorkerLogDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
+import com.tinyoscillator.core.database.entity.AnalysisSnapshotEntity
 import com.tinyoscillator.core.database.entity.CalibrationStateEntity
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
 import com.tinyoscillator.core.database.entity.DartCorpCodeEntity
@@ -76,9 +78,10 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         EnsembleHistoryEntity::class,
         IncrementalModelStateEntity::class,
         ModelDriftAlertEntity::class,
-        UserThemeEntity::class
+        UserThemeEntity::class,
+        AnalysisSnapshotEntity::class
     ],
-    version = 24,
+    version = 25,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -102,4 +105,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun ensembleHistoryDao(): EnsembleHistoryDao
     abstract fun incrementalModelDao(): IncrementalModelDao
     abstract fun userThemeDao(): UserThemeDao
+    abstract fun analysisSnapshotDao(): AnalysisSnapshotDao
 }

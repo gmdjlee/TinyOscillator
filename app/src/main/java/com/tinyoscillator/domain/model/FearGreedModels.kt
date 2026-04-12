@@ -27,6 +27,22 @@ fun Double.toFearGreedStatus(): String = when {
 }
 
 /**
+ * Fear & Greed 현재값 요약 + 히스토리컬 분위수 정보.
+ */
+data class FearGreedSummary(
+    val currentValue: Double,
+    val status: String,
+    val percentile: Int,
+    val date: String,
+    val subIndicators: List<SubIndicator>
+) {
+    data class SubIndicator(
+        val name: String,
+        val value: Double
+    )
+}
+
+/**
  * 시장 DeMark TD용 데이터 행.
  * 기존 DemarkTDRow의 marketCapTril 대신 indexValue(시장 지수)를 사용한다.
  */

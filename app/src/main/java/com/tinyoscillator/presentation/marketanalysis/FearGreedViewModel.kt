@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tinyoscillator.data.repository.FearGreedRepository
 import com.tinyoscillator.domain.model.FearGreedChartData
+import com.tinyoscillator.domain.model.FearGreedSummary
+import com.tinyoscillator.domain.model.toFearGreedStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
@@ -44,6 +46,9 @@ class FearGreedViewModel @Inject constructor(
 
     private val _lastUpdatedAt = MutableStateFlow<Long?>(null)
     val lastUpdatedAt: StateFlow<Long?> = _lastUpdatedAt.asStateFlow()
+
+    private val _summary = MutableStateFlow<FearGreedSummary?>(null)
+    val summary: StateFlow<FearGreedSummary?> = _summary.asStateFlow()
 
     private val isoFmt = DateTimeFormatter.ISO_LOCAL_DATE
     private var loadJob: Job? = null
@@ -102,8 +107,10 @@ class FearGreedViewModel @Inject constructor(
                             } else {
                                 _state.value = FearGreedState.Error("선택한 기간에 데이터가 없습니다")
                             }
+                            _summary.value = null
                         } else {
                             _state.value = FearGreedState.Success(chartData)
+                            computeSummary(market, chartData)
                         }
                     }
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
@@ -112,5 +119,37 @@ class FearGreedViewModel @Inject constructor(
                 _state.value = FearGreedState.Error(e.message ?: "데이터 로드 실패")
             }
         }
+    }
+
+    private suspend fun computeSummary(market: String, chartData: FearGreedChartData) {
+        val latest = chartData.rows.lastOrNull() ?: return
+
+        // 전체 히스토리(최대 730일)에서 백분위 계산
+        val allData = repository.getRecentData(market, 730)
+        if (allData.isEmpty()) return
+
+        val allValues = allData.map { it.fearGreedValue }.sorted()
+        val rank = allValues.count { it <= latest.fearGreedValue }
+        val percentile = ((rank.toDouble() / allValues.size) * 100).toInt().coerceIn(0, 100)
+
+        // 최신 엔티티에서 세부 지표 추출
+        val latestEntity = allData.firstOrNull() // getRecentData는 DESC 정렬
+        val subIndicators = if (latestEntity != null) {
+            listOf(
+                FearGreedSummary.SubIndicator("RSI", latestEntity.rsi),
+                FearGreedSummary.SubIndicator("모멘텀", latestEntity.momentum),
+                FearGreedSummary.SubIndicator("풋/콜", latestEntity.putCallRatio),
+                FearGreedSummary.SubIndicator("변동성", latestEntity.volatility),
+                FearGreedSummary.SubIndicator("금리차", latestEntity.spread)
+            )
+        } else emptyList()
+
+        _summary.value = FearGreedSummary(
+            currentValue = latest.fearGreedValue,
+            status = latest.fearGreedValue.toFearGreedStatus(),
+            percentile = percentile,
+            date = latest.date,
+            subIndicators = subIndicators
+        )
     }
 }

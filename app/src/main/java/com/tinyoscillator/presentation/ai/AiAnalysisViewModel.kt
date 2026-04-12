@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tinyoscillator.core.api.AiApiClient
+import com.tinyoscillator.core.database.dao.AnalysisSnapshotDao
+import com.tinyoscillator.core.database.entity.AnalysisSnapshotEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
 import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.data.repository.FinancialRepository
@@ -14,6 +16,7 @@ import com.tinyoscillator.domain.model.ChatMessage
 import com.tinyoscillator.domain.model.ChatRole
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.util.DateFormats
+import com.tinyoscillator.data.engine.RationaleBuilder
 import com.tinyoscillator.data.engine.FeatureStore
 import com.tinyoscillator.data.engine.StatisticalAnalysisEngine
 import com.tinyoscillator.domain.model.CacheStats
@@ -105,7 +108,8 @@ class AiAnalysisViewModel @Inject constructor(
     private val statisticalAnalysisEngine: StatisticalAnalysisEngine,
     private val probabilityInterpreter: ProbabilityInterpreter,
     private val featureStore: FeatureStore,
-    private val signalHistoryRepository: com.tinyoscillator.data.repository.SignalHistoryRepository
+    private val signalHistoryRepository: com.tinyoscillator.data.repository.SignalHistoryRepository,
+    private val analysisSnapshotDao: AnalysisSnapshotDao
 ) : AndroidViewModel(application) {
 
     private val fmt = DateFormats.yyyyMMdd
@@ -126,6 +130,9 @@ class AiAnalysisViewModel @Inject constructor(
 
     private val _selectedStock = MutableStateFlow<SelectedStockInfo?>(null)
     val selectedStock: StateFlow<SelectedStockInfo?> = _selectedStock.asStateFlow()
+
+    private val _snapshots = MutableStateFlow<List<AnalysisSnapshotEntity>>(emptyList())
+    val snapshots: StateFlow<List<AnalysisSnapshotEntity>> = _snapshots.asStateFlow()
 
     private val _stockDataState = MutableStateFlow<StockDataState>(StockDataState.Idle)
     val stockDataState: StateFlow<StockDataState> = _stockDataState.asStateFlow()
@@ -552,6 +559,9 @@ class AiAnalysisViewModel @Inject constructor(
                 val result = statisticalAnalysisEngine.analyze(stock.ticker)
                 _probabilityState.value = ProbabilityAnalysisState.Success(result)
 
+                // 스냅샷 저장
+                saveSnapshot(stock, result)
+
                 // 적중률 로드
                 try {
                     _algoAccuracy.value = signalHistoryRepository.getAccuracy(stock.ticker)
@@ -571,6 +581,50 @@ class AiAnalysisViewModel @Inject constructor(
             } catch (e: Exception) {
                 _probabilityState.value = ProbabilityAnalysisState.Error(e.message ?: "확률 분석 실패")
             }
+        }
+    }
+
+    private fun saveSnapshot(stock: SelectedStockInfo, result: StatisticalResult) {
+        viewModelScope.launch {
+            try {
+                val algoResults = RationaleBuilder.build(result)
+                val scoresJson = buildString {
+                    append("{")
+                    append(algoResults.entries.joinToString(",") { (k, v) ->
+                        "\"$k\":${v.score}"
+                    })
+                    append("}")
+                }
+                val rationalesJson = buildString {
+                    append("{")
+                    append(algoResults.entries.joinToString(",") { (k, v) ->
+                        "\"$k\":\"${v.rationale.replace("\"", "\\\"")}\""
+                    })
+                    append("}")
+                }
+                val ensemble = _ensembleProbability.value ?: 0.5
+
+                analysisSnapshotDao.insert(
+                    AnalysisSnapshotEntity(
+                        ticker = stock.ticker,
+                        name = stock.name,
+                        analyzedAt = System.currentTimeMillis(),
+                        ensembleScore = ensemble,
+                        algoScores = scoresJson,
+                        algoRationales = rationalesJson
+                    )
+                )
+                analysisSnapshotDao.deleteOldSnapshots(stock.ticker, 20)
+                loadSnapshots(stock.ticker)
+            } catch (e: Exception) {
+                Timber.w(e, "분석 스냅샷 저장 실패")
+            }
+        }
+    }
+
+    fun loadSnapshots(ticker: String) {
+        viewModelScope.launch {
+            _snapshots.value = analysisSnapshotDao.getRecentByTicker(ticker, 10)
         }
     }
 
