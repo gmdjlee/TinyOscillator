@@ -1,5 +1,11 @@
 package com.tinyoscillator.presentation.settings
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -7,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
 import com.tinyoscillator.core.worker.STATUS_ERROR
@@ -162,6 +169,48 @@ private fun LastResultDisplay(log: WorkerLogEntity) {
 }
 
 @Composable
+private fun BatteryOptimizationCard() {
+    val context = LocalContext.current
+    var isIgnoring by remember { mutableStateOf(isBatteryOptimizationIgnored(context)) }
+
+    if (!isIgnoring) {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("배터리 최적화 설정", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "배터리 최적화가 활성화되어 있으면 예약된 자동 업데이트가 지연되거나 실행되지 않을 수 있습니다. " +
+                    "안정적인 자동 업데이트를 위해 이 앱을 배터리 최적화 예외로 설정해 주세요.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = {
+                    requestIgnoreBatteryOptimization(context)
+                    // 사용자가 설정 화면에서 돌아오면 상태 갱신
+                    isIgnoring = isBatteryOptimizationIgnored(context)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("배터리 최적화 예외 설정")
+            }
+        }
+    }
+}
+
+private fun isBatteryOptimizationIgnored(context: Context): Boolean {
+    val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    return pm.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+private fun requestIgnoreBatteryOptimization(context: Context) {
+    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+        data = Uri.parse("package:${context.packageName}")
+    }
+    context.startActivity(intent)
+}
+
+@Composable
 internal fun ScheduleTab(
     fgScheduleEnabled: Boolean = false,
     onFgScheduleEnabledChange: (Boolean) -> Unit = {},
@@ -241,6 +290,8 @@ internal fun ScheduleTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        BatteryOptimizationCard()
+
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             ScheduleSection(
                 title = "Fear & Greed 자동 업데이트",

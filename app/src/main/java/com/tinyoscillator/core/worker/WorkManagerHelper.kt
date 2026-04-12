@@ -10,13 +10,19 @@ object WorkManagerHelper {
 
     // ===== Generic scheduling helpers =====
 
+    /**
+     * 일일 Worker 스케줄 등록.
+     * @param forceUpdate true이면 기존 스케줄을 교체 (사용자가 시간 변경 시),
+     *                    false이면 기존 스케줄이 있으면 유지 (앱 재시작 시)
+     */
     private inline fun <reified W : ListenableWorker> scheduleDailyWorker(
         context: Context,
         workName: String,
         tag: String,
         label: String,
         hour: Int,
-        minute: Int
+        minute: Int,
+        forceUpdate: Boolean = false
     ) {
         require(hour in 0..23) { "hour must be 0-23, got $hour" }
         require(minute in 0..59) { "minute must be 0-59, got $minute" }
@@ -36,7 +42,8 @@ object WorkManagerHelper {
             .build()
 
         val request = PeriodicWorkRequestBuilder<W>(
-            24, TimeUnit.HOURS
+            24, TimeUnit.HOURS,
+            15, TimeUnit.MINUTES  // flex interval: 설정 시각 전후 15분 이내 실행
         )
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
@@ -44,14 +51,16 @@ object WorkManagerHelper {
             .addTag(tag)
             .build()
 
+        val policy = if (forceUpdate) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP
+
         WorkManager.getInstance(context)
             .enqueueUniquePeriodicWork(
                 workName,
-                ExistingPeriodicWorkPolicy.UPDATE,
+                policy,
                 request
             )
 
-        Timber.d("$label 일일 업데이트 스케줄 등록: %02d:%02d (초기 딜레이: %d분)", hour, minute, initialDelay / 60000)
+        Timber.d("$label 일일 업데이트 스케줄 등록: %02d:%02d (초기 딜레이: %d분, policy=%s)", hour, minute, initialDelay / 60000, policy)
     }
 
     private fun cancelWorker(context: Context, workName: String, label: String) {
@@ -83,8 +92,8 @@ object WorkManagerHelper {
 
     // ===== ETF =====
 
-    fun scheduleEtfUpdate(context: Context, hour: Int = 0, minute: Int = 30) =
-        scheduleDailyWorker<EtfUpdateWorker>(context, EtfUpdateWorker.WORK_NAME, EtfUpdateWorker.TAG, "ETF", hour, minute)
+    fun scheduleEtfUpdate(context: Context, hour: Int = 0, minute: Int = 30, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<EtfUpdateWorker>(context, EtfUpdateWorker.WORK_NAME, EtfUpdateWorker.TAG, "ETF", hour, minute, forceUpdate)
 
     fun cancelEtfUpdate(context: Context) =
         cancelWorker(context, EtfUpdateWorker.WORK_NAME, "ETF")
@@ -94,8 +103,8 @@ object WorkManagerHelper {
 
     // ===== 시장지표(과매수/과매도) =====
 
-    fun scheduleOscillatorUpdate(context: Context, hour: Int = 1, minute: Int = 0) =
-        scheduleDailyWorker<MarketOscillatorUpdateWorker>(context, MarketOscillatorUpdateWorker.WORK_NAME, MarketOscillatorUpdateWorker.TAG, "시장지표", hour, minute)
+    fun scheduleOscillatorUpdate(context: Context, hour: Int = 1, minute: Int = 0, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<MarketOscillatorUpdateWorker>(context, MarketOscillatorUpdateWorker.WORK_NAME, MarketOscillatorUpdateWorker.TAG, "시장지표", hour, minute, forceUpdate)
 
     fun cancelOscillatorUpdate(context: Context) =
         cancelWorker(context, MarketOscillatorUpdateWorker.WORK_NAME, "시장지표")
@@ -105,8 +114,8 @@ object WorkManagerHelper {
 
     // ===== 자금 동향(deposit) =====
 
-    fun scheduleDepositUpdate(context: Context, hour: Int = 2, minute: Int = 0) =
-        scheduleDailyWorker<MarketDepositUpdateWorker>(context, MarketDepositUpdateWorker.WORK_NAME, MarketDepositUpdateWorker.TAG, "자금 동향", hour, minute)
+    fun scheduleDepositUpdate(context: Context, hour: Int = 2, minute: Int = 0, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<MarketDepositUpdateWorker>(context, MarketDepositUpdateWorker.WORK_NAME, MarketDepositUpdateWorker.TAG, "자금 동향", hour, minute, forceUpdate)
 
     fun cancelDepositUpdate(context: Context) =
         cancelWorker(context, MarketDepositUpdateWorker.WORK_NAME, "자금 동향")
@@ -116,8 +125,8 @@ object WorkManagerHelper {
 
     // ===== 장 마감 데이터 교체 =====
 
-    fun scheduleMarketCloseRefresh(context: Context, hour: Int = 19, minute: Int = 0) =
-        scheduleDailyWorker<MarketCloseRefreshWorker>(context, MarketCloseRefreshWorker.WORK_NAME, MarketCloseRefreshWorker.TAG, "장 마감 교체", hour, minute)
+    fun scheduleMarketCloseRefresh(context: Context, hour: Int = 19, minute: Int = 0, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<MarketCloseRefreshWorker>(context, MarketCloseRefreshWorker.WORK_NAME, MarketCloseRefreshWorker.TAG, "장 마감 교체", hour, minute, forceUpdate)
 
     fun cancelMarketCloseRefresh(context: Context) =
         cancelWorker(context, MarketCloseRefreshWorker.WORK_NAME, "장 마감 교체")
@@ -127,8 +136,8 @@ object WorkManagerHelper {
 
     // ===== 리포트(컨센서스) =====
 
-    fun scheduleConsensusUpdate(context: Context, hour: Int = 3, minute: Int = 0) =
-        scheduleDailyWorker<ConsensusUpdateWorker>(context, ConsensusUpdateWorker.WORK_NAME, ConsensusUpdateWorker.TAG, "리포트", hour, minute)
+    fun scheduleConsensusUpdate(context: Context, hour: Int = 3, minute: Int = 0, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<ConsensusUpdateWorker>(context, ConsensusUpdateWorker.WORK_NAME, ConsensusUpdateWorker.TAG, "리포트", hour, minute, forceUpdate)
 
     fun cancelConsensusUpdate(context: Context) =
         cancelWorker(context, ConsensusUpdateWorker.WORK_NAME, "리포트")
@@ -138,8 +147,8 @@ object WorkManagerHelper {
 
     // ===== Fear & Greed =====
 
-    fun scheduleFearGreedUpdate(context: Context, hour: Int = 4, minute: Int = 0) =
-        scheduleDailyWorker<FearGreedUpdateWorker>(context, FearGreedUpdateWorker.WORK_NAME, FearGreedUpdateWorker.TAG, "Fear & Greed", hour, minute)
+    fun scheduleFearGreedUpdate(context: Context, hour: Int = 4, minute: Int = 0, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<FearGreedUpdateWorker>(context, FearGreedUpdateWorker.WORK_NAME, FearGreedUpdateWorker.TAG, "Fear & Greed", hour, minute, forceUpdate)
 
     fun cancelFearGreedUpdate(context: Context) =
         cancelWorker(context, FearGreedUpdateWorker.WORK_NAME, "Fear & Greed")
@@ -149,11 +158,10 @@ object WorkManagerHelper {
 
     // ===== 시장 레짐 =====
 
-    fun scheduleRegimeUpdate(context: Context, hour: Int = 5, minute: Int = 0) {
+    fun scheduleRegimeUpdate(context: Context, hour: Int = 5, minute: Int = 0, forceUpdate: Boolean = false) {
         require(hour in 0..23) { "hour must be 0-23, got $hour" }
         require(minute in 0..59) { "minute must be 0-59, got $minute" }
 
-        // Weekly schedule (every 7 days instead of daily)
         val now = java.util.Calendar.getInstance()
         val target = java.util.Calendar.getInstance().apply {
             set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.SUNDAY)
@@ -170,7 +178,8 @@ object WorkManagerHelper {
             .build()
 
         val request = PeriodicWorkRequestBuilder<RegimeUpdateWorker>(
-            7, TimeUnit.DAYS
+            7, TimeUnit.DAYS,
+            1, TimeUnit.HOURS  // flex interval: 설정 시각 전후 1시간 이내 실행
         )
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
@@ -178,14 +187,16 @@ object WorkManagerHelper {
             .addTag(RegimeUpdateWorker.TAG)
             .build()
 
+        val policy = if (forceUpdate) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP
+
         WorkManager.getInstance(context)
             .enqueueUniquePeriodicWork(
                 RegimeUpdateWorker.WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
+                policy,
                 request
             )
 
-        Timber.d("시장 레짐 주간 업데이트 스케줄 등록: 매주 일요일 %02d:%02d (초기 딜레이: %d분)", hour, minute, initialDelay / 60000)
+        Timber.d("시장 레짐 주간 업데이트 스케줄 등록: 매주 일요일 %02d:%02d (초기 딜레이: %d분, policy=%s)", hour, minute, initialDelay / 60000, policy)
     }
 
     fun cancelRegimeUpdate(context: Context) =
@@ -196,8 +207,8 @@ object WorkManagerHelper {
 
     // ===== Feature 캐시 정리 =====
 
-    fun scheduleFeatureCacheEviction(context: Context, hour: Int = 6, minute: Int = 0) =
-        scheduleDailyWorker<FeatureCacheEvictionWorker>(context, FeatureCacheEvictionWorker.WORK_NAME, FeatureCacheEvictionWorker.TAG, "Feature 캐시 정리", hour, minute)
+    fun scheduleFeatureCacheEviction(context: Context, hour: Int = 6, minute: Int = 0, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<FeatureCacheEvictionWorker>(context, FeatureCacheEvictionWorker.WORK_NAME, FeatureCacheEvictionWorker.TAG, "Feature 캐시 정리", hour, minute, forceUpdate)
 
     fun cancelFeatureCacheEviction(context: Context) =
         cancelWorker(context, FeatureCacheEvictionWorker.WORK_NAME, "Feature 캐시 정리")
@@ -207,11 +218,10 @@ object WorkManagerHelper {
 
     // ===== 매크로 지표 =====
 
-    fun scheduleMacroUpdate(context: Context, hour: Int = 5, minute: Int = 30) {
+    fun scheduleMacroUpdate(context: Context, hour: Int = 5, minute: Int = 30, forceUpdate: Boolean = false) {
         require(hour in 0..23) { "hour must be 0-23, got $hour" }
         require(minute in 0..59) { "minute must be 0-59, got $minute" }
 
-        // Weekly schedule (every 7 days)
         val now = java.util.Calendar.getInstance()
         val target = java.util.Calendar.getInstance().apply {
             set(java.util.Calendar.DAY_OF_WEEK, java.util.Calendar.SUNDAY)
@@ -228,7 +238,8 @@ object WorkManagerHelper {
             .build()
 
         val request = PeriodicWorkRequestBuilder<MacroUpdateWorker>(
-            7, TimeUnit.DAYS
+            7, TimeUnit.DAYS,
+            1, TimeUnit.HOURS
         )
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
@@ -236,14 +247,16 @@ object WorkManagerHelper {
             .addTag(MacroUpdateWorker.TAG)
             .build()
 
+        val policy = if (forceUpdate) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP
+
         WorkManager.getInstance(context)
             .enqueueUniquePeriodicWork(
                 MacroUpdateWorker.WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
+                policy,
                 request
             )
 
-        Timber.d("매크로 지표 주간 업데이트 스케줄 등록: 매주 일요일 %02d:%02d (초기 딜레이: %d분)", hour, minute, initialDelay / 60000)
+        Timber.d("매크로 지표 주간 업데이트 스케줄 등록: 매주 일요일 %02d:%02d (초기 딜레이: %d분, policy=%s)", hour, minute, initialDelay / 60000, policy)
     }
 
     fun cancelMacroUpdate(context: Context) =
@@ -254,7 +267,7 @@ object WorkManagerHelper {
 
     // ===== 메타 학습기 재학습 =====
 
-    fun scheduleMetaLearnerRefit(context: Context, hour: Int = 6, minute: Int = 30) {
+    fun scheduleMetaLearnerRefit(context: Context, hour: Int = 6, minute: Int = 30, forceUpdate: Boolean = false) {
         require(hour in 0..23) { "hour must be 0-23, got $hour" }
         require(minute in 0..59) { "minute must be 0-59, got $minute" }
 
@@ -274,7 +287,8 @@ object WorkManagerHelper {
             .build()
 
         val request = PeriodicWorkRequestBuilder<MetaLearnerRefitWorker>(
-            7, TimeUnit.DAYS
+            7, TimeUnit.DAYS,
+            1, TimeUnit.HOURS
         )
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
@@ -282,14 +296,16 @@ object WorkManagerHelper {
             .addTag(MetaLearnerRefitWorker.TAG)
             .build()
 
+        val policy = if (forceUpdate) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP
+
         WorkManager.getInstance(context)
             .enqueueUniquePeriodicWork(
                 MetaLearnerRefitWorker.WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
+                policy,
                 request
             )
 
-        Timber.d("메타 학습기 주간 재학습 스케줄 등록: 매주 일요일 %02d:%02d (초기 딜레이: %d분)", hour, minute, initialDelay / 60000)
+        Timber.d("메타 학습기 주간 재학습 스케줄 등록: 매주 일요일 %02d:%02d (초기 딜레이: %d분, policy=%s)", hour, minute, initialDelay / 60000, policy)
     }
 
     fun cancelMetaLearnerRefit(context: Context) =
@@ -300,8 +316,8 @@ object WorkManagerHelper {
 
     // ===== 점진적 모델 업데이트 =====
 
-    fun scheduleIncrementalModelUpdate(context: Context, hour: Int = 19, minute: Int = 0) =
-        scheduleDailyWorker<IncrementalModelUpdateWorker>(context, IncrementalModelUpdateWorker.WORK_NAME, IncrementalModelUpdateWorker.TAG, "점진적 모델", hour, minute)
+    fun scheduleIncrementalModelUpdate(context: Context, hour: Int = 19, minute: Int = 0, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<IncrementalModelUpdateWorker>(context, IncrementalModelUpdateWorker.WORK_NAME, IncrementalModelUpdateWorker.TAG, "점진적 모델", hour, minute, forceUpdate)
 
     fun cancelIncrementalModelUpdate(context: Context) =
         cancelWorker(context, IncrementalModelUpdateWorker.WORK_NAME, "점진적 모델")
@@ -311,8 +327,8 @@ object WorkManagerHelper {
 
     // ===== 신호 결과 수집 =====
 
-    fun scheduleSignalOutcomeUpdate(context: Context, hour: Int = 18, minute: Int = 0) =
-        scheduleDailyWorker<SignalOutcomeUpdateWorker>(context, SignalOutcomeUpdateWorker.WORK_NAME, SignalOutcomeUpdateWorker.TAG, "신호 결과", hour, minute)
+    fun scheduleSignalOutcomeUpdate(context: Context, hour: Int = 18, minute: Int = 0, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<SignalOutcomeUpdateWorker>(context, SignalOutcomeUpdateWorker.WORK_NAME, SignalOutcomeUpdateWorker.TAG, "신호 결과", hour, minute, forceUpdate)
 
     fun cancelSignalOutcomeUpdate(context: Context) =
         cancelWorker(context, SignalOutcomeUpdateWorker.WORK_NAME, "신호 결과")

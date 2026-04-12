@@ -995,32 +995,32 @@ private suspend fun saveScheduleSettings(
         saveConsensusScheduleTime(context, ConsensusScheduleTime(consensusScheduleHour, consensusScheduleMinute, consensusScheduleEnabled))
         saveFearGreedScheduleTime(context, FearGreedScheduleTime(fgScheduleHour, fgScheduleMinute, fgScheduleEnabled))
         if (etfScheduleEnabled) {
-            WorkManagerHelper.scheduleEtfUpdate(context, scheduleHour, scheduleMinute)
+            WorkManagerHelper.scheduleEtfUpdate(context, scheduleHour, scheduleMinute, forceUpdate = true)
         } else {
             WorkManagerHelper.cancelEtfUpdate(context)
         }
         if (oscScheduleEnabled) {
-            WorkManagerHelper.scheduleOscillatorUpdate(context, oscScheduleHour, oscScheduleMinute)
+            WorkManagerHelper.scheduleOscillatorUpdate(context, oscScheduleHour, oscScheduleMinute, forceUpdate = true)
         } else {
             WorkManagerHelper.cancelOscillatorUpdate(context)
         }
         if (depositScheduleEnabled) {
-            WorkManagerHelper.scheduleDepositUpdate(context, depositScheduleHour, depositScheduleMinute)
+            WorkManagerHelper.scheduleDepositUpdate(context, depositScheduleHour, depositScheduleMinute, forceUpdate = true)
         } else {
             WorkManagerHelper.cancelDepositUpdate(context)
         }
         if (marketCloseRefreshEnabled) {
-            WorkManagerHelper.scheduleMarketCloseRefresh(context, marketCloseRefreshHour, marketCloseRefreshMinute)
+            WorkManagerHelper.scheduleMarketCloseRefresh(context, marketCloseRefreshHour, marketCloseRefreshMinute, forceUpdate = true)
         } else {
             WorkManagerHelper.cancelMarketCloseRefresh(context)
         }
         if (consensusScheduleEnabled) {
-            WorkManagerHelper.scheduleConsensusUpdate(context, consensusScheduleHour, consensusScheduleMinute)
+            WorkManagerHelper.scheduleConsensusUpdate(context, consensusScheduleHour, consensusScheduleMinute, forceUpdate = true)
         } else {
             WorkManagerHelper.cancelConsensusUpdate(context)
         }
         if (fgScheduleEnabled) {
-            WorkManagerHelper.scheduleFearGreedUpdate(context, fgScheduleHour, fgScheduleMinute)
+            WorkManagerHelper.scheduleFearGreedUpdate(context, fgScheduleHour, fgScheduleMinute, forceUpdate = true)
         } else {
             WorkManagerHelper.cancelFearGreedUpdate(context)
         }
