@@ -99,7 +99,10 @@ class DemarkTDViewModel @Inject constructor(
                 )
 
                 if (dailyData.isEmpty()) {
-                    _state.value = DemarkTDState.Error("데이터가 없습니다. 종목코드를 확인해주세요.")
+                    _state.value = DemarkTDState.Error(
+                        "해당 기간에 거래 데이터가 없습니다. " +
+                        "신규 상장 종목이거나 휴장일인 경우 데이터가 제공되지 않을 수 있습니다."
+                    )
                     return@launch
                 }
 

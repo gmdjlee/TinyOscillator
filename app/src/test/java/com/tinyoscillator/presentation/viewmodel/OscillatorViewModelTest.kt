@@ -234,7 +234,7 @@ class OscillatorViewModelTest {
 
         val state = viewModel.uiState.value
         assertTrue("Expected Error but got $state", state is OscillatorUiState.Error)
-        assertTrue((state as OscillatorUiState.Error).message.contains("데이터가 없습니다"))
+        assertTrue((state as OscillatorUiState.Error).message.contains("거래 데이터가 없습니다"))
     }
 
     @Test

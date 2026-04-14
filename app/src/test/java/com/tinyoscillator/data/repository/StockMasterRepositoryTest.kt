@@ -238,7 +238,7 @@ class StockMasterRepositoryTest {
     // ==========================================================
 
     @Test
-    fun `forceRefresh - API 성공 시 deleteAll 후 insertAll을 호출한다`() = runTest {
+    fun `forceRefresh - API 성공 시 replaceAll을 호출한다`() = runTest {
         coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
                 Result.success(StockListResponse(stkList = listOf(
                     StockListItem(stkCd = "005930", stkNm = "삼성전자", mrktNm = "KOSPI")
@@ -246,10 +246,7 @@ class StockMasterRepositoryTest {
 
         repository.forceRefresh(validConfig)
 
-        coVerifyOrder {
-            stockMasterDao.deleteAll()
-            stockMasterDao.insertAll(any())
-        }
+        coVerify(exactly = 1) { stockMasterDao.replaceAll(any()) }
     }
 
     @Test
@@ -262,8 +259,7 @@ class StockMasterRepositoryTest {
         val count = repository.forceRefresh(validConfig)
 
         assertTrue(count > 0)
-        coVerify(exactly = 1) { stockMasterDao.deleteAll() }
-        coVerify(exactly = 1) { stockMasterDao.insertAll(any()) }
+        coVerify(exactly = 1) { stockMasterDao.replaceAll(any()) }
     }
 
     @Test

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.tinyoscillator.core.database.entity.StockMasterEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -59,6 +60,13 @@ interface StockMasterDao {
 
     @Query("DELETE FROM stock_master")
     suspend fun deleteAll()
+
+    /** 기존 데이터 삭제 후 새 데이터 삽입 (원자적 트랜잭션) */
+    @Transaction
+    suspend fun replaceAll(stocks: List<StockMasterEntity>) {
+        deleteAll()
+        insertAll(stocks)
+    }
 
     @Query("SELECT ticker, market FROM stock_master")
     suspend fun getTickerMarketMap(): List<TickerMarketPair>

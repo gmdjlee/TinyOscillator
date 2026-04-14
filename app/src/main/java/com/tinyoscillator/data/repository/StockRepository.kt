@@ -56,6 +56,8 @@ class StockRepository @Inject constructor(
      * 3. 신규 데이터를 DB에 저장
      * 4. 365일 이전 데이터 정리
      * 5. DB에서 전체 기간 데이터 반환
+     *
+     * @throws ApiError API 호출 실패 시 (캐시가 없는 경우)
      */
     suspend fun getDailyTradingData(
         ticker: String,
@@ -104,9 +106,17 @@ class StockRepository @Inject constructor(
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Timber.w("API 호출 실패, 캐시 반환: ${e.message}")
-            return@withContext loadFromCache(ticker, startDate, endDate)
+            // 캐시가 있으면 캐시 반환, 없으면 예외 전파
+            val cached = loadFromCache(ticker, startDate, endDate)
+            if (cached.isNotEmpty()) {
+                Timber.w("API 호출 실패, 캐시 반환 (%d건): %s", cached.size, e.message)
+                return@withContext cached
+            }
+            Timber.w("API 호출 실패, 캐시도 없음: %s", e.message)
+            throw e
         }
+
+        // 쿨다운은 API 호출 성공 시에만 기록
         lastFetchTime[ticker] = System.currentTimeMillis()
         // Evict old entries to prevent unbounded growth
         if (lastFetchTime.size > MAX_COOLDOWN_ENTRIES) {
@@ -275,6 +285,8 @@ class StockRepository @Inject constructor(
 
     /**
      * 투자자별 매매 동향 조회 (ka10059).
+     *
+     * @throws ApiError API 호출 실패 시 예외 전파
      */
     private suspend fun fetchInvestorTrend(
         ticker: String,
@@ -300,7 +312,7 @@ class StockRepository @Inject constructor(
 
         val response = result.getOrElse { error ->
             Timber.w("투자자 동향 조회 실패: ${error.message}")
-            return emptyList()
+            throw error
         }
 
         return response.data?.mapNotNull { item ->

@@ -215,9 +215,8 @@ class StockMasterRepository @Inject constructor(
             return 0
         }
 
-        // API 조회 성공 후에만 기존 데이터 삭제 → 새 데이터 삽입
-        stockMasterDao.deleteAll()
-        stockMasterDao.insertAll(entities)
+        // API 조회 성공 후에만 기존 데이터 교체 (원자적 트랜잭션)
+        stockMasterDao.replaceAll(entities)
         Timber.d("종목 마스터 DB 갱신 완료: %d건", entities.size)
         return entities.size
     }
