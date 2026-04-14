@@ -8,8 +8,10 @@ import com.tinyoscillator.core.api.KiwoomApiKeyConfig
 import com.tinyoscillator.core.api.toUserMessage
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
+import com.tinyoscillator.core.database.dao.WorkerLogDao
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
+import com.tinyoscillator.core.database.entity.WorkerLogEntity
 import com.tinyoscillator.core.network.NetworkUtils
 import com.tinyoscillator.core.util.DateFormats
 import com.tinyoscillator.data.repository.FinancialRepository
@@ -63,7 +65,8 @@ class OscillatorViewModel @Inject constructor(
     private val calcOscillator: CalcOscillatorUseCase,
     private val analysisHistoryDao: AnalysisHistoryDao,
     private val financialRepository: FinancialRepository,
-    private val apiConfigProvider: ApiConfigProvider
+    private val apiConfigProvider: ApiConfigProvider,
+    private val workerLogDao: WorkerLogDao
 ) : AndroidViewModel(application) {
 
     private val config = OscillatorConfig()
@@ -211,6 +214,17 @@ class OscillatorViewModel @Inject constructor(
             try {
                 if (!NetworkUtils.isNetworkAvailable(getApplication())) {
                     _uiState.value = OscillatorUiState.Error("네트워크에 연결되어 있지 않습니다. 인터넷 연결을 확인해주세요.")
+                    launch {
+                        try {
+                            workerLogDao.insertAndCleanup(
+                                WorkerLogEntity(
+                                    workerName = "종목분석",
+                                    status = "error",
+                                    message = "[$ticker] $stockName — 네트워크 미연결"
+                                )
+                            )
+                        } catch (_: Exception) { }
+                    }
                     return@launch
                 }
 
@@ -276,7 +290,20 @@ class OscillatorViewModel @Inject constructor(
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e
             } catch (e: Exception) {
+                Timber.e(e, "종목 분석 실패: %s (%s)", ticker, stockName)
                 _uiState.value = OscillatorUiState.Error(e.toUserMessage())
+                launch {
+                    try {
+                        workerLogDao.insertAndCleanup(
+                            WorkerLogEntity(
+                                workerName = "종목분석",
+                                status = "error",
+                                message = "[$ticker] $stockName 분석 실패: ${e.toUserMessage()}",
+                                errorDetail = "${e::class.simpleName}: ${e.message}"
+                            )
+                        )
+                    } catch (_: Exception) { /* 로그 저장 실패 무시 */ }
+                }
             }
         }
     }

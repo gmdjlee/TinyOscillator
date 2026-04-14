@@ -101,11 +101,29 @@ class ApiErrorExtensionsTest {
     }
 
     @Test
+    fun `CircuitBreakerOpenError는 일시 중단 메시지 반환`() {
+        val error = ApiError.CircuitBreakerOpenError()
+        val message = error.toUserMessage()
+
+        assertTrue("일시 중단 메시지", message.contains("일시 중단"))
+        assertTrue("재시도 안내", message.contains("잠시 후 다시 시도"))
+    }
+
+    @Test
+    fun `CircuitBreakerOpenError는 NetworkError와 다른 메시지를 반환`() {
+        val cbMessage = ApiError.CircuitBreakerOpenError().toUserMessage()
+        val netMessage = ApiError.NetworkError("net").toUserMessage()
+
+        assertNotEquals("서킷 브레이커와 네트워크 에러는 다른 메시지", cbMessage, netMessage)
+    }
+
+    @Test
     fun `각 에러 타입의 메시지가 서로 다르다`() {
         val messages = listOf(
             ApiError.NoApiKeyError().toUserMessage(),
             ApiError.AuthError("auth").toUserMessage(),
             ApiError.NetworkError("net").toUserMessage(),
+            ApiError.CircuitBreakerOpenError().toUserMessage(),
             ApiError.TimeoutError("timeout").toUserMessage(),
             RuntimeException("unknown").toUserMessage()
         )

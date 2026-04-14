@@ -44,7 +44,7 @@ class KisApiClient(
         // Circuit breaker: skip API call if circuit is open
         if (circuitBreaker.isOpen) {
             Timber.w("KIS 서킷 브레이커 OPEN → 즉시 실패: %s", trId)
-            return@withContext Result.failure(ApiError.NetworkError("API 일시 중단 (연속 실패)"))
+            return@withContext Result.failure(ApiError.CircuitBreakerOpenError())
         }
 
         var lastResult = getOnce(trId, url, queryParams, config, parser)

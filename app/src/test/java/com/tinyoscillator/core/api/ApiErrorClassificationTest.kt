@@ -65,6 +65,7 @@ class ApiErrorClassificationTest {
         val errors: List<ApiError> = listOf(
             ApiError.AuthError("auth"),
             ApiError.NetworkError("net"),
+            ApiError.CircuitBreakerOpenError(),
             ApiError.ApiCallError(500, "server"),
             ApiError.ParseError("parse"),
             ApiError.TimeoutError("timeout"),
@@ -75,6 +76,7 @@ class ApiErrorClassificationTest {
             when (error) {
                 is ApiError.AuthError -> "auth"
                 is ApiError.NetworkError -> "network"
+                is ApiError.CircuitBreakerOpenError -> "circuit_breaker"
                 is ApiError.ApiCallError -> "api_${error.code}"
                 is ApiError.ParseError -> "parse"
                 is ApiError.TimeoutError -> "timeout"
@@ -82,7 +84,7 @@ class ApiErrorClassificationTest {
             }
         }
 
-        assertEquals(listOf("auth", "network", "api_500", "parse", "timeout", "no_key"), classified)
+        assertEquals(listOf("auth", "network", "circuit_breaker", "api_500", "parse", "timeout", "no_key"), classified)
     }
 
     @Test

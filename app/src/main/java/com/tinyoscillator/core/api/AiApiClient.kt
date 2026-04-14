@@ -126,7 +126,7 @@ class AiApiClient(
     ): Result<AiAnalysisResult> = withContext(Dispatchers.IO) {
         if (circuitBreaker.isOpen) {
             Timber.w("AI 서킷 브레이커 OPEN → 즉시 실패")
-            return@withContext Result.failure(ApiError.NetworkError("AI API 일시 중단 (연속 실패)"))
+            return@withContext Result.failure(ApiError.CircuitBreakerOpenError("AI API 일시 중단 (연속 실패)"))
         }
 
         var lastResult = analyzeOnce(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
@@ -305,7 +305,7 @@ class AiApiClient(
         temperature: Double = 0.3
     ): Result<String> = withContext(Dispatchers.IO) {
         if (circuitBreaker.isOpen) {
-            return@withContext Result.failure(ApiError.NetworkError("AI API 일시 중단 (연속 실패)"))
+            return@withContext Result.failure(ApiError.CircuitBreakerOpenError("AI API 일시 중단 (연속 실패)"))
         }
 
         var lastResult = chatOnce(config, systemPrompt, messages, maxTokens, temperature)

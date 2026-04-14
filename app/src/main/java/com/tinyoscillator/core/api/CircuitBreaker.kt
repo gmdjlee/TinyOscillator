@@ -24,12 +24,11 @@ class CircuitBreaker(
             val opened = openedAt.get()
             if (opened == 0L) return false
             if (System.currentTimeMillis() - opened > cooldownMs) {
-                // Cooldown expired → half-open: only one caller passes through
-                if (halfOpenGate.compareAndSet(false, true)) {
-                    return false
-                }
-                // Another caller already took the half-open slot
-                return true
+                // Cooldown expired → reset to CLOSED so all callers can proceed
+                consecutiveFailures.set(0)
+                openedAt.set(0L)
+                halfOpenGate.set(false)
+                return false
             }
             return true
         }

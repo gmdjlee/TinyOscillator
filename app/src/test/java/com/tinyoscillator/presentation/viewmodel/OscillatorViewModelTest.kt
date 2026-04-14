@@ -3,6 +3,7 @@ package com.tinyoscillator.presentation.viewmodel
 import android.app.Application
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
+import com.tinyoscillator.core.database.dao.WorkerLogDao
 import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.data.repository.StockMasterRepository
 import com.tinyoscillator.data.repository.StockRepository
@@ -34,6 +35,7 @@ class OscillatorViewModelTest {
     private lateinit var analysisHistoryDao: AnalysisHistoryDao
     private lateinit var financialRepository: FinancialRepository
     private lateinit var apiConfigProvider: ApiConfigProvider
+    private lateinit var workerLogDao: WorkerLogDao
     private lateinit var viewModel: OscillatorViewModel
     private val testDispatcher = StandardTestDispatcher()
 
@@ -55,6 +57,7 @@ class OscillatorViewModelTest {
         analysisHistoryDao = mockk(relaxed = true)
         financialRepository = mockk(relaxed = true)
         apiConfigProvider = mockk(relaxed = true)
+        workerLogDao = mockk(relaxed = true)
 
         // Mock static functions
         mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
@@ -87,7 +90,8 @@ class OscillatorViewModelTest {
             calcOscillator,
             analysisHistoryDao,
             financialRepository,
-            apiConfigProvider
+            apiConfigProvider,
+            workerLogDao
         )
     }
 
@@ -143,7 +147,7 @@ class OscillatorViewModelTest {
             application, repository, stockMasterRepository,
             searchStocksUseCase, saveAnalysisHistoryUseCase,
             calcOscillator, analysisHistoryDao, financialRepository,
-            apiConfigProvider
+            apiConfigProvider, workerLogDao
         )
         advanceUntilIdle()
 

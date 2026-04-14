@@ -128,6 +128,7 @@ class FinancialInfoViewModel @Inject constructor(
             onFailure = { error ->
                 when (error) {
                     is ApiError.NoApiKeyError, is ApiError.AuthError -> FinancialState.NoApiKey
+                    is ApiError.CircuitBreakerOpenError -> FinancialState.Error("API 연속 실패로 일시 중단 중입니다. 잠시 후 다시 시도해주세요.")
                     is ApiError.NetworkError -> FinancialState.Error("네트워크 연결을 확인해주세요.")
                     is ApiError.TimeoutError -> FinancialState.Error("서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.")
                     is IllegalStateException -> if (error.message?.contains("API key") == true) {

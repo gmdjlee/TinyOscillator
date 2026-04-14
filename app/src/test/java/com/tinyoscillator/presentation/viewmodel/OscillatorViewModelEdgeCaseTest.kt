@@ -39,6 +39,7 @@ class OscillatorViewModelEdgeCaseTest {
     private lateinit var analysisHistoryDao: AnalysisHistoryDao
     private lateinit var financialRepository: FinancialRepository
     private lateinit var apiConfigProvider: ApiConfigProvider
+    private lateinit var workerLogDao: com.tinyoscillator.core.database.dao.WorkerLogDao
     private lateinit var viewModel: OscillatorViewModel
     private val testDispatcher = StandardTestDispatcher()
 
@@ -60,6 +61,7 @@ class OscillatorViewModelEdgeCaseTest {
         analysisHistoryDao = mockk(relaxed = true)
         financialRepository = mockk(relaxed = true)
         apiConfigProvider = mockk(relaxed = true)
+        workerLogDao = mockk(relaxed = true)
 
         mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
         coEvery {
@@ -80,7 +82,7 @@ class OscillatorViewModelEdgeCaseTest {
             application, repository, stockMasterRepository,
             searchStocksUseCase, saveAnalysisHistoryUseCase,
             calcOscillator, analysisHistoryDao, financialRepository,
-            apiConfigProvider
+            apiConfigProvider, workerLogDao
         )
     }
 

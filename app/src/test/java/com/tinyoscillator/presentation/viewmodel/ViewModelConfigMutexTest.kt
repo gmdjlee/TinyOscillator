@@ -84,7 +84,8 @@ class ViewModelConfigMutexTest {
             CalcOscillatorUseCase(OscillatorConfig()),
             analysisHistoryDao,
             mockk(relaxed = true),
-            apiConfigProvider
+            apiConfigProvider,
+            mockk(relaxed = true)
         )
 
         assertNotNull(vm)

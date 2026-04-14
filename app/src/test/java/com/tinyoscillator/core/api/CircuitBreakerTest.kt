@@ -73,12 +73,15 @@ class CircuitBreakerTest {
     }
 
     @Test
-    fun `쿨다운 만료 후 HALF-OPEN 상태로 전환된다`() {
+    fun `쿨다운 만료 후 CLOSED 상태로 완전 복구된다`() {
         val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L) // 1ms cooldown
         cb.recordFailure()
         // Wait for cooldown to expire
         Thread.sleep(10)
-        assertFalse("Should be half-open after cooldown", cb.isOpen)
+        assertFalse("Should be closed after cooldown", cb.isOpen)
+        // All subsequent callers should also pass (not just the first one)
+        assertFalse("Second check should also pass", cb.isOpen)
+        assertFalse("Third check should also pass", cb.isOpen)
     }
 
     @Test

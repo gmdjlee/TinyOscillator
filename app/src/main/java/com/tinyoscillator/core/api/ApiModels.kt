@@ -41,6 +41,7 @@ data class KisTokenResponse(
 sealed class ApiError(override val message: String) : Exception(message) {
     class AuthError(msg: String) : ApiError(msg)
     class NetworkError(msg: String) : ApiError(msg)
+    class CircuitBreakerOpenError(msg: String = "API 일시 중단 (연속 실패)") : ApiError(msg)
     class ApiCallError(val code: Int, msg: String) : ApiError("[$code] $msg")
     class ParseError(msg: String) : ApiError(msg)
     class TimeoutError(msg: String) : ApiError(msg)
