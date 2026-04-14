@@ -1,5 +1,7 @@
 package com.tinyoscillator.core.api
 
+import kotlinx.coroutines.*
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -108,5 +110,59 @@ class CircuitBreakerTest {
         // 3rd failure: opens
         cb.recordFailure()
         assertTrue(cb.isOpen)
+    }
+
+    @Test
+    fun `동시 recordFailure와 isOpen 호출이 일관된 상태를 유지한다`() = runTest {
+        val cb = CircuitBreaker(threshold = 3, cooldownMs = 60_000L)
+        val iterations = 100
+
+        repeat(iterations) {
+            cb.reset()
+            val jobs = mutableListOf<Job>()
+
+            // 여러 코루틴에서 동시에 recordFailure 호출
+            repeat(5) {
+                jobs += launch(Dispatchers.Default) {
+                    cb.recordFailure()
+                }
+            }
+
+            // 동시에 isOpen 읽기
+            repeat(5) {
+                jobs += launch(Dispatchers.Default) {
+                    cb.isOpen // 읽기만 수행
+                }
+            }
+
+            jobs.joinAll()
+
+            // 5회 실패 → threshold(3) 이상이므로 반드시 OPEN
+            assertTrue("iteration $it: 5회 실패 후 isOpen이 true여야 한다", cb.isOpen)
+        }
+    }
+
+    @Test
+    fun `쿨다운 리셋과 recordFailure가 동시에 발생해도 일관성을 유지한다`() = runTest {
+        val iterations = 50
+
+        repeat(iterations) {
+            val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L)
+            cb.recordFailure() // OPEN
+            Thread.sleep(5) // 쿨다운 만료 대기
+
+            val jobs = mutableListOf<Job>()
+
+            // 쿨다운 만료 후 isOpen(리셋) + recordFailure 동시 실행
+            repeat(3) {
+                jobs += launch(Dispatchers.Default) { cb.isOpen }
+            }
+            repeat(3) {
+                jobs += launch(Dispatchers.Default) { cb.recordFailure() }
+            }
+
+            jobs.joinAll()
+            // 상태가 일관성 있어야 함 (크래시나 데드락 없이 완료)
+        }
     }
 }

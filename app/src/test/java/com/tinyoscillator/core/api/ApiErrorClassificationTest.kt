@@ -99,4 +99,45 @@ class ApiErrorClassificationTest {
         val error = ApiError.NetworkError("")
         assertEquals("", error.message)
     }
+
+    // =============================================
+    // 토큰 엔드포인트 에러 분류 검증
+    // =============================================
+
+    @Test
+    fun `ApiCallError 429는 isAuthError가 false이다`() {
+        val error = ApiError.ApiCallError(429, "토큰 발급 실패: 요청 한도 초과")
+        assertFalse("429 rate limit은 auth error가 아니다", ApiError.isAuthError(error))
+    }
+
+    @Test
+    fun `ApiCallError 429는 isRetriableError가 true이다`() {
+        val error = ApiError.ApiCallError(429, "토큰 발급 실패: 요청 한도 초과")
+        assertTrue("429 rate limit은 retriable이다", ApiError.isRetriableError(error))
+    }
+
+    @Test
+    fun `AuthError는 isAuthError가 true이다`() {
+        val error = ApiError.AuthError("토큰 발급 실패: HTTP 401")
+        assertTrue(ApiError.isAuthError(error))
+    }
+
+    @Test
+    fun `AuthError는 isRetriableError가 false이다`() {
+        val error = ApiError.AuthError("토큰 발급 실패: HTTP 401")
+        assertFalse(ApiError.isRetriableError(error))
+    }
+
+    @Test
+    fun `NetworkError는 isRetriableError가 true이다`() {
+        val error = ApiError.NetworkError("토큰 발급 실패: 서버 오류")
+        assertTrue(ApiError.isRetriableError(error))
+    }
+
+    @Test
+    fun `CircuitBreakerOpenError는 isAuthError와 isRetriableError 모두 false이다`() {
+        val error = ApiError.CircuitBreakerOpenError()
+        assertFalse(ApiError.isAuthError(error))
+        assertFalse(ApiError.isRetriableError(error))
+    }
 }
