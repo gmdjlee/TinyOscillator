@@ -64,13 +64,25 @@ data class AiApiBackup(
 )
 
 @Serializable
+data class DartApiBackup(
+    val apiKey: String
+)
+
+@Serializable
+data class EcosApiBackup(
+    val apiKey: String
+)
+
+@Serializable
 data class ApiBackup(
     val version: Int = 1,
-    val type: String, // "kiwoom", "kis", "krx", "ai", "all_api"
+    val type: String, // "kiwoom", "kis", "krx", "ai", "dart", "ecos", "all_api"
     val kiwoom: KiwoomApiBackup? = null,
     val kis: KisApiBackup? = null,
     val krx: KrxApiBackup? = null,
-    val ai: AiApiBackup? = null
+    val ai: AiApiBackup? = null,
+    val dart: DartApiBackup? = null,
+    val ecos: EcosApiBackup? = null
 )
 
 // endregion
@@ -275,17 +287,35 @@ object BackupManager {
                             ai = AiApiBackup(aiConfig.apiKey, aiConfig.provider.name, aiConfig.modelId)
                         )
                     }
+                    "dart" -> {
+                        val dartKey = loadDartApiKey(context)
+                        ApiBackup(
+                            type = "dart",
+                            dart = DartApiBackup(dartKey)
+                        )
+                    }
+                    "ecos" -> {
+                        val ecosKey = loadEcosApiKey(context)
+                        ApiBackup(
+                            type = "ecos",
+                            ecos = EcosApiBackup(ecosKey)
+                        )
+                    }
                     else -> {
                         val kiwoomConfig = loadKiwoomConfig(context)
                         val kisConfig = loadKisConfig(context)
                         val krxCreds = loadKrxCredentials(context)
                         val aiConfig = loadAiConfig(context)
+                        val dartKey = loadDartApiKey(context)
+                        val ecosKey = loadEcosApiKey(context)
                         ApiBackup(
                             type = "all_api",
                             kiwoom = KiwoomApiBackup(kiwoomConfig.appKey, kiwoomConfig.secretKey, kiwoomConfig.investmentMode.name),
                             kis = KisApiBackup(kisConfig.appKey, kisConfig.appSecret, kisConfig.investmentMode.name),
                             krx = KrxApiBackup(krxCreds.id, krxCreds.password),
-                            ai = AiApiBackup(aiConfig.apiKey, aiConfig.provider.name, aiConfig.modelId)
+                            ai = AiApiBackup(aiConfig.apiKey, aiConfig.provider.name, aiConfig.modelId),
+                            dart = DartApiBackup(dartKey),
+                            ecos = EcosApiBackup(ecosKey)
                         )
                     }
                 }
@@ -357,6 +387,14 @@ object BackupManager {
                         .putString("ai_model_id", ai.modelId)
                         .apply()
                     restoredParts.add("AI")
+                }
+                backup.dart?.let { dart ->
+                    saveDartApiKey(context, dart.apiKey)
+                    restoredParts.add("DART")
+                }
+                backup.ecos?.let { ecos ->
+                    saveEcosApiKey(context, ecos.apiKey)
+                    restoredParts.add("ECOS")
                 }
 
                 Result.success("${restoredParts.joinToString(", ")} 복원 완료")

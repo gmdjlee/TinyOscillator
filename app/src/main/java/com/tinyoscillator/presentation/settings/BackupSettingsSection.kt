@@ -286,6 +286,32 @@ internal fun BackupTab(db: AppDatabase) {
                     Text("AI", style = MaterialTheme.typography.labelSmall)
                 }
             }
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        pendingApiExportType = "dart"
+                        showExportPasswordDialog = true
+                    },
+                    enabled = !isProcessing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("DART", style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(
+                    onClick = {
+                        pendingApiExportType = "ecos"
+                        showExportPasswordDialog = true
+                    },
+                    enabled = !isProcessing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("ECOS", style = MaterialTheme.typography.labelSmall)
+                }
+            }
             Spacer(Modifier.height(8.dp))
             Button(
                 onClick = {
@@ -493,6 +519,8 @@ internal fun BackupTab(db: AppDatabase) {
                     "kiwoom" -> "kiwoom_api_backup.enc"
                     "kis" -> "kis_api_backup.enc"
                     "krx" -> "krx_api_backup.enc"
+                    "dart" -> "dart_api_backup.enc"
+                    "ecos" -> "ecos_api_backup.enc"
                     else -> "api_backup_all.enc"
                 }
                 apiExportLauncher.launch(filename)

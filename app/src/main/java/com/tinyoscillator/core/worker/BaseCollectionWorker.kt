@@ -12,6 +12,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import timber.log.Timber
@@ -41,6 +42,7 @@ abstract class BaseCollectionWorker(
 
     override suspend fun doWork(): Result {
         return try {
+            setForeground(getForegroundInfo())
             withTimeout(maxDurationMs) {
                 doCollectionWork()
             }
@@ -49,6 +51,14 @@ abstract class BaseCollectionWorker(
             Timber.e(msg)
             showCompletion(msg, isError = true)
             saveLog(notificationTitle, STATUS_ERROR, msg)
+            if (runAttemptCount < 3) Result.retry() else Result.failure()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val msg = "$notificationTitle 실패: ${e.message}"
+            Timber.e(e, msg)
+            showCompletion(msg, isError = true)
+            saveLog(notificationTitle, STATUS_ERROR, msg, e.stackTraceToString())
             if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
     }
