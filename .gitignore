@@ -16,3 +16,4 @@ hs_err_pid*
 nul
 .kotlin/
 replay_pid*.log
+.claude/settings.local.json
