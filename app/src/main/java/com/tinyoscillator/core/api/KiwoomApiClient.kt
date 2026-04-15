@@ -263,6 +263,17 @@ class KiwoomApiClient(
         return sb.toString()
     }
 
+    /**
+     * API 키 유효성 검증 — 토큰 발급을 시도하여 키가 유효한지 확인한다.
+     * 기존 토큰 캐시나 서킷 브레이커에 영향을 주지 않는다.
+     */
+    suspend fun validateCredentials(config: KiwoomApiKeyConfig): Result<Unit> = withContext(Dispatchers.IO) {
+        if (!config.isValid()) {
+            return@withContext Result.failure(ApiError.NoApiKeyError())
+        }
+        fetchTokenOnce(config).map { }
+    }
+
     companion object {
         private const val MAX_RETRIES = 2
         private const val RATE_LIMIT_MS = 500L

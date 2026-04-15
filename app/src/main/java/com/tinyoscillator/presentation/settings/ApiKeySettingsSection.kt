@@ -11,6 +11,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.core.api.AiApiClient
 import com.tinyoscillator.core.api.InvestmentMode
+import com.tinyoscillator.core.api.KisApiClient
+import com.tinyoscillator.core.api.KisApiKeyConfig
+import com.tinyoscillator.core.api.KiwoomApiClient
+import com.tinyoscillator.core.api.KiwoomApiKeyConfig
 import com.tinyoscillator.domain.model.AiModelInfo
 import com.tinyoscillator.domain.model.AiProvider
 import com.tinyoscillator.presentation.common.CarvedTextField
@@ -44,62 +48,38 @@ internal fun ApiTab(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // === Kiwoom API ===
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("Kiwoom API", style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.secondary)
-            Spacer(Modifier.height(12.dp))
-            CarvedTextField(
-                value = kiwoomAppKey,
-                onValueChange = onKiwoomAppKeyChange,
-                label = "App Key"
-            )
-            Spacer(Modifier.height(12.dp))
-            CarvedTextField(
-                value = kiwoomSecretKey,
-                onValueChange = onKiwoomSecretKeyChange,
-                label = "Secret Key",
-                visualTransformation = PasswordVisualTransformation()
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InvestmentMode.entries.forEach { mode ->
-                    FilterChip(
-                        selected = kiwoomMode == mode,
-                        onClick = { onKiwoomModeChange(mode) },
-                        label = { Text(mode.displayName) }
-                    )
-                }
+        ApiKeyValidationCard(
+            title = "Kiwoom API",
+            appKeyValue = kiwoomAppKey,
+            onAppKeyChange = onKiwoomAppKeyChange,
+            appKeyLabel = "App Key",
+            secretValue = kiwoomSecretKey,
+            onSecretChange = onKiwoomSecretKeyChange,
+            secretLabel = "Secret Key",
+            mode = kiwoomMode,
+            onModeChange = onKiwoomModeChange,
+            onValidate = { appKey, secret, mode ->
+                val config = KiwoomApiKeyConfig(appKey, secret, mode)
+                KiwoomApiClient().validateCredentials(config)
             }
-        }
+        )
 
         // === KIS API ===
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("KIS API (한국투자증권)", style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.secondary)
-            Spacer(Modifier.height(12.dp))
-            CarvedTextField(
-                value = kisAppKey,
-                onValueChange = onKisAppKeyChange,
-                label = "App Key"
-            )
-            Spacer(Modifier.height(12.dp))
-            CarvedTextField(
-                value = kisAppSecret,
-                onValueChange = onKisAppSecretChange,
-                label = "App Secret",
-                visualTransformation = PasswordVisualTransformation()
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InvestmentMode.entries.forEach { mode ->
-                    FilterChip(
-                        selected = kisMode == mode,
-                        onClick = { onKisModeChange(mode) },
-                        label = { Text(mode.displayName) }
-                    )
-                }
+        ApiKeyValidationCard(
+            title = "KIS API (한국투자증권)",
+            appKeyValue = kisAppKey,
+            onAppKeyChange = onKisAppKeyChange,
+            appKeyLabel = "App Key",
+            secretValue = kisAppSecret,
+            onSecretChange = onKisAppSecretChange,
+            secretLabel = "App Secret",
+            mode = kisMode,
+            onModeChange = onKisModeChange,
+            onValidate = { appKey, secret, mode ->
+                val config = KisApiKeyConfig(appKey, secret, mode)
+                KisApiClient().validateCredentials(config)
             }
-        }
+        )
 
         // === KRX API ===
         GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -366,6 +346,85 @@ private fun AiApiSection(
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(8.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun ApiKeyValidationCard(
+    title: String,
+    appKeyValue: String, onAppKeyChange: (String) -> Unit, appKeyLabel: String,
+    secretValue: String, onSecretChange: (String) -> Unit, secretLabel: String,
+    mode: InvestmentMode, onModeChange: (InvestmentMode) -> Unit,
+    onValidate: suspend (appKey: String, secret: String, mode: InvestmentMode) -> Result<Unit>
+) {
+    val scope = rememberCoroutineScope()
+    var validateState by remember { mutableStateOf<FetchState>(FetchState.Idle) }
+
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Text(title, style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.secondary)
+        Spacer(Modifier.height(12.dp))
+        CarvedTextField(
+            value = appKeyValue,
+            onValueChange = onAppKeyChange,
+            label = appKeyLabel
+        )
+        Spacer(Modifier.height(12.dp))
+        CarvedTextField(
+            value = secretValue,
+            onValueChange = onSecretChange,
+            label = secretLabel,
+            visualTransformation = PasswordVisualTransformation()
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            InvestmentMode.entries.forEach { m ->
+                FilterChip(
+                    selected = mode == m,
+                    onClick = { onModeChange(m) },
+                    label = { Text(m.displayName) }
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = {
+                if (appKeyValue.isBlank() || secretValue.isBlank()) {
+                    validateState = FetchState.Error("App Key와 Secret Key를 입력해주세요")
+                    return@OutlinedButton
+                }
+                validateState = FetchState.Loading
+                scope.launch {
+                    onValidate(appKeyValue, secretValue, mode).fold(
+                        onSuccess = { validateState = FetchState.Success("키 검증 성공") },
+                        onFailure = { e -> validateState = FetchState.Error("키 검증 실패: ${e.message}") }
+                    )
+                }
+            },
+            enabled = validateState !is FetchState.Loading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (validateState is FetchState.Loading) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text("키 검증")
+        }
+        when (val state = validateState) {
+            is FetchState.Success -> Text(
+                state.message,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            is FetchState.Error -> Text(
+                state.message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            else -> {}
         }
     }
 }
