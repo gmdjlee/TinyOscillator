@@ -31,6 +31,11 @@ class KisApiClient(
     private val tokenCache = ConcurrentHashMap<String, TokenInfo>()
     private val tokenMutex = Mutex()
 
+    // 토큰 엔드포인트 전용 rate limiter (KIS: 1분당 1회 제한)
+    private val tokenRateMutex = Mutex()
+    @Volatile
+    private var lastTokenFetchTime = 0L
+
     /**
      * KIS API GET 요청.
      */
@@ -54,6 +59,7 @@ class KisApiClient(
             if (ApiError.isAuthError(error)) {
                 Timber.w("KIS 인증 오류, 토큰 갱신 후 재시도")
                 refreshToken(config)
+                delay(1000L) // 토큰 재발급 전 1초 대기
                 lastResult = getOnce(trId, url, queryParams, config, parser)
             }
         }
@@ -138,16 +144,40 @@ class KisApiClient(
             val result = fetchTokenOnce(config)
             if (result.isSuccess) return result
             lastError = result.exceptionOrNull() as? Exception
-            val isRetriable = lastError is ApiError.NetworkError || lastError is ApiError.TimeoutError
+            val isRateLimit = lastError is ApiError.ApiCallError &&
+                (lastError as ApiError.ApiCallError).code == 429
+            val isRetriable = lastError is ApiError.NetworkError ||
+                lastError is ApiError.TimeoutError || isRateLimit
             if (isRetriable && attempt < 2) {
-                delay(listOf(1000L, 2000L, 4000L)[attempt])
+                val delayMs = if (isRateLimit) {
+                    TOKEN_RATE_LIMIT_RETRY_DELAYS[attempt]
+                } else {
+                    listOf(1000L, 2000L, 4000L)[attempt]
+                }
+                delay(delayMs)
             } else break
         }
         return Result.failure(lastError ?: ApiError.AuthError("KIS 토큰 발급 실패"))
     }
 
+    private suspend fun waitForTokenRateLimit() {
+        val delayMs: Long
+        tokenRateMutex.withLock {
+            val now = System.currentTimeMillis()
+            val elapsed = now - lastTokenFetchTime
+            delayMs = if (elapsed < TOKEN_MIN_INTERVAL_MS) TOKEN_MIN_INTERVAL_MS - elapsed else 0L
+            lastTokenFetchTime = now + delayMs
+        }
+        if (delayMs > 0L) {
+            Timber.d("KIS 토큰 레이트 리밋 대기: %dms", delayMs)
+            delay(delayMs)
+        }
+    }
+
     private suspend fun fetchTokenOnce(config: KisApiKeyConfig): Result<TokenInfo> {
         try {
+            waitForTokenRateLimit()
+
             val requestBody = json.encodeToString(mapOf(
                 "grant_type" to "client_credentials",
                 "appkey" to config.appKey,
@@ -165,7 +195,13 @@ class KisApiClient(
             }
 
             if (!isSuccessful || responseBody == null) {
-                return Result.failure(ApiError.AuthError("KIS 토큰 발급 실패: HTTP $responseCode"))
+                return Result.failure(
+                    when (responseCode) {
+                        429 -> ApiError.ApiCallError(429, "KIS 토큰 발급 실패: 요청 한도 초과")
+                        in 500..599 -> ApiError.NetworkError("KIS 토큰 발급 실패: 서버 오류 (HTTP $responseCode)")
+                        else -> ApiError.AuthError("KIS 토큰 발급 실패: HTTP $responseCode")
+                    }
+                )
             }
 
             val tokenResponse = json.decodeFromString<KisTokenResponse>(responseBody)
@@ -198,7 +234,9 @@ class KisApiClient(
     companion object {
         private const val MAX_RETRIES = 2
         private const val RATE_LIMIT_MS = 500L
+        private const val TOKEN_MIN_INTERVAL_MS = 61_000L // KIS: 토큰 재발급 1분당 1회 제한
         private val RETRY_DELAYS = listOf(1000L, 2000L)
+        private val TOKEN_RATE_LIMIT_RETRY_DELAYS = listOf(61_000L, 62_000L, 64_000L)
     }
 
 }

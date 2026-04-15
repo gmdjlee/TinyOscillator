@@ -32,6 +32,11 @@ class KiwoomApiClient(
     private val tokenCache = ConcurrentHashMap<String, TokenInfo>()
     private val tokenMutex = Mutex()
 
+    // 토큰 엔드포인트 전용 rate limiter
+    private val tokenRateMutex = Mutex()
+    @Volatile
+    private var lastTokenFetchTime = 0L
+
     /**
      * Kiwoom API 호출.
      * 401/403 오류 시 토큰 갱신 후 자동 재시도.
@@ -56,6 +61,7 @@ class KiwoomApiClient(
             if (ApiError.isAuthError(error)) {
                 Timber.w("인증 오류, 토큰 갱신 후 재시도")
                 refreshToken(config)
+                delay(1000L) // 토큰 재발급 전 1초 대기
                 lastResult = callOnce(apiId, url, body, config, parser)
             }
         }
@@ -140,16 +146,40 @@ class KiwoomApiClient(
             val result = fetchTokenOnce(config)
             if (result.isSuccess) return result
             lastError = result.exceptionOrNull() as? Exception
-            val isRetriable = lastError is ApiError.NetworkError || lastError is ApiError.TimeoutError
+            val isRateLimit = lastError is ApiError.ApiCallError &&
+                (lastError as ApiError.ApiCallError).code == 429
+            val isRetriable = lastError is ApiError.NetworkError ||
+                lastError is ApiError.TimeoutError || isRateLimit
             if (isRetriable && attempt < 2) {
-                delay(listOf(1000L, 2000L, 4000L)[attempt])
+                val delayMs = if (isRateLimit) {
+                    TOKEN_RATE_LIMIT_RETRY_DELAYS[attempt]
+                } else {
+                    listOf(1000L, 2000L, 4000L)[attempt]
+                }
+                delay(delayMs)
             } else break
         }
         return Result.failure(lastError ?: ApiError.AuthError("토큰 발급 실패"))
     }
 
+    private suspend fun waitForTokenRateLimit() {
+        val delayMs: Long
+        tokenRateMutex.withLock {
+            val now = System.currentTimeMillis()
+            val elapsed = now - lastTokenFetchTime
+            delayMs = if (elapsed < TOKEN_MIN_INTERVAL_MS) TOKEN_MIN_INTERVAL_MS - elapsed else 0L
+            lastTokenFetchTime = now + delayMs
+        }
+        if (delayMs > 0L) {
+            Timber.d("토큰 레이트 리밋 대기: %dms", delayMs)
+            delay(delayMs)
+        }
+    }
+
     private suspend fun fetchTokenOnce(config: KiwoomApiKeyConfig): Result<TokenInfo> {
         try {
+            waitForTokenRateLimit()
+
             val requestBody = json.encodeToString(mapOf(
                 "grant_type" to "client_credentials",
                 "appkey" to config.appKey,
@@ -168,7 +198,13 @@ class KiwoomApiClient(
             }
 
             if (!isSuccessful || responseBody == null) {
-                return Result.failure(ApiError.AuthError("토큰 발급 실패: HTTP $responseCode"))
+                return Result.failure(
+                    when (responseCode) {
+                        429 -> ApiError.ApiCallError(429, "토큰 발급 실패: 요청 한도 초과")
+                        in 500..599 -> ApiError.NetworkError("토큰 발급 실패: 서버 오류 (HTTP $responseCode)")
+                        else -> ApiError.AuthError("토큰 발급 실패: HTTP $responseCode")
+                    }
+                )
             }
 
             val tokenResponse = json.decodeFromString<TokenResponse>(responseBody)
@@ -230,7 +266,9 @@ class KiwoomApiClient(
     companion object {
         private const val MAX_RETRIES = 2
         private const val RATE_LIMIT_MS = 500L
+        private const val TOKEN_MIN_INTERVAL_MS = 10_000L // 토큰 발급 최소 간격 10초
         private val RETRY_DELAYS = listOf(1000L, 2000L)
+        private val TOKEN_RATE_LIMIT_RETRY_DELAYS = listOf(11_000L, 12_000L, 14_000L)
 
         fun createDefaultClient(enablePinning: Boolean = !com.tinyoscillator.BuildConfig.DEBUG): OkHttpClient {
             val builder = OkHttpClient.Builder()

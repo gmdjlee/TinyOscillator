@@ -143,4 +143,60 @@ class RateLimitTest {
         val delays = field.get(null) as List<Long>
         assertEquals(listOf(1000L, 2000L), delays)
     }
+
+    // =============================================
+    // 토큰 엔드포인트 Rate Limit 상수 검증
+    // =============================================
+
+    @Test
+    fun `Kiwoom TOKEN_MIN_INTERVAL_MS는 10초이다`() {
+        val field = KiwoomApiClient::class.java.getDeclaredField("TOKEN_MIN_INTERVAL_MS")
+        field.isAccessible = true
+        assertEquals(10_000L, field.get(null))
+    }
+
+    @Test
+    fun `KIS TOKEN_MIN_INTERVAL_MS는 61초이다`() {
+        val field = KisApiClient::class.java.getDeclaredField("TOKEN_MIN_INTERVAL_MS")
+        field.isAccessible = true
+        assertEquals(61_000L, field.get(null))
+    }
+
+    @Test
+    fun `Kiwoom tokenRateMutex가 존재한다`() {
+        val field = KiwoomApiClient::class.java.getDeclaredField("tokenRateMutex")
+        field.isAccessible = true
+        val mutex = field.get(kiwoomClient)
+        assertNotNull(mutex)
+        assertTrue(mutex is kotlinx.coroutines.sync.Mutex)
+    }
+
+    @Test
+    fun `KIS tokenRateMutex가 존재한다`() {
+        val field = KisApiClient::class.java.getDeclaredField("tokenRateMutex")
+        field.isAccessible = true
+        val mutex = field.get(kisClient)
+        assertNotNull(mutex)
+        assertTrue(mutex is kotlinx.coroutines.sync.Mutex)
+    }
+
+    @Test
+    fun `Kiwoom TOKEN_RATE_LIMIT_RETRY_DELAYS가 올바르다`() {
+        val field = KiwoomApiClient::class.java.getDeclaredField("TOKEN_RATE_LIMIT_RETRY_DELAYS")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val delays = field.get(null) as List<Long>
+        assertEquals(3, delays.size)
+        assertTrue("첫 번째 딜레이는 TOKEN_MIN_INTERVAL_MS 이상이어야 한다", delays[0] >= 10_000L)
+    }
+
+    @Test
+    fun `KIS TOKEN_RATE_LIMIT_RETRY_DELAYS가 올바르다`() {
+        val field = KisApiClient::class.java.getDeclaredField("TOKEN_RATE_LIMIT_RETRY_DELAYS")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val delays = field.get(null) as List<Long>
+        assertEquals(3, delays.size)
+        assertTrue("첫 번째 딜레이는 TOKEN_MIN_INTERVAL_MS(61초) 이상이어야 한다", delays[0] >= 61_000L)
+    }
 }
