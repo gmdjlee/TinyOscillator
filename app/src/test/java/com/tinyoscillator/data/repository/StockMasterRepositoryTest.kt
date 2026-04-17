@@ -1,5 +1,6 @@
 package com.tinyoscillator.data.repository
 
+import com.tinyoscillator.core.api.ApiError
 import com.tinyoscillator.core.api.InvestmentMode
 import com.tinyoscillator.core.api.KiwoomApiClient
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
@@ -35,6 +36,18 @@ class StockMasterRepositoryTest {
         stockMasterDao = mockk(relaxed = true)
         apiClient = mockk(relaxed = true)
         json = Json { ignoreUnknownKeys = true }
+        // executeRequest는 블록을 그대로 실행하여 내부 call() 모킹이 작동하도록 한다.
+        coEvery { apiClient.executeRequest(any<suspend () -> Any>()) } coAnswers {
+            val block = firstArg<suspend () -> Any>()
+            try {
+                Result.success(block())
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val err = if (e is ApiError) e else ApiError.mapException(e)
+                Result.failure<Any>(err)
+            }
+        }
         repository = StockMasterRepository(stockMasterDao, apiClient, json)
     }
 
@@ -129,9 +142,14 @@ class StockMasterRepositoryTest {
 
         try {
             repository.populateIfEmpty(validConfig)
-            fail("Should throw RuntimeException")
-        } catch (e: RuntimeException) {
-            assertTrue(e.message!!.contains("종목 조회 실패"))
+            fail("Should throw exception")
+        } catch (e: Exception) {
+            // executeRequest가 첫 실패를 ApiError로 매핑하여 전파한다.
+            // 원본 RuntimeException("API error") → ApiCallError(0, "API error")
+            assertTrue(
+                "원본 오류 메시지가 전파되어야 함: ${e.message}",
+                e.message!!.contains("API error")
+            )
         }
 
         coVerify(exactly = 0) { stockMasterDao.insertAll(any()) }
@@ -283,9 +301,13 @@ class StockMasterRepositoryTest {
 
         try {
             repository.forceRefresh(validConfig)
-            fail("Should throw RuntimeException")
-        } catch (e: RuntimeException) {
-            assertTrue(e.message!!.contains("종목 조회 실패"))
+            fail("Should throw exception")
+        } catch (e: Exception) {
+            // executeRequest가 첫 실패를 ApiError로 매핑하여 전파한다.
+            assertTrue(
+                "원본 오류 메시지가 전파되어야 함: ${e.message}",
+                e.message!!.contains("API error")
+            )
         }
 
         // API 실패 시 기존 데이터 보존: deleteAll이 호출되지 않음
@@ -321,5 +343,37 @@ class StockMasterRepositoryTest {
 
         val count = repository.getCount()
         assertEquals(2500, count)
+    }
+
+    // ==========================================================
+    // executeRequest 집계 테스트 (Phase C 확장)
+    // ==========================================================
+
+    @Test
+    fun `populateIfEmpty - KOSPI+KOSDAQ 호출은 단일 executeRequest로 감싸진다`() = runTest {
+        coEvery { stockMasterDao.getCount() } returns 0
+        coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
+                Result.success(StockListResponse(stkList = listOf(
+                    StockListItem(stkCd = "005930", stkNm = "삼성전자", mrktNm = "KOSPI")
+                )))
+
+        repository.populateIfEmpty(validConfig)
+
+        // 2건의 내부 call()이 단일 executeRequest 블록으로 집계됨 → CB에 단일 이벤트만 기록
+        coVerify(exactly = 1) { apiClient.executeRequest(any<suspend () -> Any>()) }
+        coVerify(exactly = 2) { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `forceRefresh - KOSPI+KOSDAQ 호출은 단일 executeRequest로 감싸진다`() = runTest {
+        coEvery { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) } returns
+                Result.success(StockListResponse(stkList = listOf(
+                    StockListItem(stkCd = "005930", stkNm = "삼성전자", mrktNm = "KOSPI")
+                )))
+
+        repository.forceRefresh(validConfig)
+
+        coVerify(exactly = 1) { apiClient.executeRequest(any<suspend () -> Any>()) }
+        coVerify(exactly = 2) { apiClient.call<StockListResponse>(any(), any(), any(), any(), any()) }
     }
 }

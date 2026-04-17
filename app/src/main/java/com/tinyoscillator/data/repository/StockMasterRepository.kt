@@ -41,6 +41,12 @@ class StockMasterRepository @Inject constructor(
 
     /**
      * API에서 종목 목록을 조회하여 DB에 저장.
+     *
+     * KOSPI+KOSDAQ 2건 순차 호출을 `executeRequest`로 감싸, 일시 장애로 두 시장이
+     * 동시에 실패해도 서킷 브레이커에는 단일 실패만 기록되도록 한다.
+     * 모든 시장이 실패한 경우 첫 번째 원본 오류를 전파하여 `executeRequest`가
+     * 원본 ApiError 분류(retriable 여부)에 따라 CB를 갱신하도록 한다.
+     *
      * @return 저장된 종목 수
      */
     private suspend fun fetchAndInsertStocks(config: KiwoomApiKeyConfig): Int {
@@ -51,58 +57,63 @@ class StockMasterRepository @Inject constructor(
         Timber.d("종목 마스터 API에서 전체 종목 조회 시작")
 
         val marketTypes = listOf("0" to "KOSPI", "10" to "KOSDAQ")
-        val allItems = mutableListOf<StockListItem>()
-        val errors = mutableListOf<String>()
 
-        for ((mrktTp, label) in marketTypes) {
-            val body = mapOf("mrkt_tp" to mrktTp)
-            val result = apiClient.call(
-                apiId = StockApiIds.STOCK_LIST,
-                url = StockApiEndpoints.STOCK_LIST,
-                body = body,
-                config = config
-            ) { responseJson ->
-                Timber.d("ka10099 raw response (%s, first 2000 chars): %s",
-                    label, responseJson.take(2000))
-                json.decodeFromString<StockListResponse>(responseJson)
+        return apiClient.executeRequest {
+            val allItems = mutableListOf<StockListItem>()
+            val errors = mutableListOf<Pair<String, Throwable>>()
+
+            for ((mrktTp, label) in marketTypes) {
+                val body = mapOf("mrkt_tp" to mrktTp)
+                val result = apiClient.call(
+                    apiId = StockApiIds.STOCK_LIST,
+                    url = StockApiEndpoints.STOCK_LIST,
+                    body = body,
+                    config = config
+                ) { responseJson ->
+                    Timber.d("ka10099 raw response (%s, first 2000 chars): %s",
+                        label, responseJson.take(2000))
+                    json.decodeFromString<StockListResponse>(responseJson)
+                }
+
+                result.onSuccess { response ->
+                    val items = response.stkList ?: emptyList()
+                    allItems.addAll(items)
+                    Timber.d("%s 종목 조회: %d건", label, items.size)
+                }.onFailure { error ->
+                    Timber.w("%s 종목 조회 실패: %s", label, error.message)
+                    errors.add(label to error)
+                }
             }
 
-            result.onSuccess { response ->
-                val items = response.stkList ?: emptyList()
-                allItems.addAll(items)
-                Timber.d("%s 종목 조회: %d건", label, items.size)
-            }.onFailure { error ->
-                Timber.w("%s 종목 조회 실패: %s", label, error.message)
-                errors.add("$label: ${error.message}")
+            if (allItems.isEmpty() && errors.isNotEmpty()) {
+                val summary = errors.joinToString("; ") { "${it.first}: ${it.second.message}" }
+                Timber.w("종목 조회 실패: %s", summary)
+                throw errors.first().second
             }
-        }
 
-        if (allItems.isEmpty() && errors.isNotEmpty()) {
-            throw RuntimeException("종목 조회 실패: ${errors.joinToString("; ")}")
-        }
+            val now = System.currentTimeMillis()
+            val entities = allItems.mapNotNull { item ->
+                val ticker = item.stkCd?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val name = item.stkNm?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                StockMasterEntity(
+                    ticker = ticker,
+                    name = name,
+                    market = item.mrktNm ?: "",
+                    sector = item.sector ?: "",
+                    initialConsonants = KoreanUtils.extractChosung(name),
+                    lastUpdated = now
+                )
+            }
 
-        val now = System.currentTimeMillis()
-        val entities = allItems.mapNotNull { item ->
-            val ticker = item.stkCd?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val name = item.stkNm?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            StockMasterEntity(
-                ticker = ticker,
-                name = name,
-                market = item.mrktNm ?: "",
-                sector = item.sector ?: "",
-                initialConsonants = KoreanUtils.extractChosung(name),
-                lastUpdated = now
-            )
-        }
+            if (entities.isEmpty()) {
+                Timber.w("종목 마스터 API 응답에 유효한 종목이 없습니다")
+                return@executeRequest 0
+            }
 
-        if (entities.isEmpty()) {
-            Timber.w("종목 마스터 API 응답에 유효한 종목이 없습니다")
-            return 0
-        }
-
-        stockMasterDao.insertAll(entities)
-        Timber.d("종목 마스터 DB 저장 완료: %d건", entities.size)
-        return entities.size
+            stockMasterDao.insertAll(entities)
+            Timber.d("종목 마스터 DB 저장 완료: %d건", entities.size)
+            entities.size
+        }.getOrThrow()
     }
 
     /**
@@ -155,6 +166,9 @@ class StockMasterRepository @Inject constructor(
     /**
      * API에서 종목 목록을 조회하여 DB를 교체 (삭제 후 삽입).
      * API 조회 성공 후에만 기존 데이터를 삭제한다.
+     *
+     * KOSPI+KOSDAQ 2건 순차 호출을 `executeRequest`로 감싸, 일시 장애로 두 시장이
+     * 동시에 실패해도 서킷 브레이커에는 단일 실패만 기록되도록 한다.
      */
     private suspend fun fetchAndInsertStocksWithReplace(config: KiwoomApiKeyConfig): Int {
         if (!config.isValid()) {
@@ -164,61 +178,66 @@ class StockMasterRepository @Inject constructor(
         Timber.d("종목 마스터 강제 갱신 시작")
 
         val marketTypes = listOf("0" to "KOSPI", "10" to "KOSDAQ")
-        val allItems = mutableListOf<StockListItem>()
-        val errors = mutableListOf<String>()
 
-        for ((mrktTp, label) in marketTypes) {
-            val body = mapOf("mrkt_tp" to mrktTp)
-            val result = apiClient.call(
-                apiId = StockApiIds.STOCK_LIST,
-                url = StockApiEndpoints.STOCK_LIST,
-                body = body,
-                config = config
-            ) { responseJson ->
-                Timber.d("ka10099 raw response (%s, first 2000 chars): %s",
-                    label, responseJson.take(2000))
-                json.decodeFromString<StockListResponse>(responseJson)
+        return apiClient.executeRequest {
+            val allItems = mutableListOf<StockListItem>()
+            val errors = mutableListOf<Pair<String, Throwable>>()
+
+            for ((mrktTp, label) in marketTypes) {
+                val body = mapOf("mrkt_tp" to mrktTp)
+                val result = apiClient.call(
+                    apiId = StockApiIds.STOCK_LIST,
+                    url = StockApiEndpoints.STOCK_LIST,
+                    body = body,
+                    config = config
+                ) { responseJson ->
+                    Timber.d("ka10099 raw response (%s, first 2000 chars): %s",
+                        label, responseJson.take(2000))
+                    json.decodeFromString<StockListResponse>(responseJson)
+                }
+
+                result.onSuccess { response ->
+                    val items = response.stkList ?: emptyList()
+                    allItems.addAll(items)
+                    Timber.d("%s 종목 조회: %d건", label, items.size)
+                }.onFailure { error ->
+                    Timber.w("%s 종목 조회 실패: %s", label, error.message)
+                    errors.add(label to error)
+                }
             }
 
-            result.onSuccess { response ->
-                val items = response.stkList ?: emptyList()
-                allItems.addAll(items)
-                Timber.d("%s 종목 조회: %d건", label, items.size)
-            }.onFailure { error ->
-                Timber.w("%s 종목 조회 실패: %s", label, error.message)
-                errors.add("$label: ${error.message}")
+            if (allItems.isEmpty() && errors.isNotEmpty()) {
+                val summary = errors.joinToString("; ") { "${it.first}: ${it.second.message}" }
+                Timber.w("종목 조회 실패: %s", summary)
+                throw errors.first().second
             }
-        }
 
-        if (allItems.isEmpty() && errors.isNotEmpty()) {
-            throw RuntimeException("종목 조회 실패: ${errors.joinToString("; ")}")
-        }
-
-        val now = System.currentTimeMillis()
-        val entities = allItems.mapNotNull { item ->
-            val ticker = item.stkCd?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val name = item.stkNm?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            StockMasterEntity(
-                ticker = ticker,
-                name = name,
-                market = item.mrktNm ?: "",
-                sector = item.sector ?: "",
-                initialConsonants = KoreanUtils.extractChosung(name),
-                lastUpdated = now
-            )
-        }
-
-        if (entities.isEmpty()) {
-            if (errors.isNotEmpty()) {
-                throw RuntimeException("종목 조회 부분 실패: ${errors.joinToString("; ")}")
+            val now = System.currentTimeMillis()
+            val entities = allItems.mapNotNull { item ->
+                val ticker = item.stkCd?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val name = item.stkNm?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                StockMasterEntity(
+                    ticker = ticker,
+                    name = name,
+                    market = item.mrktNm ?: "",
+                    sector = item.sector ?: "",
+                    initialConsonants = KoreanUtils.extractChosung(name),
+                    lastUpdated = now
+                )
             }
-            return 0
-        }
 
-        // API 조회 성공 후에만 기존 데이터 교체 (원자적 트랜잭션)
-        stockMasterDao.replaceAll(entities)
-        Timber.d("종목 마스터 DB 갱신 완료: %d건", entities.size)
-        return entities.size
+            if (entities.isEmpty()) {
+                if (errors.isNotEmpty()) {
+                    throw errors.first().second
+                }
+                return@executeRequest 0
+            }
+
+            // API 조회 성공 후에만 기존 데이터 교체 (원자적 트랜잭션)
+            stockMasterDao.replaceAll(entities)
+            Timber.d("종목 마스터 DB 갱신 완료: %d건", entities.size)
+            entities.size
+        }.getOrThrow()
     }
 
     /**
