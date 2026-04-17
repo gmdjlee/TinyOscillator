@@ -42,6 +42,19 @@ class FinancialRepositoryEdgeCaseTest {
             coerceInputValues = true
             encodeDefaults = true
         }
+        // executeRequest는 블록을 그대로 실행하여 내부 get() 모킹이 작동하도록 한다.
+        coEvery { kisApiClient.executeRequest(any<suspend () -> Any>()) } coAnswers {
+            val block = firstArg<suspend () -> Any>()
+            try {
+                Result.success(block())
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val err = if (e is com.tinyoscillator.core.api.ApiError) e
+                else com.tinyoscillator.core.api.ApiError.mapException(e)
+                Result.failure<Any>(err)
+            }
+        }
         repository = FinancialRepository(financialCacheDao, kisApiClient, json)
     }
 

@@ -48,8 +48,10 @@ class KiwoomApiClient(
         config: KiwoomApiKeyConfig,
         parser: (String) -> T
     ): Result<T> = withContext(Dispatchers.IO) {
-        // Circuit breaker: skip API call if not allowed (OPEN or HALF_OPEN probe busy)
-        if (!circuitBreaker.tryAcquire()) {
+        val inRequestScope = isInRequestScope()
+
+        // Circuit breaker: executeRequest 내부가 아닐 때만 직접 게이트를 연다.
+        if (!inRequestScope && !circuitBreaker.tryAcquire()) {
             Timber.w("서킷 브레이커 차단 → 즉시 실패: %s (state=%s)", apiId, circuitBreaker.currentState)
             return@withContext Result.failure(ApiError.CircuitBreakerOpenError())
         }
@@ -76,7 +78,10 @@ class KiwoomApiClient(
             }
         }
 
-        updateCircuitBreaker(lastResult)
+        // executeRequest 내부에서는 상위가 합산 결과로 한 번만 CB에 기록한다.
+        if (!inRequestScope) {
+            updateCircuitBreaker(lastResult)
+        }
 
         lastResult
     }

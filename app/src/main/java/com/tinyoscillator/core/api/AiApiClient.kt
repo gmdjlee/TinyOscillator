@@ -124,7 +124,9 @@ class AiApiClient(
         maxTokens: Int = 1024,
         temperature: Double = 0.3
     ): Result<AiAnalysisResult> = withContext(Dispatchers.IO) {
-        if (!circuitBreaker.tryAcquire()) {
+        val inRequestScope = isInRequestScope()
+
+        if (!inRequestScope && !circuitBreaker.tryAcquire()) {
             Timber.w("AI 서킷 브레이커 차단 (state=%s)", circuitBreaker.currentState)
             return@withContext Result.failure(ApiError.CircuitBreakerOpenError("AI API 일시 중단 (연속 실패)"))
         }
@@ -143,7 +145,9 @@ class AiApiClient(
             }
         }
 
-        updateCircuitBreaker(lastResult)
+        if (!inRequestScope) {
+            updateCircuitBreaker(lastResult)
+        }
 
         lastResult
     }
@@ -304,7 +308,9 @@ class AiApiClient(
         maxTokens: Int = 1024,
         temperature: Double = 0.3
     ): Result<String> = withContext(Dispatchers.IO) {
-        if (!circuitBreaker.tryAcquire()) {
+        val inRequestScope = isInRequestScope()
+
+        if (!inRequestScope && !circuitBreaker.tryAcquire()) {
             return@withContext Result.failure(ApiError.CircuitBreakerOpenError("AI API 일시 중단 (연속 실패)"))
         }
 
@@ -321,7 +327,9 @@ class AiApiClient(
             }
         }
 
-        updateCircuitBreaker(lastResult)
+        if (!inRequestScope) {
+            updateCircuitBreaker(lastResult)
+        }
         lastResult
     }
 

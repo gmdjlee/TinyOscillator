@@ -172,6 +172,12 @@ class FinancialRepository(
         financialCacheDao.insert(entity)
     }
 
+    /**
+     * 5개 재무제표(BS/IS/수익성/안정성/성장성) 병렬 수집.
+     *
+     * `executeRequest`로 감싸 5개 호출이 일시 장애로 동시 실패해도
+     * 서킷 브레이커에는 단일 실패만 기록되도록 한다.
+     */
     private suspend fun fetchFromApi(
         ticker: String,
         name: String,
@@ -184,7 +190,7 @@ class FinancialRepository(
                 "FID_INPUT_ISCD" to ticker
             )
 
-            val (balanceSheets, incomeStatements, profitRatios, stabilityRatios, growthRatios) =
+            val fetchResults = kisApiClient.executeRequest {
                 withTimeout(API_BATCH_TIMEOUT_MS) {
                     coroutineScope {
                         val bs = async {
@@ -205,6 +211,8 @@ class FinancialRepository(
                         FetchResults(bs.await(), is_.await(), pr.await(), sr.await(), gr.await())
                     }
                 }
+            }.getOrThrow()
+            val (balanceSheets, incomeStatements, profitRatios, stabilityRatios, growthRatios) = fetchResults
 
             val results = listOf(
                 "BalanceSheet" to balanceSheets.isNotEmpty(),

@@ -54,6 +54,18 @@ class StockRepositoryTest {
             encodeDefaults = true
         }
         analysisCacheDao = mockk(relaxed = true)
+        // executeRequest는 블록을 그대로 실행하여 내부 call() 모킹이 작동하도록 한다.
+        coEvery { apiClient.executeRequest(any<suspend () -> Any>()) } coAnswers {
+            val block = firstArg<suspend () -> Any>()
+            try {
+                Result.success(block())
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val err = if (e is ApiError) e else ApiError.mapException(e)
+                Result.failure<Any>(err)
+            }
+        }
         repository = StockRepository(apiClient, json, analysisCacheDao)
     }
 

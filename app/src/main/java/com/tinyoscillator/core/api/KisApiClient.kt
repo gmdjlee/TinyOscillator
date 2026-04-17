@@ -46,8 +46,9 @@ class KisApiClient(
         config: KisApiKeyConfig,
         parser: (String) -> T
     ): Result<T> = withContext(Dispatchers.IO) {
-        // Circuit breaker: skip API call if not allowed (OPEN or HALF_OPEN probe busy)
-        if (!circuitBreaker.tryAcquire()) {
+        val inRequestScope = isInRequestScope()
+
+        if (!inRequestScope && !circuitBreaker.tryAcquire()) {
             Timber.w("KIS 서킷 브레이커 차단 → 즉시 실패: %s (state=%s)", trId, circuitBreaker.currentState)
             return@withContext Result.failure(ApiError.CircuitBreakerOpenError())
         }
@@ -74,7 +75,9 @@ class KisApiClient(
             }
         }
 
-        updateCircuitBreaker(lastResult)
+        if (!inRequestScope) {
+            updateCircuitBreaker(lastResult)
+        }
 
         lastResult
     }

@@ -193,6 +193,11 @@ class StockRepository @Inject constructor(
 
     /**
      * API에서 데이터 수집 (기존 로직 유지).
+     *
+     * 3개 병렬 호출(투자자동향/주식정보/일봉)을 `executeRequest`로 감싸,
+     * 일시 장애로 3건이 동시에 실패하더라도 서킷 브레이커에는 단일 실패만
+     * 기록되도록 한다. 이전에는 각 호출이 개별적으로 카운트되어 한 번의 분석
+     * 시도만으로도 브레이커가 OPEN 되는 원인이 되었다.
      */
     private suspend fun fetchFromApi(
         ticker: String,
@@ -200,20 +205,22 @@ class StockRepository @Inject constructor(
         endDate: String,
         config: KiwoomApiKeyConfig
     ): List<DailyTrading> {
-        // 병렬 데이터 수집 (90초 타임아웃)
-        val (investorTrend, stockInfo, ohlcvData) = withTimeout(API_BATCH_TIMEOUT_MS) {
-            coroutineScope {
-                val trendDeferred = async { fetchInvestorTrend(ticker, endDate, config) }
-                val infoDeferred = async { fetchStockInfo(ticker, config) }
-                val ohlcvDeferred = async { fetchDailyOhlcv(ticker, endDate, config) }
+        // 병렬 데이터 수집 (90초 타임아웃). 상위 executeRequest가 서킷 브레이커를 집계 처리.
+        val (investorTrend, stockInfo, ohlcvData) = apiClient.executeRequest {
+            withTimeout(API_BATCH_TIMEOUT_MS) {
+                coroutineScope {
+                    val trendDeferred = async { fetchInvestorTrend(ticker, endDate, config) }
+                    val infoDeferred = async { fetchStockInfo(ticker, config) }
+                    val ohlcvDeferred = async { fetchDailyOhlcv(ticker, endDate, config) }
 
-                Triple(
-                    trendDeferred.await(),
-                    infoDeferred.await(),
-                    ohlcvDeferred.await()
-                )
+                    Triple(
+                        trendDeferred.await(),
+                        infoDeferred.await(),
+                        ohlcvDeferred.await()
+                    )
+                }
             }
-        }
+        }.getOrThrow()
 
         // OHLCV 인메모리 캐시 갱신 (raw API 응답 → 날짜 키)
         if (ohlcvData.isNotEmpty()) {
