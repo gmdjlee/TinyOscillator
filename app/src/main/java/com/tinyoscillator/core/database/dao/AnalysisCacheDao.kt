@@ -58,6 +58,9 @@ interface AnalysisCacheDao {
     )
     suspend fun getRecentByTicker(ticker: String, limit: Int): List<AnalysisCacheEntity>
 
+    @Query("SELECT COUNT(*) FROM analysis_cache WHERE ticker = :ticker AND volume = 0 AND open_price = 0 AND close_price > 0")
+    suspend fun countMissingOhlcv(ticker: String): Int
+
     /** Atomically insert new entries and clean up old ones. */
     @Transaction
     suspend fun insertAndCleanup(entries: List<AnalysisCacheEntity>, ticker: String, cutoffDate: String) {

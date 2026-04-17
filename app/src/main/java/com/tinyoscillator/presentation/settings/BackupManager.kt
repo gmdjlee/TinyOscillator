@@ -835,9 +835,9 @@ object BackupManager {
 
                     // analysis_cache
                     w.write("\n## analysis_cache\n")
-                    w.write("ticker${t}date${t}marketCap${t}foreignNet${t}instNet${t}close\n")
+                    w.write("ticker${t}date${t}marketCap${t}foreignNet${t}instNet${t}close${t}open${t}high${t}low${t}volume\n")
                     for (a in analysisCache) {
-                        w.write("${a.ticker}$t${a.date}$t${a.marketCap.toTsv()}$t${a.foreignNet.toTsv()}$t${a.instNet.toTsv()}$t${a.closePrice.toTsv()}\n")
+                        w.write("${a.ticker}$t${a.date}$t${a.marketCap.toTsv()}$t${a.foreignNet.toTsv()}$t${a.instNet.toTsv()}$t${a.closePrice.toTsv()}$t${a.openPrice.toTsv()}$t${a.highPrice.toTsv()}$t${a.lowPrice.toTsv()}$t${a.volume.toTsv()}\n")
                     }
                     totalRecords += analysisCache.size
                     onProgress("analysis_cache: ${analysisCache.size}건")

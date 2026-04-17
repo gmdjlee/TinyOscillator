@@ -89,9 +89,15 @@ class StockRepository @Inject constructor(
             }
         }
 
+        // OHLCV 미보유 캐시가 있으면 전체 재수집 (v26 마이그레이션 후 1회)
+        val needsOhlcvBackfill = latestCachedDate != null &&
+            analysisCacheDao.countMissingOhlcv(ticker) > 0
+
         // API에서 신규 데이터 수집
-        val fetchStartDate = if (latestCachedDate != null) {
-            // 캐시된 최신일 + 1일부터 조회
+        val fetchStartDate = if (needsOhlcvBackfill) {
+            Timber.d("OHLCV 미보유 캐시 감지 → 전체 재수집: $ticker")
+            startDate
+        } else if (latestCachedDate != null) {
             val nextDay = LocalDate.parse(latestCachedDate, fmt).plusDays(1)
             nextDay.format(fmt)
         } else {
@@ -133,7 +139,11 @@ class StockRepository @Inject constructor(
                     marketCap = daily.marketCap,
                     foreignNet = daily.foreignNetBuy,
                     instNet = daily.instNetBuy,
-                    closePrice = daily.closePrice
+                    closePrice = daily.closePrice,
+                    openPrice = daily.openPrice,
+                    highPrice = daily.highPrice,
+                    lowPrice = daily.lowPrice,
+                    volume = daily.volume,
                 )
             }
             val cutoffDate = LocalDate.now().minusDays(365).format(fmt)
@@ -164,10 +174,10 @@ class StockRepository @Inject constructor(
                 foreignNetBuy = entity.foreignNet,
                 instNetBuy = entity.instNet,
                 closePrice = entity.closePrice,
-                openPrice = ohlcv?.open ?: entity.closePrice,
-                highPrice = ohlcv?.high ?: entity.closePrice,
-                lowPrice = ohlcv?.low ?: entity.closePrice,
-                volume = ohlcv?.volume ?: 0L,
+                openPrice = ohlcv?.open ?: entity.openPrice.takeIf { it > 0 } ?: entity.closePrice,
+                highPrice = ohlcv?.high ?: entity.highPrice.takeIf { it > 0 } ?: entity.closePrice,
+                lowPrice = ohlcv?.low ?: entity.lowPrice.takeIf { it > 0 } ?: entity.closePrice,
+                volume = ohlcv?.volume ?: entity.volume,
             )
         }
     }
@@ -229,11 +239,6 @@ class StockRepository @Inject constructor(
             ohlcvCache[ticker] = existing
         }
 
-        if (investorTrend.isEmpty()) {
-            Timber.w("투자자 동향 데이터가 없습니다: $ticker")
-            return emptyList()
-        }
-
         // 상장주식수 (1000주 단위 → 주)
         val sharesOutstanding = stockInfo.floatingShares
 
@@ -244,41 +249,69 @@ class StockRepository @Inject constructor(
         Timber.d("━━━ API 데이터 수집 결과 ━━━")
         Timber.d("종목: $ticker | 상장주식수: ${sharesOutstanding}주")
         Timber.d("투자자동향: ${investorTrend.size}건, 일봉: ${ohlcvData.size}건")
-        Timber.d("━━━ ka10059 원본 (마지막 5일, unit_tp=1000) ━━━")
-        investorTrend.takeLast(5).forEach { t ->
-            Timber.d("[${t.date}] foreignNet=${t.foreignNet} instNet=${t.institutionNet} marketCap=${t.marketCap}" +
-                    " → foreignWon=${t.foreignNetWon} instWon=${t.instNetWon} mcapWon=${t.marketCapWon}")
-        }
-        Timber.d("━━━ ka10081 종가 (마지막 5일) ━━━")
-        ohlcvData.takeLast(5).forEach { o ->
-            Timber.d("[${o.date}] close=${o.close}")
-        }
 
-        // 투자자 거래 데이터를 DailyTrading으로 변환
-        val result = investorTrend
-            .filter { it.date >= startDate }
-            .map { trend ->
-                val closePrice = closePriceMap[trend.date]
-                val marketCap = if (sharesOutstanding > 0 && closePrice != null && closePrice > 0) {
-                    sharesOutstanding * closePrice.toLong()
-                } else {
-                    trend.marketCapWon
-                }
-
-                val ohlcv = ohlcvMap[trend.date]
-                DailyTrading(
-                    date = trend.date,
-                    marketCap = marketCap,
-                    foreignNetBuy = trend.foreignNetWon,
-                    instNetBuy = trend.instNetWon,
-                    closePrice = closePrice ?: 0,
-                    openPrice = ohlcv?.open ?: (closePrice ?: 0),
-                    highPrice = ohlcv?.high ?: (closePrice ?: 0),
-                    lowPrice = ohlcv?.low ?: (closePrice ?: 0),
-                    volume = ohlcv?.volume ?: 0L,
-                )
+        val result = if (investorTrend.isNotEmpty()) {
+            Timber.d("━━━ ka10059 원본 (마지막 5일, unit_tp=1000) ━━━")
+            investorTrend.takeLast(5).forEach { t ->
+                Timber.d("[${t.date}] foreignNet=${t.foreignNet} instNet=${t.institutionNet} marketCap=${t.marketCap}" +
+                        " → foreignWon=${t.foreignNetWon} instWon=${t.instNetWon} mcapWon=${t.marketCapWon}")
             }
-            .sortedBy { it.date }
+            Timber.d("━━━ ka10081 종가 (마지막 5일) ━━━")
+            ohlcvData.takeLast(5).forEach { o ->
+                Timber.d("[${o.date}] close=${o.close}")
+            }
+
+            // 투자자 거래 데이터 + OHLCV 병합
+            investorTrend
+                .filter { it.date >= startDate }
+                .map { trend ->
+                    val closePrice = closePriceMap[trend.date]
+                    val marketCap = if (sharesOutstanding > 0 && closePrice != null && closePrice > 0) {
+                        sharesOutstanding * closePrice.toLong()
+                    } else {
+                        trend.marketCapWon
+                    }
+
+                    val ohlcv = ohlcvMap[trend.date]
+                    DailyTrading(
+                        date = trend.date,
+                        marketCap = marketCap,
+                        foreignNetBuy = trend.foreignNetWon,
+                        instNetBuy = trend.instNetWon,
+                        closePrice = closePrice ?: 0,
+                        openPrice = ohlcv?.open ?: (closePrice ?: 0),
+                        highPrice = ohlcv?.high ?: (closePrice ?: 0),
+                        lowPrice = ohlcv?.low ?: (closePrice ?: 0),
+                        volume = ohlcv?.volume ?: 0L,
+                    )
+                }
+                .sortedBy { it.date }
+        } else if (ohlcvData.isNotEmpty()) {
+            Timber.w("투자자 동향 데이터가 없습니다: $ticker → OHLCV만으로 구성")
+            // OHLCV만으로 DailyTrading 생성 (캔들/거래량 차트 표시용)
+            ohlcvData
+                .filter { it.date >= startDate }
+                .map { ohlcv ->
+                    val marketCap = if (sharesOutstanding > 0 && ohlcv.close > 0) {
+                        sharesOutstanding * ohlcv.close.toLong()
+                    } else 0L
+                    DailyTrading(
+                        date = ohlcv.date,
+                        marketCap = marketCap,
+                        foreignNetBuy = 0L,
+                        instNetBuy = 0L,
+                        closePrice = ohlcv.close,
+                        openPrice = ohlcv.open,
+                        highPrice = ohlcv.high,
+                        lowPrice = ohlcv.low,
+                        volume = ohlcv.volume,
+                    )
+                }
+                .sortedBy { it.date }
+        } else {
+            Timber.w("투자자 동향 및 OHLCV 데이터 모두 없습니다: $ticker")
+            return emptyList()
+        }
 
         Timber.d("━━━ DailyTrading 변환 결과 (마지막 5일) ━━━")
         result.takeLast(5).forEach { d ->

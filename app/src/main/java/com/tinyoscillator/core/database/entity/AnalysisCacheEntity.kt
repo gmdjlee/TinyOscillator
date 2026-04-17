@@ -24,5 +24,17 @@ data class AnalysisCacheEntity(
     val instNet: Long,          // 기관 순매수 (원)
 
     @ColumnInfo(name = "close_price", defaultValue = "0")
-    val closePrice: Int = 0     // 종가 (원)
+    val closePrice: Int = 0,     // 종가 (원)
+
+    @ColumnInfo(name = "open_price", defaultValue = "0")
+    val openPrice: Int = 0,
+
+    @ColumnInfo(name = "high_price", defaultValue = "0")
+    val highPrice: Int = 0,
+
+    @ColumnInfo(name = "low_price", defaultValue = "0")
+    val lowPrice: Int = 0,
+
+    @ColumnInfo(name = "volume", defaultValue = "0")
+    val volume: Long = 0L,
 )
