@@ -124,8 +124,8 @@ class AiApiClient(
         maxTokens: Int = 1024,
         temperature: Double = 0.3
     ): Result<AiAnalysisResult> = withContext(Dispatchers.IO) {
-        if (circuitBreaker.isOpen) {
-            Timber.w("AI 서킷 브레이커 OPEN → 즉시 실패")
+        if (!circuitBreaker.tryAcquire()) {
+            Timber.w("AI 서킷 브레이커 차단 (state=%s)", circuitBreaker.currentState)
             return@withContext Result.failure(ApiError.CircuitBreakerOpenError("AI API 일시 중단 (연속 실패)"))
         }
 
@@ -304,7 +304,7 @@ class AiApiClient(
         maxTokens: Int = 1024,
         temperature: Double = 0.3
     ): Result<String> = withContext(Dispatchers.IO) {
-        if (circuitBreaker.isOpen) {
+        if (!circuitBreaker.tryAcquire()) {
             return@withContext Result.failure(ApiError.CircuitBreakerOpenError("AI API 일시 중단 (연속 실패)"))
         }
 

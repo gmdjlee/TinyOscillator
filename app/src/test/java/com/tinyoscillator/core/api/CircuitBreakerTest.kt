@@ -6,20 +6,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * CircuitBreaker unit tests.
+ * CircuitBreaker 단위 테스트.
  *
- * Verifies:
- * 1. Default state is CLOSED (isOpen = false)
- * 2. Opens after threshold consecutive failures
- * 3. Resets on success
- * 4. Cooldown expires after cooldownMs
+ * 상태 머신:
+ * - CLOSED → OPEN: threshold 이상 연속 실패
+ * - OPEN → HALF_OPEN: 쿨다운 만료 후 최초 tryAcquire
+ * - HALF_OPEN → CLOSED: probe 성공
+ * - HALF_OPEN → OPEN: probe 실패 (쿨다운 재시작)
  */
 class CircuitBreakerTest {
 
     @Test
     fun `초기 상태는 CLOSED이다`() {
         val cb = CircuitBreaker()
-        assertFalse(cb.isOpen)
+        assertEquals(CircuitBreaker.State.CLOSED, cb.currentState)
+        assertTrue("CLOSED에서는 tryAcquire가 true", cb.tryAcquire())
     }
 
     @Test
@@ -27,7 +28,8 @@ class CircuitBreakerTest {
         val cb = CircuitBreaker(threshold = 3)
         cb.recordFailure()
         cb.recordFailure()
-        assertFalse(cb.isOpen)
+        assertEquals(CircuitBreaker.State.CLOSED, cb.currentState)
+        assertTrue(cb.tryAcquire())
     }
 
     @Test
@@ -36,7 +38,8 @@ class CircuitBreakerTest {
         cb.recordFailure()
         cb.recordFailure()
         cb.recordFailure()
-        assertTrue(cb.isOpen)
+        assertEquals(CircuitBreaker.State.OPEN, cb.currentState)
+        assertFalse("OPEN에서 쿨다운 중이면 tryAcquire는 false", cb.tryAcquire())
     }
 
     @Test
@@ -45,10 +48,11 @@ class CircuitBreakerTest {
         cb.recordFailure()
         cb.recordFailure()
         cb.recordFailure()
-        assertTrue(cb.isOpen)
+        assertEquals(CircuitBreaker.State.OPEN, cb.currentState)
 
         cb.recordSuccess()
-        assertFalse(cb.isOpen)
+        assertEquals(CircuitBreaker.State.CLOSED, cb.currentState)
+        assertTrue(cb.tryAcquire())
     }
 
     @Test
@@ -56,10 +60,11 @@ class CircuitBreakerTest {
         val cb = CircuitBreaker(threshold = 2, cooldownMs = 60_000L)
         cb.recordFailure()
         cb.recordFailure()
-        assertTrue(cb.isOpen)
+        assertEquals(CircuitBreaker.State.OPEN, cb.currentState)
 
         cb.reset()
-        assertFalse(cb.isOpen)
+        assertEquals(CircuitBreaker.State.CLOSED, cb.currentState)
+        assertTrue(cb.tryAcquire())
     }
 
     @Test
@@ -67,102 +72,155 @@ class CircuitBreakerTest {
         val cb = CircuitBreaker(threshold = 3)
         cb.recordFailure()
         cb.recordFailure()
-        cb.recordSuccess()  // Reset counter
+        cb.recordSuccess()  // 카운터 리셋
         cb.recordFailure()
         cb.recordFailure()
-        // Only 2 consecutive failures after reset → still CLOSED
-        assertFalse(cb.isOpen)
+        // 리셋 후 2회만 실패 → CLOSED 유지
+        assertEquals(CircuitBreaker.State.CLOSED, cb.currentState)
     }
 
     @Test
-    fun `쿨다운 만료 후 CLOSED 상태로 완전 복구된다`() {
-        val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L) // 1ms cooldown
+    fun `쿨다운 만료 후 tryAcquire는 HALF_OPEN으로 전이하고 probe 1건을 허용한다`() {
+        val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L)
+        cb.recordFailure()  // OPEN
+        Thread.sleep(10)    // 쿨다운 만료
+
+        // 첫 tryAcquire: HALF_OPEN 전이 + probe 획득
+        assertTrue("첫 호출은 probe 허용", cb.tryAcquire())
+        assertEquals(CircuitBreaker.State.HALF_OPEN, cb.currentState)
+
+        // 두 번째 tryAcquire: probe 진행 중 → 거부
+        assertFalse("probe 진행 중에는 다른 호출 거부", cb.tryAcquire())
+        assertFalse("세 번째 호출도 거부", cb.tryAcquire())
+    }
+
+    @Test
+    fun `HALF_OPEN probe 성공 시 CLOSED로 전환되어 모든 호출 허용`() {
+        val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L)
         cb.recordFailure()
-        // Wait for cooldown to expire
         Thread.sleep(10)
-        assertFalse("Should be closed after cooldown", cb.isOpen)
-        // All subsequent callers should also pass (not just the first one)
-        assertFalse("Second check should also pass", cb.isOpen)
-        assertFalse("Third check should also pass", cb.isOpen)
+
+        assertTrue(cb.tryAcquire())  // probe 획득
+        cb.recordSuccess()           // probe 성공
+
+        assertEquals(CircuitBreaker.State.CLOSED, cb.currentState)
+        assertTrue(cb.tryAcquire())
+        assertTrue(cb.tryAcquire())
+    }
+
+    @Test
+    fun `HALF_OPEN probe 실패 시 다시 OPEN으로 돌아가고 쿨다운 재시작`() {
+        val cb = CircuitBreaker(threshold = 1, cooldownMs = 50L)
+        cb.recordFailure()
+        Thread.sleep(60)
+
+        assertTrue(cb.tryAcquire())  // probe 획득, HALF_OPEN
+        cb.recordFailure()           // probe 실패
+
+        assertEquals(CircuitBreaker.State.OPEN, cb.currentState)
+        assertFalse("재OPEN 직후 쿨다운 중 → 거부", cb.tryAcquire())
+
+        Thread.sleep(60)
+        assertTrue("새 쿨다운 만료 후 다시 probe 허용", cb.tryAcquire())
     }
 
     @Test
     fun `쿨다운 중에는 OPEN 상태가 유지된다`() {
-        val cb = CircuitBreaker(threshold = 1, cooldownMs = 60_000L) // 1 minute
+        val cb = CircuitBreaker(threshold = 1, cooldownMs = 60_000L)
         cb.recordFailure()
-        assertTrue("Should be open during cooldown", cb.isOpen)
+        assertEquals(CircuitBreaker.State.OPEN, cb.currentState)
+        assertFalse(cb.tryAcquire())
     }
 
     @Test
     fun `threshold=1이면 첫 실패에 OPEN된다`() {
         val cb = CircuitBreaker(threshold = 1, cooldownMs = 60_000L)
         cb.recordFailure()
-        assertTrue(cb.isOpen)
+        assertEquals(CircuitBreaker.State.OPEN, cb.currentState)
     }
 
     @Test
     fun `기본값은 threshold=3, cooldownMs=5분이다`() {
         val cb = CircuitBreaker()
-        // 2 failures: still closed
         cb.recordFailure()
         cb.recordFailure()
-        assertFalse(cb.isOpen)
-        // 3rd failure: opens
+        assertEquals(CircuitBreaker.State.CLOSED, cb.currentState)
         cb.recordFailure()
-        assertTrue(cb.isOpen)
+        assertEquals(CircuitBreaker.State.OPEN, cb.currentState)
     }
 
     @Test
-    fun `동시 recordFailure와 isOpen 호출이 일관된 상태를 유지한다`() = runTest {
+    fun `동시 recordFailure와 tryAcquire 호출이 일관된 상태를 유지한다`() = runTest {
         val cb = CircuitBreaker(threshold = 3, cooldownMs = 60_000L)
         val iterations = 100
 
-        repeat(iterations) {
+        repeat(iterations) { iter ->
             cb.reset()
             val jobs = mutableListOf<Job>()
 
-            // 여러 코루틴에서 동시에 recordFailure 호출
             repeat(5) {
-                jobs += launch(Dispatchers.Default) {
-                    cb.recordFailure()
-                }
+                jobs += launch(Dispatchers.Default) { cb.recordFailure() }
             }
-
-            // 동시에 isOpen 읽기
             repeat(5) {
-                jobs += launch(Dispatchers.Default) {
-                    cb.isOpen // 읽기만 수행
-                }
+                jobs += launch(Dispatchers.Default) { cb.tryAcquire() }
             }
 
             jobs.joinAll()
-
-            // 5회 실패 → threshold(3) 이상이므로 반드시 OPEN
-            assertTrue("iteration $it: 5회 실패 후 isOpen이 true여야 한다", cb.isOpen)
+            assertEquals("iter $iter: 5회 실패 후 OPEN", CircuitBreaker.State.OPEN, cb.currentState)
         }
     }
 
     @Test
-    fun `쿨다운 리셋과 recordFailure가 동시에 발생해도 일관성을 유지한다`() = runTest {
+    fun `동시 tryAcquire 호출 시 HALF_OPEN probe는 최대 1건만 통과한다`() = runTest {
         val iterations = 50
 
-        repeat(iterations) {
+        repeat(iterations) { iter ->
             val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L)
-            cb.recordFailure() // OPEN
-            Thread.sleep(5) // 쿨다운 만료 대기
+            cb.recordFailure()
+            Thread.sleep(5)
 
+            val acquired = java.util.concurrent.atomic.AtomicInteger(0)
             val jobs = mutableListOf<Job>()
 
-            // 쿨다운 만료 후 isOpen(리셋) + recordFailure 동시 실행
-            repeat(3) {
-                jobs += launch(Dispatchers.Default) { cb.isOpen }
+            repeat(10) {
+                jobs += launch(Dispatchers.Default) {
+                    if (cb.tryAcquire()) acquired.incrementAndGet()
+                }
             }
-            repeat(3) {
-                jobs += launch(Dispatchers.Default) { cb.recordFailure() }
-            }
-
             jobs.joinAll()
-            // 상태가 일관성 있어야 함 (크래시나 데드락 없이 완료)
+
+            assertEquals(
+                "iter $iter: HALF_OPEN probe는 1건만 허용되어야 함",
+                1,
+                acquired.get()
+            )
         }
+    }
+
+    @Test
+    fun `isOpen 스냅샷은 상태를 변경하지 않는다`() {
+        val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L)
+        cb.recordFailure()
+        Thread.sleep(10)
+
+        // 쿨다운 만료. isOpen은 OPEN을 계속 보고하고 상태 전이를 트리거하지 않음
+        assertTrue(cb.isOpen)
+        assertTrue(cb.isOpen)
+        assertEquals("isOpen 호출 후에도 상태 OPEN 유지", CircuitBreaker.State.OPEN, cb.currentState)
+
+        // tryAcquire만이 HALF_OPEN으로 전이
+        assertTrue(cb.tryAcquire())
+        assertEquals(CircuitBreaker.State.HALF_OPEN, cb.currentState)
+    }
+
+    @Test
+    fun `HALF_OPEN에서 tryAcquire 후 상태 보고가 정확하다`() {
+        val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L)
+        cb.recordFailure()
+        Thread.sleep(10)
+
+        cb.tryAcquire()  // HALF_OPEN + probe in flight
+        assertEquals(CircuitBreaker.State.HALF_OPEN, cb.currentState)
+        assertTrue("HALF_OPEN도 isOpen=true로 표시", cb.isOpen)
     }
 }

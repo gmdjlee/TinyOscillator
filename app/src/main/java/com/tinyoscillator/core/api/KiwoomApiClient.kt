@@ -48,9 +48,9 @@ class KiwoomApiClient(
         config: KiwoomApiKeyConfig,
         parser: (String) -> T
     ): Result<T> = withContext(Dispatchers.IO) {
-        // Circuit breaker: skip API call if circuit is open
-        if (circuitBreaker.isOpen) {
-            Timber.w("서킷 브레이커 OPEN → 즉시 실패: %s", apiId)
+        // Circuit breaker: skip API call if not allowed (OPEN or HALF_OPEN probe busy)
+        if (!circuitBreaker.tryAcquire()) {
+            Timber.w("서킷 브레이커 차단 → 즉시 실패: %s (state=%s)", apiId, circuitBreaker.currentState)
             return@withContext Result.failure(ApiError.CircuitBreakerOpenError())
         }
 
