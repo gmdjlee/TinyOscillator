@@ -43,6 +43,12 @@ enum class OscillatorDateRange(val label: String, val analysisDays: Int, val dis
     TWO_YEARS("2Y", 730, 200)
 }
 
+/** 박병창 신호 캔들 차트의 봉 단위 (상단 수급 오실레이터에는 영향 없음) */
+enum class CandlePeriod(val label: String) {
+    DAILY("일봉"),
+    WEEKLY("주봉")
+}
+
 /**
  * 수급 오실레이터 ViewModel
  *
@@ -78,6 +84,10 @@ class OscillatorViewModel @Inject constructor(
     // 기간 선택
     private val _selectedRange = MutableStateFlow(OscillatorDateRange.ONE_YEAR)
     val selectedRange: StateFlow<OscillatorDateRange> = _selectedRange.asStateFlow()
+
+    // 캔들 차트 봉 단위 (일봉/주봉) — 박병창 신호 차트 전용
+    private val _selectedCandlePeriod = MutableStateFlow(CandlePeriod.DAILY)
+    val selectedCandlePeriod: StateFlow<CandlePeriod> = _selectedCandlePeriod.asStateFlow()
 
     // 실시간 수급 상태
     private val _isIntradayMerged = MutableStateFlow(false)
@@ -186,6 +196,11 @@ class OscillatorViewModel @Inject constructor(
         val ticker = currentAnalysisTicker ?: return
         val name = currentAnalysisName ?: return
         analyze(ticker, name, range.analysisDays, range.displayDays)
+    }
+
+    /** 캔들 차트 봉 단위 변경 — UI 로컬 리샘플링만 트리거 (재분석 없음) */
+    fun selectCandlePeriod(period: CandlePeriod) {
+        _selectedCandlePeriod.value = period
     }
 
     /** 오실레이터 분석 실행 */

@@ -33,7 +33,9 @@ import com.tinyoscillator.domain.usecase.ParkSignalDetector
 import com.tinyoscillator.presentation.chart.OscillatorChart
 import com.tinyoscillator.presentation.chart.composable.KoreanCandleChartView
 import com.tinyoscillator.presentation.chart.composable.PatternSummaryCard
+import com.tinyoscillator.presentation.chart.ext.resampleToWeekly
 import com.tinyoscillator.presentation.chart.ext.toDateLabels
+import com.tinyoscillator.presentation.chart.ext.toDateLabelsFromOhlcv
 import com.tinyoscillator.presentation.chart.ext.toOhlcvPoints
 import com.tinyoscillator.presentation.common.ScrollablePillTabRow
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
@@ -47,6 +49,7 @@ import com.tinyoscillator.presentation.financial.FinancialInfoContent
 import com.tinyoscillator.presentation.financial.NaverStockWebScreen
 import com.tinyoscillator.presentation.fundamental.FundamentalHistoryContent
 import com.tinyoscillator.presentation.investopinion.InvestOpinionContent
+import com.tinyoscillator.presentation.viewmodel.CandlePeriod
 import com.tinyoscillator.presentation.viewmodel.OscillatorDateRange
 import com.tinyoscillator.presentation.viewmodel.OscillatorUiState
 import com.tinyoscillator.presentation.viewmodel.OscillatorViewModel
@@ -81,6 +84,7 @@ fun OscillatorScreen(
     val isIntradayMerged by viewModel.isIntradayMerged.collectAsStateWithLifecycle()
     val autoRefreshEnabled by viewModel.autoRefreshEnabled.collectAsStateWithLifecycle()
     val selectedRange by viewModel.selectedRange.collectAsStateWithLifecycle()
+    val selectedCandlePeriod by viewModel.selectedCandlePeriod.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var showHistory by remember { mutableStateOf(false) }
     var selectedMainTab by remember { mutableStateOf(MainTab.OSCILLATOR) }
@@ -214,8 +218,10 @@ fun OscillatorScreen(
                             selectedRange = selectedRange,
                             isIntradayMerged = isIntradayMerged,
                             autoRefreshEnabled = autoRefreshEnabled,
+                            selectedCandlePeriod = selectedCandlePeriod,
                             onSelectRange = { viewModel.selectDateRange(it) },
-                            onToggleAutoRefresh = { viewModel.toggleAutoRefresh() }
+                            onToggleAutoRefresh = { viewModel.toggleAutoRefresh() },
+                            onSelectCandlePeriod = { viewModel.selectCandlePeriod(it) }
                         )
                     }
 
@@ -400,8 +406,10 @@ private fun OscillatorTabContent(
     selectedRange: OscillatorDateRange,
     isIntradayMerged: Boolean,
     autoRefreshEnabled: Boolean,
+    selectedCandlePeriod: CandlePeriod,
     onSelectRange: (OscillatorDateRange) -> Unit,
-    onToggleAutoRefresh: () -> Unit
+    onToggleAutoRefresh: () -> Unit,
+    onSelectCandlePeriod: (CandlePeriod) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -513,11 +521,20 @@ private fun OscillatorTabContent(
                 // 2. 캔들 차트 + 3. 패턴 요약 카드
                 if (state.dailyData.isNotEmpty()) {
                     item {
-                        val candlePoints = remember(state.dailyData) {
+                        val dailyPoints = remember(state.dailyData) {
                             state.dailyData.toOhlcvPoints()
                         }
-                        val dateLabels = remember(state.dailyData) {
-                            state.dailyData.toDateLabels()
+                        val candlePoints = remember(dailyPoints, selectedCandlePeriod) {
+                            when (selectedCandlePeriod) {
+                                CandlePeriod.DAILY -> dailyPoints
+                                CandlePeriod.WEEKLY -> dailyPoints.resampleToWeekly()
+                            }
+                        }
+                        val dateLabels = remember(candlePoints, selectedCandlePeriod) {
+                            when (selectedCandlePeriod) {
+                                CandlePeriod.DAILY -> state.dailyData.toDateLabels()
+                                CandlePeriod.WEEKLY -> candlePoints.toDateLabelsFromOhlcv()
+                            }
                         }
                         val patterns = remember(candlePoints) {
                             ParkSignalDetector.detect(candlePoints)
@@ -527,6 +544,21 @@ private fun OscillatorTabContent(
                                 .mapValues { (_, pats) -> pats.map { it.type.labelKo } }
                         }
                         Column {
+                            // 일봉/주봉 토글
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CandlePeriod.entries.forEach { period ->
+                                    FilterChip(
+                                        selected = selectedCandlePeriod == period,
+                                        onClick = { onSelectCandlePeriod(period) },
+                                        label = { Text(period.label) }
+                                    )
+                                }
+                            }
                             KoreanCandleChartView(
                                 candles = candlePoints,
                                 dateLabels = dateLabels,
