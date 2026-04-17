@@ -76,7 +76,7 @@ class KiwoomApiClient(
             }
         }
 
-        updateCircuitBreaker(lastResult.isSuccess)
+        updateCircuitBreaker(lastResult)
 
         lastResult
     }

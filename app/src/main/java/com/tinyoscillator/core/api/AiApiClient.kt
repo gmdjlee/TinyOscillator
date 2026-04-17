@@ -143,7 +143,7 @@ class AiApiClient(
             }
         }
 
-        updateCircuitBreaker(lastResult.isSuccess)
+        updateCircuitBreaker(lastResult)
 
         lastResult
     }
@@ -321,7 +321,7 @@ class AiApiClient(
             }
         }
 
-        updateCircuitBreaker(lastResult.isSuccess)
+        updateCircuitBreaker(lastResult)
         lastResult
     }
 

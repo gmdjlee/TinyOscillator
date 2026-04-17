@@ -31,8 +31,20 @@ abstract class BaseApiClient(
         if (delayMs > 0L) delay(delayMs)
     }
 
-    protected fun updateCircuitBreaker(success: Boolean) {
-        if (success) circuitBreaker.recordSuccess()
-        else circuitBreaker.recordFailure()
+    /**
+     * 요청 결과를 서킷 브레이커에 반영한다.
+     *
+     * 성공 → 카운터 리셋 (CLOSED).
+     * 실패 → 일시 장애(Network/Timeout/429/5xx)만 카운트. Parse/Auth/NoApiKey 등
+     * 쿨다운으로 자해소되지 않는 오류는 무시한다 (브레이커의 목적과 부합하지 않음).
+     */
+    protected fun updateCircuitBreaker(result: Result<*>) {
+        if (result.isSuccess) {
+            circuitBreaker.recordSuccess()
+            return
+        }
+        if (ApiError.isRetriableError(result.exceptionOrNull())) {
+            circuitBreaker.recordFailure()
+        }
     }
 }

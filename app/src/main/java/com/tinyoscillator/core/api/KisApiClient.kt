@@ -74,7 +74,7 @@ class KisApiClient(
             }
         }
 
-        updateCircuitBreaker(lastResult.isSuccess)
+        updateCircuitBreaker(lastResult)
 
         lastResult
     }
