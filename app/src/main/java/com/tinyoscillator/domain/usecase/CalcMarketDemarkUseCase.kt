@@ -29,9 +29,10 @@ class CalcMarketDemarkUseCase {
     fun execute(indexData: List<IndexDay>, periodType: DemarkPeriodType): List<MarketDemarkRow> {
         require(indexData.isNotEmpty()) { "지수 데이터가 비어있습니다" }
 
+        val sorted = indexData.sortedBy { it.date }
         val data = when (periodType) {
-            DemarkPeriodType.DAILY -> indexData
-            DemarkPeriodType.WEEKLY -> resampleToWeekly(indexData)
+            DemarkPeriodType.DAILY -> sorted
+            DemarkPeriodType.WEEKLY -> resampleToWeekly(sorted)
         }
 
         require(data.size >= 5) { "DeMark TD 계산에 최소 5개 데이터가 필요합니다 (현재: ${data.size}개)" }
