@@ -245,9 +245,9 @@ class OscillatorViewModel @Inject constructor(
 
                 val apiConfig = apiConfigProvider.getKiwoomConfig()
 
-                // 기간 설정
+                // 기간 설정 (주봉 SMA(20) 워밍업 20주분 추가 수집)
                 val endDate = LocalDate.now()
-                val startDate = endDate.minusDays(analysisDays.toLong())
+                val startDate = endDate.minusDays(analysisDays.toLong() + WEEKLY_WARMUP_DAYS)
 
                 // Step 1: 데이터 수집 (incremental cache)
                 _uiState.value = OscillatorUiState.Loading("Kiwoom API 데이터 수집 중...")
@@ -434,6 +434,7 @@ class OscillatorViewModel @Inject constructor(
 
     companion object {
         private const val AUTO_REFRESH_INTERVAL_MS = 60_000L // 60초
+        private const val WEEKLY_WARMUP_DAYS = 140L          // 주봉 SMA(20) 워밍업 ≈ 20주
     }
 }
 

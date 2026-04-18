@@ -146,9 +146,9 @@ class StockRepository @Inject constructor(
                     volume = daily.volume,
                 )
             }
-            val cutoffDate = LocalDate.now().minusDays(365).format(fmt)
+            val cutoffDate = LocalDate.now().minusDays(CACHE_RETENTION_DAYS).format(fmt)
             analysisCacheDao.insertAndCleanup(entities, ticker, cutoffDate)
-            Timber.d("캐시 저장: ${entities.size}건, 365일 정리: $cutoffDate 이전 삭제")
+            Timber.d("캐시 저장: ${entities.size}건, ${CACHE_RETENTION_DAYS}일 정리: $cutoffDate 이전 삭제")
         }
 
         // DB에서 전체 기간 데이터 반환 + OHLCV 병합
@@ -574,6 +574,7 @@ class StockRepository @Inject constructor(
         private const val MAX_COOLDOWN_ENTRIES = 50
         private const val API_BATCH_TIMEOUT_MS = 90_000L  // 90초 (OkHttp 30초 × 3 호출)
         private const val REALTIME_CACHE_TTL_MS = 60_000L // 60초
+        private const val CACHE_RETENTION_DAYS = 730L     // 주봉 SMA 워밍업 확보용
     }
 }
 
