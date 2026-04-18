@@ -14,6 +14,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
@@ -221,7 +222,9 @@ class StockRepository @Inject constructor(
                 coroutineScope {
                     val trendDeferred = async { fetchInvestorTrend(ticker, endDate, config) }
                     val infoDeferred = async { fetchStockInfo(ticker, config) }
-                    val ohlcvDeferred = async { fetchDailyOhlcv(ticker, endDate, config) }
+                    val ohlcvDeferred = async {
+                        fetchDailyOhlcv(ticker, endDate, config, targetStartDate = startDate)
+                    }
 
                     Triple(
                         trendDeferred.await(),
@@ -262,9 +265,11 @@ class StockRepository @Inject constructor(
             }
 
             // 투자자 거래 데이터 + OHLCV 병합
-            investorTrend
+            val trendDates = mutableSetOf<String>()
+            val trendResult = investorTrend
                 .filter { it.date >= startDate }
                 .map { trend ->
+                    trendDates += trend.date
                     val closePrice = closePriceMap[trend.date]
                     val marketCap = if (sharesOutstanding > 0 && closePrice != null && closePrice > 0) {
                         sharesOutstanding * closePrice.toLong()
@@ -285,7 +290,32 @@ class StockRepository @Inject constructor(
                         volume = ohlcv?.volume ?: 0L,
                     )
                 }
-                .sortedBy { it.date }
+
+            // 투자자동향이 없는 과거 OHLCV 데이터도 포함 (주봉 SMA 워밍업용)
+            val ohlcvOnlyResult = ohlcvData
+                .filter { it.date >= startDate && it.date !in trendDates }
+                .map { ohlcv ->
+                    val marketCap = if (sharesOutstanding > 0 && ohlcv.close > 0) {
+                        sharesOutstanding * ohlcv.close.toLong()
+                    } else 0L
+                    DailyTrading(
+                        date = ohlcv.date,
+                        marketCap = marketCap,
+                        foreignNetBuy = 0L,
+                        instNetBuy = 0L,
+                        closePrice = ohlcv.close,
+                        openPrice = ohlcv.open,
+                        highPrice = ohlcv.high,
+                        lowPrice = ohlcv.low,
+                        volume = ohlcv.volume,
+                    )
+                }
+
+            if (ohlcvOnlyResult.isNotEmpty()) {
+                Timber.d("OHLCV 전용 레코드 추가: ${ohlcvOnlyResult.size}건 (주봉 워밍업용)")
+            }
+
+            (trendResult + ohlcvOnlyResult).sortedBy { it.date }
         } else if (ohlcvData.isNotEmpty()) {
             Timber.w("투자자 동향 데이터가 없습니다: $ticker → OHLCV만으로 구성")
             // OHLCV만으로 DailyTrading 생성 (캔들/거래량 차트 표시용)
@@ -434,9 +464,41 @@ class StockRepository @Inject constructor(
     }
 
     /**
-     * 일봉 차트 조회 (ka10081).
+     * 일봉 차트 조회 (ka10081) — 페이지네이션 지원.
+     *
+     * Kiwoom API는 한 번에 ~120 거래일만 반환하므로,
+     * [targetStartDate]가 지정되면 해당 날짜까지 최대 [MAX_OHLCV_PAGES]회 추가 호출.
+     * 주봉 SMA(20) 워밍업에 약 300 거래일이 필요하다.
      */
     private suspend fun fetchDailyOhlcv(
+        ticker: String,
+        endDate: String,
+        config: KiwoomApiKeyConfig,
+        targetStartDate: String? = null
+    ): List<OhlcvEntry> {
+        val allEntries = mutableMapOf<String, OhlcvEntry>()
+        var currentEndDate = endDate
+
+        repeat(MAX_OHLCV_PAGES) { page ->
+            val entries = fetchDailyOhlcvPage(ticker, currentEndDate, config)
+            if (entries.isEmpty()) return allEntries.values.sortedBy { it.date }
+
+            entries.forEach { allEntries.putIfAbsent(it.date, it) }
+
+            if (targetStartDate == null) return allEntries.values.sortedBy { it.date }
+
+            val earliest = entries.minOf { it.date }
+            if (earliest <= targetStartDate) return allEntries.values.sortedBy { it.date }
+
+            currentEndDate = LocalDate.parse(earliest, fmt).minusDays(1).format(fmt)
+            if (page < MAX_OHLCV_PAGES - 1) delay(RATE_LIMIT_MS)
+        }
+
+        Timber.d("OHLCV 페이지네이션 완료: ${allEntries.size}건 ($targetStartDate~$endDate)")
+        return allEntries.values.sortedBy { it.date }
+    }
+
+    private suspend fun fetchDailyOhlcvPage(
         ticker: String,
         endDate: String,
         config: KiwoomApiKeyConfig
@@ -572,9 +634,11 @@ class StockRepository @Inject constructor(
     companion object {
         private const val COOLDOWN_MS = 60 * 60 * 1000L  // 1시간
         private const val MAX_COOLDOWN_ENTRIES = 50
-        private const val API_BATCH_TIMEOUT_MS = 90_000L  // 90초 (OkHttp 30초 × 3 호출)
+        private const val API_BATCH_TIMEOUT_MS = 120_000L // 120초 (OHLCV 페이지네이션 포함)
         private const val REALTIME_CACHE_TTL_MS = 60_000L // 60초
         private const val CACHE_RETENTION_DAYS = 730L     // 주봉 SMA 워밍업 확보용
+        private const val MAX_OHLCV_PAGES = 3             // OHLCV 페이지네이션 최대 호출 (3×120 ≈ 360일)
+        private const val RATE_LIMIT_MS = 500L            // API 호출 간격
     }
 }
 
