@@ -283,7 +283,29 @@ class AiAnalysisPreparer {
         return sb.toString()
     }
 
-    /** 분석 유형별 시스템 프롬프트 */
+    /** 채팅용 시스템 프롬프트 — 사용자 질문에 대화형으로 답변 */
+    fun getChatSystemPrompt(type: AiAnalysisType, dataContext: String): String {
+        val basePrompt = when (type) {
+            AiAnalysisType.MARKET_OVERVIEW ->
+                "당신은 한국 주식시장 분석 전문 어시스턴트입니다. " +
+                    "아래 시장 데이터(KOSPI/KOSDAQ 오실레이터, 투자자 예탁금 동향)를 참고하여 " +
+                    "사용자의 질문에 정확하고 간결하게 답변해주세요. " +
+                    "질문과 관련된 데이터만 활용하고, 불필요한 전체 분석은 하지 마세요. " +
+                    "투자 권유가 아닌 참고 의견임을 필요시 명시하세요."
+
+            AiAnalysisType.COMPREHENSIVE_STOCK ->
+                "당신은 한국 주식 분석 전문 어시스턴트입니다. " +
+                    "아래 종목 데이터(수급 오실레이터, DeMark TD, 재무제표, ETF 편입 현황)를 참고하여 " +
+                    "사용자의 질문에 정확하고 간결하게 답변해주세요. " +
+                    "질문과 관련된 데이터만 활용하고, 불필요한 전체 분석은 하지 마세요. " +
+                    "투자 권유가 아닌 참고 의견임을 필요시 명시하세요."
+
+            else -> getSystemPrompt(type)
+        }
+        return "$basePrompt\n\n[참고 데이터]\n$dataContext"
+    }
+
+    /** 분석 유형별 시스템 프롬프트 (일회성 분석용) */
     fun getSystemPrompt(type: AiAnalysisType): String = when (type) {
         AiAnalysisType.STOCK_OSCILLATOR ->
             "당신은 한국 주식 수급 분석 전문가입니다. 오실레이터(MACD 기반 수급지표)를 분석하여 " +

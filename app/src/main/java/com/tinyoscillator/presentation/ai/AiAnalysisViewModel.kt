@@ -326,8 +326,7 @@ class AiAnalysisViewModel @Inject constructor(
                                 market = stock.market,
                                 sector = stock.sector
                             )
-                            stockSystemPrompt = aiPreparer.getSystemPrompt(AiAnalysisType.COMPREHENSIVE_STOCK) +
-                                "\n\n아래는 분석 대상 종목의 데이터입니다. 사용자의 질문에 이 데이터를 참고하여 답변해주세요.\n\n$stockDataContext"
+                            stockSystemPrompt = aiPreparer.getChatSystemPrompt(AiAnalysisType.COMPREHENSIVE_STOCK, stockDataContext)
                         }
                     }
                 }
@@ -436,8 +435,7 @@ class AiAnalysisViewModel @Inject constructor(
                     deposits = deposits
                 )
                 _marketDataSummary.value = dataSummary
-                marketSystemPrompt = aiPreparer.getSystemPrompt(AiAnalysisType.MARKET_OVERVIEW) +
-                    "\n\n아래는 현재 시장 데이터입니다. 사용자의 질문에 이 데이터를 참고하여 답변해주세요.\n\n$dataSummary"
+                marketSystemPrompt = aiPreparer.getChatSystemPrompt(AiAnalysisType.MARKET_OVERVIEW, dataSummary)
                 _marketDataPrepared.value = true
                 _marketChatMessages.value = emptyList()
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
