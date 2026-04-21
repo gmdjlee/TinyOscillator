@@ -1,58 +1,70 @@
 package com.tinyoscillator.presentation.ai
 
-import android.app.Application
 import com.tinyoscillator.core.api.AiApiClient
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
-import com.tinyoscillator.core.database.entity.StockMasterEntity
+import com.tinyoscillator.core.api.KisApiKeyConfig
+import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.data.repository.FinancialRepository
-import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.data.repository.StockRepository
-import com.tinyoscillator.domain.model.*
+import com.tinyoscillator.domain.model.AiAnalysisResult
+import com.tinyoscillator.domain.model.AiAnalysisState
+import com.tinyoscillator.domain.model.AiAnalysisType
+import com.tinyoscillator.domain.model.AiApiKeyConfig
+import com.tinyoscillator.domain.model.AiProvider
+import com.tinyoscillator.domain.model.DailyTrading
+import com.tinyoscillator.domain.model.OscillatorConfig
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.domain.usecase.SearchStocksUseCase
-import com.tinyoscillator.core.config.ApiConfigProvider
-import io.mockk.*
+import io.mockk.coEvery
+import io.mockk.mockk
+import io.mockk.unmockkAll
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.*
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.After
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class AiAnalysisViewModelTest {
+class AiStockAnalysisViewModelTest {
 
-    private lateinit var application: Application
     private lateinit var stockRepository: StockRepository
     private lateinit var financialRepository: FinancialRepository
     private lateinit var etfRepository: EtfRepository
-    private lateinit var marketIndicatorRepository: MarketIndicatorRepository
     private lateinit var calcOscillator: CalcOscillatorUseCase
     private lateinit var calcDemarkTD: CalcDemarkTDUseCase
     private lateinit var searchStocksUseCase: SearchStocksUseCase
     private lateinit var aiApiClient: AiApiClient
     private lateinit var aiPreparer: AiAnalysisPreparer
     private lateinit var apiConfigProvider: ApiConfigProvider
-    private lateinit var viewModel: AiAnalysisViewModel
+    private lateinit var viewModel: AiStockAnalysisViewModel
     private val testDispatcher = StandardTestDispatcher()
 
     private val validKiwoomConfig = KiwoomApiKeyConfig(appKey = "test-key", secretKey = "test-secret")
-    private val validAiConfig = AiApiKeyConfig(provider = AiProvider.CLAUDE, apiKey = "test-ai-key", modelId = "claude-sonnet-4-6")
+    private val validAiConfig = AiApiKeyConfig(
+        provider = AiProvider.CLAUDE,
+        apiKey = "test-ai-key",
+        modelId = "claude-sonnet-4-6"
+    )
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
 
-        application = mockk(relaxed = true)
         stockRepository = mockk(relaxed = true)
         financialRepository = mockk(relaxed = true)
         etfRepository = mockk(relaxed = true)
-        marketIndicatorRepository = mockk(relaxed = true)
         calcOscillator = CalcOscillatorUseCase(OscillatorConfig())
         calcDemarkTD = CalcDemarkTDUseCase()
         searchStocksUseCase = mockk(relaxed = true)
@@ -62,21 +74,14 @@ class AiAnalysisViewModelTest {
 
         coEvery { apiConfigProvider.getKiwoomConfig() } returns validKiwoomConfig
         coEvery { apiConfigProvider.getKisConfig() } returns
-            com.tinyoscillator.core.api.KisApiKeyConfig(appKey = "kis-key", appSecret = "kis-secret")
+            KisApiKeyConfig(appKey = "kis-key", appSecret = "kis-secret")
         coEvery { apiConfigProvider.getAiConfig() } returns validAiConfig
+        coEvery { searchStocksUseCase.searchWithChosung(any()) } returns emptyList()
 
-        every { searchStocksUseCase(any()) } returns flowOf(emptyList())
-
-        val statisticalAnalysisEngine = mockk<com.tinyoscillator.data.engine.StatisticalAnalysisEngine>(relaxed = true)
-        val probabilityInterpreter = com.tinyoscillator.domain.usecase.ProbabilityInterpreter()
-        viewModel = AiAnalysisViewModel(
-            application, stockRepository, financialRepository, etfRepository,
-            marketIndicatorRepository, calcOscillator, calcDemarkTD,
-            searchStocksUseCase, aiApiClient, aiPreparer, apiConfigProvider,
-            statisticalAnalysisEngine, probabilityInterpreter,
-            mockk<com.tinyoscillator.data.engine.FeatureStore>(relaxed = true),
-            mockk<com.tinyoscillator.data.repository.SignalHistoryRepository>(relaxed = true),
-            mockk<com.tinyoscillator.core.database.dao.AnalysisSnapshotDao>(relaxed = true)
+        viewModel = AiStockAnalysisViewModel(
+            stockRepository, financialRepository, etfRepository,
+            calcOscillator, calcDemarkTD, searchStocksUseCase,
+            aiApiClient, aiPreparer, apiConfigProvider
         )
     }
 
@@ -97,102 +102,13 @@ class AiAnalysisViewModelTest {
         }
     }
 
-    // ==========================================================
-    // 초기 상태 테스트
-    // ==========================================================
-
     @Test
     fun `초기 상태는 Idle이다`() = runTest {
         advanceUntilIdle()
-        assertEquals(AiTab.MARKET, viewModel.selectedTab.value)
-        assertEquals(AiAnalysisState.Idle, viewModel.marketAiState.value)
         assertEquals(AiAnalysisState.Idle, viewModel.stockAiState.value)
         assertEquals(StockDataState.Idle, viewModel.stockDataState.value)
         assertNull(viewModel.selectedStock.value)
     }
-
-    @Test
-    fun `탭 변경이 동작한다`() = runTest {
-        viewModel.selectTab(AiTab.STOCK)
-        assertEquals(AiTab.STOCK, viewModel.selectedTab.value)
-
-        viewModel.selectTab(AiTab.MARKET)
-        assertEquals(AiTab.MARKET, viewModel.selectedTab.value)
-    }
-
-    // ==========================================================
-    // 시장 탭 테스트
-    // ==========================================================
-
-    @Test
-    fun `analyzeMarket_success`() = runTest {
-        advanceUntilIdle()
-
-        coEvery { marketIndicatorRepository.getRecentData("KOSPI", 14) } returns listOf(
-            MarketOscillator("id1", "KOSPI", "2026-03-05", 2500.0, 30.0, System.currentTimeMillis())
-        )
-        coEvery { marketIndicatorRepository.getRecentData("KOSDAQ", 14) } returns emptyList()
-        coEvery { marketIndicatorRepository.getRecentDeposits(10) } returns emptyList()
-
-        val aiResult = AiAnalysisResult(
-            type = AiAnalysisType.MARKET_OVERVIEW,
-            provider = AiProvider.CLAUDE,
-            content = "시장 분석 결과",
-            inputTokens = 100,
-            outputTokens = 200
-        )
-        coEvery { aiApiClient.analyze(any(), any(), any(), any(), any(), any()) } returns Result.success(aiResult)
-
-        viewModel.analyzeMarketWithAi()
-        advanceUntilIdle()
-
-        val state = viewModel.marketAiState.value
-        assertTrue("Expected Success but got $state", state is AiAnalysisState.Success)
-        assertEquals("시장 분석 결과", (state as AiAnalysisState.Success).result.content)
-    }
-
-    @Test
-    fun `analyzeMarket_noApiKey`() = runTest {
-        advanceUntilIdle()
-
-        coEvery { apiConfigProvider.getAiConfig() } returns
-            AiApiKeyConfig(provider = AiProvider.CLAUDE, apiKey = "")
-
-        viewModel.analyzeMarketWithAi()
-        advanceUntilIdle()
-
-        assertEquals(AiAnalysisState.NoApiKey, viewModel.marketAiState.value)
-    }
-
-    @Test
-    fun `analyzeMarket_error`() = runTest {
-        advanceUntilIdle()
-
-        coEvery { marketIndicatorRepository.getRecentData(any(), any()) } throws RuntimeException("DB error")
-
-        viewModel.analyzeMarketWithAi()
-        advanceUntilIdle()
-
-        val state = viewModel.marketAiState.value
-        assertTrue("Expected Error but got $state", state is AiAnalysisState.Error)
-    }
-
-    @Test
-    fun `dismissMarket_resetsIdle`() = runTest {
-        advanceUntilIdle()
-
-        coEvery { marketIndicatorRepository.getRecentData(any(), any()) } throws RuntimeException("test")
-        viewModel.analyzeMarketWithAi()
-        advanceUntilIdle()
-        assertTrue(viewModel.marketAiState.value is AiAnalysisState.Error)
-
-        viewModel.dismissMarketAi()
-        assertEquals(AiAnalysisState.Idle, viewModel.marketAiState.value)
-    }
-
-    // ==========================================================
-    // 종목 탭 테스트
-    // ==========================================================
 
     @Test
     fun `selectStock_loadsParallel`() = runTest {
@@ -216,7 +132,7 @@ class AiAnalysisViewModelTest {
         assertTrue(loaded.oscillatorRows.isNotEmpty())
         assertTrue(loaded.signals.isNotEmpty())
         assertTrue(loaded.demarkRows.isNotEmpty())
-        assertNull(loaded.financialData) // failed gracefully
+        assertNull(loaded.financialData)
         assertTrue(loaded.etfAggregated.isEmpty())
     }
 
@@ -224,7 +140,6 @@ class AiAnalysisViewModelTest {
     fun `selectStock_partialFailure`() = runTest {
         advanceUntilIdle()
 
-        // Only oscillator data succeeds
         coEvery { stockRepository.getDailyTradingData(any(), any(), any(), any()) } returns createDailyTradingList(20)
         coEvery { financialRepository.getFinancialData(any(), any(), any()) } returns Result.failure(RuntimeException("fail"))
         coEvery { etfRepository.getStockAggregatedTrend(any()) } throws RuntimeException("ETF fail")
@@ -292,11 +207,9 @@ class AiAnalysisViewModelTest {
     fun `analyzeStock_noData_doesNothing`() = runTest {
         advanceUntilIdle()
 
-        // No stock selected, no data loaded
         viewModel.analyzeStockWithAi()
         advanceUntilIdle()
 
-        // Should remain Idle since stockDataState is Idle
         assertEquals(AiAnalysisState.Idle, viewModel.stockAiState.value)
     }
 
@@ -365,7 +278,6 @@ class AiAnalysisViewModelTest {
         advanceUntilIdle()
         assertTrue(viewModel.stockAiState.value is AiAnalysisState.Success)
 
-        // Select new stock should reset AI state
         viewModel.selectStock("000660", "SK하이닉스", null, null)
         assertEquals(AiAnalysisState.Idle, viewModel.stockAiState.value)
     }
@@ -375,6 +287,5 @@ class AiAnalysisViewModelTest {
         advanceUntilIdle()
         viewModel.searchStock("삼성")
         advanceUntilIdle()
-        // Just verify no exception
     }
 }

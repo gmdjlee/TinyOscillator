@@ -238,7 +238,11 @@ class OscillatorViewModel @Inject constructor(
                                     message = "[$ticker] $stockName — 네트워크 미연결"
                                 )
                             )
-                        } catch (_: Exception) { }
+                        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Timber.w(e, "네트워크 미연결 로그 저장 실패 (무시): %s", ticker)
+                        }
                     }
                     return@launch
                 }
@@ -317,7 +321,11 @@ class OscillatorViewModel @Inject constructor(
                                 errorDetail = "${e::class.simpleName}: ${e.message}"
                             )
                         )
-                    } catch (_: Exception) { /* 로그 저장 실패 무시 */ }
+                    } catch (ce: kotlin.coroutines.cancellation.CancellationException) {
+                        throw ce
+                    } catch (logError: Exception) {
+                        Timber.w(logError, "분석 실패 로그 저장 실패 (무시): %s", ticker)
+                    }
                 }
             }
         }

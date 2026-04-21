@@ -262,7 +262,7 @@ fun ReportDetailScreen(
             return@Scaffold
         }
 
-        if (state.error != null) {
+        state.error?.let { errorMessage ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -270,7 +270,7 @@ fun ReportDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    state.error!!,
+                    errorMessage,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -307,9 +307,10 @@ fun ReportDetailScreen(
             // 수급오실레이터 차트
             item {
                 SectionTitle("수급오실레이터")
-                if (state.chartData != null) {
+                val chartData = state.chartData
+                if (chartData != null) {
                     OscillatorChart(
-                        chartData = state.chartData!!,
+                        chartData = chartData,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(280.dp)

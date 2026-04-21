@@ -48,7 +48,7 @@ class DemarkTDViewModelTest {
         calcDemarkTD = CalcDemarkTDUseCase() // 실제 계산 로직 사용
         apiConfigProvider = mockk(relaxed = true)
 
-        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
+        mockkStatic("com.tinyoscillator.presentation.settings.SettingsPreferencesKt")
         coEvery {
             com.tinyoscillator.presentation.settings.loadKiwoomConfig(any())
         } returns com.tinyoscillator.core.api.KiwoomApiKeyConfig(

@@ -281,7 +281,7 @@ private fun DateSelectorDialog(
             LazyColumn(
                 modifier = Modifier.heightIn(max = 400.dp)
             ) {
-                items(dates) { date ->
+                items(dates, key = { it }) { date ->
                     TextButton(
                         onClick = { onSelect(date) },
                         modifier = Modifier.fillMaxWidth()

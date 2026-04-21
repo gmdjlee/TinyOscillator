@@ -43,7 +43,7 @@ class AggregatedStockTrendViewModelTest {
         context = mockk(relaxed = true)
         etfRepository = mockk(relaxed = true)
 
-        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
+        mockkStatic("com.tinyoscillator.presentation.settings.SettingsPreferencesKt")
         coEvery { com.tinyoscillator.presentation.settings.loadEtfKeywordFilter(any()) } returns defaultKeywordFilter
         coEvery { etfRepository.getExcludedTickers(any()) } returns emptyList()
     }

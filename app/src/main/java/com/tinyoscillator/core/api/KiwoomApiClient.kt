@@ -1,5 +1,6 @@
 package com.tinyoscillator.core.api
 
+import com.tinyoscillator.core.config.ApiConstants
 import timber.log.Timber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -27,19 +28,19 @@ import kotlin.coroutines.cancellation.CancellationException
 class KiwoomApiClient(
     private val httpClient: OkHttpClient = createDefaultClient(),
     private val json: Json = createDefaultJson()
-) : BaseApiClient(rateLimitMs = RATE_LIMIT_MS) {
+) : BaseApiClient(rateLimitMs = ApiConstants.KIWOOM_RATE_LIMIT_MS) {
     // 토큰 캐시 (baseUrl + appKey 조합)
     private val tokenCache = ConcurrentHashMap<String, TokenInfo>()
     private val tokenMutex = Mutex()
 
     // 토큰 엔드포인트 전용 rate limiter
+    // tokenRateMutex 내부에서만 접근하므로 @Volatile 불필요 (mutex가 happens-before 보장).
     private val tokenRateMutex = Mutex()
-    @Volatile
-    private var lastTokenFetchTime = 0L
+    private var nextTokenAvailableAt = 0L
 
     /**
      * Kiwoom API 호출.
-     * 401/403 오류 시 토큰 갱신 후 자동 재시도.
+     * 401/403 오류 시 토큰 갱신 후 자동 재시도. 재시도 정책은 [executeWithRetry] 참조.
      */
     suspend fun <T> call(
         apiId: String,
@@ -48,42 +49,12 @@ class KiwoomApiClient(
         config: KiwoomApiKeyConfig,
         parser: (String) -> T
     ): Result<T> = withContext(Dispatchers.IO) {
-        val inRequestScope = isInRequestScope()
-
-        // Circuit breaker: executeRequest 내부가 아닐 때만 직접 게이트를 연다.
-        if (!inRequestScope && !circuitBreaker.tryAcquire()) {
-            Timber.w("서킷 브레이커 차단 → 즉시 실패: %s (state=%s)", apiId, circuitBreaker.currentState)
-            return@withContext Result.failure(ApiError.CircuitBreakerOpenError())
+        executeWithRetry(
+            tag = apiId,
+            onAuthFailure = { refreshToken(config) },
+        ) {
+            callOnce(apiId, url, body, config, parser)
         }
-
-        var lastResult = callOnce(apiId, url, body, config, parser)
-
-        // Auth retry: refresh token on 401/403
-        lastResult.onFailure { error ->
-            if (ApiError.isAuthError(error)) {
-                Timber.w("인증 오류, 토큰 갱신 후 재시도")
-                refreshToken(config)
-                delay(1000L) // 토큰 재발급 전 1초 대기
-                lastResult = callOnce(apiId, url, body, config, parser)
-            }
-        }
-
-        // Retry on retriable errors (network, timeout)
-        if (lastResult.isFailure && ApiError.isRetriableError(lastResult.exceptionOrNull())) {
-            for (attempt in 1..MAX_RETRIES) {
-                delay(RETRY_DELAYS[attempt - 1])
-                Timber.d("재시도 %d/%d: %s", attempt, MAX_RETRIES, apiId)
-                lastResult = callOnce(apiId, url, body, config, parser)
-                if (lastResult.isSuccess || !ApiError.isRetriableError(lastResult.exceptionOrNull())) break
-            }
-        }
-
-        // executeRequest 내부에서는 상위가 합산 결과로 한 번만 CB에 기록한다.
-        if (!inRequestScope) {
-            updateCircuitBreaker(lastResult)
-        }
-
-        lastResult
     }
 
     private suspend fun <T> callOnce(
@@ -167,13 +138,19 @@ class KiwoomApiClient(
         return Result.failure(lastError ?: ApiError.AuthError("토큰 발급 실패"))
     }
 
+    /**
+     * 토큰 엔드포인트 호출 직렬화 (slot reservation).
+     *
+     * 여러 코루틴이 동시에 진입해도 mutex 내부에서 각 호출에 대해 고유한 "다음 사용 가능 시각"을
+     * 계산·예약하므로, 각 호출은 서로 ApiConstants.KIWOOM_TOKEN_MIN_INTERVAL_MS 이상 간격으로 직렬화된다.
+     */
     private suspend fun waitForTokenRateLimit() {
         val delayMs: Long
         tokenRateMutex.withLock {
             val now = System.currentTimeMillis()
-            val elapsed = now - lastTokenFetchTime
-            delayMs = if (elapsed < TOKEN_MIN_INTERVAL_MS) TOKEN_MIN_INTERVAL_MS - elapsed else 0L
-            lastTokenFetchTime = now + delayMs
+            val scheduledAt = maxOf(now, nextTokenAvailableAt)
+            delayMs = scheduledAt - now
+            nextTokenAvailableAt = scheduledAt + ApiConstants.KIWOOM_TOKEN_MIN_INTERVAL_MS
         }
         if (delayMs > 0L) {
             Timber.d("토큰 레이트 리밋 대기: %dms", delayMs)
@@ -280,12 +257,17 @@ class KiwoomApiClient(
     }
 
     companion object {
-        private const val MAX_RETRIES = 2
-        private const val RATE_LIMIT_MS = 500L
-        private const val TOKEN_MIN_INTERVAL_MS = 10_000L // 토큰 발급 최소 간격 10초
-        private val RETRY_DELAYS = listOf(1000L, 2000L)
         private val TOKEN_RATE_LIMIT_RETRY_DELAYS = listOf(11_000L, 12_000L, 14_000L)
 
+        /**
+         * 공용 OkHttpClient 생성 (KIS/Kiwoom/DART/BOK ECOS/AI 모두 재사용).
+         *
+         * 기본값 `enablePinning = !BuildConfig.DEBUG`는 릴리스 빌드에서만 OkHttp 레벨 pinning을 활성화한다.
+         * 디버그 빌드에서 비활성화하는 이유는 MockWebServer 기반 통합 테스트가 self-signed 인증서를
+         * 쓰기 때문이다. 그러나 **플랫폼 레벨 pinning은 별도로 유지된다** — `res/xml/network_security_config.xml`에
+         * Kiwoom/KIS 도메인에 대한 SHA-256 pin이 빌드 타입 무관하게 강제된다.
+         * 즉, 디버그 빌드에서 실제 Kiwoom/KIS endpoint를 호출해도 OS 레이어에서 pin 검증이 수행된다.
+         */
         fun createDefaultClient(enablePinning: Boolean = !com.tinyoscillator.BuildConfig.DEBUG): OkHttpClient {
             val builder = OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)

@@ -32,7 +32,9 @@ class LogisticScoringEngine @Inject constructor(
         private const val LOOK_AHEAD_DAYS = 20
         private const val LEARNING_RATE = 0.01
         private const val EPOCHS = 100
+        /** 상대 수렴 임계값: |ΔL| / (|L|+ε) < threshold 이면 조기 종료. */
         private const val CONVERGENCE_THRESHOLD = 1e-6
+        private const val CONVERGENCE_EPSILON = 1e-10
         private const val NORMALIZATION_WINDOW = 60
         private const val PREFS_PREFIX = "logistic_weight_"
         private const val PREFS_BIAS = "logistic_bias"
@@ -180,10 +182,19 @@ class LogisticScoringEngine @Inject constructor(
             }
             bias -= LEARNING_RATE * gradB / n
 
-            // 수렴 검사: loss 변화가 임계값 이하이면 조기 종료
-            if (abs(prevLoss - avgLoss) < CONVERGENCE_THRESHOLD) {
-                Timber.d("LogisticScoring 수렴: epoch=%d, loss=%.6f", epoch, avgLoss)
-                break
+            // NaN/Inf 검출: 학습률 폭주나 수치 불안정 시 이전 안정 가중치로 복귀 후 종료
+            if (weights.any { !it.isFinite() } || !bias.isFinite()) {
+                Timber.w("LogisticScoring 발산: epoch=%d, loss=%.6f — 저장 보류", epoch, avgLoss)
+                return
+            }
+
+            // 상대 수렴: 첫 epoch이 아닐 때 |ΔL| / (|L|+ε) < threshold 이면 조기 종료
+            if (prevLoss != Double.MAX_VALUE) {
+                val relativeDelta = abs(prevLoss - avgLoss) / (abs(prevLoss) + CONVERGENCE_EPSILON)
+                if (relativeDelta < CONVERGENCE_THRESHOLD) {
+                    Timber.d("LogisticScoring 수렴: epoch=%d, relΔ=%.2e, loss=%.6f", epoch, relativeDelta, avgLoss)
+                    break
+                }
             }
             prevLoss = avgLoss
         }
@@ -232,6 +243,7 @@ class LogisticScoringEngine @Inject constructor(
     }
 
     private fun minMaxNormalize(value: Double, history: List<Double>): Double {
+        if (history.isEmpty()) return 0.5
         val minVal = history.min()
         val maxVal = history.max()
         val range = maxVal - minVal

@@ -107,7 +107,7 @@ class NaiveBayesEngine @Inject constructor() {
         val classCounts = mutableMapOf(
             Label.UP to 0, Label.DOWN to 0, Label.SIDEWAYS to 0
         )
-        trainingData.forEach { (_, label) -> classCounts[label] = classCounts[label]!! + 1 }
+        trainingData.forEach { (_, label) -> classCounts[label] = classCounts.getValue(label) + 1 }
         val totalSamples = trainingData.size
         val numClasses = 3
 
@@ -140,8 +140,9 @@ class NaiveBayesEngine @Inject constructor() {
         val featureContributions = mutableMapOf<String, Double>()
 
         for (label in Label.entries) {
+            val classCount = classCounts.getValue(label)
             var logProb = Math.log(
-                (classCounts[label]!! + LAPLACE_ALPHA) /
+                (classCount + LAPLACE_ALPHA) /
                         (totalSamples + numClasses * LAPLACE_ALPHA)
             )
 
@@ -149,7 +150,6 @@ class NaiveBayesEngine @Inject constructor() {
                 val numPossibleValues = featureValues[featureName]?.size ?: 1
                 val count = featureValueClassCounts[featureName]
                     ?.get(featureValue)?.get(label) ?: 0
-                val classCount = classCounts[label]!!
 
                 val likelihood = (count + LAPLACE_ALPHA) /
                         (classCount + numPossibleValues * LAPLACE_ALPHA)

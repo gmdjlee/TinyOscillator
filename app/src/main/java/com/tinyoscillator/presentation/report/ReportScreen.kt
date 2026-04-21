@@ -526,7 +526,7 @@ private fun StockNameSearchDialog(
                 HorizontalDivider()
 
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    items(filteredNames) { name ->
+                    items(filteredNames, key = { it }) { name ->
                         val isSelected = name == selectedValue
                         Surface(
                             modifier = Modifier

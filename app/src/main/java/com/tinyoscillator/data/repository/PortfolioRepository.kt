@@ -310,8 +310,10 @@ class PortfolioRepository(
             }
         }
 
-        // Return in original DESC order
-        return transactions.map { itemMap[it.id]!! }
+        // Return in original DESC order. itemMap is populated from the same list via chronological sort,
+        // so every tx.id is present. Using getValue to surface a clear NoSuchElementException if the
+        // invariant ever breaks (e.g. due to a future refactor or duplicate ids).
+        return transactions.map { itemMap.getValue(it.id) }
     }
 
     // For backup

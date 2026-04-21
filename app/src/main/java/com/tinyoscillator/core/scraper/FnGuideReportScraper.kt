@@ -1,6 +1,8 @@
 package com.tinyoscillator.core.scraper
 
+import com.tinyoscillator.core.config.ApiConstants
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
+import com.tinyoscillator.core.util.ParsingUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -13,7 +15,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import java.util.concurrent.TimeUnit
-import kotlin.random.Random
 
 /**
  * FnGuide 리포트 요약 스크래퍼
@@ -32,7 +33,6 @@ class FnGuideReportScraper(
             "https://comp.fnguide.com/SVO2/ASP/SVD_Report_Summary_Data.asp"
         private const val USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        private const val TIMEOUT_SECONDS = 15L
         private const val MIN_DELAY_MS = 1_000L
         private const val MAX_DELAY_MS = 5_000L
         private const val DEFAULT_GICODE = "A005930" // 삼성전자 (세션 획득용)
@@ -56,9 +56,9 @@ class FnGuideReportScraper(
     }
 
     private val httpClient: OkHttpClient = httpClient.newBuilder()
-        .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .connectTimeout(ApiConstants.FNGUIDE_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(ApiConstants.FNGUIDE_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(ApiConstants.FNGUIDE_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .followRedirects(true)
         .cookieJar(InMemoryCookieJar())
         .build()
@@ -315,13 +315,9 @@ class FnGuideReportScraper(
         }
     }
 
-    internal fun parsePrice(priceStr: String): Long {
-        val cleaned = priceStr.replace(",", "").trim()
-        if (cleaned.isEmpty() || cleaned == "-" || cleaned == "0") return 0L
-        return cleaned.toLongOrNull() ?: 0L
-    }
+    /** @see ParsingUtils.parsePriceLong */
+    internal fun parsePrice(priceStr: String): Long = ParsingUtils.parsePriceLong(priceStr)
 
-    private fun randomDelay(): Long {
-        return MIN_DELAY_MS + Random.nextLong(MAX_DELAY_MS - MIN_DELAY_MS)
-    }
+    private fun randomDelay(): Long =
+        ScraperUtils.uniformRandomDelayMs(MIN_DELAY_MS, MAX_DELAY_MS)
 }

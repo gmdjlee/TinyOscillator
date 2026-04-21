@@ -1,5 +1,6 @@
 package com.tinyoscillator.core.api
 
+import com.tinyoscillator.core.config.ApiConstants
 import com.tinyoscillator.domain.model.EcosDataPoint
 import com.tinyoscillator.domain.model.EcosIndicatorSpec
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +34,6 @@ class BokEcosApiClient(
 
     companion object {
         private const val BASE_URL = "https://ecos.bok.or.kr/api/StatisticSearch"
-        private const val RATE_LIMIT_MS = 1000L
 
         /**
          * 5개 매크로 지표 정의
@@ -157,8 +157,8 @@ class BokEcosApiClient(
         rateLimitMutex.withLock {
             val now = System.currentTimeMillis()
             val elapsed = now - lastRequestTime
-            if (elapsed < RATE_LIMIT_MS) {
-                kotlinx.coroutines.delay(RATE_LIMIT_MS - elapsed)
+            if (elapsed < ApiConstants.BOK_ECOS_RATE_LIMIT_MS) {
+                kotlinx.coroutines.delay(ApiConstants.BOK_ECOS_RATE_LIMIT_MS - elapsed)
             }
             lastRequestTime = System.currentTimeMillis()
         }

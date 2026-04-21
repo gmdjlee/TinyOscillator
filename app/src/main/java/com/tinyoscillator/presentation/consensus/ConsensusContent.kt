@@ -68,7 +68,10 @@ fun ConsensusContent(
                 }
 
                 // Report cards
-                items(reports) { report ->
+                items(
+                    reports,
+                    key = { "${it.writeDate}|${it.stockTicker}|${it.author}|${it.title}" }
+                ) { report ->
                     ConsensusReportCard(report = report)
                 }
             }

@@ -106,12 +106,13 @@ class Korea5FactorEngine @Inject constructor(
 
         // 6. 최종 윈도우 OLS (최근 alpha + betas)
         val lastWindowMonths = commonMonths.toList().takeLast(DEFAULT_WINDOW.coerceAtMost(commonMonths.size))
-        val (betas, alpha, rSq) = estimateBetas(
+        val finalFit = estimateBetas(
             stockMonthlyRet = stockMonthlyRet,
             factorMap = factorMap,
             rfMonthly = rfMonthly,
             months = lastWindowMonths
-        )
+        ) ?: return unavailable("OLS 회귀 실패 (관측치 부족 또는 특이행렬)")
+        val (betas, _, rSq) = finalFit
 
         // 7. z-score & signal
         val latestAlpha = alphaHistory.last().second
@@ -228,14 +229,14 @@ class Korea5FactorEngine @Inject constructor(
     /**
      * OLS 회귀: stock_excess = alpha + b1*MKT + b2*SMB + b3*HML + b4*RMW + b5*CMA + eps
      *
-     * @return Triple(betas, alpha, rSquared)
+     * @return Triple(betas, alpha, rSquared) — 관측치 부족 또는 특이행렬이면 null
      */
     internal fun estimateBetas(
         stockMonthlyRet: Map<String, Double>,
         factorMap: Map<String, MonthlyFactorRow>,
         rfMonthly: Map<String, Double>,
         months: List<String>
-    ): Triple<FactorBetas, Double, Double> {
+    ): Triple<FactorBetas, Double, Double>? {
         // 유효한 관측치만 필터링 (factor 또는 stock return 누락 시 제외)
         val k = 6  // intercept + 5 factors
         val yList = mutableListOf<Double>()
@@ -255,7 +256,8 @@ class Korea5FactorEngine @Inject constructor(
 
         val n = yList.size
         if (n < MIN_OBS) {
-            return Triple(FactorBetas(), 0.0, 0.0)
+            Timber.d("Korea5Factor estimateBetas: 관측치 %d < 최소 %d", n, MIN_OBS)
+            return null
         }
 
         val y = yList.toDoubleArray()
@@ -274,7 +276,10 @@ class Korea5FactorEngine @Inject constructor(
             }
         }
 
-        val beta = solveLinearSystem(xtx, xty) ?: return Triple(FactorBetas(), 0.0, 0.0)
+        val beta = solveLinearSystem(xtx, xty) ?: run {
+            Timber.d("Korea5Factor estimateBetas: 특이행렬 (n=%d)", n)
+            return null
+        }
 
         // R²
         val yMean = y.average()
@@ -321,10 +326,13 @@ class Korea5FactorEngine @Inject constructor(
         var start = 0
         while (start + window <= sortedMonths.size) {
             val windowMonths = sortedMonths.subList(start, start + window)
-            val (_, alpha, _) = estimateBetas(
+            val fit = estimateBetas(
                 stockMonthlyRet, factorMap, rfMonthly, windowMonths
             )
-            result.add(windowMonths.last() to alpha)
+            // OLS 실패(특이행렬/관측치 부족) 윈도우는 스킵 — 통계적 무의미한 0 알파 기록 방지
+            if (fit != null) {
+                result.add(windowMonths.last() to fit.second)
+            }
             start += step
         }
 

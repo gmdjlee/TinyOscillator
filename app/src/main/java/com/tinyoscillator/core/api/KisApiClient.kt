@@ -1,5 +1,6 @@
 package com.tinyoscillator.core.api
 
+import com.tinyoscillator.core.config.ApiConstants
 import timber.log.Timber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -26,18 +27,19 @@ import kotlin.coroutines.cancellation.CancellationException
 class KisApiClient(
     private val httpClient: OkHttpClient = KiwoomApiClient.createDefaultClient(),
     private val json: Json = KiwoomApiClient.createDefaultJson()
-) : BaseApiClient(rateLimitMs = RATE_LIMIT_MS) {
+) : BaseApiClient(rateLimitMs = ApiConstants.KIS_RATE_LIMIT_MS) {
     // 토큰 캐시
     private val tokenCache = ConcurrentHashMap<String, TokenInfo>()
     private val tokenMutex = Mutex()
 
     // 토큰 엔드포인트 전용 rate limiter (KIS: 1분당 1회 제한)
+    // tokenRateMutex 내부에서만 접근하므로 @Volatile 불필요 (mutex가 happens-before 보장).
     private val tokenRateMutex = Mutex()
-    @Volatile
-    private var lastTokenFetchTime = 0L
+    private var nextTokenAvailableAt = 0L
 
     /**
-     * KIS API GET 요청.
+     * KIS API GET 요청. 401/403 오류 시 토큰 갱신 후 자동 재시도. 재시도 정책은
+     * [executeWithRetry] 참조.
      */
     suspend fun <T> get(
         trId: String,
@@ -46,40 +48,12 @@ class KisApiClient(
         config: KisApiKeyConfig,
         parser: (String) -> T
     ): Result<T> = withContext(Dispatchers.IO) {
-        val inRequestScope = isInRequestScope()
-
-        if (!inRequestScope && !circuitBreaker.tryAcquire()) {
-            Timber.w("KIS 서킷 브레이커 차단 → 즉시 실패: %s (state=%s)", trId, circuitBreaker.currentState)
-            return@withContext Result.failure(ApiError.CircuitBreakerOpenError())
+        executeWithRetry(
+            tag = "KIS $trId",
+            onAuthFailure = { refreshToken(config) },
+        ) {
+            getOnce(trId, url, queryParams, config, parser)
         }
-
-        var lastResult = getOnce(trId, url, queryParams, config, parser)
-
-        // Auth retry: refresh token on 401/403
-        lastResult.onFailure { error ->
-            if (ApiError.isAuthError(error)) {
-                Timber.w("KIS 인증 오류, 토큰 갱신 후 재시도")
-                refreshToken(config)
-                delay(1000L) // 토큰 재발급 전 1초 대기
-                lastResult = getOnce(trId, url, queryParams, config, parser)
-            }
-        }
-
-        // Retry on retriable errors (network, timeout)
-        if (lastResult.isFailure && ApiError.isRetriableError(lastResult.exceptionOrNull())) {
-            for (attempt in 1..MAX_RETRIES) {
-                delay(RETRY_DELAYS[attempt - 1])
-                Timber.d("KIS 재시도 %d/%d: %s", attempt, MAX_RETRIES, trId)
-                lastResult = getOnce(trId, url, queryParams, config, parser)
-                if (lastResult.isSuccess || !ApiError.isRetriableError(lastResult.exceptionOrNull())) break
-            }
-        }
-
-        if (!inRequestScope) {
-            updateCircuitBreaker(lastResult)
-        }
-
-        lastResult
     }
 
     private suspend fun <T> getOnce(
@@ -163,13 +137,23 @@ class KisApiClient(
         return Result.failure(lastError ?: ApiError.AuthError("KIS 토큰 발급 실패"))
     }
 
+    /**
+     * 토큰 엔드포인트 호출 직렬화 (slot reservation).
+     *
+     * 여러 코루틴이 동시에 진입해도 mutex 내부에서 각 호출에 대해 고유한 "다음 사용 가능 시각"을
+     * 계산·예약하므로, 각 호출은 서로 ApiConstants.KIS_TOKEN_MIN_INTERVAL_MS 이상 간격으로 직렬화된다.
+     *
+     * - nextTokenAvailableAt: 다음 토큰 호출이 발사될 수 있는 절대 타임스탬프(ms).
+     * - 첫 호출: now가 예약값보다 크므로 즉시(delayMs=0) 발사, 다음 예약을 now + interval로 설정.
+     * - 연속 호출: max(now, 기존 예약)을 기준으로 새 예약을 그 뒤로 미뤄 interval을 보장.
+     */
     private suspend fun waitForTokenRateLimit() {
         val delayMs: Long
         tokenRateMutex.withLock {
             val now = System.currentTimeMillis()
-            val elapsed = now - lastTokenFetchTime
-            delayMs = if (elapsed < TOKEN_MIN_INTERVAL_MS) TOKEN_MIN_INTERVAL_MS - elapsed else 0L
-            lastTokenFetchTime = now + delayMs
+            val scheduledAt = maxOf(now, nextTokenAvailableAt)
+            delayMs = scheduledAt - now
+            nextTokenAvailableAt = scheduledAt + ApiConstants.KIS_TOKEN_MIN_INTERVAL_MS
         }
         if (delayMs > 0L) {
             Timber.d("KIS 토큰 레이트 리밋 대기: %dms", delayMs)
@@ -246,10 +230,6 @@ class KisApiClient(
     }
 
     companion object {
-        private const val MAX_RETRIES = 2
-        private const val RATE_LIMIT_MS = 500L
-        private const val TOKEN_MIN_INTERVAL_MS = 61_000L // KIS: 토큰 재발급 1분당 1회 제한
-        private val RETRY_DELAYS = listOf(1000L, 2000L)
         private val TOKEN_RATE_LIMIT_RETRY_DELAYS = listOf(61_000L, 62_000L, 64_000L)
     }
 

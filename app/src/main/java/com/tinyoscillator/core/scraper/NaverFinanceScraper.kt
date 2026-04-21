@@ -1,5 +1,6 @@
 package com.tinyoscillator.core.scraper
 
+import com.tinyoscillator.core.config.ApiConstants
 import com.tinyoscillator.domain.model.MarketDepositChartData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -23,13 +24,12 @@ class NaverFinanceScraper(
         private const val BASE_URL = "https://finance.naver.com/sise/sise_deposit.naver"
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         private const val REQUEST_DELAY_MS = 500L
-        private const val TIMEOUT_SECONDS = 15L
     }
 
     private val httpClient: OkHttpClient = httpClient.newBuilder()
-        .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .connectTimeout(ApiConstants.NAVER_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(ApiConstants.NAVER_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(ApiConstants.NAVER_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
 
     /**

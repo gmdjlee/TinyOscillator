@@ -63,7 +63,7 @@ class OscillatorViewModelEdgeCaseTest {
         apiConfigProvider = mockk(relaxed = true)
         workerLogDao = mockk(relaxed = true)
 
-        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
+        mockkStatic("com.tinyoscillator.presentation.settings.SettingsPreferencesKt")
         coEvery {
             com.tinyoscillator.presentation.settings.loadKiwoomConfig(any())
         } returns validConfig

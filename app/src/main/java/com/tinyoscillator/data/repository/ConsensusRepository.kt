@@ -6,6 +6,7 @@ import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
 import com.tinyoscillator.core.scraper.EquityReportScraper
 import com.tinyoscillator.core.scraper.FnGuideReportScraper
+import com.tinyoscillator.core.util.ParsingUtils
 import com.tinyoscillator.domain.model.ConsensusChartData
 import com.tinyoscillator.domain.model.ConsensusDataProgress
 import com.tinyoscillator.domain.model.ConsensusFilter
@@ -232,7 +233,7 @@ class ConsensusRepository(
 
     private fun parseJsonReport(obj: JsonObject): ConsensusReportEntity? {
         val rawDate = obj["작성일"]?.jsonPrimitive?.content ?: return null
-        val writeDate = parseDate(rawDate) ?: return null
+        val writeDate = ParsingUtils.parseSlashDate(rawDate) ?: return null
         val rawTitle = obj["제목"]?.jsonPrimitive?.content ?: ""
         val stockTicker = obj["종목코드"]?.jsonPrimitive?.content ?: ""
         if (stockTicker.isBlank()) return null
@@ -244,8 +245,8 @@ class ConsensusRepository(
         } ?: ""
         val title = rawTitle.replace(Regex(".*\\(\\d{6}\\)\\s*"), "").trim()
 
-        val targetPrice = parsePrice(obj["목표가"]?.jsonPrimitive?.content ?: "0")
-        val currentPrice = parsePrice(obj["현재가"]?.jsonPrimitive?.content ?: "0")
+        val targetPrice = ParsingUtils.parsePriceLong(obj["목표가"]?.jsonPrimitive?.content ?: "0")
+        val currentPrice = ParsingUtils.parsePriceLong(obj["현재가"]?.jsonPrimitive?.content ?: "0")
         val divergenceRate = if (currentPrice > 0) {
             (targetPrice - currentPrice).toDouble() / currentPrice * 100.0
         } else {
@@ -266,21 +267,6 @@ class ConsensusRepository(
             currentPrice = currentPrice,
             divergenceRate = divergenceRate
         )
-    }
-
-    private fun parseDate(dateStr: String): String? {
-        val parts = dateStr.trim().split("/")
-        if (parts.size != 3) return null
-        val year = if (parts[0].length == 2) "20${parts[0]}" else parts[0]
-        val month = parts[1].padStart(2, '0')
-        val day = parts[2].padStart(2, '0')
-        return "$year-$month-$day"
-    }
-
-    private fun parsePrice(priceStr: String): Long {
-        val cleaned = priceStr.replace(",", "").trim()
-        if (cleaned.isEmpty() || cleaned == "-" || cleaned == "0") return 0L
-        return cleaned.toLongOrNull() ?: 0L
     }
 
     private fun ConsensusReportEntity.toDomain() = ConsensusReport(

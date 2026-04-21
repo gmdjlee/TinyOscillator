@@ -9,7 +9,7 @@ TinyOscillator/
 ├── app/
 │   ├── build.gradle.kts              # App-level build config
 │   ├── proguard-rules.pro
-│   ├── schemas/                       # Room schema exports (v1–v13)
+│   ├── schemas/                       # Room schema exports (v2–v26)
 │   └── src/
 │       ├── main/
 │       │   └── java/com/tinyoscillator/
@@ -49,7 +49,7 @@ TinyOscillator/
 │       │       │   ├── settings/      # Settings, Backup, Schedule config
 │       │       │   └── viewmodel/     # OscillatorVM, StockAnalysisVM
 │       │       └── ui/theme/          # Material3 theme (Color, Type, Theme)
-│       └── test/                      # 98 unit test files
+│       └── test/                      # 160 unit test files (~1,400 tests)
 ├── build.gradle.kts                   # Root build (plugin versions)
 └── settings.gradle.kts                # includeBuild("../kotlin_krx")
 ```
@@ -243,41 +243,53 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 
 All workers: network-constrained, exponential backoff (30s initial), foreground service (DATA_SYNC), results logged to `worker_logs` table. Schedules are user-configurable in Settings and restored on app startup in `TinyOscillatorApp.onCreate()`.
 
-## Room database (v17)
+## Room database (v26)
+### Migration
+- All migrations `MIGRATION_1_2` ~ `MIGRATION_25_26` are defined in `core/di/DatabaseModule.kt` and wired via `.addMigrations(...)` in `provideAppDatabase`. Schema JSONs are exported at `app/schemas/com.tinyoscillator.core.database.AppDatabase/2.json ~ 26.json`.
+- No `fallbackToDestructiveMigration()` — all upgrades are explicit.
+
 ### Entities
 | Entity | DAO | Purpose |
 |--------|-----|---------|
-| `StockMasterEntity` | `StockMasterDao` | KOSPI/KOSDAQ stock list |
-| `AnalysisCacheEntity` | `AnalysisCacheDao` | Cached OHLCV + indicator data per stock per date |
+| `StockMasterEntity` | `StockMasterDao` | KOSPI/KOSDAQ stock list (v22 added `initial_consonants`) |
+| `AnalysisCacheEntity` | `AnalysisCacheDao` | Cached OHLCV + indicator data (v26 added OHLCV columns) |
 | `AnalysisHistoryEntity` | `AnalysisHistoryDao` | User's analysis history (recently viewed stocks) |
+| `AnalysisSnapshotEntity` | `AnalysisSnapshotDao` | Analysis snapshots (v25) |
 | `FinancialCacheEntity` | `FinancialCacheDao` | KIS financial statement cache (24h TTL) |
 | `EtfEntity` | `EtfDao` | ETF master list |
 | `EtfHoldingEntity` | `EtfDao` | ETF portfolio composition |
 | `MarketOscillatorEntity` | `MarketOscillatorDao` | Market overbought/oversold daily values |
 | `MarketDepositEntity` | `MarketDepositDao` | Market deposit/credit daily values |
 | `PortfolioEntity` | `PortfolioDao` | User portfolios |
-| `PortfolioHoldingEntity` | `PortfolioDao` | Portfolio stock holdings |
+| `PortfolioHoldingEntity` | `PortfolioDao` | Portfolio stock holdings (v8 added `target_price`) |
 | `PortfolioTransactionEntity` | `PortfolioDao` | Buy/sell transaction records |
 | `FundamentalCacheEntity` | `FundamentalCacheDao` | KRX fundamental data (730d TTL) |
 | `WorkerLogEntity` | `WorkerLogDao` | Background job execution logs |
-| `ConsensusReportEntity` | `ConsensusReportDao` | Analyst consensus reports |
+| `ConsensusReportEntity` | `ConsensusReportDao` | Analyst consensus reports (v12 added `stock_name`) |
 | `FearGreedEntity` | `FearGreedDao` | Fear & Greed index daily values |
-| `SignalHistoryEntity` | `CalibrationDao` | Signal calibration history |
+| `SignalHistoryEntity` | `CalibrationDao` | Signal calibration history (v21 added `outcome_t1/t5/t20`) |
 | `CalibrationStateEntity` | `CalibrationDao` | Calibrator state persistence |
 | `KospiIndexEntity` | `RegimeDao` | KOSPI daily close cache |
 | `RegimeStateEntity` | `RegimeDao` | HMM regime model state |
 | `FeatureCacheEntity` | `FeatureCacheDao` | Feature store cache |
 | `DartCorpCodeEntity` | `DartDao` | DART corp_code ↔ ticker mapping |
 | `MacroIndicatorEntity` | `MacroDao` | BOK ECOS macro indicator cache |
+| `EnsembleHistoryEntity` | `EnsembleHistoryDao` | Stacking ensemble prediction history (v19) |
+| `IncrementalModelStateEntity` | `IncrementalModelDao` | Online learning model state (v20) |
+| `ModelDriftAlertEntity` | `IncrementalModelDao` | Drift detection alerts (v20) |
+| `UserThemeEntity` | `UserThemeDao` | User-defined themes (v23) |
+| `WatchlistGroupEntity` / `WatchlistItemEntity` | — | Watchlist groups and items (v24) |
 
 ## Testing conventions
-- **Framework**: JUnit4 + MockK + Turbine (Flow) + coroutines-test + MockWebServer
-- **Test count**: 101 test files, ~1,429 tests total (all passing as of 2026-04-03)
-- **Location**: `app/src/test/` (unit tests only; no androidTest instrumented tests)
-- **Naming**: `ClassNameTest.kt` in same package structure as source
-- **Config**: `testOptions { unitTests.isReturnDefaultValues = true }`
-- **Coverage**: All 7 engines tested, all repositories tested, all ViewModels tested
-- **Gap**: No Compose UI tests, no Room DAO instrumented tests (requires androidTest setup)
+- **Framework**: JUnit4 + MockK + Turbine (Flow) + coroutines-test + MockWebServer + Robolectric
+- **Test count**: 164 test files, ~1,420 tests total (all passing as of 2026-04-21; Phase 8에서 Robolectric DAO 테스트 17건 + Turbine 예시 1건 추가)
+- **Main source count**: 323 Kotlin files under `app/src/main` (Phase 3.5/4.5에서 `ScraperUtils`, `DaoModule`, `AppDatabaseMigrations` 3개 파일 추가)
+- **Unit test location**: `app/src/test/` — JUnit/MockK + Robolectric (Room in-memory DAO 테스트 포함). `./gradlew :app:testDebugUnitTest` 실행.
+- **Instrumented test location**: `app/src/androidTest/` — Compose UI smoke tests (오실레이터/DeMark/ETF + 인프라 검증 4건). `./gradlew :app:connectedDebugAndroidTest` 로 실기기/에뮬레이터에서 실행.
+- **Naming**: `ClassNameTest.kt` in same package structure as source. Robolectric 기반 DAO 테스트는 `ClassNameInMemoryTest.kt` 네이밍 사용.
+- **Config**: `testOptions { unitTests.isReturnDefaultValues = true; unitTests.isIncludeAndroidResources = true }`. Robolectric 테스트는 `@Config(sdk = [33], manifest = Config.NONE, application = android.app.Application::class)` 로 @HiltAndroidApp 우회.
+- **Coverage**: All 9 statistical engines tested, all repositories tested, most ViewModels tested, 주요 DAO 4개(UserTheme·AnalysisHistory·WorkerLog·StockMaster) in-memory Room 테스트 완료
+- **Turbine 사용 기준**: 단건 `.value` 체크가 대부분 충분. 중간 emit 관찰(Loading→Success→Error), cold `Flow`, "더 이상 emit 되지 않음" 검증 시에만 Turbine 사용.
 
 ## Known issues and TODOs
 ### Blocking
@@ -285,8 +297,23 @@ None found in current codebase (no TODO/FIXME/HACK/XXX markers).
 
 ### Non-blocking
 - No KRX holiday calendar — app retries on holidays until cooldown
-- No androidTest infrastructure for Compose UI and Room DAO tests
 - MarketOscillatorCalculator does not cache raw KRX OHLCV in Room for incremental updates
+
+### Refactor backlog (2026-04-20 code review → 2026-04-21 Phase 1~8 + 3.5 + 4.5 완료)
+필수·선택·polish 전부 완료 — 상세 내역은 `REFACTOR_PLAN.md` 참조.
+
+Phase 3.5 핵심 변경 (API/Scraper 중복 제거):
+- `BaseApiClient.executeWithRetry` 헬퍼 도입 → 3개 API 클라이언트의 auth/retriable retry 중복 100+ 줄 제거
+- `ScraperUtils` (uniform/gamma random delay) + `ApiConstants`의 scraper timeout 상수 추가
+
+Phase 4.5 (DatabaseModule 분할):
+- `DatabaseModule.kt` 804줄 → 101줄 (빌더 + 백업만)
+- 신규 `DaoModule.kt` (102줄, DAO 프로바이더 전담), `AppDatabaseMigrations.kt` (683줄, 25개 Migration)
+
+남은 선택 항목 (ROI 낮음, 별도 요청 시에만 착수 권장):
+- Phase 2.5: Presentation layer의 concrete repository import 22건 → 도메인 인터페이스 경유로 전환 (3~5일)
+- P3-3: Dispatchers 주입 모듈화 (40+ 파일 영향)
+- P6-2: Room v27 외래 키 제약 추가 (migration + orphan row 검증 필요)
 
 ## Naming conventions
 - Use case: `동사 + 명사 + UseCase` (e.g., `AnalyzeStockProbabilityUseCase`)

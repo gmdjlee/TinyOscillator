@@ -1,5 +1,6 @@
 package com.tinyoscillator.core.api
 
+import com.tinyoscillator.core.config.ApiConstants
 import com.tinyoscillator.domain.model.AiAnalysisResult
 import com.tinyoscillator.domain.model.AiAnalysisType
 import com.tinyoscillator.domain.model.AiApiKeyConfig
@@ -38,7 +39,7 @@ class AiApiClient(
         ignoreUnknownKeys = true
         isLenient = true
     }
-) : BaseApiClient(rateLimitMs = RATE_LIMIT_MS) {
+) : BaseApiClient(rateLimitMs = ApiConstants.CLAUDE_RATE_LIMIT_MS) {
 
     private val geminiRateMutex = Mutex()
     @Volatile
@@ -49,7 +50,7 @@ class AiApiClient(
         geminiRateMutex.withLock {
             val now = System.currentTimeMillis()
             val elapsed = now - geminiLastCallTime
-            delayMs = if (elapsed < GEMINI_RATE_LIMIT_MS) GEMINI_RATE_LIMIT_MS - elapsed else 0L
+            delayMs = if (elapsed < ApiConstants.GEMINI_RATE_LIMIT_MS) ApiConstants.GEMINI_RATE_LIMIT_MS - elapsed else 0L
             geminiLastCallTime = now + delayMs
         }
         if (delayMs > 0L) delay(delayMs)
@@ -124,32 +125,13 @@ class AiApiClient(
         maxTokens: Int = 1024,
         temperature: Double = 0.3
     ): Result<AiAnalysisResult> = withContext(Dispatchers.IO) {
-        val inRequestScope = isInRequestScope()
-
-        if (!inRequestScope && !circuitBreaker.tryAcquire()) {
-            Timber.w("AI 서킷 브레이커 차단 (state=%s)", circuitBreaker.currentState)
-            return@withContext Result.failure(ApiError.CircuitBreakerOpenError("AI API 일시 중단 (연속 실패)"))
+        executeWithRetry(
+            tag = "AI API",
+            retryDelaysMs = BaseApiClient.AI_RETRY_DELAYS_MS,
+            retryableFilter = AI_RETRYABLE_FILTER,
+        ) {
+            analyzeOnce(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
         }
-
-        var lastResult = analyzeOnce(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
-
-        // 재시도 (5xx, network, timeout — 429 제외: RPD 낭비 방지)
-        val retryError = lastResult.exceptionOrNull()
-        val isRateLimited = retryError is ApiError.ApiCallError && retryError.code == 429
-        if (lastResult.isFailure && !isRateLimited && ApiError.isRetriableError(retryError)) {
-            for (attempt in 1..MAX_RETRIES) {
-                delay(RETRY_DELAYS[attempt - 1])
-                Timber.d("AI API 재시도 %d/%d", attempt, MAX_RETRIES)
-                lastResult = analyzeOnce(config, systemPrompt, userMessage, analysisType, maxTokens, temperature)
-                if (lastResult.isSuccess || !ApiError.isRetriableError(lastResult.exceptionOrNull())) break
-            }
-        }
-
-        if (!inRequestScope) {
-            updateCircuitBreaker(lastResult)
-        }
-
-        lastResult
     }
 
     private suspend fun analyzeOnce(
@@ -308,29 +290,13 @@ class AiApiClient(
         maxTokens: Int = 1024,
         temperature: Double = 0.3
     ): Result<String> = withContext(Dispatchers.IO) {
-        val inRequestScope = isInRequestScope()
-
-        if (!inRequestScope && !circuitBreaker.tryAcquire()) {
-            return@withContext Result.failure(ApiError.CircuitBreakerOpenError("AI API 일시 중단 (연속 실패)"))
+        executeWithRetry(
+            tag = "AI Chat",
+            retryDelaysMs = BaseApiClient.AI_RETRY_DELAYS_MS,
+            retryableFilter = AI_RETRYABLE_FILTER,
+        ) {
+            chatOnce(config, systemPrompt, messages, maxTokens, temperature)
         }
-
-        var lastResult = chatOnce(config, systemPrompt, messages, maxTokens, temperature)
-
-        val retryError = lastResult.exceptionOrNull()
-        val isRateLimited = retryError is ApiError.ApiCallError && retryError.code == 429
-        if (lastResult.isFailure && !isRateLimited && ApiError.isRetriableError(retryError)) {
-            for (attempt in 1..MAX_RETRIES) {
-                delay(RETRY_DELAYS[attempt - 1])
-                Timber.d("AI Chat 재시도 %d/%d", attempt, MAX_RETRIES)
-                lastResult = chatOnce(config, systemPrompt, messages, maxTokens, temperature)
-                if (lastResult.isSuccess || !ApiError.isRetriableError(lastResult.exceptionOrNull())) break
-            }
-        }
-
-        if (!inRequestScope) {
-            updateCircuitBreaker(lastResult)
-        }
-        lastResult
     }
 
     private suspend fun chatOnce(
@@ -469,10 +435,16 @@ class AiApiClient(
     }
 
     companion object {
-        private const val MAX_RETRIES = 2
-        private const val RATE_LIMIT_MS = 1000L
-        private const val GEMINI_RATE_LIMIT_MS = 12_000L
         private const val GEMINI_THINKING_OVERHEAD = 8192
-        private val RETRY_DELAYS = listOf(2000L, 4000L)
+
+        /**
+         * AI API 재시도 필터 — 일시 장애(5xx, network, timeout)만 재시도하고
+         * 429(Rate limit)는 제외한다. 429를 재시도하면 일일 할당량(RPD)이 빠르게
+         * 소진되어 이후 정상 요청까지 모두 차단되는 역효과가 발생한다.
+         */
+        private val AI_RETRYABLE_FILTER: (Throwable?) -> Boolean = { err ->
+            val isRateLimited = err is ApiError.ApiCallError && err.code == 429
+            !isRateLimited && ApiError.isRetriableError(err)
+        }
     }
 }

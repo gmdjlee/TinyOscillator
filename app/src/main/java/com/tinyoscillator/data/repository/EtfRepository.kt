@@ -259,9 +259,11 @@ class EtfRepository(
         for (key in allKeys) {
             val old = oldMap[key]
             val new = newMap[key]
-            val etfTicker = (old ?: new)!!.etfTicker
-            val stockTicker = (old ?: new)!!.stockTicker
-            val stockName = (new ?: old)!!.stockName
+            // key는 oldMap.keys ∪ newMap.keys 이므로 최소 한 쪽은 non-null.
+            val representative = old ?: new ?: continue
+            val etfTicker = representative.etfTicker
+            val stockTicker = representative.stockTicker
+            val stockName = (new ?: old)?.stockName ?: continue
             val etfName = etfNames[etfTicker] ?: etfTicker
 
             when {

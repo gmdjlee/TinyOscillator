@@ -39,7 +39,7 @@ class ViewModelConfigMutexTest {
         application = mockk(relaxed = true)
         apiConfigProvider = mockk(relaxed = true)
 
-        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
+        mockkStatic("com.tinyoscillator.presentation.settings.SettingsPreferencesKt")
         coEvery {
             com.tinyoscillator.presentation.settings.loadKiwoomConfig(any())
         } returns KiwoomApiKeyConfig(appKey = "test-key", secretKey = "test-secret")

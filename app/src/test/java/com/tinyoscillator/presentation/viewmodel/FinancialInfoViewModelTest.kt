@@ -35,7 +35,7 @@ class FinancialInfoViewModelTest {
         financialRepository = mockk(relaxed = true)
         apiConfigProvider = mockk(relaxed = true)
         // Mock loadKisConfig - returns empty config (invalid)
-        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
+        mockkStatic("com.tinyoscillator.presentation.settings.SettingsPreferencesKt")
         coEvery {
             com.tinyoscillator.presentation.settings.loadKisConfig(any())
         } returns com.tinyoscillator.core.api.KisApiKeyConfig(
@@ -292,6 +292,34 @@ class FinancialInfoViewModelTest {
 
         // After completion, should be false
         assertFalse(viewModel.isRefreshing.value)
+    }
+
+    /**
+     * Turbine 예시 — StateFlow 중간 emit까지 검증한다.
+     * `.value` 단건 체크만으로는 `false → true → false` 전이를 관찰할 수 없어
+     * 플래그의 "한 번 true가 됐었다"는 사실을 증명하려면 Turbine이 필요하다.
+     */
+    @Test
+    fun `isRefreshing은 refresh false_true_false 전이를 거친다 (Turbine)`() = runTest {
+        val data = createFinancialData()
+        coEvery {
+            financialRepository.getFinancialData(testTicker, testName, any())
+        } returns Result.success(data)
+        coEvery {
+            financialRepository.refreshFinancialData(testTicker, testName, any())
+        } returns Result.success(data)
+
+        viewModel.loadForStock(testTicker, testName)
+        advanceUntilIdle()
+
+        viewModel.isRefreshing.test {
+            assertFalse(awaitItem())  // 초기값 false
+            viewModel.refresh()
+            assertTrue(awaitItem())   // refresh() 진입 직후 true
+            advanceUntilIdle()
+            assertFalse(awaitItem())  // finally 블록에서 false 복원
+            cancelAndConsumeRemainingEvents()
+        }
     }
 
     @Test

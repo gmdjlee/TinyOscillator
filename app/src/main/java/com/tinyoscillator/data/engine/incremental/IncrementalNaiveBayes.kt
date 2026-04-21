@@ -44,9 +44,10 @@ class IncrementalNaiveBayes(
         // 모든 특성에 대해 빈 구조 초기화
         for (name in featureNames) {
             featureBins[name] = ALL_BINS.toMutableSet()
-            featureBinCounts[name] = mutableMapOf()
+            val binMap = mutableMapOf<String, MutableMap<Int, Int>>()
+            featureBinCounts[name] = binMap
             for (bin in ALL_BINS) {
-                featureBinCounts[name]!![bin] = mutableMapOf(0 to 0, 1 to 0)
+                binMap[bin] = mutableMapOf(0 to 0, 1 to 0)
             }
         }
     }
@@ -73,8 +74,9 @@ class IncrementalNaiveBayes(
         classCounts[0] = 0
         classCounts[1] = 0
         for (name in featureNames) {
+            val binMap = featureBinCounts.getValue(name)
             for (bin in ALL_BINS) {
-                featureBinCounts[name]!![bin] = mutableMapOf(0 to 0, 1 to 0)
+                binMap[bin] = mutableMapOf(0 to 0, 1 to 0)
             }
         }
         totalSamples = 0
@@ -110,9 +112,10 @@ class IncrementalNaiveBayes(
 
         val logPosteriors = mutableMapOf<Int, Double>()
         for (cls in ALL_CLASSES) {
+            val classCount = classCounts.getValue(cls)
             // 로그 사전 확률
             var logProb = ln(
-                (classCounts[cls]!! + alpha) / (totalSamples + numClasses * alpha)
+                (classCount + alpha) / (totalSamples + numClasses * alpha)
             )
 
             // 로그 우도
@@ -121,7 +124,6 @@ class IncrementalNaiveBayes(
                 val bin = discretize(value)
                 val numBins = ALL_BINS.size
                 val count = featureBinCounts[name]?.get(bin)?.get(cls) ?: 0
-                val classCount = classCounts[cls]!!
 
                 val likelihood = (count + alpha) / (classCount + numBins * alpha)
                 logProb += ln(likelihood)
@@ -135,7 +137,7 @@ class IncrementalNaiveBayes(
         val expValues = logPosteriors.mapValues { (_, v) -> exp(v - maxLog) }
         val sumExp = expValues.values.sum()
 
-        return (expValues[1]!! / sumExp).coerceIn(0.001, 0.999)
+        return (expValues.getValue(1) / sumExp).coerceIn(0.001, 0.999)
     }
 
     fun saveState(): IncrementalNaiveBayesState {
@@ -156,9 +158,10 @@ class IncrementalNaiveBayes(
 
         featureBinCounts.clear()
         for ((name, binMap) in state.featureBinCounts) {
-            featureBinCounts[name] = mutableMapOf()
+            val target = mutableMapOf<String, MutableMap<Int, Int>>()
+            featureBinCounts[name] = target
             for ((bin, classMap) in binMap) {
-                featureBinCounts[name]!![bin] = classMap.toMutableMap()
+                target[bin] = classMap.toMutableMap()
             }
         }
 
@@ -178,10 +181,9 @@ class IncrementalNaiveBayes(
         for (name in featureNames) {
             val value = signal[name] ?: 0.5
             val bin = discretize(value)
-            featureBinCounts.getOrPut(name) { mutableMapOf() }
+            val classMap = featureBinCounts.getOrPut(name) { mutableMapOf() }
                 .getOrPut(bin) { mutableMapOf(0 to 0, 1 to 0) }
-            featureBinCounts[name]!![bin]!![label] =
-                (featureBinCounts[name]!![bin]!![label] ?: 0) + 1
+            classMap[label] = (classMap[label] ?: 0) + 1
         }
     }
 }

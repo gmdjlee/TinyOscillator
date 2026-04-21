@@ -38,7 +38,7 @@ class FundamentalHistoryViewModelTest {
         krxApiClient = mockk(relaxed = true)
         apiConfigProvider = mockk(relaxed = true)
 
-        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
+        mockkStatic("com.tinyoscillator.presentation.settings.SettingsPreferencesKt")
         coEvery {
             com.tinyoscillator.presentation.settings.loadKrxCredentials(any())
         } returns KrxCredentials(id = "test", password = "test")

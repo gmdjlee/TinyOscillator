@@ -44,6 +44,10 @@ interface AnalysisCacheDao {
     @Query("DELETE FROM analysis_cache WHERE ticker = :ticker AND date < :cutoffDate")
     suspend fun deleteOlderThan(ticker: String, cutoffDate: String)
 
+    /** 전체 종목에 대해 cutoffDate 미만 row를 일괄 삭제 (주기적 TTL 청소용) */
+    @Query("DELETE FROM analysis_cache WHERE date < :cutoffDate")
+    suspend fun deleteAllOlderThan(cutoffDate: String): Int
+
     @Query("DELETE FROM analysis_cache WHERE ticker = :ticker")
     suspend fun deleteByTicker(ticker: String)
 

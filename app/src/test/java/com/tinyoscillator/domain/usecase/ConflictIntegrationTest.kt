@@ -8,7 +8,7 @@ import org.junit.Test
 /**
  * 충돌 감지 + 신호 파이프라인 통합 테스트.
  *
- * SignalTransparencyViewModel이 없으므로 (AiAnalysisViewModel에 통합됨),
+ * SignalTransparencyViewModel이 없으므로 (AiProbabilityAnalysisViewModel에 통합됨),
  * RationaleBuilder → ConflictDetector 파이프라인을 직접 검증한다.
  */
 class ConflictIntegrationTest {

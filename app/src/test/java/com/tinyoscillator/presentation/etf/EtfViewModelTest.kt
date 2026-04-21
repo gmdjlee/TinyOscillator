@@ -39,7 +39,7 @@ class EtfViewModelTest {
         etfRepository = mockk(relaxed = true)
 
         // Mock static settings functions
-        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
+        mockkStatic("com.tinyoscillator.presentation.settings.SettingsPreferencesKt")
 
         // Default: valid credentials, no keywords
         coEvery { com.tinyoscillator.presentation.settings.loadKrxCredentials(any()) } returns validCredentials

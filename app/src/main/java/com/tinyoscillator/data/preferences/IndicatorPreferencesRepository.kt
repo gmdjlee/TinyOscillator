@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -47,7 +48,8 @@ class IndicatorPreferencesRepository @Inject constructor(
             json.decodeFromString<List<String>>(raw)
                 .mapNotNull { name -> Indicator.entries.firstOrNull { it.name == name } }
                 .toSet()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Timber.w(e, "선택 지표 JSON 파싱 실패, 기본값으로 복원 (raw=%s)", raw)
             DEFAULTS
         }
     }
@@ -59,7 +61,9 @@ class IndicatorPreferencesRepository @Inject constructor(
             prefs[key]?.let { raw ->
                 try {
                     result[ind] = json.decodeFromString<IndicatorParamsDto>(raw).toParams()
-                } catch (_: Exception) { }
+                } catch (e: Exception) {
+                    Timber.w(e, "지표 파라미터 파싱 실패, 해당 지표는 기본값 사용 (%s, raw=%s)", ind.name, raw)
+                }
             }
         }
         result
@@ -70,7 +74,8 @@ class IndicatorPreferencesRepository @Inject constructor(
             val current = prefs[SELECTED_KEY]?.let { raw ->
                 try {
                     json.decodeFromString<List<String>>(raw).toMutableSet()
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    Timber.w(e, "토글용 선택 지표 JSON 파싱 실패, 기본값으로 복원 (raw=%s)", raw)
                     DEFAULTS.map { it.name }.toMutableSet()
                 }
             } ?: DEFAULTS.map { it.name }.toMutableSet()

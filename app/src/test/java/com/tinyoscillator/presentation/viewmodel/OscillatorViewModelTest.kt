@@ -60,7 +60,7 @@ class OscillatorViewModelTest {
         workerLogDao = mockk(relaxed = true)
 
         // Mock static functions
-        mockkStatic("com.tinyoscillator.presentation.settings.SettingsScreenKt")
+        mockkStatic("com.tinyoscillator.presentation.settings.SettingsPreferencesKt")
         coEvery {
             com.tinyoscillator.presentation.settings.loadKiwoomConfig(any())
         } returns validConfig

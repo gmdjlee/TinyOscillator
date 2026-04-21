@@ -1,5 +1,6 @@
 package com.tinyoscillator.core.api
 
+import com.tinyoscillator.core.config.ApiConstants
 import com.tinyoscillator.domain.model.CorpCodeEntry
 import com.tinyoscillator.domain.model.DartDisclosure
 import com.tinyoscillator.domain.model.DartEventType
@@ -35,7 +36,6 @@ class DartApiClient(
 
     companion object {
         private const val BASE_URL = "https://opendart.fss.or.kr/api"
-        private const val RATE_LIMIT_MS = 1000L
     }
 
     private val rateLimitMutex = Mutex()
@@ -212,8 +212,8 @@ class DartApiClient(
         rateLimitMutex.withLock {
             val now = System.currentTimeMillis()
             val elapsed = now - lastRequestTime
-            if (elapsed < RATE_LIMIT_MS) {
-                kotlinx.coroutines.delay(RATE_LIMIT_MS - elapsed)
+            if (elapsed < ApiConstants.DART_RATE_LIMIT_MS) {
+                kotlinx.coroutines.delay(ApiConstants.DART_RATE_LIMIT_MS - elapsed)
             }
             lastRequestTime = System.currentTimeMillis()
         }

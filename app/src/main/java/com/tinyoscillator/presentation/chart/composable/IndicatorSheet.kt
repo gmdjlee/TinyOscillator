@@ -18,6 +18,10 @@ import com.tinyoscillator.domain.model.IndicatorParams
 import com.tinyoscillator.domain.model.OverlayType
 import kotlin.math.roundToInt
 
+// Enum 기반 정적 파티션 — 매 recomposition마다 filter() 재실행을 방지하기 위해 top-level로 승격
+private val PRICE_INDICATORS: List<Indicator> = Indicator.entries.filter { it.overlayType == OverlayType.PRICE }
+private val OSCILLATOR_INDICATORS: List<Indicator> = Indicator.entries.filter { it.overlayType == OverlayType.OSCILLATOR }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IndicatorSelectionSheet(
@@ -31,7 +35,7 @@ fun IndicatorSelectionSheet(
         LazyColumn(contentPadding = PaddingValues(16.dp)) {
             // 가격 오버레이 그룹 (최대 4개)
             item { SectionHeader("가격 지표") }
-            items(Indicator.entries.filter { it.overlayType == OverlayType.PRICE }) { ind ->
+            items(PRICE_INDICATORS, key = { it.name }) { ind ->
                 val priceCount = selectedIndicators.count { it.overlayType == OverlayType.PRICE }
                 IndicatorRow(
                     indicator = ind,
@@ -45,7 +49,7 @@ fun IndicatorSelectionSheet(
 
             // 오실레이터 그룹 (한 번에 하나)
             item { SectionHeader("오실레이터") }
-            items(Indicator.entries.filter { it.overlayType == OverlayType.OSCILLATOR }) { ind ->
+            items(OSCILLATOR_INDICATORS, key = { it.name }) { ind ->
                 val hasOscillator = selectedIndicators.any { it.overlayType == OverlayType.OSCILLATOR }
                 IndicatorRow(
                     indicator = ind,

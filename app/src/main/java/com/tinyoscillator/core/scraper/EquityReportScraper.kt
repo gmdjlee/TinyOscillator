@@ -1,6 +1,8 @@
 package com.tinyoscillator.core.scraper
 
+import com.tinyoscillator.core.config.ApiConstants
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
+import com.tinyoscillator.core.util.ParsingUtils
 import com.tinyoscillator.domain.model.ConsensusDataProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -14,8 +16,6 @@ import org.jsoup.Jsoup
 import timber.log.Timber
 import java.io.IOException
 import java.util.concurrent.TimeUnit
-import kotlin.math.ln
-import kotlin.random.Random
 
 /**
  * equity.co.kr 종목 리포트 스크래퍼
@@ -33,15 +33,14 @@ class EquityReportScraper(
         private const val REFERER = "https://www.equity.co.kr/research/researchMain.do"
         private const val MIN_DELAY_MS = 8_000L
         private const val MAX_DELAY_MS = 16_000L
-        private const val TIMEOUT_SECONDS = 20L
         private const val MAX_DATE_RANGE_DAYS = 30
         private const val MAX_RETRY = 3
     }
 
     private val httpClient: OkHttpClient = httpClient.newBuilder()
-        .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .connectTimeout(ApiConstants.EQUITY_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(ApiConstants.EQUITY_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(ApiConstants.EQUITY_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
 
     /**
@@ -249,42 +248,16 @@ class EquityReportScraper(
 
     /**
      * "26/03/23" → "2026-03-23"
+     * @see ParsingUtils.parseSlashDate
      */
-    internal fun parseDate(dateStr: String): String? {
-        val trimmed = dateStr.trim()
-        if (trimmed.isEmpty()) return null
-
-        val parts = trimmed.split("/")
-        if (parts.size != 3) return null
-
-        val year = parts[0].trim()
-        val month = parts[1].trim().padStart(2, '0')
-        val day = parts[2].trim().padStart(2, '0')
-
-        val fullYear = if (year.length == 2) "20$year" else year
-        return "$fullYear-$month-$day"
-    }
+    internal fun parseDate(dateStr: String): String? = ParsingUtils.parseSlashDate(dateStr)
 
     /**
      * "300,000" → 300000L, "0" or "" → 0L
+     * @see ParsingUtils.parsePriceLong
      */
-    internal fun parsePrice(priceStr: String): Long {
-        val cleaned = priceStr.replace(",", "").trim()
-        if (cleaned.isEmpty() || cleaned == "-" || cleaned == "0") return 0L
-        return cleaned.toLongOrNull() ?: 0L
-    }
+    internal fun parsePrice(priceStr: String): Long = ParsingUtils.parsePriceLong(priceStr)
 
-    /**
-     * 감마 분포 기반 랜덤 딜레이 (8~16초 범위)
-     */
-    private fun randomDelay(): Long {
-        // 간단한 감마 분포 근사: 지수 분포 2개의 합
-        val u1 = -ln(1.0 - Random.nextDouble())
-        val u2 = -ln(1.0 - Random.nextDouble())
-        val gamma = u1 + u2 // shape=2, scale=1
-
-        // 0~1 범위로 정규화 후 MIN~MAX 사이로 매핑
-        val normalized = (gamma / 6.0).coerceIn(0.0, 1.0)
-        return MIN_DELAY_MS + ((MAX_DELAY_MS - MIN_DELAY_MS) * normalized).toLong()
-    }
+    private fun randomDelay(): Long =
+        ScraperUtils.gammaRandomDelayMs(MIN_DELAY_MS, MAX_DELAY_MS)
 }

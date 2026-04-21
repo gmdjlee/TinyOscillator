@@ -223,4 +223,58 @@ class CircuitBreakerTest {
         assertEquals(CircuitBreaker.State.HALF_OPEN, cb.currentState)
         assertTrue("HALF_OPEN도 isOpen=true로 표시", cb.isOpen)
     }
+
+    @Test
+    fun `HALF_OPEN probe 후 record 누락 시 probeTimeout 경과하면 자동 복구된다`() {
+        val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L, probeTimeoutMs = 50L)
+        cb.recordFailure()
+        Thread.sleep(10)
+
+        // probe 획득
+        assertTrue(cb.tryAcquire())
+        assertEquals(CircuitBreaker.State.HALF_OPEN, cb.currentState)
+
+        // probe 타임아웃 경과 전에는 여전히 거부
+        Thread.sleep(20)
+        assertFalse("probe 타임아웃 미경과 → 거부", cb.tryAcquire())
+        assertEquals(CircuitBreaker.State.HALF_OPEN, cb.currentState)
+
+        // probe 타임아웃 경과 → stale probe를 실패로 처리하고 OPEN 복구
+        Thread.sleep(50)
+        assertFalse("stale probe 감지로 false 반환, OPEN 재진입", cb.tryAcquire())
+        assertEquals(CircuitBreaker.State.OPEN, cb.currentState)
+
+        // 새 쿨다운 경과 후 다시 probe 획득 가능
+        Thread.sleep(10)
+        assertTrue("복구 후 새 probe 허용", cb.tryAcquire())
+        assertEquals(CircuitBreaker.State.HALF_OPEN, cb.currentState)
+    }
+
+    @Test
+    fun `probe 성공 호출 후에는 probe 타임아웃과 무관하게 CLOSED 유지`() {
+        val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L, probeTimeoutMs = 20L)
+        cb.recordFailure()
+        Thread.sleep(10)
+
+        assertTrue(cb.tryAcquire())
+        cb.recordSuccess()
+
+        // probeTimeout 초과 시간이 지나도 CLOSED 유지 (타임아웃은 in-flight에서만 적용)
+        Thread.sleep(30)
+        assertEquals(CircuitBreaker.State.CLOSED, cb.currentState)
+        assertTrue(cb.tryAcquire())
+    }
+
+    @Test
+    fun `probeTimeoutMs 기본값은 1분이다`() {
+        val cb = CircuitBreaker(threshold = 1, cooldownMs = 1L)
+        cb.recordFailure()
+        Thread.sleep(10)
+
+        assertTrue(cb.tryAcquire())
+        // 기본 1분 probeTimeout이면 30ms 경과해도 stale 감지 안 됨
+        Thread.sleep(30)
+        assertFalse(cb.tryAcquire())
+        assertEquals(CircuitBreaker.State.HALF_OPEN, cb.currentState)
+    }
 }

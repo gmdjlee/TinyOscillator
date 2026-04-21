@@ -1,5 +1,6 @@
 package com.tinyoscillator.core.api
 
+import com.tinyoscillator.core.config.ApiConstants
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -34,17 +35,13 @@ class RateLimitTest {
     }
 
     @Test
-    fun `KiwoomApiClient RATE_LIMIT_MS는 500이다`() {
-        val field = KiwoomApiClient::class.java.getDeclaredField("RATE_LIMIT_MS")
-        field.isAccessible = true
-        assertEquals(500L, field.get(null))
+    fun `KiwoomApiClient KIWOOM_RATE_LIMIT_MS는 500이다`() {
+        assertEquals(500L, ApiConstants.KIWOOM_RATE_LIMIT_MS)
     }
 
     @Test
-    fun `KisApiClient RATE_LIMIT_MS는 500이다`() {
-        val field = KisApiClient::class.java.getDeclaredField("RATE_LIMIT_MS")
-        field.isAccessible = true
-        assertEquals(500L, field.get(null))
+    fun `KisApiClient KIS_RATE_LIMIT_MS는 500이다`() {
+        assertEquals(500L, ApiConstants.KIS_RATE_LIMIT_MS)
     }
 
     @Test
@@ -70,17 +67,8 @@ class RateLimitTest {
     }
 
     @Test
-    fun `KiwoomApiClient MAX_RETRIES는 2이다`() {
-        val field = KiwoomApiClient::class.java.getDeclaredField("MAX_RETRIES")
-        field.isAccessible = true
-        assertEquals(2, field.get(null))
-    }
-
-    @Test
-    fun `KisApiClient MAX_RETRIES는 2이다`() {
-        val field = KisApiClient::class.java.getDeclaredField("MAX_RETRIES")
-        field.isAccessible = true
-        assertEquals(2, field.get(null))
+    fun `ApiConstants DEFAULT_MAX_RETRIES는 2이다`() {
+        assertEquals(2, ApiConstants.DEFAULT_MAX_RETRIES)
     }
 
     @Test
@@ -127,21 +115,16 @@ class RateLimitTest {
     }
 
     @Test
-    fun `RETRY_DELAYS는 1초와 2초이다 - Kiwoom`() {
-        val field = KiwoomApiClient::class.java.getDeclaredField("RETRY_DELAYS")
-        field.isAccessible = true
-        @Suppress("UNCHECKED_CAST")
-        val delays = field.get(null) as List<Long>
-        assertEquals(listOf(1000L, 2000L), delays)
+    fun `DEFAULT_RETRY_DELAYS_MS는 1초와 2초이다`() {
+        // Phase 3.5 리팩토링 이후 `RETRY_DELAYS`는 KiwoomApiClient/KisApiClient에서
+        // 제거되고 공통 `BaseApiClient.DEFAULT_RETRY_DELAYS_MS`로 통합됨.
+        assertEquals(listOf(1000L, 2000L), BaseApiClient.DEFAULT_RETRY_DELAYS_MS)
     }
 
     @Test
-    fun `RETRY_DELAYS는 1초와 2초이다 - KIS`() {
-        val field = KisApiClient::class.java.getDeclaredField("RETRY_DELAYS")
-        field.isAccessible = true
-        @Suppress("UNCHECKED_CAST")
-        val delays = field.get(null) as List<Long>
-        assertEquals(listOf(1000L, 2000L), delays)
+    fun `AI_RETRY_DELAYS_MS는 2초와 4초이다`() {
+        // AI API는 rate limit 정책상 더 긴 간격 필요.
+        assertEquals(listOf(2000L, 4000L), BaseApiClient.AI_RETRY_DELAYS_MS)
     }
 
     // =============================================
@@ -149,17 +132,13 @@ class RateLimitTest {
     // =============================================
 
     @Test
-    fun `Kiwoom TOKEN_MIN_INTERVAL_MS는 10초이다`() {
-        val field = KiwoomApiClient::class.java.getDeclaredField("TOKEN_MIN_INTERVAL_MS")
-        field.isAccessible = true
-        assertEquals(10_000L, field.get(null))
+    fun `Kiwoom KIWOOM_TOKEN_MIN_INTERVAL_MS는 10초이다`() {
+        assertEquals(10_000L, ApiConstants.KIWOOM_TOKEN_MIN_INTERVAL_MS)
     }
 
     @Test
-    fun `KIS TOKEN_MIN_INTERVAL_MS는 61초이다`() {
-        val field = KisApiClient::class.java.getDeclaredField("TOKEN_MIN_INTERVAL_MS")
-        field.isAccessible = true
-        assertEquals(61_000L, field.get(null))
+    fun `KIS KIS_TOKEN_MIN_INTERVAL_MS는 61초이다`() {
+        assertEquals(61_000L, ApiConstants.KIS_TOKEN_MIN_INTERVAL_MS)
     }
 
     @Test
@@ -198,5 +177,42 @@ class RateLimitTest {
         val delays = field.get(null) as List<Long>
         assertEquals(3, delays.size)
         assertTrue("첫 번째 딜레이는 TOKEN_MIN_INTERVAL_MS(61초) 이상이어야 한다", delays[0] >= 61_000L)
+    }
+
+    // =============================================
+    // 토큰 slot reservation 동시성 패턴 검증
+    // =============================================
+
+    @Test
+    fun `KIS nextTokenAvailableAt 초기값은 0이다`() {
+        val field = KisApiClient::class.java.getDeclaredField("nextTokenAvailableAt")
+        field.isAccessible = true
+        assertEquals(0L, field.get(kisClient))
+    }
+
+    @Test
+    fun `Kiwoom nextTokenAvailableAt 초기값은 0이다`() {
+        val field = KiwoomApiClient::class.java.getDeclaredField("nextTokenAvailableAt")
+        field.isAccessible = true
+        assertEquals(0L, field.get(kiwoomClient))
+    }
+
+    @Test
+    fun `KIS nextTokenAvailableAt는 volatile이 아니다 - mutex로만 보호`() {
+        // tokenRateMutex 내부 접근 전용이므로 @Volatile 불필요
+        val field = KisApiClient::class.java.getDeclaredField("nextTokenAvailableAt")
+        assertFalse(
+            "nextTokenAvailableAt는 mutex로만 보호되므로 volatile 아님",
+            java.lang.reflect.Modifier.isVolatile(field.modifiers)
+        )
+    }
+
+    @Test
+    fun `Kiwoom nextTokenAvailableAt는 volatile이 아니다 - mutex로만 보호`() {
+        val field = KiwoomApiClient::class.java.getDeclaredField("nextTokenAvailableAt")
+        assertFalse(
+            "nextTokenAvailableAt는 mutex로만 보호되므로 volatile 아님",
+            java.lang.reflect.Modifier.isVolatile(field.modifiers)
+        )
     }
 }
