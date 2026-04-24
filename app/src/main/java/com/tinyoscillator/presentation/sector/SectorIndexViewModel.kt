@@ -2,7 +2,6 @@ package com.tinyoscillator.presentation.sector
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.data.repository.SectorIndexRepository
 import com.tinyoscillator.domain.model.SectorIndex
 import com.tinyoscillator.domain.model.SectorLevel
@@ -17,7 +16,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class SectorIndexUiState(
-    val selectedLevel: SectorLevel = SectorLevel.SMALL,
+    val selectedLevel: SectorLevel = SectorLevel.SECTOR,
     val sectors: List<SectorIndex> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
@@ -28,10 +27,9 @@ data class SectorIndexUiState(
 @HiltViewModel
 class SectorIndexViewModel @Inject constructor(
     private val repository: SectorIndexRepository,
-    private val apiConfigProvider: ApiConfigProvider,
 ) : ViewModel() {
 
-    private val _selectedLevel = MutableStateFlow(SectorLevel.SMALL)
+    private val _selectedLevel = MutableStateFlow(SectorLevel.SECTOR)
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
     private val _info = MutableStateFlow<String?>(null)
@@ -46,7 +44,7 @@ class SectorIndexViewModel @Inject constructor(
     ) { level, all, loading, err, info ->
         SectorIndexUiState(
             selectedLevel = level,
-            sectors = all.filter { it.level == level }.sortedBy { it.name },
+            sectors = all.filter { it.level == level }.sortedBy { it.code },
             isLoading = loading,
             errorMessage = err,
             infoMessage = info,
@@ -56,11 +54,9 @@ class SectorIndexViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            _lastUpdated.value = repository.lastMasterUpdate()
-            val count = repository.sectorCount()
-            if (count == 0) {
-                _info.value = "업종 목록이 비어 있습니다. 상단 새로고침 버튼으로 KIS에서 수집해 주세요."
-            }
+            repository.ensureSeeded(force = false)
+                .onSuccess { _lastUpdated.value = repository.lastMasterUpdate() }
+                .onFailure { err -> _error.value = err.message ?: "업종 시드 적용 실패" }
         }
     }
 
@@ -68,19 +64,18 @@ class SectorIndexViewModel @Inject constructor(
         _selectedLevel.value = level
     }
 
-    fun refresh(force: Boolean = false) {
+    /** 씨드 강제 재적용. 네트워크 호출 없음 — 상수 테이블로 즉시 갱신된다. */
+    fun refresh(force: Boolean = true) {
         if (_loading.value) return
         viewModelScope.launch {
             _loading.value = true
             _error.value = null
             _info.value = null
             try {
-                val cfg = apiConfigProvider.getKisConfig()
-                val result = repository.refreshSectorMaster(cfg, force = force)
-                result.fold(
+                repository.ensureSeeded(force = force).fold(
                     onSuccess = { count ->
                         _lastUpdated.value = repository.lastMasterUpdate()
-                        _info.value = "업종 ${count}건 수집 완료"
+                        _info.value = "KRX 통합 지수 ${count}건 적용"
                     },
                     onFailure = { err ->
                         _error.value = err.message ?: "업종 갱신 실패"

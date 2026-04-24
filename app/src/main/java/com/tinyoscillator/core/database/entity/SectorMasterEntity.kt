@@ -6,13 +6,12 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * KIS 종목정보(search-stock-info, TR_ID=CTPF1002R) 응답에서 추출한 업종 마스터.
+ * KRX 통합 지수 마스터 (정적 시드).
  *
- * KIS는 업종 목록 전용 엔드포인트를 제공하지 않으므로,
- * 스톡마스터의 각 섹터별 대표 종목 1건씩을 호출해 응답의
- * `idx_bztp_{lcls|mcls|scls}_cd/_name` 필드를 dedupe 저장한다.
- *
- * [code]는 KIS 업종지수 코드이며, 지수 차트 조회 시 `FID_INPUT_ISCD`로 사용된다.
+ * [KrxIntegratedIndexSeed]의 상수 테이블에서 씨드되며, 네트워크 호출 없이 즉시 반영된다.
+ * [code]는 4자리 KRX 지수 코드 (예: 5042 KRX 100, 5043 KRX 자동차)이며
+ * KIS 업종지수 차트(FHPUP02140000) 조회 시 `FID_INPUT_ISCD`로 그대로 전달된다.
+ * [level]은 [com.tinyoscillator.domain.model.SectorLevel] 코드 (1=대표지수, 2=KRX 섹터, 3=KRX 300 업종).
  */
 @Entity(
     tableName = "sector_master",

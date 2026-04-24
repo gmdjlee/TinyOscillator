@@ -21,7 +21,7 @@ import timber.log.Timber
  */
 object AppDatabaseMigrations {
 
-    /** `DatabaseModule.provideAppDatabase`에 전달되는 전체 마이그레이션 시퀀스 (v1→v27). */
+    /** `DatabaseModule.provideAppDatabase`에 전달되는 전체 마이그레이션 시퀀스 (v1→v28). */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -49,11 +49,12 @@ object AppDatabaseMigrations {
         MIGRATION_24_25,
         MIGRATION_25_26,
         MIGRATION_26_27,
+        MIGRATION_27_28,
     )
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Migration 정의 (v1→v27)
+// Migration 정의 (v1→v28)
 // ═══════════════════════════════════════════════════════════════
 
 /** Migration v1→v2: added financial_cache table */
@@ -724,6 +725,26 @@ private val MIGRATION_26_27 = object : Migration(26, 27) {
             Timber.d("Migration v26→v27 성공: user_themes DROP, sector_master + sector_index_candle 생성")
         } catch (e: Exception) {
             Timber.e(e, "Migration v26→v27 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v27→v28: 업종 분류 체계를 KIS CTPF1002R 기반(대/중/소 + 3자리 코드)에서
+ * KRX 통합 지수(5042~5600 4자리 코드)로 전환.
+ *
+ * 코드 체계가 완전히 달라 재사용 불가 — `sector_master`와 `sector_index_candle`을 비우고
+ * 앱 실행 시 [KrxIntegratedIndexSeed]가 재씨드한다.
+ */
+private val MIGRATION_27_28 = object : Migration(27, 28) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL("DELETE FROM `sector_master`")
+            db.execSQL("DELETE FROM `sector_index_candle`")
+            Timber.d("Migration v27→v28 성공: sector_master/sector_index_candle 초기화 (KRX 통합 지수로 전환)")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v27→v28 실패")
             throw e
         }
     }

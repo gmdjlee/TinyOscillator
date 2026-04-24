@@ -144,7 +144,7 @@ private fun EmptyView(modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.titleMedium,
         )
         Text(
-            "상단 새로고침 버튼을 눌러 KIS에서 업종을 수집해 주세요.\nKIS API 키가 필요하며 40~60건 × 0.5초 정도 소요됩니다.",
+            "상단 새로고침 버튼을 눌러 KRX 통합 지수 목록을 적용해 주세요.\n네트워크 호출 없이 즉시 반영됩니다.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

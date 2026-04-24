@@ -34,7 +34,6 @@ import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.data.repository.PortfolioRepository
 import com.tinyoscillator.data.repository.SectorIndexRepository
 import com.tinyoscillator.data.repository.StockRepository
-import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.ProbabilityInterpreter
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
@@ -217,9 +216,8 @@ object AppModule {
     fun provideSectorIndexRepository(
         sectorMasterDao: SectorMasterDao,
         candleDao: SectorIndexCandleDao,
-        stockMasterDao: StockMasterDao,
         kisApiClient: KisApiClient,
         json: Json,
     ): SectorIndexRepository =
-        SectorIndexRepository(sectorMasterDao, candleDao, stockMasterDao, kisApiClient, json)
+        SectorIndexRepository(sectorMasterDao, candleDao, kisApiClient, json)
 }

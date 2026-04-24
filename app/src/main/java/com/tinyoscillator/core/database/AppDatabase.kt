@@ -84,7 +84,7 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         SectorMasterEntity::class,
         SectorIndexCandleEntity::class,
     ],
-    version = 27,
+    version = 28,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

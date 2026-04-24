@@ -1,15 +1,15 @@
 package com.tinyoscillator.domain.model
 
-/** 업종지수 분류 레벨 */
+/** KRX 통합 지수 분류 그룹 */
 enum class SectorLevel(val code: Int, val label: String) {
-    LARGE(1, "대분류"),
-    MIDDLE(2, "중분류"),
-    SMALL(3, "소분류"),
+    INDEX(1, "대표지수"),       // KRX 100, KRX 300, KTOP 30
+    SECTOR(2, "KRX 섹터"),      // 5043~5065
+    KRX_300(3, "KRX 300 업종"), // 5351~5358
     ;
 
     companion object {
         fun fromCode(code: Int): SectorLevel =
-            entries.firstOrNull { it.code == code } ?: SMALL
+            entries.firstOrNull { it.code == code } ?: SECTOR
     }
 }
 
