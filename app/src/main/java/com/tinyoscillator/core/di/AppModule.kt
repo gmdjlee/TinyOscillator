@@ -18,6 +18,8 @@ import com.tinyoscillator.core.database.dao.FundamentalCacheDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
+import com.tinyoscillator.core.database.dao.SectorIndexCandleDao
+import com.tinyoscillator.core.database.dao.SectorMasterDao
 import com.tinyoscillator.core.scraper.EquityReportScraper
 import com.tinyoscillator.core.scraper.FnGuideReportScraper
 import com.tinyoscillator.core.scraper.NaverFinanceScraper
@@ -30,7 +32,9 @@ import com.tinyoscillator.data.repository.InvestOpinionRepository
 import com.tinyoscillator.data.repository.FundamentalHistoryRepository
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.data.repository.PortfolioRepository
+import com.tinyoscillator.data.repository.SectorIndexRepository
 import com.tinyoscillator.data.repository.StockRepository
+import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.ProbabilityInterpreter
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
@@ -207,4 +211,15 @@ object AppModule {
         krxApiClient: KrxApiClient
     ): com.tinyoscillator.data.repository.FearGreedRepository =
         com.tinyoscillator.data.repository.FearGreedRepository(fearGreedDao, krxApiClient)
+
+    @Provides
+    @Singleton
+    fun provideSectorIndexRepository(
+        sectorMasterDao: SectorMasterDao,
+        candleDao: SectorIndexCandleDao,
+        stockMasterDao: StockMasterDao,
+        kisApiClient: KisApiClient,
+        json: Json,
+    ): SectorIndexRepository =
+        SectorIndexRepository(sectorMasterDao, candleDao, stockMasterDao, kisApiClient, json)
 }

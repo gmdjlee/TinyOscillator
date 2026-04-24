@@ -2,7 +2,6 @@ package com.tinyoscillator.core.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import com.tinyoscillator.core.database.dao.UserThemeDao
 import com.tinyoscillator.core.database.dao.AnalysisCacheDao
 import com.tinyoscillator.core.database.dao.AnalysisHistoryDao
 import com.tinyoscillator.core.database.dao.AnalysisSnapshotDao
@@ -20,6 +19,8 @@ import com.tinyoscillator.core.database.dao.FundamentalCacheDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
+import com.tinyoscillator.core.database.dao.SectorIndexCandleDao
+import com.tinyoscillator.core.database.dao.SectorMasterDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.dao.FearGreedDao
 import com.tinyoscillator.core.database.dao.WorkerLogDao
@@ -46,9 +47,10 @@ import com.tinyoscillator.core.database.entity.MarketOscillatorEntity
 import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
 import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
+import com.tinyoscillator.core.database.entity.SectorIndexCandleEntity
+import com.tinyoscillator.core.database.entity.SectorMasterEntity
 import com.tinyoscillator.core.database.entity.SignalHistoryEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
-import com.tinyoscillator.core.database.entity.UserThemeEntity
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
 
 @Database(
@@ -78,10 +80,11 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         EnsembleHistoryEntity::class,
         IncrementalModelStateEntity::class,
         ModelDriftAlertEntity::class,
-        UserThemeEntity::class,
-        AnalysisSnapshotEntity::class
+        AnalysisSnapshotEntity::class,
+        SectorMasterEntity::class,
+        SectorIndexCandleEntity::class,
     ],
-    version = 26,
+    version = 27,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -104,6 +107,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun macroDao(): MacroDao
     abstract fun ensembleHistoryDao(): EnsembleHistoryDao
     abstract fun incrementalModelDao(): IncrementalModelDao
-    abstract fun userThemeDao(): UserThemeDao
     abstract fun analysisSnapshotDao(): AnalysisSnapshotDao
+    abstract fun sectorMasterDao(): SectorMasterDao
+    abstract fun sectorIndexCandleDao(): SectorIndexCandleDao
 }

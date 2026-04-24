@@ -21,7 +21,7 @@ import timber.log.Timber
  */
 object AppDatabaseMigrations {
 
-    /** `DatabaseModule.provideAppDatabase`에 전달되는 전체 마이그레이션 시퀀스 (v1→v26). */
+    /** `DatabaseModule.provideAppDatabase`에 전달되는 전체 마이그레이션 시퀀스 (v1→v27). */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -48,11 +48,12 @@ object AppDatabaseMigrations {
         MIGRATION_23_24,
         MIGRATION_24_25,
         MIGRATION_25_26,
+        MIGRATION_26_27,
     )
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Migration 정의 (v1→v26)
+// Migration 정의 (v1→v27)
 // ═══════════════════════════════════════════════════════════════
 
 /** Migration v1→v2: added financial_cache table */
@@ -677,6 +678,52 @@ private val MIGRATION_25_26 = object : Migration(25, 26) {
             Timber.d("Migration v25→v26 성공: analysis_cache에 OHLCV 컬럼 추가")
         } catch (e: Exception) {
             Timber.e(e, "Migration v25→v26 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v26→v27: 섹터/테마 기능 제거 + 업종지수 기능 도입.
+ *
+ * - DROP `user_themes` (사용자 테마 제거, 섹터·종목 그룹 기능 폐기)
+ * - CREATE `sector_master` (KIS 업종 마스터: 대/중/소 분류)
+ * - CREATE `sector_index_candle` (KIS 업종지수 일봉 캐시)
+ */
+private val MIGRATION_26_27 = object : Migration(26, 27) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL("DROP TABLE IF EXISTS `user_themes`")
+
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `sector_master` (
+                    `code` TEXT NOT NULL,
+                    `name` TEXT NOT NULL,
+                    `level` INTEGER NOT NULL,
+                    `parent_code` TEXT,
+                    `last_updated` INTEGER NOT NULL,
+                    PRIMARY KEY(`code`)
+                )
+            """.trimIndent())
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_sector_master_level` ON `sector_master` (`level`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_sector_master_parent_code` ON `sector_master` (`parent_code`)")
+
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `sector_index_candle` (
+                    `code` TEXT NOT NULL,
+                    `date` TEXT NOT NULL,
+                    `open` REAL NOT NULL,
+                    `high` REAL NOT NULL,
+                    `low` REAL NOT NULL,
+                    `close` REAL NOT NULL,
+                    `volume` INTEGER NOT NULL,
+                    `cached_at` INTEGER NOT NULL,
+                    PRIMARY KEY(`code`, `date`)
+                )
+            """.trimIndent())
+            Timber.d("Migration v26→v27 성공: user_themes DROP, sector_master + sector_index_candle 생성")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v26→v27 실패")
             throw e
         }
     }

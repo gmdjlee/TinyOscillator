@@ -48,8 +48,8 @@ import com.tinyoscillator.presentation.portfolio.PortfolioScreen
 import com.tinyoscillator.presentation.common.HeatmapScreen
 import com.tinyoscillator.presentation.report.ReportDetailScreen
 import com.tinyoscillator.presentation.report.ReportScreen
-import com.tinyoscillator.presentation.sector.SectorGroupScreen
-import com.tinyoscillator.presentation.sector.GroupDetailScreen
+import com.tinyoscillator.presentation.sector.SectorIndexDetailScreen
+import com.tinyoscillator.presentation.sector.SectorIndexListScreen
 import com.tinyoscillator.presentation.settings.SettingsScreen
 import com.tinyoscillator.presentation.stock.OscillatorScreen
 import com.tinyoscillator.presentation.viewmodel.OscillatorViewModel
@@ -99,7 +99,7 @@ private enum class BottomNavItem(val label: String, val icon: ImageVector) {
     ETF_ANALYSIS("ETF분석", Icons.Default.PieChart),
     REPORT("리포트", Icons.Default.Description),
     AI_ANALYSIS("AI분석", Icons.Default.Psychology),
-    SECTOR_THEME("섹터/테마", Icons.Default.Category),
+    SECTOR_THEME("업종지수", Icons.Default.Category),
     PORTFOLIO("포트폴리오", Icons.Default.AccountBalance)
 }
 
@@ -145,9 +145,8 @@ fun AppNavigation() {
                     navController.navigate("report_detail/${report.stockTicker}/${report.writeDate}")
                 },
                 onHeatmapClick = { navController.navigate("heatmap") },
-                onGroupClick = { group ->
-                    val tickers = group.tickers.joinToString(",")
-                    navController.navigate("group_detail/${group.name}/$tickers")
+                onSectorIndexClick = { code, name ->
+                    navController.navigate("sector_index_detail/$code/$name")
                 }
             )
         }
@@ -178,10 +177,9 @@ fun AppNavigation() {
         composable("report_detail/{ticker}/{writeDate}") {
             ReportDetailScreen(onBack = { navController.popBackStack() })
         }
-        composable("group_detail/{groupName}/{tickers}") {
-            GroupDetailScreen(
+        composable("sector_index_detail/{code}/{name}") {
+            SectorIndexDetailScreen(
                 onBack = { navController.popBackStack() },
-                onTickerClick = { ticker -> navController.navigate("stock_aggregated/$ticker") }
             )
         }
         composable("heatmap") {
@@ -204,7 +202,7 @@ private fun MainScaffold(
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
     onReportDetailClick: (ConsensusReport) -> Unit = {},
     onHeatmapClick: () -> Unit = {},
-    onGroupClick: (com.tinyoscillator.domain.model.StockGroup) -> Unit = {}
+    onSectorIndexClick: (String, String) -> Unit = { _, _ -> }
 ) {
     var selectedNav by rememberSaveable { mutableStateOf(BottomNavItem.MARKET_ANALYSIS) }
 
@@ -245,9 +243,11 @@ private fun MainScaffold(
                     )
                 }
                 BottomNavItem.SECTOR_THEME -> {
-                    SectorGroupScreen(
+                    SectorIndexListScreen(
                         onSettingsClick = onSettingsClick,
-                        onGroupClick = onGroupClick,
+                        onSectorClick = { sector ->
+                            onSectorIndexClick(sector.code, sector.name)
+                        },
                     )
                 }
                 BottomNavItem.PORTFOLIO -> {
