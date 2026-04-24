@@ -4,7 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 // ============================================================================
-// KIS inquire-daily-indexchartprice (TR_ID=FHPUP02140000) — 국내업종 일자별 지수
+// KIS inquire-daily-indexchartprice (TR_ID=FHKUP03500100) — 국내주식업종기간별시세(일/주/월/년)
 // ============================================================================
 
 @Serializable

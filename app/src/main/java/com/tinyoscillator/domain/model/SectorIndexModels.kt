@@ -1,15 +1,15 @@
 package com.tinyoscillator.domain.model
 
-/** KRX 통합 지수 분류 그룹 */
+/** KIS 업종분류코드 그룹 — FID_INPUT_ISCD 4자리 코드 체계 기준. */
 enum class SectorLevel(val code: Int, val label: String) {
-    INDEX(1, "대표지수"),       // KRX 100, KRX 300, KTOP 30
-    SECTOR(2, "KRX 섹터"),      // 5043~5065
-    KRX_300(3, "KRX 300 업종"), // 5351~5358
+    INDEX(1, "대표지수"),        // 0001 코스피, 1001 코스닥, 2001 코스피 200
+    KOSPI(2, "코스피 업종"),     // 0002~0027 (0023 제외)
+    KOSDAQ(3, "코스닥 업종"),    // 1002~1019
     ;
 
     companion object {
         fun fromCode(code: Int): SectorLevel =
-            entries.firstOrNull { it.code == code } ?: SECTOR
+            entries.firstOrNull { it.code == code } ?: KOSPI
     }
 }
 

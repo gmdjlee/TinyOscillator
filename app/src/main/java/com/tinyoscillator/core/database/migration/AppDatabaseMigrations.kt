@@ -21,7 +21,7 @@ import timber.log.Timber
  */
 object AppDatabaseMigrations {
 
-    /** `DatabaseModule.provideAppDatabase`에 전달되는 전체 마이그레이션 시퀀스 (v1→v28). */
+    /** `DatabaseModule.provideAppDatabase`에 전달되는 전체 마이그레이션 시퀀스 (v1→v29). */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -50,11 +50,12 @@ object AppDatabaseMigrations {
         MIGRATION_25_26,
         MIGRATION_26_27,
         MIGRATION_27_28,
+        MIGRATION_28_29,
     )
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Migration 정의 (v1→v28)
+// Migration 정의 (v1→v29)
 // ═══════════════════════════════════════════════════════════════
 
 /** Migration v1→v2: added financial_cache table */
@@ -735,7 +736,7 @@ private val MIGRATION_26_27 = object : Migration(26, 27) {
  * KRX 통합 지수(5042~5600 4자리 코드)로 전환.
  *
  * 코드 체계가 완전히 달라 재사용 불가 — `sector_master`와 `sector_index_candle`을 비우고
- * 앱 실행 시 [KrxIntegratedIndexSeed]가 재씨드한다.
+ * 앱 실행 시 해당 시점의 시드가 재씨드한다. (v28→v29에서 다시 KIS 업종분류코드로 교체됨)
  */
 private val MIGRATION_27_28 = object : Migration(27, 28) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -745,6 +746,27 @@ private val MIGRATION_27_28 = object : Migration(27, 28) {
             Timber.d("Migration v27→v28 성공: sector_master/sector_index_candle 초기화 (KRX 통합 지수로 전환)")
         } catch (e: Exception) {
             Timber.e(e, "Migration v27→v28 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v28→v29: 업종 분류 체계를 KRX 통합 지수(5042~5600 4자리)에서 KIS 업종분류코드
+ * (0001 코스피, 1001 코스닥, 2001 코스피 200, 0013 전기전자 등)로 재전환.
+ *
+ * KIS 업종지수 차트(TR_ID=FHKUP03500100)의 FID_INPUT_ISCD는 KIS 고유 코드만 받으므로 KRX
+ * 코드로는 `opsq2001 input field not found` 오류가 발생했다. 코드 체계가 완전히 달라 재사용 불가 —
+ * `sector_master`와 `sector_index_candle`을 비우고 앱 실행 시 `KisSectorCodeSeed`가 재씨드한다.
+ */
+private val MIGRATION_28_29 = object : Migration(28, 29) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL("DELETE FROM `sector_master`")
+            db.execSQL("DELETE FROM `sector_index_candle`")
+            Timber.d("Migration v28→v29 성공: sector_master/sector_index_candle 초기화 (KIS 업종분류코드로 전환)")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v28→v29 실패")
             throw e
         }
     }

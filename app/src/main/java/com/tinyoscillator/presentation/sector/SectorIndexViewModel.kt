@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class SectorIndexUiState(
-    val selectedLevel: SectorLevel = SectorLevel.SECTOR,
+    val selectedLevel: SectorLevel = SectorLevel.INDEX,
     val sectors: List<SectorIndex> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
@@ -29,7 +29,7 @@ class SectorIndexViewModel @Inject constructor(
     private val repository: SectorIndexRepository,
 ) : ViewModel() {
 
-    private val _selectedLevel = MutableStateFlow(SectorLevel.SECTOR)
+    private val _selectedLevel = MutableStateFlow(SectorLevel.INDEX)
     private val _loading = MutableStateFlow(false)
     private val _error = MutableStateFlow<String?>(null)
     private val _info = MutableStateFlow<String?>(null)
@@ -75,7 +75,7 @@ class SectorIndexViewModel @Inject constructor(
                 repository.ensureSeeded(force = force).fold(
                     onSuccess = { count ->
                         _lastUpdated.value = repository.lastMasterUpdate()
-                        _info.value = "KRX 통합 지수 ${count}건 적용"
+                        _info.value = "KIS 업종분류코드 ${count}건 적용"
                     },
                     onFailure = { err ->
                         _error.value = err.message ?: "업종 갱신 실패"

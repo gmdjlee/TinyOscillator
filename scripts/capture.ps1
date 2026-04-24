@@ -109,14 +109,19 @@ if ($pngStart -gt 0) {
 
 # --- 7. 이미지 리사이즈 + JPEG 재인코딩 (Anthropic API 호환) ---
 # 근본 원인: Pixel Fold 등 고해상도 단말의 PNG는 장변 2000px 초과 + 파일 크기 2MB+ 로
-# Anthropic /v1/messages 의 "Could not process image" 400 에러를 유발. 장변 1568px 이하,
+# Anthropic /v1/messages 의 "Could not process image" 400 에러를 유발. 장변 1280px 이하,
 # 파일 크기 < 1MB 의 JPEG로 재인코딩해 권장 치수와 포맷을 보장한다.
+# 리사이즈/재인코딩에 실패하면 Raw PNG를 넘기지 않고 스크립트를 exit 1 — 업스트림이
+# 거대 이미지를 Anthropic에 전송해 400을 유발하는 것을 원천 차단.
 # Ref: https://docs.anthropic.com/en/docs/build-with-claude/vision#image-size
+$maxLongEdge = 1280
+$jpegQuality = 82
+$maxOutputBytes = 3MB  # Anthropic base64 5MB 제한 대비 여유 확보
+$jpegFile = [System.IO.Path]::ChangeExtension($outFile, ".jpg")
+$resizeSucceeded = $false
+
 try {
     Add-Type -AssemblyName System.Drawing -ErrorAction Stop
-
-    $maxLongEdge = 1568
-    $jpegQuality = 85
 
     $srcStream = [System.IO.File]::OpenRead($outFile)
     try {
@@ -125,60 +130,81 @@ try {
         $srcStream.Close()
     }
 
-    $origW = $srcImage.Width
-    $origH = $srcImage.Height
-    $longEdge = [Math]::Max($origW, $origH)
-
-    # 출력 경로를 .jpg 로 전환 (파일 확장자와 실제 포맷 일치시켜 MIME 추정 안정화)
-    $jpegFile = [System.IO.Path]::ChangeExtension($outFile, ".jpg")
-
-    if ($longEdge -gt $maxLongEdge) {
-        $scale = $maxLongEdge / [double]$longEdge
-        $newW = [int][Math]::Round($origW * $scale)
-        $newH = [int][Math]::Round($origH * $scale)
-        [Console]::Error.WriteLine("[INFO] Resizing ${origW}x${origH} -> ${newW}x${newH} (long edge $maxLongEdge)")
-    } else {
-        $newW = $origW
-        $newH = $origH
-    }
-
-    $bitmap = New-Object System.Drawing.Bitmap($newW, $newH, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
     try {
-        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-        try {
-            $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-            $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
-            $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-            $graphics.Clear([System.Drawing.Color]::White)
-            $graphics.DrawImage($srcImage, 0, 0, $newW, $newH)
-        } finally {
-            $graphics.Dispose()
+        $origW = $srcImage.Width
+        $origH = $srcImage.Height
+        $longEdge = [Math]::Max($origW, $origH)
+
+        if ($longEdge -gt $maxLongEdge) {
+            $scale = $maxLongEdge / [double]$longEdge
+            $newW = [int][Math]::Round($origW * $scale)
+            $newH = [int][Math]::Round($origH * $scale)
+            [Console]::Error.WriteLine("[INFO] Resizing ${origW}x${origH} -> ${newW}x${newH} (long edge $maxLongEdge)")
+        } else {
+            $newW = $origW
+            $newH = $origH
         }
 
-        # JPEG 인코더 + 품질 파라미터
-        $jpegCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() |
-            Where-Object { $_.MimeType -eq "image/jpeg" } | Select-Object -First 1
-        $encoderParams = New-Object System.Drawing.Imaging.EncoderParameters(1)
-        $encoderParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter(
-            [System.Drawing.Imaging.Encoder]::Quality, [long]$jpegQuality
-        )
+        $bitmap = New-Object System.Drawing.Bitmap($newW, $newH, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+        try {
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            try {
+                $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+                $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+                $graphics.Clear([System.Drawing.Color]::White)
+                $graphics.DrawImage($srcImage, 0, 0, $newW, $newH)
+            } finally {
+                $graphics.Dispose()
+            }
 
-        $bitmap.Save($jpegFile, $jpegCodec, $encoderParams)
-        $encoderParams.Dispose()
+            $jpegCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() |
+                Where-Object { $_.MimeType -eq "image/jpeg" } | Select-Object -First 1
+            if ($null -eq $jpegCodec) {
+                throw "JPEG encoder not available on this system"
+            }
+            $encoderParams = New-Object System.Drawing.Imaging.EncoderParameters(1)
+            $encoderParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter(
+                [System.Drawing.Imaging.Encoder]::Quality, [long]$jpegQuality
+            )
+
+            $bitmap.Save($jpegFile, $jpegCodec, $encoderParams)
+            $encoderParams.Dispose()
+        } finally {
+            $bitmap.Dispose()
+        }
     } finally {
-        $bitmap.Dispose()
         $srcImage.Dispose()
     }
 
-    # 원본 PNG 제거 (디스크 용량 절약). 실패해도 JPEG는 그대로 사용 가능.
-    Remove-Item -LiteralPath $outFile -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath $jpegFile)) {
+        throw "JPEG output missing after Save: $jpegFile"
+    }
+    $finalSize = (Get-Item -LiteralPath $jpegFile).Length
+    if ($finalSize -lt 1024) {
+        throw "JPEG output too small ($finalSize bytes) — likely corrupt"
+    }
+    if ($finalSize -gt $maxOutputBytes) {
+        throw "JPEG output too large ($finalSize bytes > $maxOutputBytes) — would trigger Anthropic 400"
+    }
 
+    Remove-Item -LiteralPath $outFile -ErrorAction SilentlyContinue
     $outFile = $jpegFile
-    $finalSize = (Get-Item -LiteralPath $outFile).Length
+    $resizeSucceeded = $true
     [Console]::Error.WriteLine("[INFO] JPEG re-encoded: ${newW}x${newH}, $([int]($finalSize / 1024)) KB")
 } catch {
-    # 리사이즈 실패 시 원본 PNG 유지 (업스트림이 여전히 읽을 수 있도록 fallback)
-    [Console]::Error.WriteLine("[WARN] Resize/encode failed, keeping original PNG: $($_.Exception.Message)")
+    $errMsg = $_.Exception.Message
+    [Console]::Error.WriteLine("[ERROR] Image resize/encode failed: $errMsg")
+    # Raw PNG를 넘기면 Anthropic 400을 유발하므로 원본과 부분 출력물을 모두 삭제하고 exit 1.
+    Remove-Item -LiteralPath $outFile -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $jpegFile -ErrorAction SilentlyContinue
+    Write-Error "Failed to produce Anthropic-compatible JPEG: $errMsg"
+    exit 1
+}
+
+if (-not $resizeSucceeded) {
+    Write-Error "Resize pipeline did not complete successfully"
+    exit 1
 }
 
 # stdout으로 경로 출력 (Claude Code가 파싱)

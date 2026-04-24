@@ -6,7 +6,7 @@ import com.tinyoscillator.core.database.dao.SectorIndexCandleDao
 import com.tinyoscillator.core.database.dao.SectorMasterDao
 import com.tinyoscillator.core.database.entity.SectorIndexCandleEntity
 import com.tinyoscillator.data.dto.KisSectorIndexChartResponse
-import com.tinyoscillator.data.seed.KrxIntegratedIndexSeed
+import com.tinyoscillator.data.seed.KisSectorCodeSeed
 import com.tinyoscillator.domain.model.SectorChartPeriod
 import com.tinyoscillator.domain.model.SectorIndex
 import com.tinyoscillator.domain.model.SectorIndexCandle
@@ -27,11 +27,11 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * KRX 통합 지수 마스터(정적 시드)와 KIS 업종지수 일별 차트(FHPUP02140000)를 제공한다.
+ * KIS 업종분류코드 마스터(정적 시드)와 KIS 업종지수 일별 차트(TR_ID=FHKUP03500100)를 제공한다.
  *
- * 업종 목록은 [KrxIntegratedIndexSeed]에서 가져와 sector_master에 씨드한다.
- * KIS는 업종 목록 전용 엔드포인트를 제공하지 않으므로, 차트 조회 시에만
- * FID_INPUT_ISCD에 KRX 코드(5042, 5043, ... 5600 등)를 그대로 전달한다.
+ * 업종 목록은 [KisSectorCodeSeed]에서 가져와 sector_master에 씨드한다. 차트 엔드포인트
+ * FID_INPUT_ISCD는 4자리 KIS 업종분류코드(0001 코스피, 1001 코스닥, 2001 코스피 200,
+ * 0013 전기전자 등)만 인식하므로 이 시드의 코드를 그대로 전달한다.
  *
  * 차트 캐시: sector_index_candle, 일봉만 [CHART_CACHE_TTL_MS] (6시간) TTL.
  * 레이트 리밋: [KisApiClient]가 500ms 글로벌 + 3실패 5분 서킷 브레이커 수행.
@@ -59,7 +59,7 @@ class SectorIndexRepository @Inject constructor(
     }
 
     /**
-     * sector_master에 KRX 통합 지수 시드가 없거나 수가 다르면 재씨드한다.
+     * sector_master에 KIS 업종분류코드 시드가 없거나 수가 다르면 재씨드한다.
      * 네트워크 호출 없음 — 로컬 상수 테이블만 참조하므로 즉시 반환.
      *
      * @return 씨드 총 개수
@@ -67,13 +67,13 @@ class SectorIndexRepository @Inject constructor(
     suspend fun ensureSeeded(force: Boolean = false): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val existing = sectorMasterDao.count()
-            val target = KrxIntegratedIndexSeed.ENTRIES.size
+            val target = KisSectorCodeSeed.ENTRIES.size
             if (!force && existing == target) {
                 return@withContext Result.success(existing)
             }
             val now = System.currentTimeMillis()
-            sectorMasterDao.replaceAll(KrxIntegratedIndexSeed.toEntities(now))
-            Timber.i("KRX 통합 지수 시드 적용: %d건", target)
+            sectorMasterDao.replaceAll(KisSectorCodeSeed.toEntities(now))
+            Timber.i("KIS 업종분류코드 시드 적용: %d건", target)
             Result.success(target)
         } catch (e: CancellationException) {
             throw e
@@ -211,7 +211,9 @@ class SectorIndexRepository @Inject constructor(
         SectorIndexCandle(date, open, high, low, close, volume)
 
     companion object {
-        private const val TR_SECTOR_INDEX_CHART = "FHPUP02140000"
+        // FHKUP03500100 = 국내주식업종기간별시세(일/주/월/년). KIS 공식 샘플과 일치.
+        // 과거 FHPUP02140000로 호출 시 응답 `opsq2001 input field not found` 발생.
+        private const val TR_SECTOR_INDEX_CHART = "FHKUP03500100"
         private const val EP_SECTOR_INDEX_CHART = "/uapi/domestic-stock/v1/quotations/inquire-daily-indexchartprice"
 
         private const val CHART_CACHE_TTL_MS = 6L * 60 * 60 * 1000 // 6시간

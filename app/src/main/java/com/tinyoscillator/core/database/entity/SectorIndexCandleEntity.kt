@@ -4,7 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 
 /**
- * KIS 업종지수 일별 캔들 캐시 (`inquire-daily-indexchartprice`, TR_ID=FHPUP02140000).
+ * KIS 업종지수 일별 캔들 캐시 (`inquire-daily-indexchartprice`, TR_ID=FHKUP03500100).
  *
  * 복합 PK (code, date) — 동일 업종·동일 날짜는 1건만 유지.
  */
