@@ -9,7 +9,7 @@ TinyOscillator/
 ├── app/
 │   ├── build.gradle.kts              # App-level build config
 │   ├── proguard-rules.pro
-│   ├── schemas/                       # Room schema exports (v2–v26)
+│   ├── schemas/                       # Room schema exports (v2–v31)
 │   └── src/
 │       ├── main/
 │       │   └── java/com/tinyoscillator/
@@ -23,7 +23,7 @@ TinyOscillator/
 │       │       │   ├── network/       # NetworkUtils (connectivity check)
 │       │       │   ├── scraper/       # Web scrapers (Naver, Equity, FnGuide)
 │       │       │   ├── util/          # DateFormats
-│       │       │   └── worker/        # WorkManager workers (7 workers + helpers)
+│       │       │   └── worker/        # WorkManager workers (14 workers + 4 helpers)
 │       │       ├── data/
 │       │       │   ├── dto/           # API response DTOs
 │       │       │   ├── engine/        # 7 statistical engines + orchestrator
@@ -47,6 +47,7 @@ TinyOscillator/
 │       │       │   ├── portfolio/     # Portfolio management screens
 │       │       │   ├── report/        # Analyst report screens
 │       │       │   ├── settings/      # Settings, Backup, Schedule config
+│       │       │   ├── theme/         # 테마 (Kiwoom ka90001/ka90002) screens + ViewModel
 │       │       │   └── viewmodel/     # OscillatorVM, StockAnalysisVM
 │       │       └── ui/theme/          # Material3 theme (Color, Type, Theme)
 │       └── test/                      # 160 unit test files (~1,400 tests)
@@ -119,7 +120,7 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 | `AnalyzeStockProbabilityUseCase` | domain/usecase | `AnalyzeStockProbabilityUseCase.kt` | Full analysis pipeline (stats → cache → LLM) |
 | `ApiConfigProvider` | core/config | `ApiConfigProvider.kt` | Thread-safe credential cache (volatile + mutex) |
 | `WorkManagerHelper` | core/worker | `WorkManagerHelper.kt` | Centralized worker scheduling |
-| `AppDatabase` | core/database | `AppDatabase.kt` | Room DB v18, 22 entities, 17 DAOs |
+| `AppDatabase` | core/database | `AppDatabase.kt` | Room DB v31, 28 entities, 22 DAOs |
 | `ProbabilisticPromptBuilder` | data/mapper | `ProbabilisticPromptBuilder.kt` | ChatML prompt for LLM analysis |
 | `FearGreedCalculator` | domain/usecase | `FearGreedCalculator.kt` | 7-indicator fear/greed index |
 | `MarketOscillatorCalculator` | domain/usecase | `MarketOscillatorCalculator.kt` | Market overbought/oversold index |
@@ -141,7 +142,8 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 - **Rate limiting**: 500ms per request
 - **Circuit breaker**: 3 failures → 5 min cooldown
 - **Certificate pinning**: Intermediate CAs for *.kiwoom.com and *.koreainvestment.com
-- **Endpoints**: Daily OHLCV, investor trend, stock info, stock list (KOSPI + KOSDAQ)
+- **Endpoints**: Daily OHLCV, investor trend, stock info, stock list (KOSPI + KOSDAQ), 테마 그룹/구성종목 (`/api/dostk/thme` — ka90001/ka90002, cont-yn 페이지네이션 지원)
+- **Pagination**: `KiwoomApiClient.callWithHeaders(...)` returns `PageHeaders(contYn, nextKey, apiId)`; ThemeRepository iterates while `cont-yn == "Y"` with `MAX_PAGES=50` 안전장치 + per-theme try/catch 격리
 
 ### KRX (via kotlin_krx)
 - **Credential storage**: EncryptedSharedPreferences (KRX username + password)
@@ -235,6 +237,7 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 | `EtfUpdateWorker` | 00:30 daily | Sync ETF list + holdings from KRX | Scheduled + manual |
 | `MarketOscillatorUpdateWorker` | 01:00 daily | KOSPI/KOSDAQ overbought/oversold indices | Scheduled + manual |
 | `MarketDepositUpdateWorker` | 02:00 daily | Market deposit/credit from Naver | Scheduled + manual |
+| `ThemeUpdateWorker` | 02:30 daily | Kiwoom 테마(ka90001/ka90002) 그룹 + 구성종목 | Scheduled + manual |
 | `ConsensusUpdateWorker` | 03:00 daily | Analyst consensus reports (Equity + FnGuide) | Scheduled + manual |
 | `FearGreedUpdateWorker` | 04:00 daily | 7-indicator fear/greed index | Scheduled + manual |
 | `MarketCloseRefreshWorker` | 19:00 daily | Replace intraday data with confirmed close-of-day | Scheduled + manual |
@@ -243,10 +246,12 @@ MVVM + Clean Architecture confirmed. Clear layer separation:
 
 All workers: network-constrained, exponential backoff (30s initial), foreground service (DATA_SYNC), results logged to `worker_logs` table. Schedules are user-configurable in Settings and restored on app startup in `TinyOscillatorApp.onCreate()`.
 
-## Room database (v26)
+## Room database (v31)
 ### Migration
-- All migrations `MIGRATION_1_2` ~ `MIGRATION_25_26` are defined in `core/di/DatabaseModule.kt` and wired via `.addMigrations(...)` in `provideAppDatabase`. Schema JSONs are exported at `app/schemas/com.tinyoscillator.core.database.AppDatabase/2.json ~ 26.json`.
+- All migrations `MIGRATION_1_2` ~ `MIGRATION_30_31` are defined in `core/database/migration/AppDatabaseMigrations.kt` (Phase 4.5 분할 결과) and wired via `.addMigrations(*AppDatabaseMigrations.ALL)` in `DatabaseModule.provideAppDatabase`. Schema JSONs are exported at `app/schemas/com.tinyoscillator.core.database.AppDatabase/2.json ~ 31.json`.
 - No `fallbackToDestructiveMigration()` — all upgrades are explicit.
+- `MIGRATION_29_30` (Step 3): adds `theme_group` + `theme_stock` tables (Kiwoom ka90001/ka90002).
+- `MIGRATION_30_31` (Step 9): drops legacy `sector_master` + `sector_index_candle` tables and their indexes after the 업종지수 → 테마 메뉴 교체.
 
 ### Entities
 | Entity | DAO | Purpose |
@@ -279,6 +284,8 @@ All workers: network-constrained, exponential backoff (30s initial), foreground 
 | `ModelDriftAlertEntity` | `IncrementalModelDao` | Drift detection alerts (v20) |
 | `UserThemeEntity` | `UserThemeDao` | User-defined themes (v23) |
 | `WatchlistGroupEntity` / `WatchlistItemEntity` | — | Watchlist groups and items (v24) |
+| `ThemeGroupEntity` | `ThemeGroupDao` | Kiwoom ka90001 테마 그룹 마스터 (v30, PK `theme_code`) |
+| `ThemeStockEntity` | `ThemeStockDao` | Kiwoom ka90002 테마 구성 종목 (v30, 복합 PK `(theme_code, stock_code)`) |
 
 ## Testing conventions
 - **Framework**: JUnit4 + MockK + Turbine (Flow) + coroutines-test + MockWebServer + Robolectric
