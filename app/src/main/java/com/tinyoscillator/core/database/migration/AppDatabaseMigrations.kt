@@ -21,7 +21,7 @@ import timber.log.Timber
  */
 object AppDatabaseMigrations {
 
-    /** `DatabaseModule.provideAppDatabase`에 전달되는 전체 마이그레이션 시퀀스 (v1→v29). */
+    /** `DatabaseModule.provideAppDatabase`에 전달되는 전체 마이그레이션 시퀀스 (v1→v30). */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -51,6 +51,7 @@ object AppDatabaseMigrations {
         MIGRATION_26_27,
         MIGRATION_27_28,
         MIGRATION_28_29,
+        MIGRATION_29_30,
     )
 }
 
@@ -767,6 +768,63 @@ private val MIGRATION_28_29 = object : Migration(28, 29) {
             Timber.d("Migration v28→v29 성공: sector_master/sector_index_candle 초기화 (KIS 업종분류코드로 전환)")
         } catch (e: Exception) {
             Timber.e(e, "Migration v28→v29 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v29→v30: Kiwoom ka90001/ka90002 테마 메뉴 도입을 위해 `theme_group`/`theme_stock`
+ * 테이블을 신규 생성한다.
+ *
+ * 기존 `sector_master`/`sector_index_candle`은 본 단계에서 유지 — Step 7에서 navigation이 교체되고
+ * Step 9에서 sector* 코드 일괄 제거 시점에 별도 마이그레이션(v30→v31)으로 DROP 예정. 그린 빌드를
+ * 깨지 않기 위함이며, KIS 업종지수 메뉴는 Step 7까지 정상 동작한다.
+ */
+private val MIGRATION_29_30 = object : Migration(29, 30) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `theme_group` (" +
+                    "`theme_code` TEXT NOT NULL, " +
+                    "`theme_name` TEXT NOT NULL, " +
+                    "`stock_count` INTEGER NOT NULL DEFAULT 0, " +
+                    "`flu_rate` REAL NOT NULL DEFAULT 0, " +
+                    "`period_return_rate` REAL NOT NULL DEFAULT 0, " +
+                    "`rise_count` INTEGER NOT NULL DEFAULT 0, " +
+                    "`fall_count` INTEGER NOT NULL DEFAULT 0, " +
+                    "`main_stocks` TEXT NOT NULL DEFAULT '', " +
+                    "`last_updated` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`theme_code`))"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_theme_group_period_return_rate` " +
+                    "ON `theme_group` (`period_return_rate`)"
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `theme_stock` (" +
+                    "`theme_code` TEXT NOT NULL, " +
+                    "`stock_code` TEXT NOT NULL, " +
+                    "`stock_name` TEXT NOT NULL, " +
+                    "`current_price` REAL NOT NULL DEFAULT 0, " +
+                    "`prior_diff` REAL NOT NULL DEFAULT 0, " +
+                    "`flu_rate` REAL NOT NULL DEFAULT 0, " +
+                    "`volume` INTEGER NOT NULL DEFAULT 0, " +
+                    "`period_return_rate` REAL NOT NULL DEFAULT 0, " +
+                    "`last_updated` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`theme_code`, `stock_code`))"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_theme_stock_stock_code` " +
+                    "ON `theme_stock` (`stock_code`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_theme_stock_theme_code` " +
+                    "ON `theme_stock` (`theme_code`)"
+            )
+            Timber.d("Migration v29→v30 성공: theme_group/theme_stock 테이블 생성")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v29→v30 실패")
             throw e
         }
     }

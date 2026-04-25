@@ -23,6 +23,8 @@ import com.tinyoscillator.core.database.dao.SectorIndexCandleDao
 import com.tinyoscillator.core.database.dao.SectorMasterDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.dao.FearGreedDao
+import com.tinyoscillator.core.database.dao.ThemeGroupDao
+import com.tinyoscillator.core.database.dao.ThemeStockDao
 import com.tinyoscillator.core.database.dao.WorkerLogDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
@@ -51,6 +53,8 @@ import com.tinyoscillator.core.database.entity.SectorIndexCandleEntity
 import com.tinyoscillator.core.database.entity.SectorMasterEntity
 import com.tinyoscillator.core.database.entity.SignalHistoryEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
+import com.tinyoscillator.core.database.entity.ThemeGroupEntity
+import com.tinyoscillator.core.database.entity.ThemeStockEntity
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
 
 @Database(
@@ -83,8 +87,10 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         AnalysisSnapshotEntity::class,
         SectorMasterEntity::class,
         SectorIndexCandleEntity::class,
+        ThemeGroupEntity::class,
+        ThemeStockEntity::class,
     ],
-    version = 29,
+    version = 30,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -110,4 +116,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun analysisSnapshotDao(): AnalysisSnapshotDao
     abstract fun sectorMasterDao(): SectorMasterDao
     abstract fun sectorIndexCandleDao(): SectorIndexCandleDao
+    abstract fun themeGroupDao(): ThemeGroupDao
+    abstract fun themeStockDao(): ThemeStockDao
 }

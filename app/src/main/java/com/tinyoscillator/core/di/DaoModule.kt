@@ -22,6 +22,8 @@ import com.tinyoscillator.core.database.dao.RegimeDao
 import com.tinyoscillator.core.database.dao.SectorIndexCandleDao
 import com.tinyoscillator.core.database.dao.SectorMasterDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
+import com.tinyoscillator.core.database.dao.ThemeGroupDao
+import com.tinyoscillator.core.database.dao.ThemeStockDao
 import com.tinyoscillator.core.database.dao.WorkerLogDao
 import dagger.Module
 import dagger.Provides
@@ -103,4 +105,10 @@ object DaoModule {
 
     @Provides
     fun provideSectorIndexCandleDao(db: AppDatabase): SectorIndexCandleDao = db.sectorIndexCandleDao()
+
+    @Provides
+    fun provideThemeGroupDao(db: AppDatabase): ThemeGroupDao = db.themeGroupDao()
+
+    @Provides
+    fun provideThemeStockDao(db: AppDatabase): ThemeStockDao = db.themeStockDao()
 }
