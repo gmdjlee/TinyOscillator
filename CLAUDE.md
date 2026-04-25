@@ -317,11 +317,6 @@ Phase 4.5 (DatabaseModule 분할):
 - `DatabaseModule.kt` 804줄 → 101줄 (빌더 + 백업만)
 - 신규 `DaoModule.kt` (102줄, DAO 프로바이더 전담), `AppDatabaseMigrations.kt` (683줄, 25개 Migration)
 
-남은 선택 항목 (ROI 낮음, 별도 요청 시에만 착수 권장):
-- Phase 2.5: Presentation layer의 concrete repository import 22건 → 도메인 인터페이스 경유로 전환 (3~5일)
-- P3-3: Dispatchers 주입 모듈화 (40+ 파일 영향)
-- P6-2: Room v27 외래 키 제약 추가 (migration + orphan row 검증 필요)
-
 ## Naming conventions
 - Use case: `동사 + 명사 + UseCase` (e.g., `AnalyzeStockProbabilityUseCase`)
 - Repository: `명사 + Repository` (e.g., `StatisticalRepository`)
