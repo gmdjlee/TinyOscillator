@@ -33,7 +33,7 @@ data class KiwoomThemeGroupItem(
     @SerialName("flu_sig") val fluctuationSign: String? = null,
     @SerialName("flu_rt") val fluctuationRate: String? = null,
     @SerialName("rising_stk_num") val risingStockCount: String? = null,
-    @SerialName("falling_stk_num") val fallingStockCount: String? = null,
+    @SerialName("fall_stk_num") val fallingStockCount: String? = null,
     @SerialName("dt_prft_rt") val periodReturnRate: String? = null,
     @SerialName("main_stk") val mainStocks: String? = null
 )
@@ -58,7 +58,7 @@ data class KiwoomThemeStockItem(
     @SerialName("pred_pre") val priorDiff: String? = null,
     @SerialName("flu_rt") val fluctuationRate: String? = null,
     @SerialName("acc_trde_qty") val accumulatedVolume: String? = null,
-    @SerialName("dt_prft_rt") val periodReturnRate: String? = null
+    @SerialName("dt_prft_rt_n") val periodReturnRate: String? = null
 )
 
 // ============================================================================

@@ -45,7 +45,7 @@ class KiwoomThemeModelsSerializationTest {
                         "flu_sig": "2",
                         "flu_rt": "+2.34",
                         "rising_stk_num": "30",
-                        "falling_stk_num": "12",
+                        "fall_stk_num": "12",
                         "dt_prft_rt": "+15.67",
                         "main_stk": "삼성SDI,LG에너지솔루션,에코프로"
                     }
@@ -164,7 +164,7 @@ class KiwoomThemeModelsSerializationTest {
                         "pred_pre": "+500",
                         "flu_rt": "+0.72",
                         "acc_trde_qty": "12345678",
-                        "dt_prft_rt": "+5.43"
+                        "dt_prft_rt_n": "+5.43"
                     },
                     {
                         "stk_cd": "000660",
@@ -174,7 +174,7 @@ class KiwoomThemeModelsSerializationTest {
                         "pred_pre": "-1000",
                         "flu_rt": "-0.66",
                         "acc_trde_qty": "9876543",
-                        "dt_prft_rt": "-2.10"
+                        "dt_prft_rt_n": "-2.10"
                     }
                 ]
             }

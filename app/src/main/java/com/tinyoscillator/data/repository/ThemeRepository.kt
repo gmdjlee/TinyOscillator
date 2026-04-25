@@ -322,11 +322,13 @@ class ThemeRepository @Inject constructor(
 
     private fun KiwoomThemeStockItem.toEntityOrNull(themeCode: String, lastUpdated: Long): ThemeStockEntity? {
         val code = stockCode?.takeIf { it.isNotBlank() } ?: return null
+        // Kiwoom 응답 관례: 하락 종목의 cur_prc에 "-" prefix가 붙는다(전일대비 표시).
+        // 실제 가격은 양수이므로 abs 처리. 등락 방향은 priorDiff/fluRate로 충분히 표현.
         return ThemeStockEntity(
             themeCode = themeCode,
             stockCode = code,
             stockName = stockName?.takeIf { it.isNotBlank() } ?: code,
-            currentPrice = currentPrice.toDoubleOrZero(),
+            currentPrice = kotlin.math.abs(currentPrice.toDoubleOrZero()),
             priorDiff = priorDiff.toDoubleOrZero(),
             fluRate = fluctuationRate.toDoubleOrZero(),
             volume = accumulatedVolume.toLongOrZero(),
