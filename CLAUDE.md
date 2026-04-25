@@ -307,7 +307,7 @@ None found in current codebase (no TODO/FIXME/HACK/XXX markers).
 - MarketOscillatorCalculator does not cache raw KRX OHLCV in Room for incremental updates
 
 ### Refactor backlog (2026-04-20 code review → 2026-04-21 Phase 1~8 + 3.5 + 4.5 완료)
-필수·선택·polish 전부 완료 — 상세 내역은 `REFACTOR_PLAN.md` 참조.
+필수·선택·polish 전부 완료.
 
 Phase 3.5 핵심 변경 (API/Scraper 중복 제거):
 - `BaseApiClient.executeWithRetry` 헬퍼 도입 → 3개 API 클라이언트의 auth/retriable retry 중복 100+ 줄 제거
@@ -325,22 +325,3 @@ Phase 4.5 (DatabaseModule 분할):
 - Worker: `명사 + Worker` (e.g., `EtfUpdateWorker`)
 - Korean comments allowed; code identifiers in English
 
-## Upcoming feature expansion
-The following 11 features will be added in numbered prompt sessions (PROMPT 01–11).
-Each prompt will update TASK.md and PROGRESS.md on completion.
-
-| # | Feature | Key new file(s) |
-|---|---------|-----------------|
-| 01 | Signal Calibration | calibration/signal_calibrator.py, validation/walk_forward_validator.py |
-| 02 | Regime Detection | regime/market_regime_classifier.py |
-| 03 | Feature Store | FeatureStore.kt, FeatureCacheDao.kt |
-| 04 | Order Flow | features/order_flow_features.py |
-| 05 | DART Event Study | dart/dart_disclosure_fetcher.py, dart/event_study_engine.py |
-| 06 | BOK ECOS Macro | macro/bok_ecos_collector.py |
-| 07 | Stacking Ensemble | ensemble/stacking_ensemble.py |
-| 08 | Kelly + CVaR | risk/kelly_position_sizer.py, risk/cvar_risk_overlay.py |
-| 09 | Incremental Learning | models/incremental_models.py |
-| 10 | Korea 5-Factor | factors/factor_model.py |
-| 11 | Sector Network + Vectorized | network/sector_correlation_network.py, indicators/vectorized_indicators.py |
-
-**Note**: The roadmap references `.py` files, but the current codebase has no Python/Chaquopy layer. These features will require adding Chaquopy to the build or implementing in pure Kotlin. This decision should be made in PROMPT 01.
