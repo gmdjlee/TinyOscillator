@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
 import com.tinyoscillator.core.worker.STATUS_ERROR
+import com.tinyoscillator.domain.model.ThemeExchange
 import com.tinyoscillator.presentation.common.GlassCard
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -210,6 +211,7 @@ private fun requestIgnoreBatteryOptimization(context: Context) {
     context.startActivity(intent)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ScheduleTab(
     fgScheduleEnabled: Boolean = false,
@@ -269,6 +271,18 @@ internal fun ScheduleTab(
     consensusManualMessage: String? = null,
     isConsensusCollecting: Boolean = false,
     onConsensusManualCollect: () -> Unit = {},
+    themeScheduleEnabled: Boolean = false,
+    onThemeScheduleEnabledChange: (Boolean) -> Unit = {},
+    themeScheduleHour: Int = 2,
+    onThemeScheduleHourChange: (Int) -> Unit = {},
+    themeScheduleMinute: Int = 30,
+    onThemeScheduleMinuteChange: (Int) -> Unit = {},
+    themeExchange: ThemeExchange = ThemeExchange.KRX,
+    onThemeExchangeChange: (ThemeExchange) -> Unit = {},
+    themeManualMessage: String? = null,
+    isThemeCollecting: Boolean = false,
+    onThemeManualCollect: () -> Unit = {},
+    lastThemeLog: WorkerLogEntity? = null,
     integrityCheckMessage: String?,
     integrityCheckProgress: Float? = null,
     isIntegrityChecking: Boolean = false,
@@ -399,6 +413,46 @@ internal fun ScheduleTab(
                 message = consensusManualMessage,
                 isCollecting = isConsensusCollecting,
                 lastResult = lastConsensusLog
+            )
+        }
+
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            ScheduleSection(
+                title = "테마 자동 업데이트",
+                enabled = themeScheduleEnabled,
+                onEnabledChange = onThemeScheduleEnabledChange,
+                hour = themeScheduleHour,
+                onHourChange = onThemeScheduleHourChange,
+                minute = themeScheduleMinute,
+                onMinuteChange = onThemeScheduleMinuteChange,
+                manualButtonText = "지금 테마 데이터 수집",
+                onManualCollect = onThemeManualCollect,
+                message = themeManualMessage,
+                isCollecting = isThemeCollecting,
+                lastResult = lastThemeLog
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("테마 거래소", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                ThemeExchange.entries.forEachIndexed { index, ex ->
+                    SegmentedButton(
+                        selected = themeExchange == ex,
+                        onClick = { onThemeExchangeChange(ex) },
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = ThemeExchange.entries.size
+                        )
+                    ) {
+                        Text(ex.displayName)
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "거래소 변경은 다음 갱신부터 반영됩니다.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 

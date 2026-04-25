@@ -341,4 +341,15 @@ object WorkManagerHelper {
     fun runIntegrityCheckNow(context: Context) =
         runWorkerNow<DataIntegrityCheckWorker>(context, DataIntegrityCheckWorker.WORK_NAME, DataIntegrityCheckWorker.TAG, "데이터 무결성 검사")
 
+    // ===== 테마 (Kiwoom ka90001/ka90002) =====
+
+    fun scheduleThemeUpdate(context: Context, hour: Int = 2, minute: Int = 30, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<ThemeUpdateWorker>(context, ThemeUpdateWorker.WORK_NAME, ThemeUpdateWorker.TAG, "테마", hour, minute, forceUpdate)
+
+    fun cancelThemeUpdate(context: Context) =
+        cancelWorker(context, ThemeUpdateWorker.WORK_NAME, "테마")
+
+    fun runThemeUpdateNow(context: Context) =
+        runWorkerNow<ThemeUpdateWorker>(context, ThemeUpdateWorker.MANUAL_WORK_NAME, ThemeUpdateWorker.TAG, "테마")
+
 }

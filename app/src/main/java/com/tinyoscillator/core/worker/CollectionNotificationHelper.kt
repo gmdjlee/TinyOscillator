@@ -28,6 +28,7 @@ object CollectionNotificationHelper {
     const val META_LEARNER_NOTIFICATION_ID = 1010
     const val INCREMENTAL_MODEL_NOTIFICATION_ID = 1011
     const val SIGNAL_OUTCOME_NOTIFICATION_ID = 1012
+    const val THEME_NOTIFICATION_ID = 1013
 
     fun createChannel(context: Context) {
         val channel = NotificationChannel(

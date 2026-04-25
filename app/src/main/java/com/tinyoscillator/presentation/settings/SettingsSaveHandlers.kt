@@ -3,6 +3,7 @@ package com.tinyoscillator.presentation.settings
 import android.content.Context
 import com.tinyoscillator.core.api.InvestmentMode
 import com.tinyoscillator.core.worker.WorkManagerHelper
+import com.tinyoscillator.domain.model.ThemeExchange
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.cancellation.CancellationException
@@ -56,7 +57,9 @@ internal suspend fun saveScheduleSettings(
     depositScheduleEnabled: Boolean, depositScheduleHour: Int, depositScheduleMinute: Int,
     marketCloseRefreshEnabled: Boolean = false, marketCloseRefreshHour: Int = 19, marketCloseRefreshMinute: Int = 0,
     consensusScheduleEnabled: Boolean = false, consensusScheduleHour: Int = 3, consensusScheduleMinute: Int = 0,
-    fgScheduleEnabled: Boolean = false, fgScheduleHour: Int = 4, fgScheduleMinute: Int = 0
+    fgScheduleEnabled: Boolean = false, fgScheduleHour: Int = 4, fgScheduleMinute: Int = 0,
+    themeScheduleEnabled: Boolean = false, themeScheduleHour: Int = 2, themeScheduleMinute: Int = 30,
+    themeExchange: ThemeExchange = ThemeExchange.KRX
 ): String {
     return try {
         saveEtfScheduleTime(context, EtfScheduleTime(scheduleHour, scheduleMinute, etfScheduleEnabled))
@@ -65,6 +68,8 @@ internal suspend fun saveScheduleSettings(
         saveMarketCloseRefreshScheduleTime(context, MarketCloseRefreshScheduleTime(marketCloseRefreshHour, marketCloseRefreshMinute, marketCloseRefreshEnabled))
         saveConsensusScheduleTime(context, ConsensusScheduleTime(consensusScheduleHour, consensusScheduleMinute, consensusScheduleEnabled))
         saveFearGreedScheduleTime(context, FearGreedScheduleTime(fgScheduleHour, fgScheduleMinute, fgScheduleEnabled))
+        saveThemeScheduleTime(context, ThemeScheduleTime(themeScheduleHour, themeScheduleMinute, themeScheduleEnabled))
+        saveThemeExchangeFilter(context, themeExchange)
         if (etfScheduleEnabled) {
             WorkManagerHelper.scheduleEtfUpdate(context, scheduleHour, scheduleMinute, forceUpdate = true)
         } else {
@@ -94,6 +99,11 @@ internal suspend fun saveScheduleSettings(
             WorkManagerHelper.scheduleFearGreedUpdate(context, fgScheduleHour, fgScheduleMinute, forceUpdate = true)
         } else {
             WorkManagerHelper.cancelFearGreedUpdate(context)
+        }
+        if (themeScheduleEnabled) {
+            WorkManagerHelper.scheduleThemeUpdate(context, themeScheduleHour, themeScheduleMinute, forceUpdate = true)
+        } else {
+            WorkManagerHelper.cancelThemeUpdate(context)
         }
         "저장되었습니다"
     } catch (e: CancellationException) {

@@ -16,6 +16,7 @@ import androidx.work.WorkManager
 import com.tinyoscillator.core.api.InvestmentMode
 import com.tinyoscillator.domain.model.AiApiKeyConfig
 import com.tinyoscillator.domain.model.AiProvider
+import com.tinyoscillator.domain.model.ThemeExchange
 import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.worker.EtfUpdateWorker
 import com.tinyoscillator.core.worker.KEY_MESSAGE
@@ -25,6 +26,7 @@ import com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker
 import com.tinyoscillator.core.worker.ConsensusUpdateWorker
 import com.tinyoscillator.core.worker.DataIntegrityCheckWorker
 import com.tinyoscillator.core.worker.MarketCloseRefreshWorker
+import com.tinyoscillator.core.worker.ThemeUpdateWorker
 import com.tinyoscillator.core.worker.WorkManagerHelper
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
 import dagger.hilt.EntryPoint
@@ -147,6 +149,11 @@ fun SettingsScreen(onBack: () -> Unit) {
     var fgScheduleMinute by remember { mutableIntStateOf(0) }
     var fearGreedCollectionDays by remember { mutableIntStateOf(365) }
 
+    var themeScheduleEnabled by remember { mutableStateOf(false) }
+    var themeScheduleHour by remember { mutableIntStateOf(2) }
+    var themeScheduleMinute by remember { mutableIntStateOf(30) }
+    var themeExchange by remember { mutableStateOf(ThemeExchange.KRX) }
+
     var marketOscCollectionDays by remember { mutableIntStateOf(30) }
     var marketDepositCollectionDays by remember { mutableIntStateOf(365) }
     var consensusCollectionDays by remember { mutableIntStateOf(30) }
@@ -161,6 +168,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var lastMarketCloseLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastConsensusLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastFearGreedLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
+    var lastThemeLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var lastIntegrityLog by remember { mutableStateOf<WorkerLogEntity?>(null) }
     var allLogs by remember { mutableStateOf<List<WorkerLogEntity>>(emptyList()) }
     var logFilter by remember { mutableStateOf(LogFilter.ALL) }
@@ -185,6 +193,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val fgWorkInfos by workManager.getWorkInfosByTagFlow(com.tinyoscillator.core.worker.FearGreedUpdateWorker.TAG)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+    val themeWorkInfos by workManager.getWorkInfosByTagFlow(ThemeUpdateWorker.TAG)
+        .collectAsStateWithLifecycle(initialValue = emptyList())
 
     val etfCollectionState = rememberCollectionState(etfWorkInfos)
     val oscCollectionState = rememberCollectionState(oscWorkInfos)
@@ -193,6 +203,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val marketCloseRefreshState = rememberCollectionState(marketCloseRefreshWorkInfos)
     val consensusCollectionState = rememberCollectionState(consensusWorkInfos)
     val fgCollectionState = rememberCollectionState(fgWorkInfos)
+    val themeCollectionState = rememberCollectionState(themeWorkInfos)
 
     LaunchedEffect(Unit) {
         try {
@@ -267,6 +278,13 @@ fun SettingsScreen(onBack: () -> Unit) {
             val fgPeriod = loadFearGreedCollectionPeriod(context)
             fearGreedCollectionDays = fgPeriod.daysBack
 
+            val themeSchedule = loadThemeScheduleTime(context)
+            themeScheduleEnabled = themeSchedule.enabled
+            themeScheduleHour = themeSchedule.hour
+            themeScheduleMinute = themeSchedule.minute
+
+            themeExchange = loadThemeExchangeFilter(context)
+
             // Worker execution logs
             val logDao = entryPoint.workerLogDao()
             lastEtfLog = logDao.getLatestLog(com.tinyoscillator.core.worker.EtfUpdateWorker.LABEL)
@@ -275,6 +293,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             lastMarketCloseLog = logDao.getLatestLog(MarketCloseRefreshWorker.LABEL)
             lastConsensusLog = logDao.getLatestLog(ConsensusUpdateWorker.LABEL)
             lastFearGreedLog = logDao.getLatestLog(com.tinyoscillator.core.worker.FearGreedUpdateWorker.LABEL)
+            lastThemeLog = logDao.getLatestLog(ThemeUpdateWorker.LABEL)
             lastIntegrityLog = logDao.getLatestLog(com.tinyoscillator.core.worker.DataIntegrityCheckWorker.LABEL)
             allLogs = logDao.getAllRecentLogs(200)
         } catch (e: CancellationException) {
@@ -494,6 +513,18 @@ fun SettingsScreen(onBack: () -> Unit) {
                     consensusManualMessage = consensusCollectionState.message,
                     isConsensusCollecting = consensusCollectionState.isCollecting,
                     onConsensusManualCollect = { WorkManagerHelper.runConsensusUpdateNow(context) },
+                    themeScheduleEnabled = themeScheduleEnabled,
+                    onThemeScheduleEnabledChange = { themeScheduleEnabled = it },
+                    themeScheduleHour = themeScheduleHour,
+                    onThemeScheduleHourChange = { themeScheduleHour = it },
+                    themeScheduleMinute = themeScheduleMinute,
+                    onThemeScheduleMinuteChange = { themeScheduleMinute = it },
+                    themeExchange = themeExchange,
+                    onThemeExchangeChange = { themeExchange = it },
+                    themeManualMessage = themeCollectionState.message,
+                    isThemeCollecting = themeCollectionState.isCollecting,
+                    onThemeManualCollect = { WorkManagerHelper.runThemeUpdateNow(context) },
+                    lastThemeLog = lastThemeLog,
                     lastEtfLog = lastEtfLog,
                     lastOscLog = lastOscLog,
                     lastDepositLog = lastDepositLog,
@@ -509,7 +540,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 depositScheduleEnabled, depositScheduleHour, depositScheduleMinute,
                                 marketCloseRefreshEnabled, marketCloseRefreshHour, marketCloseRefreshMinute,
                                 consensusScheduleEnabled, consensusScheduleHour, consensusScheduleMinute,
-                                fgScheduleEnabled, fgScheduleHour, fgScheduleMinute
+                                fgScheduleEnabled, fgScheduleHour, fgScheduleMinute,
+                                themeScheduleEnabled, themeScheduleHour, themeScheduleMinute,
+                                themeExchange
                             )
                         }
                     }

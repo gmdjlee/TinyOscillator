@@ -51,6 +51,10 @@ internal object PrefsKeys {
     const val FEAR_GREED_SCHEDULE_ENABLED = "fear_greed_schedule_enabled"
     const val DART_API_KEY = "dart_api_key"
     const val ECOS_API_KEY = "ecos_api_key"
+    const val THEME_SCHEDULE_HOUR = "theme_schedule_hour"
+    const val THEME_SCHEDULE_MINUTE = "theme_schedule_minute"
+    const val THEME_SCHEDULE_ENABLED = "theme_schedule_enabled"
+    const val THEME_EXCHANGE = "theme_exchange"
 }
 
 // KrxCredentials and EtfKeywordFilter moved to domain.model.EtfModels.kt
@@ -76,6 +80,8 @@ data class ConsensusCollectionPeriod(val daysBack: Int = 30)
 
 data class FearGreedCollectionPeriod(val daysBack: Int = 365)
 data class FearGreedScheduleTime(val hour: Int = 4, val minute: Int = 0, val enabled: Boolean = false)
+
+data class ThemeScheduleTime(val hour: Int = 2, val minute: Int = 30, val enabled: Boolean = false)
 
 internal val DEFAULT_INCLUDE_KEYWORDS = listOf(
     "반도체", "바이오", "혁신기술", "배당성장", "신재생",
@@ -249,6 +255,36 @@ suspend fun saveFearGreedScheduleTime(context: Context, schedule: FearGreedSched
         .putInt(PrefsKeys.FEAR_GREED_SCHEDULE_HOUR, schedule.hour)
         .putInt(PrefsKeys.FEAR_GREED_SCHEDULE_MINUTE, schedule.minute)
         .putBoolean(PrefsKeys.FEAR_GREED_SCHEDULE_ENABLED, schedule.enabled)
+        .apply()
+}
+
+suspend fun loadThemeScheduleTime(context: Context): ThemeScheduleTime = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    ThemeScheduleTime(
+        hour = prefs.getInt(PrefsKeys.THEME_SCHEDULE_HOUR, 2),
+        minute = prefs.getInt(PrefsKeys.THEME_SCHEDULE_MINUTE, 30),
+        enabled = prefs.getBoolean(PrefsKeys.THEME_SCHEDULE_ENABLED, false)
+    )
+}
+
+suspend fun saveThemeScheduleTime(context: Context, schedule: ThemeScheduleTime) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putInt(PrefsKeys.THEME_SCHEDULE_HOUR, schedule.hour)
+        .putInt(PrefsKeys.THEME_SCHEDULE_MINUTE, schedule.minute)
+        .putBoolean(PrefsKeys.THEME_SCHEDULE_ENABLED, schedule.enabled)
+        .apply()
+}
+
+suspend fun loadThemeExchangeFilter(context: Context): com.tinyoscillator.domain.model.ThemeExchange = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    com.tinyoscillator.domain.model.ThemeExchange.fromCode(
+        prefs.getString(PrefsKeys.THEME_EXCHANGE, com.tinyoscillator.domain.model.ThemeExchange.KRX.code)
+    )
+}
+
+suspend fun saveThemeExchangeFilter(context: Context, exchange: com.tinyoscillator.domain.model.ThemeExchange) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putString(PrefsKeys.THEME_EXCHANGE, exchange.code)
         .apply()
 }
 

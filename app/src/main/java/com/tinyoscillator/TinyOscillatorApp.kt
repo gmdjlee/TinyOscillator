@@ -14,6 +14,7 @@ import com.tinyoscillator.presentation.settings.loadEtfScheduleTime
 import com.tinyoscillator.presentation.settings.loadFearGreedScheduleTime
 import com.tinyoscillator.presentation.settings.loadMarketCloseRefreshScheduleTime
 import com.tinyoscillator.presentation.settings.loadOscillatorScheduleTime
+import com.tinyoscillator.presentation.settings.loadThemeScheduleTime
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +81,11 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
             val fgSchedule = loadFearGreedScheduleTime(this@TinyOscillatorApp)
             if (fgSchedule.enabled) {
                 WorkManagerHelper.scheduleFearGreedUpdate(this@TinyOscillatorApp, fgSchedule.hour, fgSchedule.minute)
+            }
+
+            val themeSchedule = loadThemeScheduleTime(this@TinyOscillatorApp)
+            if (themeSchedule.enabled) {
+                WorkManagerHelper.scheduleThemeUpdate(this@TinyOscillatorApp, themeSchedule.hour, themeSchedule.minute)
             }
 
             // 시장 레짐 모델 복원 + 주간 업데이트 스케줄
