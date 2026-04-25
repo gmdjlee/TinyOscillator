@@ -21,6 +21,22 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
+ * Kiwoom REST API 페이지네이션 헤더.
+ *
+ * `cont-yn`/`next-key`는 ka90001/ka90002 등 일부 TR이 1회 응답에 다 담지 못할 때 사용.
+ * `apiId`는 응답 헤더의 `api-id`(TR 식별자) — 디버그/로깅용.
+ *
+ * @property contYn "Y"이면 다음 페이지가 존재. "N"이면 종료.
+ * @property nextKey 다음 페이지 요청 시 헤더로 그대로 echo back. 빈 문자열이면 첫 페이지.
+ * @property apiId 응답 헤더의 api-id 값.
+ */
+data class PageHeaders(
+    val contYn: String,
+    val nextKey: String,
+    val apiId: String
+)
+
+/**
  * Kiwoom REST API 클라이언트.
  *
  * 토큰 관리, 레이트 리밋, JSON 정규화를 포함한 직접 API 호출.
@@ -98,6 +114,103 @@ class KiwoomApiClient(
             }
 
             return Result.success(parser(normalizedBody))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return Result.failure(ApiError.mapException(e))
+        }
+    }
+
+    /**
+     * 응답 헤더(`cont-yn`/`next-key` 등)에 의존하는 페이지네이션 TR 호출.
+     *
+     * 기존 [call]과 동일한 토큰/레이트 리밋/재시도 경로를 사용하되,
+     *  1. [extraHeaders]를 요청 헤더에 병합 (페이지 진행 시 `cont-yn=Y`, `next-key=<echo>` 전달용)
+     *  2. 응답 헤더에서 `cont-yn`/`next-key`/`api-id`를 추출해 [parser]에 [PageHeaders]로 전달
+     *
+     * OkHttp `Response.header()`는 case-insensitive이므로 헤더 케이스 차이는 안전하게 흡수된다.
+     */
+    suspend fun <T> callWithHeaders(
+        apiId: String,
+        url: String,
+        body: Map<String, String>,
+        config: KiwoomApiKeyConfig,
+        extraHeaders: Map<String, String> = emptyMap(),
+        parser: (body: String, headers: PageHeaders) -> T
+    ): Result<T> = withContext(Dispatchers.IO) {
+        executeWithRetry(
+            tag = apiId,
+            onAuthFailure = { refreshToken(config) },
+        ) {
+            callOnceWithHeaders(apiId, url, body, config, extraHeaders, parser)
+        }
+    }
+
+    private suspend fun <T> callOnceWithHeaders(
+        apiId: String,
+        url: String,
+        body: Map<String, String>,
+        config: KiwoomApiKeyConfig,
+        extraHeaders: Map<String, String>,
+        parser: (body: String, headers: PageHeaders) -> T
+    ): Result<T> {
+        try {
+            waitForRateLimit()
+
+            val token = getToken(config).getOrElse { return Result.failure(it) }
+            val baseUrl = config.getBaseUrl()
+            val requestBodyJson = json.encodeToString(body)
+
+            val requestBuilder = Request.Builder()
+                .url("$baseUrl$url")
+                .addHeader("api-id", apiId)
+                .addHeader("authorization", token.bearer)
+                .addHeader("Content-Type", "application/json;charset=UTF-8")
+            extraHeaders.forEach { (k, v) -> requestBuilder.addHeader(k, v) }
+            val request = requestBuilder
+                .post(requestBodyJson.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            Timber.d("API call (paged): $apiId -> $url (extraHeaders=$extraHeaders)")
+
+            data class ResponseSnapshot(
+                val body: String?,
+                val code: Int,
+                val successful: Boolean,
+                val contYn: String,
+                val nextKey: String,
+                val apiIdHeader: String
+            )
+
+            val snapshot = httpClient.newCall(request).await().use { response ->
+                ResponseSnapshot(
+                    body = response.body?.string(),
+                    code = response.code,
+                    successful = response.isSuccessful,
+                    contYn = response.header("cont-yn") ?: "N",
+                    nextKey = response.header("next-key") ?: "",
+                    apiIdHeader = response.header("api-id") ?: apiId
+                )
+            }
+
+            if (!snapshot.successful || snapshot.body == null) {
+                return Result.failure(ApiError.ApiCallError(snapshot.code, "HTTP ${snapshot.code}"))
+            }
+
+            val normalizedBody = normalizeJsonNumbers(snapshot.body)
+            val apiResponse = json.decodeFromString<ApiResponse>(normalizedBody)
+            if (apiResponse.returnCode != 0) {
+                return Result.failure(
+                    ApiError.ApiCallError(apiResponse.returnCode, apiResponse.returnMsg ?: "API 오류")
+                )
+            }
+
+            val pageHeaders = PageHeaders(
+                contYn = snapshot.contYn,
+                nextKey = snapshot.nextKey,
+                apiId = snapshot.apiIdHeader
+            )
+            return Result.success(parser(normalizedBody, pageHeaders))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
