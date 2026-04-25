@@ -20,6 +20,8 @@ import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
 import com.tinyoscillator.core.database.dao.SectorIndexCandleDao
 import com.tinyoscillator.core.database.dao.SectorMasterDao
+import com.tinyoscillator.core.database.dao.ThemeGroupDao
+import com.tinyoscillator.core.database.dao.ThemeStockDao
 import com.tinyoscillator.core.scraper.EquityReportScraper
 import com.tinyoscillator.core.scraper.FnGuideReportScraper
 import com.tinyoscillator.core.scraper.NaverFinanceScraper
@@ -34,6 +36,7 @@ import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.data.repository.PortfolioRepository
 import com.tinyoscillator.data.repository.SectorIndexRepository
 import com.tinyoscillator.data.repository.StockRepository
+import com.tinyoscillator.data.repository.ThemeRepository
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.ProbabilityInterpreter
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
@@ -220,4 +223,14 @@ object AppModule {
         json: Json,
     ): SectorIndexRepository =
         SectorIndexRepository(sectorMasterDao, candleDao, kisApiClient, json)
+
+    @Provides
+    @Singleton
+    fun provideThemeRepository(
+        themeGroupDao: ThemeGroupDao,
+        themeStockDao: ThemeStockDao,
+        kiwoomApiClient: KiwoomApiClient,
+        json: Json,
+    ): ThemeRepository =
+        ThemeRepository(themeGroupDao, themeStockDao, kiwoomApiClient, json)
 }
