@@ -19,8 +19,6 @@ import com.tinyoscillator.core.database.dao.FundamentalCacheDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
-import com.tinyoscillator.core.database.dao.SectorIndexCandleDao
-import com.tinyoscillator.core.database.dao.SectorMasterDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.dao.FearGreedDao
 import com.tinyoscillator.core.database.dao.ThemeGroupDao
@@ -49,8 +47,6 @@ import com.tinyoscillator.core.database.entity.MarketOscillatorEntity
 import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.database.entity.PortfolioHoldingEntity
 import com.tinyoscillator.core.database.entity.PortfolioTransactionEntity
-import com.tinyoscillator.core.database.entity.SectorIndexCandleEntity
-import com.tinyoscillator.core.database.entity.SectorMasterEntity
 import com.tinyoscillator.core.database.entity.SignalHistoryEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
 import com.tinyoscillator.core.database.entity.ThemeGroupEntity
@@ -85,12 +81,10 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         IncrementalModelStateEntity::class,
         ModelDriftAlertEntity::class,
         AnalysisSnapshotEntity::class,
-        SectorMasterEntity::class,
-        SectorIndexCandleEntity::class,
         ThemeGroupEntity::class,
         ThemeStockEntity::class,
     ],
-    version = 30,
+    version = 31,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -114,8 +108,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun ensembleHistoryDao(): EnsembleHistoryDao
     abstract fun incrementalModelDao(): IncrementalModelDao
     abstract fun analysisSnapshotDao(): AnalysisSnapshotDao
-    abstract fun sectorMasterDao(): SectorMasterDao
-    abstract fun sectorIndexCandleDao(): SectorIndexCandleDao
     abstract fun themeGroupDao(): ThemeGroupDao
     abstract fun themeStockDao(): ThemeStockDao
 }

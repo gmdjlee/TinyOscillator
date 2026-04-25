@@ -19,8 +19,6 @@ import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
 import com.tinyoscillator.core.database.dao.RegimeDao
-import com.tinyoscillator.core.database.dao.SectorIndexCandleDao
-import com.tinyoscillator.core.database.dao.SectorMasterDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.dao.ThemeGroupDao
 import com.tinyoscillator.core.database.dao.ThemeStockDao
@@ -99,12 +97,6 @@ object DaoModule {
 
     @Provides
     fun provideIncrementalModelDao(db: AppDatabase): IncrementalModelDao = db.incrementalModelDao()
-
-    @Provides
-    fun provideSectorMasterDao(db: AppDatabase): SectorMasterDao = db.sectorMasterDao()
-
-    @Provides
-    fun provideSectorIndexCandleDao(db: AppDatabase): SectorIndexCandleDao = db.sectorIndexCandleDao()
 
     @Provides
     fun provideThemeGroupDao(db: AppDatabase): ThemeGroupDao = db.themeGroupDao()

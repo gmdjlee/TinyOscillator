@@ -21,7 +21,7 @@ import timber.log.Timber
  */
 object AppDatabaseMigrations {
 
-    /** `DatabaseModule.provideAppDatabase`에 전달되는 전체 마이그레이션 시퀀스 (v1→v30). */
+    /** `DatabaseModule.provideAppDatabase`에 전달되는 전체 마이그레이션 시퀀스 (v1→v31). */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
@@ -52,6 +52,7 @@ object AppDatabaseMigrations {
         MIGRATION_27_28,
         MIGRATION_28_29,
         MIGRATION_29_30,
+        MIGRATION_30_31,
     )
 }
 
@@ -825,6 +826,31 @@ private val MIGRATION_29_30 = object : Migration(29, 30) {
             Timber.d("Migration v29→v30 성공: theme_group/theme_stock 테이블 생성")
         } catch (e: Exception) {
             Timber.e(e, "Migration v29→v30 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v30→v31: 키움 테마 메뉴 마이그레이션 Step 9 — 사용 중단된 KIS 업종지수
+ * `sector_master`/`sector_index_candle` 테이블과 인덱스를 일괄 삭제한다.
+ *
+ * v29→v30에서는 그린 빌드 보장을 위해 sector* 테이블을 유지했으나, navigation 교체(Step 7)
+ * 이후 dead code가 되었으므로 본 단계에서 코드와 함께 정리한다.
+ *
+ * 주의: `stock_master.sector` 컬럼(MIGRATION_5_6)과 `SectorCorrelationNetwork`(11번째 통계 엔진)는
+ * 본 마이그레이션과 무관하게 유지된다. 본 단계는 `sector_master`/`sector_index_candle` 두 테이블만 정리.
+ */
+private val MIGRATION_30_31 = object : Migration(30, 31) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL("DROP INDEX IF EXISTS `index_sector_master_level`")
+            db.execSQL("DROP INDEX IF EXISTS `index_sector_master_parent_code`")
+            db.execSQL("DROP TABLE IF EXISTS `sector_master`")
+            db.execSQL("DROP TABLE IF EXISTS `sector_index_candle`")
+            Timber.d("Migration v30→v31 성공: sector_master/sector_index_candle 일괄 DROP")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v30→v31 실패")
             throw e
         }
     }
