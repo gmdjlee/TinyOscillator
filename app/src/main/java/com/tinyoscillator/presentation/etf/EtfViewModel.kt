@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class EtfSortMode { NAME, RETURN }
+
 @HiltViewModel
 class EtfViewModel @Inject constructor(
     private val etfRepository: EtfRepository,
@@ -26,26 +28,42 @@ class EtfViewModel @Inject constructor(
 
     private val _excludeKeywords = MutableStateFlow<List<String>>(emptyList())
 
+    private val _includeKeywords = MutableStateFlow<List<String>>(emptyList())
+    val includeKeywords: StateFlow<List<String>> = _includeKeywords.asStateFlow()
+
+    private val _sortMode = MutableStateFlow(EtfSortMode.NAME)
+    val sortMode: StateFlow<EtfSortMode> = _sortMode.asStateFlow()
+
+    fun setSortMode(mode: EtfSortMode) {
+        _sortMode.value = mode
+    }
+
     val etfList: StateFlow<List<EtfEntity>> = combine(
         etfRepository.getAllEtfs(),
-        _excludeKeywords
-    ) { etfs, excludeKws ->
-        if (excludeKws.isEmpty()) etfs
-        else etfs.filter { etf -> excludeKws.none { kw -> etf.name.contains(kw) } }
+        _excludeKeywords,
+        _sortMode
+    ) { etfs, excludeKws, sort ->
+        val filtered = if (excludeKws.isEmpty()) etfs
+            else etfs.filter { etf -> excludeKws.none { kw -> etf.name.contains(kw) } }
+        when (sort) {
+            EtfSortMode.NAME -> filtered  // getAllEtfs가 이미 name ASC
+            EtfSortMode.RETURN -> filtered.sortedByDescending { it.changeRate ?: -Double.MAX_VALUE } // null 최하위
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _needsCredentials = MutableStateFlow(false)
     val needsCredentials: StateFlow<Boolean> = _needsCredentials.asStateFlow()
 
     init {
-        loadExcludeKeywords()
+        loadKeywords()
         checkCredentials()
     }
 
-    private fun loadExcludeKeywords() {
+    private fun loadKeywords() {
         viewModelScope.launch {
             val keywords = loadEtfKeywordFilter(context)
             _excludeKeywords.value = keywords.excludeKeywords
+            _includeKeywords.value = keywords.includeKeywords
         }
     }
 

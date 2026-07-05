@@ -134,4 +134,59 @@ class EtfViewModelTest {
 
         assertFalse(viewModel.needsCredentials.value)
     }
+
+    // ==========================================================
+    // include 키워드 / 정렬 모드 테스트
+    // ==========================================================
+
+    @Test
+    fun `includeKeywords가 loadEtfKeywordFilter의 includeKeywords로 로드된다`() = runTest {
+        coEvery { com.tinyoscillator.presentation.settings.loadEtfKeywordFilter(any()) } returns EtfKeywordFilter(
+            includeKeywords = listOf("반도체", "2차전지"),
+            excludeKeywords = emptyList()
+        )
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("반도체", "2차전지"), viewModel.includeKeywords.value)
+    }
+
+    @Test
+    fun `setSortMode RETURN 시 changeRate 내림차순으로 정렬되고 null은 최하위이다`() = runTest {
+        val etfs = listOf(
+            EtfEntity(ticker = "a", name = "반도체ETF", isinCode = "x", changeRate = 1.0),
+            EtfEntity(ticker = "b", name = "2차전지ETF", isinCode = "y", changeRate = 3.0),
+            EtfEntity(ticker = "c", name = "채권ETF", isinCode = "z", changeRate = null)
+        )
+        every { etfRepository.getAllEtfs() } returns flowOf(etfs)
+
+        viewModel = createViewModel()
+        val collectJob = launch { viewModel.etfList.collect {} }
+        advanceUntilIdle()
+
+        viewModel.setSortMode(EtfSortMode.RETURN)
+        advanceUntilIdle()
+
+        assertEquals(listOf(3.0, 1.0, null), viewModel.etfList.value.map { it.changeRate })
+        collectJob.cancel()
+    }
+
+    @Test
+    fun `NAME 모드는 getAllEtfs 순서를 유지한다`() = runTest {
+        val etfs = listOf(
+            EtfEntity(ticker = "a", name = "반도체ETF", isinCode = "x", changeRate = 1.0),
+            EtfEntity(ticker = "b", name = "2차전지ETF", isinCode = "y", changeRate = 3.0),
+            EtfEntity(ticker = "c", name = "채권ETF", isinCode = "z", changeRate = null)
+        )
+        every { etfRepository.getAllEtfs() } returns flowOf(etfs)
+
+        viewModel = createViewModel()
+        val collectJob = launch { viewModel.etfList.collect {} }
+        advanceUntilIdle()
+
+        // 기본 정렬 모드는 NAME → getAllEtfs 순서 유지
+        assertEquals(listOf("a", "b", "c"), viewModel.etfList.value.map { it.ticker })
+        collectJob.cancel()
+    }
 }

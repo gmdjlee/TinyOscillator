@@ -6,6 +6,7 @@ import com.krxkt.KrxStock
 import com.krxkt.api.KrxClient
 import com.krxkt.model.EtfInfo
 import com.krxkt.model.EtfPortfolio
+import com.krxkt.model.EtfPrice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -54,6 +55,19 @@ class KrxApiClient {
                 Result.success(etf.getEtfTickerList(date))
             } catch (e: Exception) {
                 Timber.e(e, "ETF 목록 조회 실패: $date")
+                Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun getEtfPrice(date: String): Result<List<EtfPrice>> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val etf = krxEtf
+                ?: return@withContext Result.failure(IllegalStateException("KRX 로그인이 필요합니다"))
+            try {
+                Result.success(etf.getEtfPrice(date))
+            } catch (e: Exception) {
+                Timber.e(e, "ETF 시세 조회 실패: $date")
                 Result.failure(e)
             }
         }

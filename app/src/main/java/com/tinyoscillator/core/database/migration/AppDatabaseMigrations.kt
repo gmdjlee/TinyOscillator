@@ -53,6 +53,7 @@ object AppDatabaseMigrations {
         MIGRATION_28_29,
         MIGRATION_29_30,
         MIGRATION_30_31,
+        MIGRATION_31_32,
     )
 }
 
@@ -851,6 +852,20 @@ private val MIGRATION_30_31 = object : Migration(30, 31) {
             Timber.d("Migration v30→v31 성공: sector_master/sector_index_candle 일괄 DROP")
         } catch (e: Exception) {
             Timber.e(e, "Migration v30→v31 실패")
+            throw e
+        }
+    }
+}
+
+/** Migration v31→v32: added change_rate, price columns to etfs (ETF 일일 등락률/종가) */
+private val MIGRATION_31_32 = object : Migration(31, 32) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL("ALTER TABLE `etfs` ADD COLUMN `change_rate` REAL DEFAULT NULL")
+            db.execSQL("ALTER TABLE `etfs` ADD COLUMN `price` INTEGER DEFAULT NULL")
+            Timber.d("Migration v31→v32 성공: etfs에 change_rate/price 컬럼 추가")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v31→v32 실패")
             throw e
         }
     }

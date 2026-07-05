@@ -108,7 +108,7 @@ internal object BackupImporter {
             val dao = db.etfDao()
 
             val etfEntities = backup.etfs.map {
-                EtfEntity(it.ticker, it.name, it.isinCode, it.indexName, it.totalFee, it.updatedAt)
+                EtfEntity(it.ticker, it.name, it.isinCode, it.indexName, it.totalFee, updatedAt = it.updatedAt)
             }
             val holdingEntities = backup.holdings.map {
                 EtfHoldingEntity(it.etfTicker, it.stockTicker, it.date, it.stockName, it.weight, it.shares, it.amount)

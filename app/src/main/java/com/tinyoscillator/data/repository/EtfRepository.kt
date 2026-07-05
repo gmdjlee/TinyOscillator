@@ -75,6 +75,13 @@ class EtfRepository(
             }
             Timber.d("전체 ETF 수: ${allEtfs.size}")
 
+            // ETF 일일 등락률/종가 (부차적 — 실패해도 진행)
+            val priceMap = krxApiClient.getEtfPrice(latestDate).getOrElse { e ->
+                Timber.w(e, "ETF 시세 조회 실패 — 등락률 없이 진행")
+                emptyList()
+            }.associateBy { it.ticker }
+            delay(500) // Rate limit
+
             // Apply keyword filter (순서: 1.액티브 ETF 기본 수집 → 2.제외 키워드 → 3.포함 키워드)
             val step1Active = allEtfs.filter { it.name.contains("액티브") }
             Timber.d("1단계 액티브 ETF: ${step1Active.size}개")
@@ -100,7 +107,9 @@ class EtfRepository(
                     name = etf.name,
                     isinCode = etf.isinCode,
                     indexName = etf.indexName,
-                    totalFee = etf.totalFee
+                    totalFee = etf.totalFee,
+                    changeRate = priceMap[etf.ticker]?.changeRate,
+                    price = priceMap[etf.ticker]?.close
                 )
             }
             etfDao.insertEtfs(etfEntities)

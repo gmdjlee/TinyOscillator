@@ -2,6 +2,7 @@ package com.tinyoscillator.data.repository
 
 import com.krxkt.model.EtfInfo
 import com.krxkt.model.EtfPortfolio
+import com.krxkt.model.EtfPrice
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.EtfDatePair
@@ -44,6 +45,8 @@ class EtfRepositoryTest {
         Dispatchers.setMain(testDispatcher)
         etfDao = mockk(relaxed = true)
         krxApiClient = mockk(relaxed = true)
+        // 등락률/종가 시세는 부차적 — 기본은 빈 결과로 stub (updateData 흐름 유지)
+        coEvery { krxApiClient.getEtfPrice(any()) } returns Result.success(emptyList())
         repository = EtfRepository(etfDao, krxApiClient)
     }
 
@@ -522,6 +525,59 @@ class EtfRepositoryTest {
         coVerify { etfDao.insertEtfs(capture(insertSlot)) }
         assertEquals(1, insertSlot.captured.size)
         assertEquals("ETF001", insertSlot.captured[0].ticker)
+    }
+
+    @Test
+    fun `updateData - getEtfPrice의 등락률과 종가가 저장되는 EtfEntity에 반영된다`() = runTest {
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        coEvery { krxApiClient.getEtfTickerList(any()) } returns Result.success(listOf(
+            EtfInfo("ETF001", "KODEX 반도체 액티브", "KR7001", null, null, null, null, 0.15)
+        ))
+        coEvery { krxApiClient.getEtfPrice(any()) } returns Result.success(listOf(
+            EtfPrice(
+                ticker = "ETF001",
+                name = "KODEX 반도체 액티브",
+                nav = null,
+                open = 10_000,
+                high = 10_500,
+                low = 9_900,
+                close = 10_200,
+                volume = 12_345,
+                tradingValue = 100_000_000,
+                underlyingIndex = null,
+                changeRate = 2.35
+            )
+        ))
+        coEvery { etfDao.getExistingHoldingPairs() } returns emptyList()
+        coEvery { krxApiClient.getPortfolio(any(), any()) } returns Result.success(emptyList())
+
+        repository.updateData(testCreds, emptyKeywords, daysBack = 7).toList()
+
+        val insertSlot = slot<List<EtfEntity>>()
+        coVerify { etfDao.insertEtfs(capture(insertSlot)) }
+        assertEquals(1, insertSlot.captured.size)
+        assertEquals("ETF001", insertSlot.captured[0].ticker)
+        assertEquals(2.35, insertSlot.captured[0].changeRate!!, 0.001)
+        assertEquals(10_200L, insertSlot.captured[0].price)
+    }
+
+    @Test
+    fun `updateData - getEtfPrice 실패해도 등락률 null로 진행하고 Success를 반환한다`() = runTest {
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        coEvery { krxApiClient.getEtfTickerList(any()) } returns Result.success(listOf(
+            EtfInfo("ETF001", "KODEX 반도체 액티브", "KR7001", null, null, null, null, 0.15)
+        ))
+        coEvery { krxApiClient.getEtfPrice(any()) } returns Result.failure(RuntimeException("시세 오류"))
+        coEvery { etfDao.getExistingHoldingPairs() } returns emptyList()
+        coEvery { krxApiClient.getPortfolio(any(), any()) } returns Result.success(emptyList())
+
+        val emissions = repository.updateData(testCreds, emptyKeywords, daysBack = 7).toList()
+
+        assertTrue("시세 조회 실패에도 Success로 완료되어야 한다", emissions.last() is EtfDataProgress.Success)
+        val insertSlot = slot<List<EtfEntity>>()
+        coVerify { etfDao.insertEtfs(capture(insertSlot)) }
+        assertNull(insertSlot.captured[0].changeRate)
+        assertNull(insertSlot.captured[0].price)
     }
 
     // ==========================================================

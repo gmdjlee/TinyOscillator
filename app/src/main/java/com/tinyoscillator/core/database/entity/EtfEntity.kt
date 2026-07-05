@@ -22,6 +22,12 @@ data class EtfEntity(
     @ColumnInfo(name = "total_fee")
     val totalFee: Double? = null,
 
+    @ColumnInfo(name = "change_rate")
+    val changeRate: Double? = null,
+
+    @ColumnInfo(name = "price")
+    val price: Long? = null,
+
     @ColumnInfo(name = "updated_at")
     val updatedAt: Long = System.currentTimeMillis()
 )

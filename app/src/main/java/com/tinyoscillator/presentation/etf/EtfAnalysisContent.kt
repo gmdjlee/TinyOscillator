@@ -20,6 +20,8 @@ import com.tinyoscillator.core.ui.composable.NeedDataCollectionContent
 import com.tinyoscillator.core.ui.composable.NoSearchResultContent
 import com.tinyoscillator.presentation.common.CategoryBadge
 import com.tinyoscillator.presentation.common.KrxCredentialDialog
+import com.tinyoscillator.ui.theme.Negative
+import com.tinyoscillator.ui.theme.Positive
 
 @Composable
 fun EtfAnalysisContent(
@@ -29,6 +31,8 @@ fun EtfAnalysisContent(
 ) {
     val etfList by viewModel.etfList.collectAsStateWithLifecycle()
     val needsCredentials by viewModel.needsCredentials.collectAsStateWithLifecycle()
+    val includeKeywords by viewModel.includeKeywords.collectAsStateWithLifecycle()
+    val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
 
     var searchQuery by remember { mutableStateOf("") }
 
@@ -64,6 +68,26 @@ fun EtfAnalysisContent(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         )
 
+        // 정렬 토글 (이름순 / 수익률순)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FilterChip(
+                selected = sortMode == EtfSortMode.NAME,
+                onClick = { viewModel.setSortMode(EtfSortMode.NAME) },
+                label = { Text("이름순") }
+            )
+            FilterChip(
+                selected = sortMode == EtfSortMode.RETURN,
+                onClick = { viewModel.setSortMode(EtfSortMode.RETURN) },
+                label = { Text("수익률순") }
+            )
+        }
+
         // ETF List
         if (filteredList.isEmpty()) {
             if (etfList.isEmpty()) {
@@ -80,6 +104,7 @@ fun EtfAnalysisContent(
                 items(filteredList, key = { it.ticker }) { etf ->
                     EtfListItem(
                         etf = etf,
+                        includeKeywords = includeKeywords,
                         onClick = { onEtfClick(etf.ticker) }
                     )
                 }
@@ -88,11 +113,17 @@ fun EtfAnalysisContent(
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun EtfListItem(
     etf: EtfEntity,
+    includeKeywords: List<String>,
     onClick: () -> Unit
 ) {
+    // 이 ETF명에 매칭된 include 키워드 (배지로 구분 표시)
+    val matched = remember(etf.name, includeKeywords) {
+        includeKeywords.filter { etf.name.contains(it) }
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -129,13 +160,40 @@ private fun EtfListItem(
                         CategoryBadge(text = indexName)
                     }
                 }
+                // 매칭된 include 키워드 배지
+                if (matched.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        matched.forEach { keyword ->
+                            CategoryBadge(
+                                text = keyword,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
             }
-            etf.totalFee?.let { fee ->
-                Text(
-                    "%.2f%%".format(fee),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column(horizontalAlignment = Alignment.End) {
+                // 일일 등락률 (한국 컨벤션: 상승=red, 하락=blue)
+                etf.changeRate?.let { rate ->
+                    val color = if (rate >= 0) Positive else Negative
+                    Text(
+                        "%+.2f%%".format(rate),
+                        color = color,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    )
+                }
+                etf.totalFee?.let { fee ->
+                    Text(
+                        "%.2f%%".format(fee),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
