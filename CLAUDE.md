@@ -26,8 +26,8 @@ app/src/main/java/com/tinyoscillator/
   core/    api|config|database|di|network|scraper|util|worker
   data/    dto|engine|mapper|repository
   domain/  model|repository|usecase
-  presentation/  ai|chart|consensus|demark|etf|financial|fundamental|
-                 market|marketanalysis|portfolio|report|settings|theme|viewmodel
+  presentation/  ai|chart|consensus|demark|etf|financial|fundamental|market|
+                 marketanalysis|portfolio|quickanalysis|report|settings|theme|viewmodel
   ui/theme/                 # Material3 theme
 app/src/test/               # 164 test files (~1,420 tests)
 app/src/androidTest/        # Compose UI smoke tests

@@ -132,11 +132,25 @@ fun AppNavigation() {
         )
     }
 
+    // 하단 탭 선택 상태 — 퀵 분석 시트의 "전체 보기" 딥링크가 종목분석 탭으로 전환할 수 있도록 호이스팅
+    var selectedNav by rememberSaveable { mutableStateOf(BottomNavItem.MARKET_ANALYSIS) }
+
+    // 퀵 분석 → 종목분석 탭 딥링크: 분석 실행 + 탭 전환 + main으로 복귀
+    val openFullAnalysis: (String, String) -> Unit = { ticker, stockName ->
+        val range = viewModel.selectedRange.value
+        viewModel.analyze(ticker, stockName, range.analysisDays, range.displayDays)
+        selectedNav = BottomNavItem.STOCK_ANALYSIS
+        navController.popBackStack("main", inclusive = false)
+    }
+
     NavHost(navController = navController, startDestination = "main") {
         composable("main") {
             MainScaffold(
                 viewModel = viewModel,
                 windowType = windowType,
+                selectedNav = selectedNav,
+                onNavSelected = { selectedNav = it },
+                onOpenFullAnalysis = openFullAnalysis,
                 onSettingsClick = { navController.navigate("settings") },
                 onEtfDetailClick = { ticker -> navController.navigate("etf_detail/$ticker") },
                 onStockClick = { stockTicker -> navController.navigate("stock_aggregated/$stockTicker") },
@@ -165,7 +179,8 @@ fun AppNavigation() {
                 onBack = { navController.popBackStack() },
                 onStockTrendClick = { etfTicker, stockTicker ->
                     navController.navigate("stock_trend/$etfTicker/$stockTicker")
-                }
+                },
+                onOpenFullAnalysis = openFullAnalysis
             )
         }
         composable("stock_trend/{etfTicker}/{stockTicker}") {
@@ -199,6 +214,9 @@ fun AppNavigation() {
 private fun MainScaffold(
     viewModel: OscillatorViewModel,
     windowType: WindowType = WindowType.COMPACT,
+    selectedNav: BottomNavItem,
+    onNavSelected: (BottomNavItem) -> Unit,
+    onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
     onSettingsClick: () -> Unit,
     onEtfDetailClick: (String) -> Unit,
     onStockClick: (String) -> Unit = {},
@@ -207,8 +225,6 @@ private fun MainScaffold(
     onHeatmapClick: () -> Unit = {},
     onThemeClick: (String, String) -> Unit = { _, _ -> }
 ) {
-    var selectedNav by rememberSaveable { mutableStateOf(BottomNavItem.MARKET_ANALYSIS) }
-
     val screenContent: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier = modifier) {
             when (selectedNav) {
@@ -230,13 +246,15 @@ private fun MainScaffold(
                         onEtfDetailClick = onEtfDetailClick,
                         onStockClick = onStockClick,
                         onStockTrendClick = onStockTrendClick,
+                        onOpenFullAnalysis = onOpenFullAnalysis,
                         windowType = windowType
                     )
                 }
                 BottomNavItem.REPORT -> {
                     ReportScreen(
                         onSettingsClick = onSettingsClick,
-                        onReportClick = onReportDetailClick
+                        onReportClick = onReportDetailClick,
+                        onOpenFullAnalysis = onOpenFullAnalysis
                     )
                 }
                 BottomNavItem.AI_ANALYSIS -> {
@@ -272,7 +290,7 @@ private fun MainScaffold(
                     BottomNavItem.entries.forEach { item ->
                         NavigationBarItem(
                             selected = selectedNav == item,
-                            onClick = { selectedNav = item },
+                            onClick = { onNavSelected(item) },
                             icon = {
                                 Icon(
                                     item.icon,
@@ -312,7 +330,7 @@ private fun MainScaffold(
                 BottomNavItem.entries.forEach { item ->
                     NavigationRailItem(
                         selected = selectedNav == item,
-                        onClick = { selectedNav = item },
+                        onClick = { onNavSelected(item) },
                         icon = {
                             Icon(
                                 item.icon,

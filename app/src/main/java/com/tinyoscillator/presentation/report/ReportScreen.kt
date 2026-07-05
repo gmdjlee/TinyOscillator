@@ -33,6 +33,7 @@ import com.tinyoscillator.domain.model.ConsensusFilter
 import com.tinyoscillator.domain.model.ConsensusFilterOptions
 import com.tinyoscillator.domain.model.ConsensusReport
 import com.tinyoscillator.core.ui.composable.NeedDataCollectionContent
+import com.tinyoscillator.presentation.quickanalysis.StockQuickAnalysisSheet
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -45,6 +46,7 @@ import java.util.Locale
 fun ReportScreen(
     onSettingsClick: () -> Unit,
     onReportClick: (ConsensusReport) -> Unit = {},
+    onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
     viewModel: ReportViewModel = hiltViewModel()
 ) {
     val pagedReports by viewModel.pagedReports.collectAsStateWithLifecycle()
@@ -64,6 +66,20 @@ fun ReportScreen(
 
     val hasActiveFilter = filter.dateRange != null || filter.opinion != null ||
         filter.institution != null || filter.stockName != null
+
+    // 퀵 분석 바텀시트 대상 종목 (ticker to name) — 종목명 셀 탭으로 오픈
+    var quickAnalysisStock by remember { mutableStateOf<Pair<String, String>?>(null) }
+    quickAnalysisStock?.let { (stockTicker, stockName) ->
+        StockQuickAnalysisSheet(
+            ticker = stockTicker,
+            stockName = stockName,
+            onDismiss = { quickAnalysisStock = null },
+            onOpenFullAnalysis = { t, n ->
+                quickAnalysisStock = null
+                onOpenFullAnalysis(t, n)
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -111,6 +127,7 @@ fun ReportScreen(
                     filterOptions = filterOptions,
                     onFilterChanged = { viewModel.updateFilter(it) },
                     onReportClick = onReportClick,
+                    onQuickAnalysisClick = { quickAnalysisStock = it.stockTicker to it.stockName },
                     onPageSizeChanged = { viewModel.setPageSize(it) }
                 )
                 NeedDataCollectionContent()
@@ -121,6 +138,7 @@ fun ReportScreen(
                     filterOptions = filterOptions,
                     onFilterChanged = { viewModel.updateFilter(it) },
                     onReportClick = onReportClick,
+                    onQuickAnalysisClick = { quickAnalysisStock = it.stockTicker to it.stockName },
                     onPageSizeChanged = { viewModel.setPageSize(it) },
                     modifier = Modifier.weight(1f)
                 )
@@ -160,6 +178,7 @@ private fun ReportTable(
     filterOptions: ConsensusFilterOptions,
     onFilterChanged: (ConsensusFilter) -> Unit,
     onReportClick: (ConsensusReport) -> Unit = {},
+    onQuickAnalysisClick: (ConsensusReport) -> Unit = {},
     onPageSizeChanged: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -235,7 +254,20 @@ private fun ReportTable(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             DataCell(formatShortDate(report.writeDate), Modifier.weight(ColWeights.DATE))
-                            DataCell(report.stockName, Modifier.weight(ColWeights.NAME))
+                            // 종목명 셀 탭 → 퀵 분석 시트 (행 탭 = 리포트 상세와 구분)
+                            Box(
+                                modifier = Modifier
+                                    .weight(ColWeights.NAME)
+                                    .fillMaxHeight()
+                                    .clickable { onQuickAnalysisClick(report) },
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                DataCell(
+                                    report.stockName,
+                                    Modifier,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                             DataCell(report.title, Modifier.weight(ColWeights.TITLE), maxLines = 2)
                             DataCell(report.opinion, Modifier.weight(ColWeights.OPINION))
                             DataCell(
@@ -678,13 +710,14 @@ private fun DataCell(
     text: String,
     modifier: Modifier,
     textAlign: TextAlign = TextAlign.Start,
-    maxLines: Int = 1
+    maxLines: Int = 1,
+    color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface
 ) {
     Text(
         text = text,
         modifier = modifier.padding(horizontal = 2.dp),
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface,
+        color = color,
         textAlign = textAlign,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis

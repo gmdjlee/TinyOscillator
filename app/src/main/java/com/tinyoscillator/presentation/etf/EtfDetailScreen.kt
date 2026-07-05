@@ -6,7 +6,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material3.*
+import com.tinyoscillator.presentation.quickanalysis.StockQuickAnalysisSheet
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -103,6 +105,7 @@ fun EtfDetailScreen(
     ticker: String,
     onBack: () -> Unit,
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
+    onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
     viewModel: EtfDetailViewModel = hiltViewModel()
 ) {
     val etf by viewModel.etf.collectAsStateWithLifecycle()
@@ -122,6 +125,7 @@ fun EtfDetailScreen(
         EtfDetailContent(
             ticker = ticker,
             onStockTrendClick = onStockTrendClick,
+            onOpenFullAnalysis = onOpenFullAnalysis,
             modifier = Modifier.padding(padding),
             viewModel = viewModel
         )
@@ -132,11 +136,26 @@ fun EtfDetailScreen(
 fun EtfDetailContent(
     ticker: String,
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
+    onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     viewModel: EtfDetailViewModel = hiltViewModel()
 ) {
     LaunchedEffect(ticker) {
         viewModel.loadForTicker(ticker)
+    }
+
+    // 퀵 분석 바텀시트 대상 종목 (ticker to name)
+    var quickAnalysisStock by remember { mutableStateOf<Pair<String, String>?>(null) }
+    quickAnalysisStock?.let { (stockTicker, stockName) ->
+        StockQuickAnalysisSheet(
+            ticker = stockTicker,
+            stockName = stockName,
+            onDismiss = { quickAnalysisStock = null },
+            onOpenFullAnalysis = { t, n ->
+                quickAnalysisStock = null
+                onOpenFullAnalysis(t, n)
+            }
+        )
     }
 
     val etf by viewModel.etf.collectAsStateWithLifecycle()
@@ -237,7 +256,10 @@ fun EtfDetailContent(
                         holding = holding,
                         change = holdingChanges[holding.stockTicker],
                         numberFormat = numberFormat,
-                        onClick = { onStockTrendClick(ticker, holding.stockTicker) }
+                        onClick = { onStockTrendClick(ticker, holding.stockTicker) },
+                        onQuickAnalysisClick = {
+                            quickAnalysisStock = holding.stockTicker to holding.stockName
+                        }
                     )
                 }
             }
@@ -250,7 +272,8 @@ private fun HoldingItem(
     holding: EtfHoldingEntity,
     change: HoldingChange?,
     numberFormat: NumberFormat,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    onQuickAnalysisClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -291,6 +314,19 @@ private fun HoldingItem(
                 "${numberFormat.format(holding.amount)}원",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(
+            onClick = onQuickAnalysisClick,
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .size(32.dp)
+        ) {
+            Icon(
+                Icons.Default.QueryStats,
+                contentDescription = "퀵 분석",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
             )
         }
     }
