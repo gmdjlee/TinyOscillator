@@ -17,6 +17,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.data.repository.EtfRepository
+import com.tinyoscillator.ui.theme.Negative
+import com.tinyoscillator.ui.theme.Positive
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +51,10 @@ class EtfDetailViewModel @Inject constructor(
     private val _selectedDate = MutableStateFlow<String?>(null)
     val selectedDate: StateFlow<String?> = _selectedDate.asStateFlow()
 
+    /** stockTicker → 직전 스냅샷 대비 변화 배지 (직전 데이터 없으면 빈 맵) */
+    private val _holdingChanges = MutableStateFlow<Map<String, HoldingChange>>(emptyMap())
+    val holdingChanges: StateFlow<Map<String, HoldingChange>> = _holdingChanges.asStateFlow()
+
     init {
         if (currentTicker.isNotEmpty()) loadData()
     }
@@ -66,7 +72,7 @@ class EtfDetailViewModel @Inject constructor(
             val latestDate = etfRepository.getLatestDate()
             if (latestDate != null) {
                 _selectedDate.value = latestDate
-                _holdings.value = etfRepository.getHoldings(currentTicker, latestDate)
+                loadHoldings(latestDate)
             }
         }
     }
@@ -74,7 +80,19 @@ class EtfDetailViewModel @Inject constructor(
     fun selectDate(date: String) {
         _selectedDate.value = date
         viewModelScope.launch {
-            _holdings.value = etfRepository.getHoldings(currentTicker, date)
+            loadHoldings(date)
+        }
+    }
+
+    private suspend fun loadHoldings(date: String) {
+        val holdings = etfRepository.getHoldings(currentTicker, date)
+        _holdings.value = holdings
+        // 직전 스냅샷과 비교하여 신규/비중증가/비중감소 배지 계산 (첫 스냅샷이면 배지 없음)
+        val prevDate = etfRepository.getPreviousDate(currentTicker, date)
+        _holdingChanges.value = if (prevDate != null) {
+            computeHoldingChanges(holdings, etfRepository.getHoldings(currentTicker, prevDate))
+        } else {
+            emptyMap()
         }
     }
 }
@@ -125,6 +143,7 @@ fun EtfDetailContent(
     val holdings by viewModel.holdings.collectAsStateWithLifecycle()
     val dates by viewModel.dates.collectAsStateWithLifecycle()
     val selectedDate by viewModel.selectedDate.collectAsStateWithLifecycle()
+    val holdingChanges by viewModel.holdingChanges.collectAsStateWithLifecycle()
 
     var showDatePicker by remember { mutableStateOf(false) }
     val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
@@ -216,6 +235,7 @@ fun EtfDetailContent(
                 items(holdings, key = { "${it.etfTicker}_${it.stockTicker}_${it.date}" }) { holding ->
                     HoldingItem(
                         holding = holding,
+                        change = holdingChanges[holding.stockTicker],
                         numberFormat = numberFormat,
                         onClick = { onStockTrendClick(ticker, holding.stockTicker) }
                     )
@@ -228,6 +248,7 @@ fun EtfDetailContent(
 @Composable
 private fun HoldingItem(
     holding: EtfHoldingEntity,
+    change: HoldingChange?,
     numberFormat: NumberFormat,
     onClick: () -> Unit = {}
 ) {
@@ -240,10 +261,18 @@ private fun HoldingItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                holding.stockName,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    holding.stockName,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                change?.let {
+                    HoldingChangeBadge(
+                        change = it,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
+                }
+            }
             Text(
                 holding.stockTicker,
                 style = MaterialTheme.typography.bodySmall,
@@ -264,6 +293,32 @@ private fun HoldingItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+/** 직전 스냅샷 대비 변화 배지 — 신규(primary) / 비중↑(상승 red) / 비중↓(하락 blue) */
+@Composable
+private fun HoldingChangeBadge(
+    change: HoldingChange,
+    modifier: Modifier = Modifier
+) {
+    val (label, color) = when (change) {
+        HoldingChange.NEW -> "신규" to MaterialTheme.colorScheme.primary
+        HoldingChange.INCREASED -> "비중↑" to Positive
+        HoldingChange.DECREASED -> "비중↓" to Negative
+    }
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.extraSmall,
+        color = color.copy(alpha = 0.12f)
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 

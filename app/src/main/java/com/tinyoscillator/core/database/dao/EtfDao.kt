@@ -114,6 +114,10 @@ interface EtfDao {
     @Query("SELECT DISTINCT date FROM etf_holdings ORDER BY date DESC")
     suspend fun getAllDates(): List<String>
 
+    /** 특정 ETF의 기준 날짜 직전 스냅샷 날짜 조회 (신규/비중변화 배지 비교용) */
+    @Query("SELECT MAX(date) FROM etf_holdings WHERE etf_ticker = :etfTicker AND date < :date")
+    suspend fun getPreviousDate(etfTicker: String, date: String): String?
+
     @Query("""
         SELECT stock_ticker, stock_name,
                SUM(amount) AS totalAmount,

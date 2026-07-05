@@ -45,6 +45,9 @@ class EtfRepository(
 
     suspend fun getAllDates(): List<String> = etfDao.getAllDates()
 
+    suspend fun getPreviousDate(etfTicker: String, date: String): String? =
+        etfDao.getPreviousDate(etfTicker, date)
+
     fun updateData(
         creds: KrxCredentials,
         keywords: EtfKeywordFilter,
