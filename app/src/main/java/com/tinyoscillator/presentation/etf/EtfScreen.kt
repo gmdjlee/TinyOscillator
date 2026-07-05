@@ -113,6 +113,7 @@ fun EtfScreen(
                 EtfTab.STATS -> {
                     EtfStatsContent(
                         onStockClick = onStockClick,
+                        onOpenFullAnalysis = onOpenFullAnalysis,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

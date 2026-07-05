@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,6 +23,7 @@ fun StockChangeTab(
     changes: List<StockChange>,
     changeType: ChangeType,
     onStockClick: (String) -> Unit = {},
+    onQuickAnalysisClick: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     if (changes.isEmpty()) {
@@ -51,7 +54,7 @@ fun StockChangeTab(
         }
 
         items(changes, key = { "${it.etfTicker}|${it.stockTicker}" }) { change ->
-            StockChangeCard(change, changeType, numberFormat, onStockClick)
+            StockChangeCard(change, changeType, numberFormat, onStockClick, onQuickAnalysisClick)
         }
     }
 }
@@ -61,7 +64,8 @@ private fun StockChangeCard(
     change: StockChange,
     changeType: ChangeType,
     numberFormat: NumberFormat,
-    onStockClick: (String) -> Unit
+    onStockClick: (String) -> Unit,
+    onQuickAnalysisClick: (String, String) -> Unit = { _, _ -> }
 ) {
     val badgeColor = when (changeType) {
         ChangeType.NEW -> MaterialTheme.colorScheme.primary
@@ -125,6 +129,19 @@ private fun StockChangeCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = badgeColor,
                         fontWeight = FontWeight.Bold
+                    )
+                }
+                IconButton(
+                    onClick = { onQuickAnalysisClick(change.stockTicker, change.stockName) },
+                    modifier = Modifier
+                        .padding(start = 4.dp)
+                        .size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.QueryStats,
+                        contentDescription = "퀵 분석",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }

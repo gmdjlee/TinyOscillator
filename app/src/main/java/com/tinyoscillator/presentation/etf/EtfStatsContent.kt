@@ -14,6 +14,7 @@ import com.tinyoscillator.presentation.etf.stats.AmountRankingTab
 import com.tinyoscillator.presentation.etf.stats.CashDepositTab
 import com.tinyoscillator.presentation.etf.stats.StockAnalysisTab
 import com.tinyoscillator.presentation.etf.stats.StockChangeTab
+import com.tinyoscillator.presentation.quickanalysis.StockQuickAnalysisSheet
 
 private enum class StatsTab(val label: String) {
     AMOUNT_RANKING("금액 순위"),
@@ -28,6 +29,7 @@ private enum class StatsTab(val label: String) {
 @Composable
 fun EtfStatsContent(
     onStockClick: (String) -> Unit = {},
+    onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     viewModel: EtfStatsViewModel = hiltViewModel()
 ) {
@@ -58,6 +60,23 @@ fun EtfStatsContent(
     val selectedComparisonWeek by viewModel.selectedComparisonWeek.collectAsStateWithLifecycle()
 
     var selectedStatsTab by rememberSaveable { mutableStateOf(StatsTab.AMOUNT_RANKING) }
+
+    // 퀵 분석 바텀시트 대상 종목 (ticker to name) — 하위 탭 공용 호스트
+    var quickAnalysisStock by remember { mutableStateOf<Pair<String, String>?>(null) }
+    quickAnalysisStock?.let { (stockTicker, stockName) ->
+        StockQuickAnalysisSheet(
+            ticker = stockTicker,
+            stockName = stockName,
+            onDismiss = { quickAnalysisStock = null },
+            onOpenFullAnalysis = { t, n ->
+                quickAnalysisStock = null
+                onOpenFullAnalysis(t, n)
+            }
+        )
+    }
+    val onQuickAnalysisClick = { ticker: String, name: String ->
+        quickAnalysisStock = ticker to name
+    }
 
     Column(modifier = modifier) {
         // Date selector row
@@ -114,30 +133,35 @@ fun EtfStatsContent(
                     onSectorFilter = { viewModel.setSectorFilter(it) },
                     onWeightTrendFilter = { viewModel.setWeightTrendFilter(it) },
                     onStockClick = onStockClick,
+                    onQuickAnalysisClick = onQuickAnalysisClick,
                     modifier = Modifier.fillMaxSize()
                 )
                 StatsTab.NEW -> StockChangeTab(
                     changes = newStocks,
                     changeType = ChangeType.NEW,
                     onStockClick = onStockClick,
+                    onQuickAnalysisClick = onQuickAnalysisClick,
                     modifier = Modifier.fillMaxSize()
                 )
                 StatsTab.REMOVED -> StockChangeTab(
                     changes = removedStocks,
                     changeType = ChangeType.REMOVED,
                     onStockClick = onStockClick,
+                    onQuickAnalysisClick = onQuickAnalysisClick,
                     modifier = Modifier.fillMaxSize()
                 )
                 StatsTab.INCREASED -> StockChangeTab(
                     changes = increasedStocks,
                     changeType = ChangeType.INCREASED,
                     onStockClick = onStockClick,
+                    onQuickAnalysisClick = onQuickAnalysisClick,
                     modifier = Modifier.fillMaxSize()
                 )
                 StatsTab.DECREASED -> StockChangeTab(
                     changes = decreasedStocks,
                     changeType = ChangeType.DECREASED,
                     onStockClick = onStockClick,
+                    onQuickAnalysisClick = onQuickAnalysisClick,
                     modifier = Modifier.fillMaxSize()
                 )
                 StatsTab.CASH_DEPOSIT -> CashDepositTab(
@@ -153,6 +177,7 @@ fun EtfStatsContent(
                     onSearch = { viewModel.searchStock(it) },
                     onSelectStock = { viewModel.analyzeStock(it) },
                     onStockClick = onStockClick,
+                    onQuickAnalysisClick = onQuickAnalysisClick,
                     modifier = Modifier.fillMaxSize()
                 )
             }

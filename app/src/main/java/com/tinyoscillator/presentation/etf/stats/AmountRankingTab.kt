@@ -88,6 +88,7 @@ fun AmountRankingTab(
     onSectorFilter: (String?) -> Unit,
     onWeightTrendFilter: (WeightTrend?) -> Unit,
     onStockClick: (String) -> Unit = {},
+    onQuickAnalysisClick: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     // 다중 정렬: 클릭 순서대로 우선순위 부여, 3-state 순환 (중립→DESC→ASC→중립)
@@ -346,10 +347,13 @@ fun AmountRankingTab(
                     )
                     MarketLabel(item.market, colModifier(useWeightLayout, ColWeights.MARKET, CompactWidths.MARKET))
                     SectorLabel(item.sector, colModifier(useWeightLayout, ColWeights.SECTOR, CompactWidths.SECTOR))
+                    // 종목명 셀 탭 → 퀵 분석 시트 (행 탭 = ETF 집계 상세와 구분)
                     Text(
                         item.stockName,
-                        modifier = colModifier(useWeightLayout, ColWeights.STOCK_NAME, CompactWidths.STOCK_NAME),
+                        modifier = colModifier(useWeightLayout, ColWeights.STOCK_NAME, CompactWidths.STOCK_NAME)
+                            .clickable { onQuickAnalysisClick(item.stockTicker, item.stockName) },
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
