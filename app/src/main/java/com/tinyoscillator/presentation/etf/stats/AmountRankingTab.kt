@@ -18,11 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.domain.model.AmountRankingItem
 import com.tinyoscillator.domain.model.WeightTrend
+import com.tinyoscillator.ui.theme.Negative
+import com.tinyoscillator.ui.theme.Positive
 
 private enum class SortColumn { AMOUNT, ETF_COUNT, MAX_WEIGHT, AVG_WEIGHT, NEW, INCREASED, DECREASED, REMOVED }
 private enum class SortOrder { ASC, DESC }
@@ -129,6 +130,8 @@ fun AmountRankingTab(
     // BoxWithConstraints로 실제 가용 폭 측정 (NavigationRail 등 제외)
     BoxWithConstraints(modifier = modifier) {
         val useWeightLayout = maxWidth >= WEIGHT_LAYOUT_THRESHOLD
+        // Compact 모드: 헤더와 모든 행이 하나의 ScrollState를 공유해야 컬럼이 정렬됨
+        val horizontalScrollState = rememberScrollState()
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -285,7 +288,7 @@ fun AmountRankingTab(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .then(if (!useWeightLayout) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
+                            .then(if (!useWeightLayout) Modifier.horizontalScroll(horizontalScrollState) else Modifier)
                             .padding(vertical = 8.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -334,7 +337,7 @@ fun AmountRankingTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onStockClick(item.stockTicker) }
-                        .then(if (!useWeightLayout) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
+                        .then(if (!useWeightLayout) Modifier.horizontalScroll(horizontalScrollState) else Modifier)
                         .padding(vertical = 6.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -442,10 +445,10 @@ private fun WeightCell(
             WeightTrend.NONE -> ""
         }
         val trendColor = when (trend) {
-            WeightTrend.UP -> Color.Red
-            WeightTrend.DOWN -> Color.Blue
-            WeightTrend.FLAT -> Color.Black
-            WeightTrend.NONE -> Color.Black
+            WeightTrend.UP -> Positive
+            WeightTrend.DOWN -> Negative
+            WeightTrend.FLAT -> MaterialTheme.colorScheme.onSurface
+            WeightTrend.NONE -> MaterialTheme.colorScheme.onSurface
         }
         Text(
             "${"%.2f".format(maxWeight)}%$trendSymbol",
