@@ -56,6 +56,7 @@ import com.tinyoscillator.presentation.market.MarketDepositTab
 import com.tinyoscillator.presentation.market.MarketDepositViewModel
 import com.tinyoscillator.presentation.market.MarketOscillatorTab
 import com.tinyoscillator.presentation.market.MarketOscillatorViewModel
+import com.tinyoscillator.presentation.theme.ThemeViewModel
 import com.tinyoscillator.ui.theme.LocalThemeModeState
 
 private enum class MarketAnalysisTab(val label: String) {
@@ -76,6 +77,7 @@ fun MarketAnalysisScreen(
     val demarkViewModel: MarketDemarkViewModel = hiltViewModel()
     val oscillatorViewModel: MarketOscillatorViewModel = hiltViewModel()
     val depositViewModel: MarketDepositViewModel = hiltViewModel()
+    val themeViewModel: ThemeViewModel = hiltViewModel()
     var selectedTab by rememberSaveable { mutableStateOf(MarketAnalysisTab.FEAR_GREED) }
     val themeModeState = LocalThemeModeState.current
 
@@ -143,7 +145,12 @@ fun MarketAnalysisScreen(
             }
 
             when (selectedTab) {
-                MarketAnalysisTab.FEAR_GREED -> FearGreedTab(viewModel = fearGreedViewModel)
+                MarketAnalysisTab.FEAR_GREED -> FearGreedTab(
+                    viewModel = fearGreedViewModel,
+                    oscillatorViewModel = oscillatorViewModel,
+                    depositViewModel = depositViewModel,
+                    themeViewModel = themeViewModel
+                )
                 MarketAnalysisTab.DEMARK -> MarketDemarkTab(viewModel = demarkViewModel)
                 MarketAnalysisTab.OSCILLATOR -> MarketOscillatorTab(viewModel = oscillatorViewModel)
                 MarketAnalysisTab.DEPOSIT -> MarketDepositTab(viewModel = depositViewModel)
@@ -156,11 +163,19 @@ fun MarketAnalysisScreen(
 // ===== Fear & Greed Tab =====
 
 @Composable
-private fun FearGreedTab(viewModel: FearGreedViewModel) {
+private fun FearGreedTab(
+    viewModel: FearGreedViewModel,
+    oscillatorViewModel: MarketOscillatorViewModel,
+    depositViewModel: MarketDepositViewModel,
+    themeViewModel: ThemeViewModel
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val selectedMarket by viewModel.selectedMarket.collectAsStateWithLifecycle()
     val selectedRange by viewModel.selectedRange.collectAsStateWithLifecycle()
     val summary by viewModel.summary.collectAsStateWithLifecycle()
+    val oscillatorData by oscillatorViewModel.marketData.collectAsStateWithLifecycle()
+    val depositData by depositViewModel.depositData.collectAsStateWithLifecycle()
+    val themes by themeViewModel.themes.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -169,6 +184,14 @@ private fun FearGreedTab(viewModel: FearGreedViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // 오늘의 시장 요약 (기존 수집 데이터 재사용)
+        MarketSummaryCard(
+            fearGreedSummary = summary,
+            latestOscillator = oscillatorData.firstOrNull(),
+            depositChange = depositData.depositChanges.lastOrNull(),
+            topThemes = themes.sortedByDescending { it.fluRate }.take(3)
+        )
+
         // 시장 선택
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(
