@@ -101,7 +101,7 @@ class ReportDetailViewModelTest {
         advanceUntilIdle()
 
         val state = vm.uiState.value
-        assertFalse(state.isLoading)
+        assertTrue(state.headerLoaded)
         assertNull(state.error)
         assertEquals(report, state.report)
         assertEquals("삼성전자", state.report?.stockName)
@@ -113,7 +113,7 @@ class ReportDetailViewModelTest {
         advanceUntilIdle()
 
         val state = vm.uiState.value
-        assertFalse(state.isLoading)
+        assertFalse(state.headerLoaded)
         assertNotNull(state.error)
     }
 
@@ -123,7 +123,7 @@ class ReportDetailViewModelTest {
         advanceUntilIdle()
 
         val state = vm.uiState.value
-        assertFalse(state.isLoading)
+        assertFalse(state.headerLoaded)
         assertNotNull(state.error)
     }
 

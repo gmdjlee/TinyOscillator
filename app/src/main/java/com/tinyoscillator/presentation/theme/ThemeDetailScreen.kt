@@ -23,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +48,7 @@ fun ThemeDetailScreen(
     onStockClick: (stockCode: String) -> Unit = {},
 ) {
     val stocks by viewModel.stocks.collectAsStateWithLifecycle()
+    val selected by viewModel.selected.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -54,11 +56,11 @@ fun ThemeDetailScreen(
                 title = {
                     Column {
                         Text(
-                            viewModel.themeName.ifBlank { "테마 상세" },
+                            selected.name.ifBlank { "테마 상세" },
                             style = MaterialTheme.typography.titleMedium,
                         )
                         Text(
-                            "코드 ${viewModel.themeCode}",
+                            "코드 ${selected.code}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -72,33 +74,83 @@ fun ThemeDetailScreen(
             )
         }
     ) { padding ->
-        Column(
+        ThemeDetailContent(
+            stocks = stocks,
+            onStockClick = onStockClick,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-        ) {
-            HeaderCard(
-                stocks = stocks,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+        )
+    }
+}
 
-            if (stocks.isEmpty()) {
-                EmptyView(modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp))
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(stocks, key = { it.stockCode }) { stock ->
-                        StockCard(
-                            stock = stock,
-                            onClick = { onStockClick(stock.stockCode) }
-                        )
-                    }
+/**
+ * 탐색 탭 2-Pane 우측 패널용 테마 상세 — 자체 ViewModel을 갖고
+ * [ThemeDetailViewModel.selectTheme]으로 목록 선택을 따라간다.
+ */
+@Composable
+fun ThemeDetailPane(
+    themeCode: String,
+    themeName: String,
+    onStockClick: (stockCode: String) -> Unit = {},
+    modifier: Modifier = Modifier,
+    viewModel: ThemeDetailViewModel = hiltViewModel(),
+) {
+    LaunchedEffect(themeCode, themeName) {
+        viewModel.selectTheme(themeCode, themeName)
+    }
+    val stocks by viewModel.stocks.collectAsStateWithLifecycle()
+
+    Column(modifier = modifier) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text(
+                themeName.ifBlank { "테마 상세" },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                "코드 $themeCode",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ThemeDetailContent(
+            stocks = stocks,
+            onStockClick = onStockClick,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+/** 테마 구성 종목 본문 — 전체 화면([ThemeDetailScreen])과 2-Pane 패널이 공유 */
+@Composable
+fun ThemeDetailContent(
+    stocks: List<ThemeStock>,
+    onStockClick: (stockCode: String) -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        HeaderCard(
+            stocks = stocks,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+
+        if (stocks.isEmpty()) {
+            EmptyView(modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp))
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(stocks, key = { it.stockCode }) { stock ->
+                    StockCard(
+                        stock = stock,
+                        onClick = { onStockClick(stock.stockCode) }
+                    )
                 }
             }
         }

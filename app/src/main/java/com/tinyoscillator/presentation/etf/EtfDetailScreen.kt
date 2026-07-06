@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material3.*
 import com.tinyoscillator.presentation.quickanalysis.StockQuickAnalysisSheet
 import androidx.compose.runtime.*
@@ -292,9 +291,12 @@ private fun HoldingItem(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // 종목명 셀 탭 = 퀵 분석 (금액순위·리포트와 동일 규칙, primary 색으로 어포던스 표시)
                 Text(
                     holding.stockName,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onQuickAnalysisClick)
                 )
                 change?.let {
                     HoldingChangeBadge(
@@ -321,19 +323,6 @@ private fun HoldingItem(
                 "${numberFormat.format(holding.amount)}원",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        IconButton(
-            onClick = onQuickAnalysisClick,
-            modifier = Modifier
-                .padding(start = 4.dp)
-                .size(32.dp)
-        ) {
-            Icon(
-                Icons.Default.QueryStats,
-                contentDescription = "퀵 분석",
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.primary
             )
         }
     }

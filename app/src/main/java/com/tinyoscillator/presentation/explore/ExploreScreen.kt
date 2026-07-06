@@ -31,6 +31,7 @@ import com.tinyoscillator.presentation.etf.EtfAnalysisContent
 import com.tinyoscillator.presentation.etf.EtfDetailContent
 import com.tinyoscillator.presentation.etf.EtfStatsContent
 import com.tinyoscillator.presentation.report.ReportContent
+import com.tinyoscillator.presentation.theme.ThemeDetailPane
 import com.tinyoscillator.presentation.theme.ThemeListContent
 import com.tinyoscillator.ui.theme.LocalThemeModeState
 
@@ -60,6 +61,8 @@ fun ExploreScreen(
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(ExploreTab.ETF_LIST) }
     var selectedEtfTicker by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedThemeCode by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedThemeName by rememberSaveable { mutableStateOf("") }
     val themeModeState = LocalThemeModeState.current
     val isTwoPane = windowType != WindowType.COMPACT
 
@@ -147,10 +150,53 @@ fun ExploreScreen(
                     )
                 }
                 ExploreTab.THEME -> {
-                    ThemeListContent(
-                        onThemeClick = onThemeClick,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (isTwoPane) {
+                        TwoPaneLayout(
+                            windowType = windowType,
+                            listPane = {
+                                ThemeListContent(
+                                    onThemeClick = { code, name ->
+                                        selectedThemeCode = code
+                                        selectedThemeName = name
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            },
+                            detailPane = {
+                                val code = selectedThemeCode
+                                if (code != null) {
+                                    ThemeDetailPane(
+                                        themeCode = code,
+                                        themeName = selectedThemeName,
+                                        onStockClick = onStockClick,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "테마를 선택해주세요.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            },
+                            singlePane = {
+                                ThemeListContent(
+                                    onThemeClick = onThemeClick,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        )
+                    } else {
+                        ThemeListContent(
+                            onThemeClick = onThemeClick,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
                 ExploreTab.REPORT -> {
                     ReportContent(

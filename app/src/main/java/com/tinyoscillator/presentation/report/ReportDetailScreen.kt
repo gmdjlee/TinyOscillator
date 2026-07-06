@@ -29,11 +29,10 @@ import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.presentation.chart.OscillatorChart
 import com.tinyoscillator.ui.theme.LocalFinanceColors
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.text.NumberFormat
@@ -41,16 +40,23 @@ import java.time.LocalDate
 import java.util.Locale
 import javax.inject.Inject
 
+/**
+ * 5개 소스(리포트·가격·차트·재무·ETF)를 섹션별로 점진 렌더 — all-or-nothing
+ * 단일 로딩 대신 각 소스 도착 즉시 해당 섹션만 갱신한다.
+ */
 data class ReportDetailUiState(
-    val isLoading: Boolean = true,
     val report: ConsensusReport? = null,
     val currentPrice: Int = 0,
     val marketCap: Long = 0,
     val divergenceRate: Double = 0.0,
+    val headerLoaded: Boolean = false,
     val chartData: ChartData? = null,
+    val chartLoaded: Boolean = false,
     val financialSummary: FinancialSummary? = null,
     val latestStability: StabilityRatios? = null,
+    val financialLoaded: Boolean = false,
     val etfHoldings: List<StockInEtfRow> = emptyList(),
+    val etfLoaded: Boolean = false,
     val error: String? = null
 ) {
     val etfHoldingCount: Int get() = etfHoldings.size
@@ -79,67 +85,79 @@ class ReportDetailViewModel @Inject constructor(
         if (ticker.isNotEmpty() && writeDate.isNotEmpty()) {
             loadData()
         } else {
-            _uiState.value = ReportDetailUiState(isLoading = false, error = "종목 정보가 없습니다.")
+            _uiState.value = ReportDetailUiState(error = "종목 정보가 없습니다.")
         }
     }
 
     private fun loadData() {
+        // 헤더/가격 (로컬 DB — 즉시 도착)
         viewModelScope.launch {
-            _uiState.value = ReportDetailUiState(isLoading = true)
-            try {
-                coroutineScope {
-                    val reportDeferred = async { loadReport() }
-                    val priceDeferred = async { loadPriceData() }
-                    val chartDeferred = async { loadChartData() }
-                    val financialDeferred = async { loadFinancialSummary() }
-                    val etfDeferred = async { loadEtfHoldings() }
+            val report = loadReport()
+            val (cachedPrice, cachedMarketCap) = loadPriceData()
 
-                    val report = reportDeferred.await()
-                    val (cachedPrice, cachedMarketCap) = priceDeferred.await()
-                    val chartData = chartDeferred.await()
-                    val (financialSummary, latestStability) = financialDeferred.await()
-                    val etfHoldings = etfDeferred.await()
+            // 캐시 가격 우선, 없으면 리포트의 현재가 사용
+            val currentPrice = if (cachedPrice > 0) cachedPrice
+                else report?.currentPrice?.toInt() ?: 0
+            val targetPrice = report?.targetPrice ?: 0L
+            val divergenceRate = if (currentPrice > 0 && targetPrice > 0) {
+                (targetPrice - currentPrice).toDouble() / currentPrice * 100.0
+            } else {
+                report?.divergenceRate ?: 0.0
+            }
 
-                    // 캐시 가격 우선, 없으면 리포트의 현재가 사용
-                    val currentPrice = if (cachedPrice > 0) cachedPrice
-                        else report?.currentPrice?.toInt() ?: 0
-                    val targetPrice = report?.targetPrice ?: 0L
-                    val divergenceRate = if (currentPrice > 0 && targetPrice > 0) {
-                        (targetPrice - currentPrice).toDouble() / currentPrice * 100.0
-                    } else {
-                        report?.divergenceRate ?: 0.0
-                    }
-
-                    // 시가총액: 캐시 → 차트 데이터(최신 오실레이터 행)
-                    val marketCap = if (cachedMarketCap > 0) cachedMarketCap
-                        else chartData?.rows?.lastOrNull()?.marketCap ?: 0L
-
-                    _uiState.value = ReportDetailUiState(
-                        isLoading = false,
-                        report = report,
-                        currentPrice = currentPrice,
-                        marketCap = marketCap,
-                        divergenceRate = divergenceRate,
-                        chartData = chartData,
-                        financialSummary = financialSummary,
-                        latestStability = latestStability,
-                        etfHoldings = etfHoldings
-                    )
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                Timber.e(e, "리포트 상세 로딩 실패: $ticker")
-                _uiState.value = ReportDetailUiState(
-                    isLoading = false,
-                    error = "데이터 로딩 실패: ${e.message}"
+            _uiState.update {
+                it.copy(
+                    report = report,
+                    currentPrice = currentPrice,
+                    divergenceRate = divergenceRate,
+                    // 시가총액 우선순위: 캐시 > 차트 (차트가 먼저 채웠어도 캐시가 이김)
+                    marketCap = if (cachedMarketCap > 0) cachedMarketCap else it.marketCap,
+                    headerLoaded = true
                 )
             }
+        }
+
+        // 수급오실레이터 차트 (Kiwoom API — 최대 수십 초)
+        viewModelScope.launch {
+            val chartData = loadChartData()
+            _uiState.update {
+                it.copy(
+                    chartData = chartData,
+                    chartLoaded = true,
+                    marketCap = if (it.marketCap > 0) it.marketCap
+                        else chartData?.rows?.lastOrNull()?.marketCap ?: 0L
+                )
+            }
+        }
+
+        // 재무 요약 (KIS API/캐시)
+        viewModelScope.launch {
+            val (financialSummary, latestStability) = loadFinancialSummary()
+            _uiState.update {
+                it.copy(
+                    financialSummary = financialSummary,
+                    latestStability = latestStability,
+                    financialLoaded = true
+                )
+            }
+        }
+
+        // ETF 보유 (로컬 DB)
+        viewModelScope.launch {
+            val etfHoldings = loadEtfHoldings()
+            _uiState.update { it.copy(etfHoldings = etfHoldings, etfLoaded = true) }
         }
     }
 
     private suspend fun loadReport(): ConsensusReport? {
-        val reports = consensusRepository.getReportsByTicker(ticker)
-        return reports.find { it.writeDate == writeDate } ?: reports.firstOrNull()
+        return try {
+            val reports = consensusRepository.getReportsByTicker(ticker)
+            reports.find { it.writeDate == writeDate } ?: reports.firstOrNull()
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Timber.w(e, "리포트 로딩 실패: $ticker")
+            null
+        }
     }
 
     private suspend fun loadPriceData(): Pair<Int, Long> {
@@ -250,18 +268,6 @@ fun ReportDetailScreen(
             )
         }
     ) { padding ->
-        if (state.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-            return@Scaffold
-        }
-
         state.error?.let { errorMessage ->
             Box(
                 modifier = Modifier
@@ -285,52 +291,63 @@ fun ReportDetailScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 리포트 헤더
-            state.report?.let { report ->
-                item {
-                    ReportHeaderCard(report)
+            // 리포트 헤더 + 가격 정보 (로컬 DB — 가장 먼저 도착)
+            if (!state.headerLoaded) {
+                item { SectionLoadingCard("리포트 정보 로딩 중...") }
+            } else {
+                state.report?.let { report ->
+                    item {
+                        ReportHeaderCard(report)
+                    }
                 }
-            }
-
-            // 가격 정보
-            item {
-                PriceInfoCard(
-                    currentPrice = state.currentPrice,
-                    targetPrice = state.report?.targetPrice ?: 0L,
-                    divergenceRate = state.divergenceRate,
-                    marketCap = state.marketCap,
-                    numberFormat = numberFormat,
-                    financeColors = financeColors
-                )
+                item {
+                    PriceInfoCard(
+                        currentPrice = state.currentPrice,
+                        targetPrice = state.report?.targetPrice ?: 0L,
+                        divergenceRate = state.divergenceRate,
+                        marketCap = state.marketCap,
+                        numberFormat = numberFormat,
+                        financeColors = financeColors
+                    )
+                }
             }
 
             // 수급오실레이터 차트
             item {
                 SectionTitle("수급오실레이터")
                 val chartData = state.chartData
-                if (chartData != null) {
-                    OscillatorChart(
+                when {
+                    !state.chartLoaded -> SectionLoadingCard("수급 데이터 수집 중...")
+                    chartData != null -> OscillatorChart(
                         chartData = chartData,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(280.dp)
                     )
-                } else {
-                    EmptyDataCard("오실레이터 데이터가 없습니다.")
+                    else -> EmptyDataCard("오실레이터 데이터가 없습니다.")
                 }
             }
 
             // 수익성/안정성 요약
             item {
-                FinancialSummarySection(
-                    summary = state.financialSummary,
-                    latestStability = state.latestStability
-                )
+                if (!state.financialLoaded) {
+                    SectionTitle("수익성 / 안정성")
+                    SectionLoadingCard("재무 데이터 로딩 중...")
+                } else {
+                    FinancialSummarySection(
+                        summary = state.financialSummary,
+                        latestStability = state.latestStability
+                    )
+                }
             }
 
             // ETF 보유
             item {
-                EtfHoldingSection(holdings = state.etfHoldings)
+                if (!state.etfLoaded) {
+                    SectionLoadingCard("ETF 보유 조회 중...")
+                } else {
+                    EtfHoldingSection(holdings = state.etfHoldings)
+                }
             }
 
             // 하단 여백
@@ -620,6 +637,33 @@ private fun EtfHoldingSection(holdings: List<StockInEtfRow>) {
                     }
                 }
             }
+        }
+    }
+}
+
+/** 섹션 단위 로딩 표시 — 소스별 점진 렌더에서 미도착 섹션에 사용 */
+@Composable
+private fun SectionLoadingCard(message: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp)
+            )
         }
     }
 }
