@@ -2,6 +2,7 @@ package com.tinyoscillator.presentation.portfolio
 
 import android.app.Application
 import com.tinyoscillator.core.config.ApiConfigProvider
+import com.tinyoscillator.core.database.dao.AnalysisSnapshotDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.database.entity.StockMasterEntity
@@ -30,6 +31,7 @@ class PortfolioViewModelTest {
     private lateinit var portfolioRepository: PortfolioRepository
     private lateinit var stockMasterDao: StockMasterDao
     private lateinit var apiConfigProvider: ApiConfigProvider
+    private lateinit var analysisSnapshotDao: AnalysisSnapshotDao
     private lateinit var viewModel: PortfolioViewModel
 
     private val testDispatcher = StandardTestDispatcher()
@@ -44,6 +46,8 @@ class PortfolioViewModelTest {
         portfolioRepository = mockk(relaxed = true)
         stockMasterDao = mockk(relaxed = true)
         apiConfigProvider = mockk(relaxed = true)
+        analysisSnapshotDao = mockk(relaxed = true)
+        every { analysisSnapshotDao.getLatestByTickers(any()) } returns flowOf(emptyList())
 
         // Default repository behavior
         coEvery { portfolioRepository.ensureDefaultPortfolio() } returns 1L
@@ -57,7 +61,7 @@ class PortfolioViewModelTest {
     }
 
     private fun createViewModel(): PortfolioViewModel {
-        return PortfolioViewModel(application, portfolioRepository, stockMasterDao, apiConfigProvider)
+        return PortfolioViewModel(application, portfolioRepository, stockMasterDao, apiConfigProvider, analysisSnapshotDao)
     }
 
     @Test

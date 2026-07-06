@@ -262,7 +262,9 @@ private fun MainScaffold(
                 }
                 BottomNavItem.PORTFOLIO -> {
                     PortfolioScreen(
-                        onSettingsClick = onSettingsClick
+                        onSettingsClick = onSettingsClick,
+                        onOpenFullAnalysis = onOpenFullAnalysis,
+                        onOpenProbabilityAnalysis = onOpenProbabilityAnalysis
                     )
                 }
             }

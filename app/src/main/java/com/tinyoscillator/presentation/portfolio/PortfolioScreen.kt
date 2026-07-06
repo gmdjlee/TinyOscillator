@@ -17,7 +17,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortfolioScreen(
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
+    onOpenProbabilityAnalysis: (String, String) -> Unit = { _, _ -> }
 ) {
     val viewModel: PortfolioViewModel = hiltViewModel()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
@@ -56,6 +58,8 @@ fun PortfolioScreen(
     ) { padding ->
         PortfolioContent(
             viewModel = viewModel,
+            onOpenFullAnalysis = onOpenFullAnalysis,
+            onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)

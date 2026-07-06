@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tinyoscillator.core.config.ApiConfigProvider
+import com.tinyoscillator.core.database.dao.AnalysisSnapshotDao
 import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.entity.PortfolioEntity
 import com.tinyoscillator.core.util.KoreanUtils
@@ -19,9 +20,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -32,7 +35,8 @@ class PortfolioViewModel @Inject constructor(
     application: Application,
     private val portfolioRepository: PortfolioRepository,
     private val stockMasterDao: StockMasterDao,
-    private val apiConfigProvider: ApiConfigProvider
+    private val apiConfigProvider: ApiConfigProvider,
+    private val analysisSnapshotDao: AnalysisSnapshotDao
 ) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow<PortfolioUiState>(PortfolioUiState.Idle)
@@ -63,6 +67,18 @@ class PortfolioViewModel @Inject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // 보유종목별 최신 분석 스냅샷 앙상블 확률 (ProbabilityBatchWorker 05:00 배치 결과 재사용)
+    @Suppress("OPT_IN_USAGE")
+    val snapshotScores: StateFlow<Map<String, Double>> = uiState
+        .map { state -> (state as? PortfolioUiState.Success)?.holdings?.map { it.ticker }.orEmpty() }
+        .distinctUntilChanged()
+        .flatMapLatest { tickers ->
+            if (tickers.isEmpty()) flowOf(emptyMap())
+            else analysisSnapshotDao.getLatestByTickers(tickers)
+                .map { list -> list.associate { it.ticker to it.ensembleScore } }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     // Transaction detail
     private val _selectedHoldingId = MutableStateFlow<Long?>(null)

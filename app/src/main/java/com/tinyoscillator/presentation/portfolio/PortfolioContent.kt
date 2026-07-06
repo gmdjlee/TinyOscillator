@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +23,7 @@ import com.tinyoscillator.domain.model.PortfolioHoldingItem
 import com.tinyoscillator.domain.model.PortfolioSummary
 import com.tinyoscillator.domain.model.PortfolioUiState
 import com.tinyoscillator.domain.model.TransactionItem
+import com.tinyoscillator.presentation.quickanalysis.StockQuickAnalysisSheet
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -33,9 +35,12 @@ private val lossColor = Color(0xFF1976D2) // Blue for loss (Korean convention)
 @Composable
 fun PortfolioContent(
     viewModel: PortfolioViewModel,
+    onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
+    onOpenProbabilityAnalysis: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snapshotScores by viewModel.snapshotScores.collectAsStateWithLifecycle()
     val selectedHoldingId by viewModel.selectedHoldingId.collectAsStateWithLifecycle()
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val selectedHoldingName by viewModel.selectedHoldingName.collectAsStateWithLifecycle()
@@ -49,6 +54,7 @@ fun PortfolioContent(
     var editTargetHolding by remember { mutableStateOf<PortfolioHoldingItem?>(null) }
     var showEditTransactionDialog by remember { mutableStateOf(false) }
     var editTargetTransaction by remember { mutableStateOf<TransactionItem?>(null) }
+    var quickAnalysisStock by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     Box(modifier = modifier) {
         when (val state = uiState) {
@@ -133,7 +139,11 @@ fun PortfolioContent(
                         item {
                             HoldingsTable(
                                 holdings = state.holdings,
-                                onHoldingClick = { holding ->
+                                snapshotScores = snapshotScores,
+                                onRowClick = { holding ->
+                                    quickAnalysisStock = holding.ticker to holding.stockName
+                                },
+                                onHistoryClick = { holding ->
                                     viewModel.selectHolding(
                                         holding.holdingId,
                                         holding.stockName,
@@ -185,6 +195,23 @@ fun PortfolioContent(
             onConfirm = { ticker, stockName, market, sector, shares, price, date, memo, targetPrice ->
                 viewModel.addHolding(ticker, stockName, market, sector, shares, price, date, memo, targetPrice)
                 showAddDialog = false
+            }
+        )
+    }
+
+    // Quick Analysis Sheet (행 탭 진입)
+    quickAnalysisStock?.let { (stockTicker, stockName) ->
+        StockQuickAnalysisSheet(
+            ticker = stockTicker,
+            stockName = stockName,
+            onDismiss = { quickAnalysisStock = null },
+            onOpenFullAnalysis = { t, n ->
+                quickAnalysisStock = null
+                onOpenFullAnalysis(t, n)
+            },
+            onOpenProbabilityAnalysis = { t, n ->
+                quickAnalysisStock = null
+                onOpenProbabilityAnalysis(t, n)
             }
         )
     }
@@ -440,32 +467,40 @@ private fun SummaryCard(summary: PortfolioSummary) {
 @Composable
 private fun HoldingsTable(
     holdings: List<PortfolioHoldingItem>,
-    onHoldingClick: (PortfolioHoldingItem) -> Unit
+    snapshotScores: Map<String, Double>,
+    onRowClick: (PortfolioHoldingItem) -> Unit,
+    onHistoryClick: (PortfolioHoldingItem) -> Unit
 ) {
+    // 헤더/행이 공유하는 단일 스크롤 상태 — 행 끝 거래내역 버튼은 스크롤 밖에 고정
     val scrollState = rememberScrollState()
 
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .horizontalScroll(scrollState)
-                .padding(8.dp)
-        ) {
+        Column(modifier = Modifier.padding(8.dp)) {
             // Header
-            Row(modifier = Modifier.padding(vertical = 4.dp)) {
-                TableCell("종목명", 100.dp, fontWeight = FontWeight.Bold)
-                TableCell("시장", 60.dp, fontWeight = FontWeight.Bold)
-                TableCell("업종", 80.dp, fontWeight = FontWeight.Bold)
-                TableCell("보유수", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("평균매입가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("현재가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("목표가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("비중%", 60.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("초과", 40.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                TableCell("조절주식", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("조절금액", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("수익률%", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("수익금", 100.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("실현손익", 100.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(scrollState)
+                        .padding(vertical = 4.dp)
+                ) {
+                    TableCell("종목명", 100.dp, fontWeight = FontWeight.Bold)
+                    TableCell("신호", 52.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    TableCell("시장", 60.dp, fontWeight = FontWeight.Bold)
+                    TableCell("업종", 80.dp, fontWeight = FontWeight.Bold)
+                    TableCell("보유수", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    TableCell("평균매입가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    TableCell("현재가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    TableCell("목표가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    TableCell("비중%", 60.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    TableCell("초과", 40.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    TableCell("조절주식", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    TableCell("조절금액", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    TableCell("수익률%", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    TableCell("수익금", 100.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    TableCell("실현손익", 100.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                }
+                TableCell("거래", 44.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
             HorizontalDivider()
 
@@ -478,11 +513,32 @@ private fun HoldingsTable(
                 }
 
                 Row(
-                    modifier = Modifier
-                        .clickable { onHoldingClick(holding) }
-                        .padding(vertical = 6.dp)
+                    modifier = Modifier.clickable { onRowClick(holding) },
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .horizontalScroll(scrollState)
+                            .padding(vertical = 6.dp)
+                    ) {
                     TableCell(holding.stockName, 100.dp, maxLines = 1)
+                    val score = snapshotScores[holding.ticker]
+                    TableCell(
+                        score?.let { "${(it * 100).toInt()}%" } ?: "-",
+                        52.dp,
+                        textAlign = TextAlign.Center,
+                        color = score?.let {
+                            when {
+                                it >= 0.65 -> gainColor
+                                it <= 0.35 -> lossColor
+                                else -> null
+                            }
+                        },
+                        fontWeight = score?.let {
+                            if (it >= 0.65 || it <= 0.35) FontWeight.Bold else null
+                        }
+                    )
                     TableCell(holding.market, 60.dp)
                     TableCell(holding.sector, 80.dp, maxLines = 1)
                     TableCell(krwFormat.format(holding.totalShares), 70.dp, textAlign = TextAlign.End)
@@ -547,6 +603,18 @@ private fun HoldingsTable(
                         textAlign = TextAlign.End,
                         color = rlColor
                     )
+                    }
+                    IconButton(
+                        onClick = { onHistoryClick(holding) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.History,
+                            contentDescription = "${holding.stockName} 거래내역",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
             }
