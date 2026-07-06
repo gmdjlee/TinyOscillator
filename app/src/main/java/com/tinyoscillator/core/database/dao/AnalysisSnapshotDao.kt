@@ -20,7 +20,7 @@ interface AnalysisSnapshotDao {
     suspend fun getRecentByTicker(ticker: String, limit: Int = 10): List<AnalysisSnapshotEntity>
 
     /** 티커별 최신 스냅샷 일괄 조회 — 포트폴리오 행 신호 배지용. id는 insert 순 증가라 MAX(id)=최신. */
-    @Query("SELECT * FROM analysis_snapshots WHERE id IN (SELECT MAX(id) FROM analysis_snapshots WHERE ticker IN (:tickers) GROUP BY ticker)")
+    @Query("SELECT * FROM analysis_snapshots WHERE id IN (SELECT MAX(id) FROM analysis_snapshots WHERE ticker IN (:tickers) GROUP BY ticker) ORDER BY ticker")
     fun getLatestByTickers(tickers: List<String>): Flow<List<AnalysisSnapshotEntity>>
 
     @Query("SELECT * FROM analysis_snapshots WHERE id = :id")

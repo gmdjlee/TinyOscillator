@@ -16,6 +16,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,8 +62,13 @@ fun ExploreScreen(
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(ExploreTab.ETF_LIST) }
     var selectedEtfTicker by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedThemeCode by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedThemeName by rememberSaveable { mutableStateOf("") }
+    // 코드/이름 단일 state — 분리 시 중간 recomposition에서 짝이 어긋날 수 있음
+    var selectedTheme by rememberSaveable(
+        stateSaver = listSaver<Pair<String, String>?, String>(
+            save = { if (it == null) emptyList() else listOf(it.first, it.second) },
+            restore = { if (it.isEmpty()) null else it[0] to it[1] }
+        )
+    ) { mutableStateOf<Pair<String, String>?>(null) }
     val themeModeState = LocalThemeModeState.current
     val isTwoPane = windowType != WindowType.COMPACT
 
@@ -155,19 +161,16 @@ fun ExploreScreen(
                             windowType = windowType,
                             listPane = {
                                 ThemeListContent(
-                                    onThemeClick = { code, name ->
-                                        selectedThemeCode = code
-                                        selectedThemeName = name
-                                    },
+                                    onThemeClick = { code, name -> selectedTheme = code to name },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             },
                             detailPane = {
-                                val code = selectedThemeCode
-                                if (code != null) {
+                                val theme = selectedTheme
+                                if (theme != null) {
                                     ThemeDetailPane(
-                                        themeCode = code,
-                                        themeName = selectedThemeName,
+                                        themeCode = theme.first,
+                                        themeName = theme.second,
                                         onStockClick = onStockClick,
                                         modifier = Modifier.fillMaxSize()
                                     )

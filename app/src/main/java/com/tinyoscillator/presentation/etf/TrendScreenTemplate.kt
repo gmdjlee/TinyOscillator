@@ -189,7 +189,7 @@ internal fun TrendScreenTemplate(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        row.forEachIndexed { i, cell ->
+                        row.take(tableColumns.size).forEachIndexed { i, cell ->
                             val col = tableColumns[i]
                             Text(
                                 cell,
