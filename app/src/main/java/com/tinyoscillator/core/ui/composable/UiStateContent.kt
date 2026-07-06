@@ -188,7 +188,7 @@ fun NeedDataCollectionContent(
     onSettingsClick: (() -> Unit)? = null,
 ) {
     EmptyStateContent(
-        message = "설정 > Schedule에서 데이터를 수집해주세요.",
+        message = "설정 > 데이터에서 데이터를 수집해주세요.",
         modifier = modifier,
         action = onSettingsClick?.let {
             {

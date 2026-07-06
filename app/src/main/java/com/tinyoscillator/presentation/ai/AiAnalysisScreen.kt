@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,7 +29,6 @@ import com.tinyoscillator.ui.theme.LocalThemeModeState
 @Composable
 fun AiAnalysisScreen(
     onSettingsClick: () -> Unit,
-    onHeatmapClick: () -> Unit = {},
     pendingProbabilityRequest: Pair<String, String>? = null,
     onPendingProbabilityConsumed: () -> Unit = {},
     marketViewModel: AiMarketAnalysisViewModel = hiltViewModel(),
@@ -82,9 +80,6 @@ fun AiAnalysisScreen(
             TopAppBar(
                 title = { Text("AI 분석") },
                 actions = {
-                    IconButton(onClick = onHeatmapClick) {
-                        Icon(Icons.Default.GridView, contentDescription = "히트맵")
-                    }
                     ThemeToggleIcon(themeModeState)
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "설정")

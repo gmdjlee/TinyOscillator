@@ -13,10 +13,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import com.tinyoscillator.presentation.common.ThemeToggleIcon
-import com.tinyoscillator.ui.theme.LocalThemeModeState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -41,14 +38,14 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** 탐색 탭에 임베드되는 리포트 콘텐츠 (TopAppBar 없음, 건수·필터초기화 인라인) */
 @Composable
-fun ReportScreen(
-    onSettingsClick: () -> Unit,
+fun ReportContent(
     onReportClick: (ConsensusReport) -> Unit = {},
     onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
     onOpenProbabilityAnalysis: (String, String) -> Unit = { _, _ -> },
-    viewModel: ReportViewModel = hiltViewModel()
+    viewModel: ReportViewModel = hiltViewModel(),
+    modifier: Modifier = Modifier
 ) {
     val pagedReports by viewModel.pagedReports.collectAsStateWithLifecycle()
     val filter by viewModel.filter.collectAsStateWithLifecycle()
@@ -57,7 +54,6 @@ fun ReportScreen(
     val totalCount by viewModel.totalCount.collectAsStateWithLifecycle()
     val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
     val totalPages by viewModel.totalPages.collectAsStateWithLifecycle()
-    val themeModeState = LocalThemeModeState.current
 
     // 화면 재진입 시 데이터 새로고침 (수집 후 최신 데이터 반영)
     LifecycleResumeEffect(Unit) {
@@ -86,38 +82,35 @@ fun ReportScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("리포트") },
-                actions = {
-                    if (totalCount > 0) {
-                        Badge(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ) {
-                            Text("$totalCount")
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    if (hasActiveFilter) {
-                        IconButton(onClick = { viewModel.clearFilter() }) {
-                            Icon(Icons.Default.Clear, contentDescription = "필터 초기화")
-                        }
-                    }
-                    ThemeToggleIcon(themeModeState)
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "설정")
+    Column(modifier = modifier.fillMaxSize()) {
+        // 인라인 헤더: 전체 건수 + 활성 필터 초기화
+        if (totalCount > 0 || hasActiveFilter) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "리포트 ${totalCount}건",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (hasActiveFilter) {
+                    TextButton(onClick = { viewModel.clearFilter() }) {
+                        Icon(
+                            Icons.Default.Clear,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("필터 초기화", style = MaterialTheme.typography.labelMedium)
                     }
                 }
-            )
+            }
         }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             if (isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),

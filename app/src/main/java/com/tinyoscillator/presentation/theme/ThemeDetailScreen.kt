@@ -31,6 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.ThemeStock
+import com.tinyoscillator.ui.theme.Negative
+import com.tinyoscillator.ui.theme.Positive
+import com.tinyoscillator.ui.theme.signColor
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -134,12 +137,12 @@ private fun HeaderCard(stocks: List<ThemeStock>, modifier: Modifier = Modifier) 
                 Text(
                     "상승 ${rise}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = Positive,
                 )
                 Text(
                     "하락 ${fall}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = Negative,
                 )
             }
             lastUpdated?.let { ts ->
@@ -241,13 +244,6 @@ private fun EmptyView(modifier: Modifier = Modifier) {
             )
         }
     }
-}
-
-@Composable
-private fun signColor(value: Double): androidx.compose.ui.graphics.Color = when {
-    value > 0 -> MaterialTheme.colorScheme.error
-    value < 0 -> MaterialTheme.colorScheme.primary
-    else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 private fun formatSignedNumber(value: Double): String {

@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.mikephil.charting.data.Entry
+import com.tinyoscillator.core.ui.composable.EmptyStateContent
 import com.tinyoscillator.domain.model.DateRange
 import com.tinyoscillator.presentation.etf.stats.TrendLineChart
 import java.text.NumberFormat
@@ -31,6 +32,7 @@ fun StockTrendScreen(
     val etfName by viewModel.etfName.collectAsStateWithLifecycle()
     val data by viewModel.filteredData.collectAsStateWithLifecycle()
     val selectedRange by viewModel.selectedRange.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val numberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
 
     Scaffold(
@@ -45,12 +47,21 @@ fun StockTrendScreen(
             )
         }
     ) { padding ->
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
         if (data.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("데이터가 없습니다.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                EmptyStateContent(message = "추이 데이터가 없습니다.")
             }
             return@Scaffold
         }

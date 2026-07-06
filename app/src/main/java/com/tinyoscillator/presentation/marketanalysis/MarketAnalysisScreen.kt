@@ -48,6 +48,7 @@ import com.tinyoscillator.core.ui.composable.LastUpdatedText
 import com.tinyoscillator.core.ui.composable.NeedDataCollectionContent
 import com.tinyoscillator.presentation.common.CollectionProgressBar
 import com.tinyoscillator.presentation.common.GlassCard
+import com.tinyoscillator.presentation.common.HeatmapScreen
 import com.tinyoscillator.presentation.common.ScrollablePillTabRow
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
 import com.tinyoscillator.presentation.common.skeleton.MarketAnalysisSkeleton
@@ -61,13 +62,15 @@ private enum class MarketAnalysisTab(val label: String) {
     FEAR_GREED("Fear & Greed"),
     DEMARK("DeMark"),
     OSCILLATOR("과매수/과매도"),
-    DEPOSIT("자금 동향")
+    DEPOSIT("자금 동향"),
+    HEATMAP("히트맵")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketAnalysisScreen(
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onTickerClick: (String) -> Unit = {}
 ) {
     val fearGreedViewModel: FearGreedViewModel = hiltViewModel()
     val demarkViewModel: MarketDemarkViewModel = hiltViewModel()
@@ -128,20 +131,23 @@ fun MarketAnalysisScreen(
                 tabLabel = { it.label }
             )
 
-            // 마지막 갱신 시간
-            val lastUpdated by when (selectedTab) {
-                MarketAnalysisTab.FEAR_GREED -> fearGreedViewModel.lastUpdatedAt
-                MarketAnalysisTab.OSCILLATOR -> oscillatorViewModel.lastUpdatedAt
-                MarketAnalysisTab.DEPOSIT -> depositViewModel.lastUpdatedAt
-                MarketAnalysisTab.DEMARK -> fearGreedViewModel.lastUpdatedAt // DeMark shares Fear&Greed data timing
-            }.collectAsStateWithLifecycle()
-            LastUpdatedText(epochMillis = lastUpdated)
+            // 마지막 갱신 시간 (히트맵은 로컬 분석 이력 기반이라 미표시)
+            if (selectedTab != MarketAnalysisTab.HEATMAP) {
+                val lastUpdated by when (selectedTab) {
+                    MarketAnalysisTab.OSCILLATOR -> oscillatorViewModel.lastUpdatedAt
+                    MarketAnalysisTab.DEPOSIT -> depositViewModel.lastUpdatedAt
+                    // Fear&Greed·DeMark(동일 데이터 타이밍)·기타
+                    else -> fearGreedViewModel.lastUpdatedAt
+                }.collectAsStateWithLifecycle()
+                LastUpdatedText(epochMillis = lastUpdated)
+            }
 
             when (selectedTab) {
                 MarketAnalysisTab.FEAR_GREED -> FearGreedTab(viewModel = fearGreedViewModel)
                 MarketAnalysisTab.DEMARK -> MarketDemarkTab(viewModel = demarkViewModel)
                 MarketAnalysisTab.OSCILLATOR -> MarketOscillatorTab(viewModel = oscillatorViewModel)
                 MarketAnalysisTab.DEPOSIT -> MarketDepositTab(viewModel = depositViewModel)
+                MarketAnalysisTab.HEATMAP -> HeatmapScreen(onTickerClick = onTickerClick)
             }
         }
     }

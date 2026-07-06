@@ -16,18 +16,14 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,16 +36,19 @@ import com.tinyoscillator.domain.model.ThemeGroup
 import com.tinyoscillator.domain.model.ThemeSortMode
 import com.tinyoscillator.core.worker.ThemeUpdateWorker
 import com.tinyoscillator.presentation.common.CollectionProgressBar
+import com.tinyoscillator.ui.theme.Negative
+import com.tinyoscillator.ui.theme.Positive
+import com.tinyoscillator.ui.theme.signColor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** 탐색 탭에 임베드되는 테마 목록 콘텐츠 (TopAppBar 없음, 새로고침 인라인) */
 @Composable
-fun ThemeListScreen(
+fun ThemeListContent(
     viewModel: ThemeViewModel = hiltViewModel(),
     onThemeClick: (themeCode: String, themeName: String) -> Unit = { _, _ -> },
-    onSettingsClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     val themes by viewModel.themes.collectAsStateWithLifecycle()
     val themeCount by viewModel.themeCount.collectAsStateWithLifecycle()
@@ -57,55 +56,39 @@ fun ThemeListScreen(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("테마") },
-                actions = {
-                    IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "테마 갱신")
-                    }
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "설정")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
+    Column(modifier = modifier.fillMaxSize()) {
+        CollectionProgressBar(tag = ThemeUpdateWorker.TAG)
+
+        OutlinedTextField(
+            value = query,
+            onValueChange = viewModel::onQueryChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            placeholder = { Text("테마명 검색") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            singleLine = true,
+        )
+
+        SortChipsRow(
+            selected = sortMode,
+            onSelect = viewModel::onSortModeChange,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            CollectionProgressBar(tag = ThemeUpdateWorker.TAG)
-
-            OutlinedTextField(
-                value = query,
-                onValueChange = viewModel::onQueryChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("테마명 검색") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                singleLine = true,
+            Text(
+                "테마 ${themeCount}개",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-
-            SortChipsRow(
-                selected = sortMode,
-                onSelect = viewModel::onSortModeChange,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    "테마 ${themeCount}개",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 lastUpdatedAt?.let { ts ->
                     Text(
                         "마지막 갱신: ${DATE_FMT.format(Date(ts))}",
@@ -113,23 +96,30 @@ fun ThemeListScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                IconButton(onClick = { viewModel.refresh() }) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "테마 갱신",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
+        }
 
-            if (themes.isEmpty()) {
-                EmptyView(modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp))
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(themes, key = { it.themeCode }) { theme ->
-                        ThemeCard(
-                            theme = theme,
-                            onClick = { onThemeClick(theme.themeCode, theme.themeName) }
-                        )
-                    }
+        if (themes.isEmpty()) {
+            EmptyView(modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp))
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(themes, key = { it.themeCode }) { theme ->
+                    ThemeCard(
+                        theme = theme,
+                        onClick = { onThemeClick(theme.themeCode, theme.themeName) }
+                    )
                 }
             }
         }
@@ -236,12 +226,12 @@ private fun ThemeCard(theme: ThemeGroup, onClick: () -> Unit) {
                 Text(
                     "상승 ${theme.riseCount}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error,
+                    color = Positive,
                 )
                 Text(
                     "하락 ${theme.fallCount}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = Negative,
                 )
             }
             if (theme.mainStocks.isNotBlank()) {
@@ -254,13 +244,6 @@ private fun ThemeCard(theme: ThemeGroup, onClick: () -> Unit) {
             }
         }
     }
-}
-
-@Composable
-private fun signColor(value: Double): androidx.compose.ui.graphics.Color = when {
-    value > 0 -> MaterialTheme.colorScheme.error      // 한국식: 상승=빨강
-    value < 0 -> MaterialTheme.colorScheme.primary    // 하락=파랑
-    else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 private fun formatSignedPercent(value: Double): String {

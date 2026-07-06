@@ -24,6 +24,7 @@ import com.tinyoscillator.domain.model.DateRangeOption
 import com.tinyoscillator.domain.model.MarketDepositChartData
 import com.tinyoscillator.domain.model.MarketDepositState
 import com.tinyoscillator.core.ui.composable.DefaultErrorContent
+import com.tinyoscillator.core.ui.composable.EmptyStateContent
 import com.tinyoscillator.presentation.financial.FinancialMarkerView
 
 @Composable
@@ -85,7 +86,12 @@ fun MarketDepositTab(
                         onRetry = { viewModel.clearMessage() }
                     )
                 }
-                is MarketDepositState.Idle -> {}
+                is MarketDepositState.Idle -> {
+                    // 데이터도 없으면 빈 화면 대신 수집 안내 표시
+                    if (depositData.dates.isEmpty()) {
+                        EmptyStateContent(message = "자금 동향 데이터가 없습니다.\n설정 > 데이터에서 수집해주세요.")
+                    }
+                }
             }
 
             // Main Content

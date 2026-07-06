@@ -92,7 +92,7 @@ private fun rememberCollectionState(workInfos: List<WorkInfo>): CollectionState 
     }
 }
 
-private val TAB_TITLES = listOf("API", "ETF", "수집설정", "Schedule", "로그", "Backup")
+private val TAB_TITLES = listOf("API", "ETF", "데이터", "로그", "Backup")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -403,7 +403,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     }
                 )
-                2 -> CollectionSettingsTab(
+                2 -> DataManagementTab(
                     fearGreedCollectionDays = fearGreedCollectionDays,
                     onFearGreedCollectionDaysChange = { fearGreedCollectionDays = it },
                     etfCollectionDays = etfCollectionDays,
@@ -414,8 +414,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onMarketDepositCollectionDaysChange = { marketDepositCollectionDays = it },
                     consensusCollectionDays = consensusCollectionDays,
                     onConsensusCollectionDaysChange = { consensusCollectionDays = it },
-                    saveMessage = saveMessage,
-                    onSave = {
+                    onCollectionSave = {
                         scope.launch {
                             saveMessage = saveCollectionSettings(
                                 context, etfCollectionDays, marketOscCollectionDays,
@@ -449,9 +448,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     },
                     showResetConfirmDialog = showResetConfirmDialog,
                     onShowResetConfirm = { showResetConfirmDialog = it },
-                    onDismissResetConfirm = { showResetConfirmDialog = null }
-                )
-                3 -> ScheduleTab(
+                    onDismissResetConfirm = { showResetConfirmDialog = null },
                     fgScheduleEnabled = fgScheduleEnabled,
                     onFgScheduleEnabledChange = { fgScheduleEnabled = it },
                     fgScheduleHour = fgScheduleHour,
@@ -547,7 +544,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     }
                 )
-                4 -> {
+                3 -> {
                     val logContext = LocalContext.current
                     LogTab(
                         logs = allLogs,
@@ -571,7 +568,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     )
                 }
-                5 -> BackupTab(db = entryPoint.appDatabase())
+                4 -> BackupTab(db = entryPoint.appDatabase())
             }
         }
     }

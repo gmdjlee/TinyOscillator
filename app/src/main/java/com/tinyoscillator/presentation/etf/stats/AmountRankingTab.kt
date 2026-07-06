@@ -374,9 +374,10 @@ fun AmountRankingTab(
                     )
                     WeightCell(item.maxWeight, item.maxWeightTrend, colModifier(useWeightLayout, ColWeights.MAX_WEIGHT, CompactWidths.MAX_WEIGHT))
                     WeightCell(item.avgWeight, item.avgWeightTrend, colModifier(useWeightLayout, ColWeights.AVG_WEIGHT, CompactWidths.AVG_WEIGHT))
+                    // 색상 규칙: 신규=primary, 증가=Positive, 감소=Negative, 제외=outline (StockChangeTab 배지와 동일)
                     CountBadge(item.newCount, MaterialTheme.colorScheme.primary, colModifier(useWeightLayout, ColWeights.NEW, CompactWidths.NEW))
-                    CountBadge(item.increasedCount, MaterialTheme.colorScheme.tertiary, colModifier(useWeightLayout, ColWeights.INCREASED, CompactWidths.INCREASED))
-                    CountBadge(item.decreasedCount, MaterialTheme.colorScheme.error, colModifier(useWeightLayout, ColWeights.DECREASED, CompactWidths.DECREASED))
+                    CountBadge(item.increasedCount, Positive, colModifier(useWeightLayout, ColWeights.INCREASED, CompactWidths.INCREASED))
+                    CountBadge(item.decreasedCount, Negative, colModifier(useWeightLayout, ColWeights.DECREASED, CompactWidths.DECREASED))
                     CountBadge(item.removedCount, MaterialTheme.colorScheme.outline, colModifier(useWeightLayout, ColWeights.REMOVED, CompactWidths.REMOVED))
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))

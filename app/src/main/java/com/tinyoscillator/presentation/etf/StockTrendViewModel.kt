@@ -38,6 +38,10 @@ class StockTrendViewModel @Inject constructor(
     private val _selectedRange = MutableStateFlow(DateRange.ALL)
     val selectedRange: StateFlow<DateRange> = _selectedRange.asStateFlow()
 
+    // 로딩 중과 "데이터 없음"을 화면에서 구분하기 위한 상태
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     init {
         loadData()
     }
@@ -54,6 +58,8 @@ class StockTrendViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Timber.e(e, "Failed to load stock trend")
+            } finally {
+                _isLoading.value = false
             }
         }
     }

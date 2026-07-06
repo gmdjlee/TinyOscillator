@@ -9,6 +9,8 @@ import android.provider.Settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,10 +39,29 @@ internal fun ScheduleSection(
     message: String?,
     progress: Float? = null,
     isCollecting: Boolean = false,
-    lastResult: WorkerLogEntity? = null
+    lastResult: WorkerLogEntity? = null,
+    // 수집 기간 + 데이터 초기화 (지원 데이터소스만 non-null) — 소스별 설정을 한 카드에 통합
+    collectionDays: Int? = null,
+    onCollectionDaysChange: (Int) -> Unit = {},
+    onCollectionSave: () -> Unit = {},
+    onResetData: (() -> Unit)? = null
 ) {
     Text(title, style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
+    if (collectionDays != null) {
+        CollectionPeriodRow(
+            daysBack = collectionDays,
+            onDaysBackChange = onCollectionDaysChange,
+            onSave = onCollectionSave
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "초기 수집 또는 전체 새로고침 시 수집할 기간입니다.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -113,6 +134,24 @@ internal fun ScheduleSection(
     // 마지막 실행 결과 영구 표시
     lastResult?.let { log ->
         LastResultDisplay(log)
+    }
+
+    onResetData?.let { reset ->
+        Spacer(Modifier.height(4.dp))
+        OutlinedButton(
+            onClick = reset,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.error
+            )
+        ) {
+            Icon(
+                Icons.Default.DeleteOutline,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+            Text("데이터 초기화")
+        }
     }
 }
 
@@ -211,9 +250,25 @@ private fun requestIgnoreBatteryOptimization(context: Context) {
     context.startActivity(intent)
 }
 
+/** 데이터소스별 수집 기간·스케줄·수동 실행·초기화를 하나의 카드로 관리하는 통합 탭 (구 수집설정 + Schedule) */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun ScheduleTab(
+internal fun DataManagementTab(
+    fearGreedCollectionDays: Int,
+    onFearGreedCollectionDaysChange: (Int) -> Unit,
+    etfCollectionDays: Int,
+    onEtfCollectionDaysChange: (Int) -> Unit,
+    marketOscCollectionDays: Int,
+    onMarketOscCollectionDaysChange: (Int) -> Unit,
+    marketDepositCollectionDays: Int,
+    onMarketDepositCollectionDaysChange: (Int) -> Unit,
+    consensusCollectionDays: Int,
+    onConsensusCollectionDaysChange: (Int) -> Unit,
+    onCollectionSave: () -> Unit,
+    onResetData: (String) -> Unit,
+    showResetConfirmDialog: String?,
+    onShowResetConfirm: (String) -> Unit,
+    onDismissResetConfirm: () -> Unit,
     fgScheduleEnabled: Boolean = false,
     onFgScheduleEnabledChange: (Boolean) -> Unit = {},
     fgScheduleHour: Int = 4,
@@ -308,7 +363,7 @@ internal fun ScheduleTab(
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             ScheduleSection(
-                title = "Fear & Greed 자동 업데이트",
+                title = "Fear & Greed",
                 enabled = fgScheduleEnabled,
                 onEnabledChange = onFgScheduleEnabledChange,
                 hour = fgScheduleHour,
@@ -319,13 +374,17 @@ internal fun ScheduleTab(
                 onManualCollect = onFgManualCollect,
                 message = fgManualMessage,
                 isCollecting = isFgCollecting,
-                lastResult = lastFearGreedLog
+                lastResult = lastFearGreedLog,
+                collectionDays = fearGreedCollectionDays,
+                onCollectionDaysChange = onFearGreedCollectionDaysChange,
+                onCollectionSave = onCollectionSave,
+                onResetData = { onShowResetConfirm("feargreed") }
             )
         }
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             ScheduleSection(
-                title = "ETF 자동 업데이트",
+                title = "ETF",
                 enabled = etfScheduleEnabled,
                 onEnabledChange = onEtfScheduleEnabledChange,
                 hour = scheduleHour,
@@ -337,13 +396,17 @@ internal fun ScheduleTab(
                 message = manualCollectMessage,
                 progress = etfCollectProgress,
                 isCollecting = isEtfCollecting,
-                lastResult = lastEtfLog
+                lastResult = lastEtfLog,
+                collectionDays = etfCollectionDays,
+                onCollectionDaysChange = onEtfCollectionDaysChange,
+                onCollectionSave = onCollectionSave,
+                onResetData = { onShowResetConfirm("etf") }
             )
         }
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             ScheduleSection(
-                title = "과매수/과매도 자동 업데이트",
+                title = "과매수/과매도",
                 enabled = oscScheduleEnabled,
                 onEnabledChange = onOscScheduleEnabledChange,
                 hour = oscScheduleHour,
@@ -354,13 +417,17 @@ internal fun ScheduleTab(
                 onManualCollect = onOscManualCollect,
                 message = oscManualMessage,
                 isCollecting = isOscCollecting,
-                lastResult = lastOscLog
+                lastResult = lastOscLog,
+                collectionDays = marketOscCollectionDays,
+                onCollectionDaysChange = onMarketOscCollectionDaysChange,
+                onCollectionSave = onCollectionSave,
+                onResetData = { onShowResetConfirm("oscillator") }
             )
         }
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             ScheduleSection(
-                title = "자금 동향 자동 업데이트",
+                title = "자금 동향",
                 enabled = depositScheduleEnabled,
                 onEnabledChange = onDepositScheduleEnabledChange,
                 hour = depositScheduleHour,
@@ -371,7 +438,11 @@ internal fun ScheduleTab(
                 onManualCollect = onDepositManualCollect,
                 message = depositManualMessage,
                 isCollecting = isDepositCollecting,
-                lastResult = lastDepositLog
+                lastResult = lastDepositLog,
+                collectionDays = marketDepositCollectionDays,
+                onCollectionDaysChange = onMarketDepositCollectionDaysChange,
+                onCollectionSave = onCollectionSave,
+                onResetData = { onShowResetConfirm("deposit") }
             )
         }
 
@@ -401,7 +472,7 @@ internal fun ScheduleTab(
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             ScheduleSection(
-                title = "리포트 자동 업데이트",
+                title = "리포트",
                 enabled = consensusScheduleEnabled,
                 onEnabledChange = onConsensusScheduleEnabledChange,
                 hour = consensusScheduleHour,
@@ -412,7 +483,11 @@ internal fun ScheduleTab(
                 onManualCollect = onConsensusManualCollect,
                 message = consensusManualMessage,
                 isCollecting = isConsensusCollecting,
-                lastResult = lastConsensusLog
+                lastResult = lastConsensusLog,
+                collectionDays = consensusCollectionDays,
+                onCollectionDaysChange = onConsensusCollectionDaysChange,
+                onCollectionSave = onCollectionSave,
+                onResetData = { onShowResetConfirm("consensus") }
             )
         }
 
@@ -508,4 +583,35 @@ internal fun ScheduleTab(
         Spacer(modifier = Modifier.height(32.dp))
     }
 
+    // 데이터 초기화 확인 다이얼로그
+    showResetConfirmDialog?.let { dataType ->
+        val label = when (dataType) {
+            "feargreed" -> "Fear & Greed"
+            "etf" -> "ETF"
+            "oscillator" -> "과매수/과매도"
+            "deposit" -> "자금 동향"
+            "consensus" -> "리포트"
+            else -> dataType
+        }
+        AlertDialog(
+            onDismissRequest = onDismissResetConfirm,
+            title = { Text("$label 데이터 초기화") },
+            text = {
+                Text("$label 데이터를 모두 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.\n다음 수집 시 설정된 기간만큼 다시 수집됩니다.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onResetData(dataType)
+                    onDismissResetConfirm()
+                }) {
+                    Text("삭제", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissResetConfirm) {
+                    Text("취소")
+                }
+            }
+        )
+    }
 }

@@ -70,6 +70,14 @@ private enum class MainTab(val label: String) {
     NAVER_STOCK("네이버증권")
 }
 
+/** 9개 세부 탭을 4개 그룹으로 묶어 최상위 탭 과밀·가로 스크롤 은닉 문제 해소 */
+private enum class TabGroup(val label: String, val tabs: List<MainTab>) {
+    TECHNICAL("기술분석", listOf(MainTab.OSCILLATOR, MainTab.DEMARK)),
+    FINANCIALS("재무", listOf(MainTab.FINANCIAL, MainTab.INDICATOR, MainTab.DUPONT, MainTab.ESTIMATED_EARNINGS)),
+    OPINION("시장의견", listOf(MainTab.CONSENSUS, MainTab.INVEST_OPINION)),
+    NAVER("네이버증권", listOf(MainTab.NAVER_STOCK))
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OscillatorScreen(
@@ -87,7 +95,10 @@ fun OscillatorScreen(
     val selectedCandlePeriod by viewModel.selectedCandlePeriod.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var showHistory by remember { mutableStateOf(false) }
-    var selectedMainTab by remember { mutableStateOf(MainTab.OSCILLATOR) }
+    var selectedGroup by remember { mutableStateOf(TabGroup.TECHNICAL) }
+    // 그룹별 마지막 선택 세부 탭 기억 — 그룹 전환 시 이전 위치 복원
+    val groupSelections = remember { mutableStateMapOf<TabGroup, MainTab>() }
+    val selectedMainTab = groupSelections[selectedGroup] ?: selectedGroup.tabs.first()
 
     // Track current analyzed stock for financial tab
     val currentTicker = remember(uiState) {
@@ -201,13 +212,32 @@ fun OscillatorScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Main Tab Row
+                    // Main Tab Row: 4개 그룹
                     ScrollablePillTabRow(
-                        tabs = MainTab.entries.toList(),
-                        selectedTab = selectedMainTab,
-                        onTabSelected = { selectedMainTab = it },
+                        tabs = TabGroup.entries.toList(),
+                        selectedTab = selectedGroup,
+                        onTabSelected = { selectedGroup = it },
                         tabLabel = { it.label }
                     )
+
+                    // 그룹 내 세부 탭 (단일 탭 그룹은 미표시)
+                    if (selectedGroup.tabs.size > 1) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            selectedGroup.tabs.forEach { tab ->
+                                FilterChip(
+                                    selected = selectedMainTab == tab,
+                                    onClick = { groupSelections[selectedGroup] = tab },
+                                    label = { Text(tab.label, style = MaterialTheme.typography.labelMedium) }
+                                )
+                            }
+                        }
+                    }
 
                     // Tab content
                     Box(modifier = Modifier.fillMaxSize()) {

@@ -11,12 +11,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
@@ -39,17 +37,14 @@ import androidx.navigation.compose.rememberNavController
 import com.tinyoscillator.presentation.common.WindowType
 import com.tinyoscillator.presentation.common.calculateWindowType
 import com.tinyoscillator.presentation.etf.AggregatedStockTrendScreen
-import com.tinyoscillator.presentation.etf.EtfScreen
 import com.tinyoscillator.presentation.etf.StockTrendScreen
 import com.tinyoscillator.domain.model.ConsensusReport
 import com.tinyoscillator.presentation.ai.AiAnalysisScreen
+import com.tinyoscillator.presentation.explore.ExploreScreen
 import com.tinyoscillator.presentation.marketanalysis.MarketAnalysisScreen
 import com.tinyoscillator.presentation.portfolio.PortfolioScreen
-import com.tinyoscillator.presentation.common.HeatmapScreen
 import com.tinyoscillator.presentation.report.ReportDetailScreen
-import com.tinyoscillator.presentation.report.ReportScreen
 import com.tinyoscillator.presentation.theme.ThemeDetailScreen
-import com.tinyoscillator.presentation.theme.ThemeListScreen
 import com.tinyoscillator.presentation.settings.SettingsScreen
 import com.tinyoscillator.presentation.stock.OscillatorScreen
 import com.tinyoscillator.presentation.viewmodel.OscillatorViewModel
@@ -96,10 +91,8 @@ class MainActivity : ComponentActivity() {
 private enum class BottomNavItem(val label: String, val icon: ImageVector) {
     MARKET_ANALYSIS("시장분석", Icons.AutoMirrored.Filled.TrendingUp),
     STOCK_ANALYSIS("종목분석", Icons.AutoMirrored.Filled.ShowChart),
-    ETF_ANALYSIS("ETF분석", Icons.Default.PieChart),
-    REPORT("리포트", Icons.Default.Description),
+    EXPLORE("탐색", Icons.Default.Explore),
     AI_ANALYSIS("AI분석", Icons.Default.Psychology),
-    THEME("테마", Icons.Default.Category),
     PORTFOLIO("포트폴리오", Icons.Default.AccountBalance)
 }
 
@@ -169,7 +162,6 @@ fun AppNavigation() {
                 onReportDetailClick = { report ->
                     navController.navigate("report_detail/${report.stockTicker}/${report.writeDate}")
                 },
-                onHeatmapClick = { navController.navigate("heatmap") },
                 onThemeClick = { code, name ->
                     navController.navigate("theme_detail/$code/$name")
                 }
@@ -212,13 +204,6 @@ fun AppNavigation() {
                 },
             )
         }
-        composable("heatmap") {
-            HeatmapScreen(
-                onTickerClick = { ticker ->
-                    navController.navigate("stock_aggregated/$ticker")
-                }
-            )
-        }
     }
 }
 
@@ -237,7 +222,6 @@ private fun MainScaffold(
     onStockClick: (String) -> Unit = {},
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
     onReportDetailClick: (ConsensusReport) -> Unit = {},
-    onHeatmapClick: () -> Unit = {},
     onThemeClick: (String, String) -> Unit = { _, _ -> }
 ) {
     val screenContent: @Composable (Modifier) -> Unit = { modifier ->
@@ -245,7 +229,8 @@ private fun MainScaffold(
             when (selectedNav) {
                 BottomNavItem.MARKET_ANALYSIS -> {
                     MarketAnalysisScreen(
-                        onSettingsClick = onSettingsClick
+                        onSettingsClick = onSettingsClick,
+                        onTickerClick = onStockClick
                     )
                 }
                 BottomNavItem.STOCK_ANALYSIS -> {
@@ -255,39 +240,24 @@ private fun MainScaffold(
                         windowType = windowType
                     )
                 }
-                BottomNavItem.ETF_ANALYSIS -> {
-                    EtfScreen(
+                BottomNavItem.EXPLORE -> {
+                    ExploreScreen(
                         onSettingsClick = onSettingsClick,
                         onEtfDetailClick = onEtfDetailClick,
                         onStockClick = onStockClick,
                         onStockTrendClick = onStockTrendClick,
                         onOpenFullAnalysis = onOpenFullAnalysis,
                         onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
-                        windowType = windowType
-                    )
-                }
-                BottomNavItem.REPORT -> {
-                    ReportScreen(
-                        onSettingsClick = onSettingsClick,
+                        onThemeClick = onThemeClick,
                         onReportClick = onReportDetailClick,
-                        onOpenFullAnalysis = onOpenFullAnalysis,
-                        onOpenProbabilityAnalysis = onOpenProbabilityAnalysis
+                        windowType = windowType
                     )
                 }
                 BottomNavItem.AI_ANALYSIS -> {
                     AiAnalysisScreen(
                         onSettingsClick = onSettingsClick,
-                        onHeatmapClick = onHeatmapClick,
                         pendingProbabilityRequest = aiProbabilityRequest,
                         onPendingProbabilityConsumed = onAiProbabilityConsumed
-                    )
-                }
-                BottomNavItem.THEME -> {
-                    ThemeListScreen(
-                        onSettingsClick = onSettingsClick,
-                        onThemeClick = { code, name ->
-                            onThemeClick(code, name)
-                        },
                     )
                 }
                 BottomNavItem.PORTFOLIO -> {
@@ -422,7 +392,7 @@ private fun OnboardingDialog(
                     }
                 }
                 Text(
-                    "설정 후 Schedule 탭에서 데이터 수집을 시작하세요.",
+                    "설정 후 데이터 탭에서 데이터 수집을 시작하세요.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
