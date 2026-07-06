@@ -136,8 +136,9 @@ fun StockQuickAnalysisSheet(
     }
 }
 
+/** 종가·수급 오실레이터·DeMark TD 요약 — 퀵분석 시트와 종목분석 "종합" 탭이 공유 */
 @Composable
-private fun QuickAnalysisSummaryContent(summary: QuickAnalysisSummary) {
+internal fun QuickAnalysisSummaryContent(summary: QuickAnalysisSummary) {
     val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -59,6 +59,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 private enum class MainTab(val label: String) {
+    SUMMARY("종합"),
     OSCILLATOR("오실레이터"),
     DEMARK("DeMark"),
     FINANCIAL("재무정보"),
@@ -72,6 +73,7 @@ private enum class MainTab(val label: String) {
 
 /** 9개 세부 탭을 4개 그룹으로 묶어 최상위 탭 과밀·가로 스크롤 은닉 문제 해소 */
 private enum class TabGroup(val label: String, val tabs: List<MainTab>) {
+    SUMMARY("종합", listOf(MainTab.SUMMARY)),
     TECHNICAL("기술분석", listOf(MainTab.OSCILLATOR, MainTab.DEMARK)),
     FINANCIALS("재무", listOf(MainTab.FINANCIAL, MainTab.INDICATOR, MainTab.DUPONT, MainTab.ESTIMATED_EARNINGS)),
     OPINION("시장의견", listOf(MainTab.CONSENSUS, MainTab.INVEST_OPINION)),
@@ -242,6 +244,14 @@ fun OscillatorScreen(
                     // Tab content
                     Box(modifier = Modifier.fillMaxSize()) {
                         when (selectedMainTab) {
+                    MainTab.SUMMARY -> {
+                        StockSummaryContent(
+                            ticker = currentTicker,
+                            stockName = currentStockName,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
                     MainTab.OSCILLATOR -> {
                         OscillatorTabContent(
                             uiState = uiState,
