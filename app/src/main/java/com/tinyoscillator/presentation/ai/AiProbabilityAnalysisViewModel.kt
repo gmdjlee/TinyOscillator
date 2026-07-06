@@ -6,6 +6,7 @@ import com.tinyoscillator.core.api.AiApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.database.dao.AnalysisSnapshotDao
 import com.tinyoscillator.core.database.entity.AnalysisSnapshotEntity
+import com.tinyoscillator.data.mapper.AnalysisResponseParser
 import com.tinyoscillator.data.repository.SignalHistoryRepository
 import com.tinyoscillator.domain.model.AiAnalysisType
 import com.tinyoscillator.domain.model.AlgoAccuracyRow
@@ -45,7 +46,8 @@ class AiProbabilityAnalysisViewModel @Inject constructor(
     private val probabilityAnalysisUseCase: ProbabilityAnalysisUseCase,
     private val probabilityInterpreter: ProbabilityInterpreter,
     private val signalHistoryRepository: SignalHistoryRepository,
-    private val analysisSnapshotDao: AnalysisSnapshotDao
+    private val analysisSnapshotDao: AnalysisSnapshotDao,
+    private val analysisResponseParser: AnalysisResponseParser
 ) : ViewModel() {
 
     private val _probabilityState = MutableStateFlow<ProbabilityAnalysisState>(ProbabilityAnalysisState.Idle)
@@ -81,12 +83,26 @@ class AiProbabilityAnalysisViewModel @Inject constructor(
     private val _snapshots = MutableStateFlow<List<AnalysisSnapshotEntity>>(emptyList())
     val snapshots: StateFlow<List<AnalysisSnapshotEntity>> = _snapshots.asStateFlow()
 
+    /** 현재 분석 대상 티커 (AI 해석 캐시 조회용) */
+    private var currentTicker: String? = null
+
+    /** 마지막 저장 스냅샷 id — AI 해석을 해당 스냅샷에 귀속 저장 */
+    private var lastSnapshotId: Long? = null
+
     /** 확률 분석 실행 — 9+ 통계 엔진 병렬 실행 (API 키 불필요) */
     fun analyzeProbability(stock: SelectedStockInfo) {
         viewModelScope.launch {
-            _probabilityState.value = ProbabilityAnalysisState.Computing("9개 통계 알고리즘 실행 중...")
+            currentTicker = stock.ticker
+            val total = probabilityAnalysisUseCase.totalEngines
+            _probabilityState.value = ProbabilityAnalysisState.Computing("통계 알고리즘 실행 중...", 0, total)
+            val completedCount = java.util.concurrent.atomic.AtomicInteger(0)
             try {
-                val result = probabilityAnalysisUseCase.analyze(stock.ticker)
+                val result = probabilityAnalysisUseCase.analyze(stock.ticker) { engineName ->
+                    val n = completedCount.incrementAndGet()
+                    _probabilityState.value = ProbabilityAnalysisState.Computing(
+                        "$engineName 완료", n.coerceAtMost(total), total
+                    )
+                }
                 _probabilityState.value = ProbabilityAnalysisState.Success(result)
 
                 saveSnapshot(stock, result)
@@ -114,33 +130,8 @@ class AiProbabilityAnalysisViewModel @Inject constructor(
     private fun saveSnapshot(stock: SelectedStockInfo, result: StatisticalResult) {
         viewModelScope.launch {
             try {
-                val algoResults = probabilityAnalysisUseCase.buildAlgoRationales(result)
-                val scoresJson = buildString {
-                    append("{")
-                    append(algoResults.entries.joinToString(",") { (k, v) ->
-                        "\"$k\":${v.score}"
-                    })
-                    append("}")
-                }
-                val rationalesJson = buildString {
-                    append("{")
-                    append(algoResults.entries.joinToString(",") { (k, v) ->
-                        "\"$k\":\"${v.rationale.replace("\"", "\\\"")}\""
-                    })
-                    append("}")
-                }
-                val ensemble = _ensembleProbability.value ?: 0.5
-
-                analysisSnapshotDao.insert(
-                    AnalysisSnapshotEntity(
-                        ticker = stock.ticker,
-                        name = stock.name,
-                        analyzedAt = System.currentTimeMillis(),
-                        ensembleScore = ensemble,
-                        algoScores = scoresJson,
-                        algoRationales = rationalesJson
-                    )
-                )
+                val snapshot = probabilityAnalysisUseCase.buildSnapshot(stock.ticker, stock.name, result)
+                lastSnapshotId = analysisSnapshotDao.insert(snapshot)
                 analysisSnapshotDao.deleteOldSnapshots(stock.ticker, 20)
                 loadSnapshots(stock.ticker)
             } catch (e: Exception) {
@@ -184,8 +175,12 @@ class AiProbabilityAnalysisViewModel @Inject constructor(
         )
     }
 
-    /** AI 기반 해석 실행 */
-    fun interpretWithAi() {
+    /**
+     * AI 기반 해석 실행.
+     * [force]가 false이면 신선한(4시간 이내) 스냅샷에 저장된 해석을 먼저 재사용해
+     * API 호출 비용을 아낀다. "새로 분석" 버튼이 force=true로 호출한다.
+     */
+    fun interpretWithAi(force: Boolean = false) {
         val result = (_probabilityState.value as? ProbabilityAnalysisState.Success)?.result ?: return
 
         viewModelScope.launch {
@@ -195,33 +190,75 @@ class AiProbabilityAnalysisViewModel @Inject constructor(
                 return@launch
             }
 
+            if (!force && restoreCachedInterpretation()) return@launch
+
             _interpretationState.value = InterpretationState.Loading
             try {
                 val userMessage = probabilityInterpreter.buildPromptForAi(result)
-                val systemPrompt = aiPreparer.getSystemPrompt(AiAnalysisType.PROBABILITY_INTERPRETATION)
-                val aiResult = aiApiClient.analyze(
+                val aiResult = aiApiClient.analyzeStructured(
                     config = aiConfig,
-                    systemPrompt = systemPrompt,
+                    systemPrompt = aiPreparer.getStructuredInterpretationPrompt(),
                     userMessage = userMessage,
+                    schema = AnalysisResponseParser.STOCK_ANALYSIS_SCHEMA,
                     analysisType = AiAnalysisType.PROBABILITY_INTERPRETATION,
-                    maxTokens = 1500
+                    maxTokens = 2000
                 )
                 aiResult.fold(
                     onSuccess = { ai ->
+                        val structured = analysisResponseParser.parseOrNull(ai.content)
                         _interpretationState.value = InterpretationState.Success(
-                            summary = ai.content,
+                            summary = structured?.summary ?: ai.content,
                             engineInterpretations = emptyMap(),
-                            provider = InterpretationProvider.AI
+                            provider = InterpretationProvider.AI,
+                            structured = structured,
+                            aiResult = ai
                         )
+                        if (structured != null) saveInterpretationToSnapshot(ai.content)
                     },
                     onFailure = { e ->
-                        _interpretationState.value = InterpretationState.Error(e.message ?: "AI 해석 실패")
+                        _interpretationState.value = InterpretationState.Error(aiErrorMessage(e))
                     }
                 )
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _interpretationState.value = InterpretationState.Error(e.message ?: "AI 해석 실패")
+                _interpretationState.value = InterpretationState.Error(aiErrorMessage(e))
+            }
+        }
+    }
+
+    /** 신선한 스냅샷에 저장된 AI 해석이 있으면 복원. 복원 성공 시 true. */
+    private suspend fun restoreCachedInterpretation(): Boolean {
+        val ticker = currentTicker ?: return false
+        return try {
+            val latest = analysisSnapshotDao.getRecentByTicker(ticker, 1).firstOrNull() ?: return false
+            val saved = latest.aiInterpretation ?: return false
+            if (System.currentTimeMillis() - latest.analyzedAt > AI_INTERPRETATION_TTL_MS) return false
+
+            val structured = analysisResponseParser.parseOrNull(saved) ?: return false
+            _interpretationState.value = InterpretationState.Success(
+                summary = structured.summary,
+                engineInterpretations = emptyMap(),
+                provider = InterpretationProvider.AI,
+                structured = structured,
+                fromCache = true
+            )
+            true
+        } catch (e: Exception) {
+            Timber.w(e, "저장된 AI 해석 복원 실패")
+            false
+        }
+    }
+
+    private fun saveInterpretationToSnapshot(content: String) {
+        viewModelScope.launch {
+            try {
+                val id = lastSnapshotId
+                    ?: currentTicker?.let { analysisSnapshotDao.getRecentByTicker(it, 1).firstOrNull()?.id }
+                    ?: return@launch
+                analysisSnapshotDao.updateAiInterpretation(id, content)
+            } catch (e: Exception) {
+                Timber.w(e, "AI 해석 저장 실패")
             }
         }
     }
@@ -240,5 +277,10 @@ class AiProbabilityAnalysisViewModel @Inject constructor(
         viewModelScope.launch {
             probabilityAnalysisUseCase.clearAnalysisCache(ticker)
         }
+    }
+
+    companion object {
+        /** 저장된 AI 해석 재사용 유효 기간 — FeatureStore Daily TTL(4시간)과 동일 */
+        private const val AI_INTERPRETATION_TTL_MS = 4 * 60 * 60 * 1000L
     }
 }

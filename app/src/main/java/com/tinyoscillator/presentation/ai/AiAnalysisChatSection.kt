@@ -57,14 +57,17 @@ internal fun ChatSection(
     onSendChat: (String) -> Unit,
     onClearChat: () -> Unit,
     placeholder: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    streamingText: String? = null,
+    tokenUsage: ChatTokenUsage? = null
 ) {
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    LaunchedEffect(chatMessages.size) {
-        if (chatMessages.isNotEmpty()) {
-            listState.animateScrollToItem(chatMessages.size - 1)
+    LaunchedEffect(chatMessages.size, streamingText?.length) {
+        val lastIndex = listState.layoutInfo.totalItemsCount - 1
+        if (lastIndex >= 0) {
+            listState.animateScrollToItem(lastIndex)
         }
     }
 
@@ -148,7 +151,13 @@ internal fun ChatSection(
                 ChatBubble(message = message)
             }
 
-            if (chatLoading) {
+            if (!streamingText.isNullOrEmpty()) {
+                item(key = "streaming") {
+                    ChatBubble(message = ChatMessage(ChatRole.ASSISTANT, streamingText, timestamp = 0L))
+                }
+            }
+
+            if (chatLoading && streamingText.isNullOrEmpty()) {
                 item {
                     Row(
                         modifier = Modifier.padding(start = 4.dp, top = 4.dp),
@@ -167,6 +176,18 @@ internal fun ChatSection(
         }
 
         HorizontalDivider()
+
+        if (tokenUsage != null && !tokenUsage.isEmpty) {
+            Text(
+                buildString {
+                    append("세션 토큰: 입력 ${formatTokens(tokenUsage.inputTokens)} · 출력 ${formatTokens(tokenUsage.outputTokens)}")
+                    if (tokenUsage.cacheReadTokens > 0) append(" · 캐시 ${formatTokens(tokenUsage.cacheReadTokens)}")
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+            )
+        }
 
         Row(
             modifier = Modifier

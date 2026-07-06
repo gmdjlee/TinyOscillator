@@ -69,7 +69,8 @@ internal fun ProbabilityTabContent(
     onSelectStock: () -> Unit,
     onInterpretLocal: () -> Unit,
     onInterpretAi: () -> Unit,
-    onDismissInterpretation: () -> Unit
+    onDismissInterpretation: () -> Unit,
+    onInterpretAiForce: () -> Unit = onInterpretAi
 ) {
     var showAlgoGuide by remember { mutableStateOf(false) }
 
@@ -144,11 +145,22 @@ internal fun ProbabilityTabContent(
 
                 is ProbabilityAnalysisState.Computing -> {
                     Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Text(state.message)
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    if (state.total > 0) "통계 엔진 ${state.completed}/${state.total} — ${state.message}"
+                                    else state.message
+                                )
+                            }
+                            if (state.total > 0) {
+                                Spacer(Modifier.height(12.dp))
+                                LinearProgressIndicator(
+                                    progress = { state.completed.toFloat() / state.total },
+                                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -173,7 +185,9 @@ internal fun ProbabilityTabContent(
                         interpretationState = interpretationState,
                         onDismiss = onDismissInterpretation,
                         onRetryLocal = onInterpretLocal,
-                        onRetryAi = onInterpretAi
+                        onRetryAi = onInterpretAi,
+                        onReanalyzeAi = onInterpretAiForce,
+                        stockLabel = "${selectedStock.name} (${selectedStock.ticker})"
                     )
 
                     EnsembleProbabilityCard(
@@ -283,6 +297,11 @@ internal fun SnapshotComparisonCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+
+                EnsembleSparkline(
+                    scores = snapshots.reversed().map { it.ensembleScore },
+                    modifier = Modifier.fillMaxWidth().height(36.dp)
+                )
             }
 
             AnimatedVisibility(visible = expanded) {
@@ -384,6 +403,47 @@ internal fun SnapshotComparisonCard(
     }
 }
 
+/** 앙상블 점수 추이 스파크라인 — 시간순(과거→현재) */
+@Composable
+internal fun EnsembleSparkline(
+    scores: List<Double>,
+    modifier: Modifier = Modifier
+) {
+    if (scores.size < 2) return
+    val lineColor = MaterialTheme.colorScheme.primary
+    val neutralColor = MaterialTheme.colorScheme.outlineVariant
+
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val stepX = w / (scores.size - 1)
+
+        // 중립선 (50%)
+        drawLine(
+            color = neutralColor,
+            start = androidx.compose.ui.geometry.Offset(0f, h / 2),
+            end = androidx.compose.ui.geometry.Offset(w, h / 2),
+            strokeWidth = 1.dp.toPx()
+        )
+
+        val points = scores.mapIndexed { i, score ->
+            androidx.compose.ui.geometry.Offset(
+                x = i * stepX,
+                y = h - (score.toFloat().coerceIn(0f, 1f) * h)
+            )
+        }
+        for (i in 0 until points.size - 1) {
+            drawLine(
+                color = lineColor,
+                start = points[i],
+                end = points[i + 1],
+                strokeWidth = 2.dp.toPx()
+            )
+        }
+        drawCircle(color = lineColor, radius = 3.dp.toPx(), center = points.last())
+    }
+}
+
 /** 해석 제공자 선택 (로컬/AI) */
 @Composable
 internal fun InterpretationProviderSelector(
@@ -431,7 +491,9 @@ internal fun InterpretationResultCard(
     interpretationState: InterpretationState,
     onDismiss: () -> Unit,
     onRetryLocal: () -> Unit,
-    onRetryAi: () -> Unit
+    onRetryAi: () -> Unit,
+    onReanalyzeAi: () -> Unit = onRetryAi,
+    stockLabel: String? = null
 ) {
     when (interpretationState) {
         is InterpretationState.Idle -> {}
@@ -448,6 +510,17 @@ internal fun InterpretationResultCard(
         }
 
         is InterpretationState.Success -> {
+            if (interpretationState.structured != null) {
+                AiStructuredInterpretationCard(
+                    structured = interpretationState.structured,
+                    aiResult = interpretationState.aiResult,
+                    onDismiss = onDismiss,
+                    fromCache = interpretationState.fromCache,
+                    onReanalyze = onReanalyzeAi,
+                    stockLabel = stockLabel
+                )
+                return
+            }
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(

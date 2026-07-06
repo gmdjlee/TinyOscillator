@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -47,6 +48,7 @@ fun StockQuickAnalysisSheet(
     stockName: String,
     onDismiss: () -> Unit,
     onOpenFullAnalysis: (ticker: String, stockName: String) -> Unit,
+    onOpenProbabilityAnalysis: ((ticker: String, stockName: String) -> Unit)? = null,
     viewModel: QuickAnalysisViewModel = hiltViewModel()
 ) {
     LaunchedEffect(ticker) {
@@ -120,6 +122,15 @@ fun StockQuickAnalysisSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("종목분석에서 전체 보기")
+            }
+
+            if (onOpenProbabilityAnalysis != null) {
+                OutlinedButton(
+                    onClick = { onOpenProbabilityAnalysis(ticker, stockName) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("AI 확률분석 실행")
+                }
             }
         }
     }

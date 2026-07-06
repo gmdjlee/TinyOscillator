@@ -29,6 +29,7 @@ fun EtfScreen(
     onStockClick: (String) -> Unit = {},
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
     onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
+    onOpenProbabilityAnalysis: (String, String) -> Unit = { _, _ -> },
     windowType: WindowType = WindowType.COMPACT
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(EtfTab.THEME_LIST) }
@@ -81,6 +82,7 @@ fun EtfScreen(
                                         ticker = ticker,
                                         onStockTrendClick = onStockTrendClick,
                                         onOpenFullAnalysis = onOpenFullAnalysis,
+                                        onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else {
@@ -114,6 +116,7 @@ fun EtfScreen(
                     EtfStatsContent(
                         onStockClick = onStockClick,
                         onOpenFullAnalysis = onOpenFullAnalysis,
+                        onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

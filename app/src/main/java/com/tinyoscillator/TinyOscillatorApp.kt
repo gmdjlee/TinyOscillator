@@ -107,6 +107,9 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
             // 신호 결과 수집 (매일 18:00)
             WorkManagerHelper.scheduleSignalOutcomeUpdate(this@TinyOscillatorApp)
 
+            // 포트폴리오 종목 확률분석 배치 (매일 05:00, 로컬 엔진만 — AI 호출 없음)
+            WorkManagerHelper.scheduleProbabilityBatch(this@TinyOscillatorApp)
+
             // 기존 종목 마스터에 초성 컬럼 백필 (v21→v22 마이그레이션 후 1회)
             try {
                 stockMasterRepository.backfillChosung()

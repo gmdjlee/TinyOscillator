@@ -106,6 +106,7 @@ fun EtfDetailScreen(
     onBack: () -> Unit,
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
     onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
+    onOpenProbabilityAnalysis: (String, String) -> Unit = { _, _ -> },
     viewModel: EtfDetailViewModel = hiltViewModel()
 ) {
     val etf by viewModel.etf.collectAsStateWithLifecycle()
@@ -126,6 +127,7 @@ fun EtfDetailScreen(
             ticker = ticker,
             onStockTrendClick = onStockTrendClick,
             onOpenFullAnalysis = onOpenFullAnalysis,
+            onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
             modifier = Modifier.padding(padding),
             viewModel = viewModel
         )
@@ -137,6 +139,7 @@ fun EtfDetailContent(
     ticker: String,
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
     onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
+    onOpenProbabilityAnalysis: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     viewModel: EtfDetailViewModel = hiltViewModel()
 ) {
@@ -154,6 +157,10 @@ fun EtfDetailContent(
             onOpenFullAnalysis = { t, n ->
                 quickAnalysisStock = null
                 onOpenFullAnalysis(t, n)
+            },
+            onOpenProbabilityAnalysis = { t, n ->
+                quickAnalysisStock = null
+                onOpenProbabilityAnalysis(t, n)
             }
         )
     }

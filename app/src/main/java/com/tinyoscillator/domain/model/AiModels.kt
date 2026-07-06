@@ -2,6 +2,7 @@ package com.tinyoscillator.domain.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 /** AI 제공자 (Claude / Gemini) */
 enum class AiProvider(val displayName: String) {
@@ -47,8 +48,25 @@ data class AiAnalysisResult(
     val content: String,
     val inputTokens: Int,
     val outputTokens: Int,
+    val cacheCreationTokens: Int = 0,
+    val cacheReadTokens: Int = 0,
+    val modelId: String = "",
     val timestamp: Long = System.currentTimeMillis()
 )
+
+/** 스트리밍 응답 이벤트 */
+sealed class AiStreamEvent {
+    /** 텍스트 증분 */
+    data class Delta(val text: String) : AiStreamEvent()
+
+    /** 스트림 종료 — 전체 텍스트 + 토큰 사용량 */
+    data class Done(
+        val fullText: String,
+        val inputTokens: Int,
+        val outputTokens: Int,
+        val cacheReadTokens: Int = 0
+    ) : AiStreamEvent()
+}
 
 /** AI 분석 UI 상태 */
 sealed class AiAnalysisState {
@@ -81,13 +99,38 @@ data class ClaudeResponse(
 @Serializable
 data class ClaudeContent(
     val type: String = "",
-    val text: String = ""
+    val text: String = "",
+    /** tool_use 블록의 입력 (구조화 출력 강제 시 분석 JSON) */
+    val input: JsonObject? = null
 )
 
 @Serializable
 data class ClaudeUsage(
     @SerialName("input_tokens") val inputTokens: Int = 0,
-    @SerialName("output_tokens") val outputTokens: Int = 0
+    @SerialName("output_tokens") val outputTokens: Int = 0,
+    @SerialName("cache_creation_input_tokens") val cacheCreationInputTokens: Int = 0,
+    @SerialName("cache_read_input_tokens") val cacheReadInputTokens: Int = 0
+)
+
+// --- Claude Messages API 스트리밍(SSE) 이벤트 ---
+
+@Serializable
+data class ClaudeStreamEvent(
+    val type: String = "",
+    val message: ClaudeStreamMessage? = null,
+    val delta: ClaudeStreamDelta? = null,
+    val usage: ClaudeUsage? = null
+)
+
+@Serializable
+data class ClaudeStreamMessage(
+    val usage: ClaudeUsage = ClaudeUsage()
+)
+
+@Serializable
+data class ClaudeStreamDelta(
+    val type: String = "",
+    val text: String = ""
 )
 
 // --- Claude Models API 응답 ---

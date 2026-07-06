@@ -13,6 +13,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,8 @@ import com.tinyoscillator.ui.theme.LocalThemeModeState
 fun AiAnalysisScreen(
     onSettingsClick: () -> Unit,
     onHeatmapClick: () -> Unit = {},
+    pendingProbabilityRequest: Pair<String, String>? = null,
+    onPendingProbabilityConsumed: () -> Unit = {},
     marketViewModel: AiMarketAnalysisViewModel = hiltViewModel(),
     stockViewModel: AiStockAnalysisViewModel = hiltViewModel(),
     probabilityViewModel: AiProbabilityAnalysisViewModel = hiltViewModel()
@@ -41,12 +44,17 @@ fun AiAnalysisScreen(
     val stockDataState by stockViewModel.stockDataState.collectAsStateWithLifecycle()
     val stockChatMessages by stockViewModel.stockChatMessages.collectAsStateWithLifecycle()
     val stockChatLoading by stockViewModel.stockChatLoading.collectAsStateWithLifecycle()
+    val stockStreamingReply by stockViewModel.streamingReply.collectAsStateWithLifecycle()
+    val stockTokenUsage by stockViewModel.chatTokenUsage.collectAsStateWithLifecycle()
+    val recentAnalyzed by stockViewModel.recentAnalyzed.collectAsStateWithLifecycle()
 
     val marketDataPrepared by marketViewModel.marketDataPrepared.collectAsStateWithLifecycle()
     val marketDataSummary by marketViewModel.marketDataSummary.collectAsStateWithLifecycle()
     val marketDataLoading by marketViewModel.marketDataLoading.collectAsStateWithLifecycle()
     val marketChatMessages by marketViewModel.marketChatMessages.collectAsStateWithLifecycle()
     val marketChatLoading by marketViewModel.marketChatLoading.collectAsStateWithLifecycle()
+    val marketStreamingReply by marketViewModel.streamingReply.collectAsStateWithLifecycle()
+    val marketTokenUsage by marketViewModel.chatTokenUsage.collectAsStateWithLifecycle()
 
     val probabilityState by probabilityViewModel.probabilityState.collectAsStateWithLifecycle()
     val interpretationState by probabilityViewModel.interpretationState.collectAsStateWithLifecycle()
@@ -58,6 +66,16 @@ fun AiAnalysisScreen(
 
     var query by remember { mutableStateOf("") }
     val themeModeState = LocalThemeModeState.current
+
+    // 퀵 분석 딥링크: 종목 선택 + 확률분석 탭 전환 + 자동 실행
+    LaunchedEffect(pendingProbabilityRequest) {
+        val (ticker, name) = pendingProbabilityRequest ?: return@LaunchedEffect
+        selectedTab = AiTab.PROBABILITY
+        query = name
+        stockViewModel.selectRecentStock(ticker, name)
+        probabilityViewModel.analyzeProbability(SelectedStockInfo(ticker, name, null, null))
+        onPendingProbabilityConsumed()
+    }
 
     Scaffold(
         topBar = {
@@ -97,7 +115,9 @@ fun AiAnalysisScreen(
                         chatLoading = marketChatLoading,
                         onPrepareData = { marketViewModel.prepareMarketData() },
                         onSendChat = { marketViewModel.sendMarketChat(it) },
-                        onClearChat = { marketViewModel.clearMarketChat() }
+                        onClearChat = { marketViewModel.clearMarketChat() },
+                        streamingText = marketStreamingReply,
+                        tokenUsage = marketTokenUsage
                     )
                 }
 
@@ -119,7 +139,14 @@ fun AiAnalysisScreen(
                         chatMessages = stockChatMessages,
                         chatLoading = stockChatLoading,
                         onSendChat = { stockViewModel.sendStockChat(it) },
-                        onClearChat = { stockViewModel.clearStockChat() }
+                        onClearChat = { stockViewModel.clearStockChat() },
+                        streamingText = stockStreamingReply,
+                        tokenUsage = stockTokenUsage,
+                        recentAnalyzed = recentAnalyzed,
+                        onRecentSelect = { ticker, name ->
+                            query = name
+                            stockViewModel.selectRecentStock(ticker, name)
+                        }
                     )
                 }
 
@@ -140,7 +167,8 @@ fun AiAnalysisScreen(
                         onSelectStock = { selectedTab = AiTab.STOCK },
                         onInterpretLocal = { probabilityViewModel.interpretLocal() },
                         onInterpretAi = { probabilityViewModel.interpretWithAi() },
-                        onDismissInterpretation = { probabilityViewModel.dismissInterpretation() }
+                        onDismissInterpretation = { probabilityViewModel.dismissInterpretation() },
+                        onInterpretAiForce = { probabilityViewModel.interpretWithAi(force = true) }
                     )
                 }
             }

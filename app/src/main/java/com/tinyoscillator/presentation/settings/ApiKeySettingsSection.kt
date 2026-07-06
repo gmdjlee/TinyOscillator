@@ -324,6 +324,10 @@ private fun AiApiSection(
                                     Text(model.displayName, style = MaterialTheme.typography.bodyMedium)
                                     Text(model.id, style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    modelTierHint(model.id)?.let { hint ->
+                                        Text(hint, style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary)
+                                    }
                                 }
                             },
                             onClick = {
@@ -334,6 +338,12 @@ private fun AiApiSection(
                     }
                 }
             }
+            Text(
+                "Haiku/Flash: 빠르고 저렴 (일상 분석 권장) · Sonnet/Pro: 심층 분석 (비용 높음)",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
 
         Spacer(Modifier.height(12.dp))
@@ -426,6 +436,17 @@ private fun ApiKeyValidationCard(
             )
             else -> {}
         }
+    }
+}
+
+/** 모델 등급 힌트 — 속도/비용 특성을 한 줄로 안내 */
+private fun modelTierHint(modelId: String): String? {
+    val id = modelId.lowercase()
+    return when {
+        id.contains("haiku") || id.contains("flash") -> "빠름 · 저렴 — 일상 분석에 적합"
+        id.contains("sonnet") || (id.contains("gemini") && id.contains("pro")) -> "심층 분석 — 비용 높음"
+        id.contains("opus") -> "최고 성능 — 비용 매우 높음"
+        else -> null
     }
 }
 

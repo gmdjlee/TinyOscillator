@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tinyoscillator.core.api.AiApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
+import com.tinyoscillator.core.database.dao.AnalysisSnapshotDao
+import com.tinyoscillator.core.database.dao.StockMasterDao
 import com.tinyoscillator.core.database.entity.StockMasterEntity
 import com.tinyoscillator.core.util.DateFormats
 import com.tinyoscillator.data.repository.EtfRepository
@@ -11,6 +13,7 @@ import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.data.repository.StockRepository
 import com.tinyoscillator.domain.model.AiAnalysisState
 import com.tinyoscillator.domain.model.AiAnalysisType
+import com.tinyoscillator.domain.model.AiStreamEvent
 import com.tinyoscillator.domain.model.ChatMessage
 import com.tinyoscillator.domain.model.ChatRole
 import com.tinyoscillator.domain.model.DemarkPeriodType
@@ -30,6 +33,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeout
@@ -55,7 +59,9 @@ class AiStockAnalysisViewModel @Inject constructor(
     private val searchStocksUseCase: SearchStocksUseCase,
     private val aiApiClient: AiApiClient,
     private val aiPreparer: AiAnalysisPreparer,
-    private val apiConfigProvider: ApiConfigProvider
+    private val apiConfigProvider: ApiConfigProvider,
+    private val analysisSnapshotDao: AnalysisSnapshotDao,
+    private val stockMasterDao: StockMasterDao
 ) : ViewModel() {
 
     private val fmt = DateFormats.yyyyMMdd
@@ -89,6 +95,44 @@ class AiStockAnalysisViewModel @Inject constructor(
     private val _stockChatLoading = MutableStateFlow(false)
     val stockChatLoading: StateFlow<Boolean> = _stockChatLoading.asStateFlow()
 
+    /** 스트리밍 중인 어시스턴트 응답 (진행 중일 때만 non-null) */
+    private val _streamingReply = MutableStateFlow<String?>(null)
+    val streamingReply: StateFlow<String?> = _streamingReply.asStateFlow()
+
+    /** 채팅 세션 누적 토큰 사용량 */
+    private val _chatTokenUsage = MutableStateFlow(ChatTokenUsage())
+    val chatTokenUsage: StateFlow<ChatTokenUsage> = _chatTokenUsage.asStateFlow()
+
+    /** 최근 분석했던 종목 (원탭 재진입용) */
+    private val _recentAnalyzed = MutableStateFlow<List<AnalysisSnapshotDao.SnapshotTickerInfo>>(emptyList())
+    val recentAnalyzed: StateFlow<List<AnalysisSnapshotDao.SnapshotTickerInfo>> = _recentAnalyzed.asStateFlow()
+
+    init {
+        refreshRecentAnalyzed()
+    }
+
+    fun refreshRecentAnalyzed() {
+        viewModelScope.launch {
+            try {
+                _recentAnalyzed.value = analysisSnapshotDao.getDistinctTickers().take(8)
+            } catch (e: Exception) {
+                Timber.w(e, "최근 분석 종목 로드 실패")
+            }
+        }
+    }
+
+    /** 최근 분석 칩 선택 — 마스터에서 시장/업종을 보강해 선택한다 */
+    fun selectRecentStock(ticker: String, name: String) {
+        viewModelScope.launch {
+            val master = try {
+                stockMasterDao.getByTicker(ticker)
+            } catch (e: Exception) {
+                null
+            }
+            selectStock(ticker, name, master?.market, master?.sector?.ifBlank { null })
+        }
+    }
+
     fun searchStock(query: String) {
         _searchQuery.value = query
     }
@@ -102,9 +146,16 @@ class AiStockAnalysisViewModel @Inject constructor(
         loadStockData(ticker, name)
     }
 
+    private fun markSourceLoaded(source: String) {
+        _stockDataState.update { state ->
+            if (state is StockDataState.Loading) StockDataState.Loading(state.completedSources + source)
+            else state
+        }
+    }
+
     private fun loadStockData(ticker: String, name: String) {
         viewModelScope.launch {
-            _stockDataState.value = StockDataState.Loading
+            _stockDataState.value = StockDataState.Loading()
             try {
                 withTimeout(90_000) {
                     supervisorScope {
@@ -118,8 +169,7 @@ class AiStockAnalysisViewModel @Inject constructor(
                         }
 
                         val dailyDataDeferred = async {
-                            if (kiwoomConfig == null) return@async emptyList()
-                            try {
+                            val rows = if (kiwoomConfig == null) emptyList() else try {
                                 stockRepository.getDailyTradingData(
                                     ticker = ticker,
                                     startDate = startDate.format(fmt),
@@ -132,10 +182,12 @@ class AiStockAnalysisViewModel @Inject constructor(
                                 Timber.w("오실레이터 데이터 수집 실패: %s", e.message)
                                 emptyList()
                             }
+                            markSourceLoaded("일별 매매")
+                            rows
                         }
 
                         val financialDeferred = async {
-                            try {
+                            val data = try {
                                 val kisConfig = apiConfigProvider.getKisConfig()
                                 if (kisConfig.isValid()) {
                                     financialRepository.getFinancialData(ticker, name, kisConfig).getOrNull()
@@ -146,10 +198,12 @@ class AiStockAnalysisViewModel @Inject constructor(
                                 Timber.w("재무정보 수집 실패: %s", e.message)
                                 null
                             }
+                            markSourceLoaded("재무정보")
+                            data
                         }
 
                         val etfDeferred = async {
-                            try {
+                            val trend = try {
                                 etfRepository.getStockAggregatedTrend(ticker)
                             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                                 throw e
@@ -157,6 +211,8 @@ class AiStockAnalysisViewModel @Inject constructor(
                                 Timber.w("ETF 추이 수집 실패: %s", e.message)
                                 emptyList()
                             }
+                            markSourceLoaded("ETF 추이")
+                            trend
                         }
 
                         val dailyData = dailyDataDeferred.await()
@@ -274,29 +330,34 @@ class AiStockAnalysisViewModel @Inject constructor(
             val userMsg = ChatMessage(ChatRole.USER, userMessage)
             _stockChatMessages.value = _stockChatMessages.value + userMsg
             _stockChatLoading.value = true
+            _streamingReply.value = null
 
             try {
-                val result = aiApiClient.chat(
+                aiApiClient.chatStream(
                     config = aiConfig,
                     systemPrompt = stockSystemPrompt,
-                    messages = _stockChatMessages.value,
+                    messages = trimChatHistory(_stockChatMessages.value),
                     maxTokens = 1024
-                )
-                result.fold(
-                    onSuccess = { response ->
-                        _stockChatMessages.value = _stockChatMessages.value +
-                            ChatMessage(ChatRole.ASSISTANT, response)
-                    },
-                    onFailure = { e ->
-                        _stockChatMessages.value = _stockChatMessages.value +
-                            ChatMessage(ChatRole.ASSISTANT, "오류: ${e.message}")
+                ).collect { event ->
+                    when (event) {
+                        is AiStreamEvent.Delta ->
+                            _streamingReply.value = (_streamingReply.value ?: "") + event.text
+                        is AiStreamEvent.Done -> {
+                            _stockChatMessages.value = _stockChatMessages.value +
+                                ChatMessage(ChatRole.ASSISTANT, event.fullText)
+                            _streamingReply.value = null
+                            _chatTokenUsage.value = _chatTokenUsage.value + event
+                        }
                     }
-                )
+                }
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _stockChatMessages.value = _stockChatMessages.value +
-                    ChatMessage(ChatRole.ASSISTANT, "오류: ${e.message}")
+                val partial = _streamingReply.value
+                _streamingReply.value = null
+                val text = if (partial.isNullOrBlank()) aiErrorMessage(e)
+                else "$partial\n\n(응답 중단) ${aiErrorMessage(e)}"
+                _stockChatMessages.value = _stockChatMessages.value + ChatMessage(ChatRole.ASSISTANT, text)
             } finally {
                 _stockChatLoading.value = false
             }
@@ -305,5 +366,7 @@ class AiStockAnalysisViewModel @Inject constructor(
 
     fun clearStockChat() {
         _stockChatMessages.value = emptyList()
+        _streamingReply.value = null
+        _chatTokenUsage.value = ChatTokenUsage()
     }
 }

@@ -5,6 +5,11 @@ import com.tinyoscillator.domain.model.StockAnalysis
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * LLM JSON 출력 → StockAnalysis 파싱
@@ -34,6 +39,19 @@ class AnalysisResponseParser {
             validate(raw)
         } catch (e: Exception) {
             fallback(response)
+        }
+    }
+
+    /** [parse]와 동일하되 파싱 실패 시 null 반환 — 호출부가 원문 표시로 대체할 수 있게 한다. */
+    fun parseOrNull(response: String): StockAnalysis? {
+        if (response.isBlank()) return null
+        val jsonStr = extractJson(response) ?: return null
+        return try {
+            val raw = json.decodeFromString<RawAnalysisResponse>(jsonStr)
+            if (raw.overallAssessment.isBlank() && raw.action.isBlank()) null
+            else validate(raw)
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -111,4 +129,55 @@ class AnalysisResponseParser {
         val interpretation: String = "",
         val significance: String = ""
     )
+
+    companion object {
+        /**
+         * [RawAnalysisResponse]에 대응하는 JSON Schema — Claude tool_choice 강제 출력용.
+         * 이 파서가 소비할 수 있는 형식의 단일 진실 공급원.
+         */
+        val STOCK_ANALYSIS_SCHEMA: JsonObject = buildJsonObject {
+            put("type", "object")
+            put("properties", buildJsonObject {
+                put("overall_assessment", buildJsonObject {
+                    put("type", "string")
+                    put("description", "매수/매도/관망 판단 + 한 줄 근거")
+                })
+                put("confidence", buildJsonObject {
+                    put("type", "number")
+                    put("description", "판단 신뢰도 0.0~1.0")
+                })
+                put("insights", buildJsonObject {
+                    put("type", "array")
+                    put("items", buildJsonObject {
+                        put("type", "object")
+                        put("properties", buildJsonObject {
+                            put("algorithm", buildJsonObject { put("type", "string") })
+                            put("interpretation", buildJsonObject { put("type", "string") })
+                            put("significance", buildJsonObject {
+                                put("type", "string")
+                                put("description", "높음|보통|낮음")
+                            })
+                        })
+                        put("required", buildJsonArray { add("algorithm"); add("interpretation") })
+                    })
+                })
+                put("conflicts", buildJsonObject {
+                    put("type", "array")
+                    put("items", buildJsonObject { put("type", "string") })
+                    put("description", "알고리즘 간 상충 신호")
+                })
+                put("risks", buildJsonObject {
+                    put("type", "array")
+                    put("items", buildJsonObject { put("type", "string") })
+                })
+                put("action", buildJsonObject {
+                    put("type", "string")
+                    put("description", "구체적 행동 권고")
+                })
+            })
+            put("required", buildJsonArray {
+                add("overall_assessment"); add("confidence"); add("action")
+            })
+        }
+    }
 }

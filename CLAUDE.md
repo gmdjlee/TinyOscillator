@@ -3,7 +3,7 @@
 > **파일 규칙**: 이 파일은 **코드베이스 사실**(구조·스택·컨벤션)만 담는다. 60~120줄 유지 — 갱신 시 오래된 항목을 지우고 추가하며 줄 수를 넘기지 마라. 에이전트 운영 방식(역할 분담·명령어)은 `AGENTS.md` 참조.
 
 ## Overview
-한국 주식시장 분석 Android 앱(리테일 투자자 대상). 오실레이터 기술분석, DeMark TD Sequential, 재무제표 분석, ETF 섹터 분석, Fear&Greed 지수, 애널리스트 컨센서스, AI 분석(Claude/Gemini API), 포트폴리오 관리. 순수 Kotlin. MVVM + Clean Architecture, ~1,420 passing tests, Room DB v31.
+한국 주식시장 분석 Android 앱(리테일 투자자 대상). 오실레이터 기술분석, DeMark TD Sequential, 재무제표 분석, ETF 섹터 분석, Fear&Greed 지수, 애널리스트 컨센서스, AI 분석(Claude/Gemini API), 포트폴리오 관리. 순수 Kotlin. MVVM + Clean Architecture, ~1,430 passing tests, Room DB v33.
 
 ## Tech stack
 | Property | Value | | Library | Ver | Purpose |
@@ -31,7 +31,7 @@ app/src/main/java/com/tinyoscillator/
   ui/theme/                 # Material3 theme
 app/src/test/               # 164 test files (~1,420 tests)
 app/src/androidTest/        # Compose UI smoke tests
-app/schemas/                # Room schema exports v2~v31
+app/schemas/                # Room schema exports v2~v33
 settings.gradle.kts         # includeBuild("../kotlin_krx")
 ```
 - 소스: `app/src/main` 아래 ~323 Kotlin 파일. `:app` 단일 모듈 + `../kotlin_krx` composite build.
@@ -42,7 +42,7 @@ settings.gradle.kts         # includeBuild("../kotlin_krx")
 - **Presentation**: Compose 스크린, ViewModel, theme
 - **Core**: API 클라이언트, DB, DI, network, worker
 
-핵심 클래스: `StatisticalAnalysisEngine`(9-엔진 병렬 오케스트레이터, 개별 실패 격리) → `ProbabilisticPromptBuilder`(ChatML) → `AiApiClient` → `AnalysisResponseParser`. AI 불가 시 `ProbabilityInterpreter` 로컬 해석. `ApiConfigProvider`(volatile+mutex 자격증명 캐시), `WorkManagerHelper`(스케줄), `AppDatabase`(v31, 28 entities, 22 DAOs).
+핵심 클래스: `StatisticalAnalysisEngine`(9-엔진 병렬 오케스트레이터, 개별 실패 격리 + 진행 콜백) → `AiApiClient`(스트리밍 SSE `chatStream`, 구조화 출력 `analyzeStructured` Claude tool_choice/Gemini JSON 모드, Claude prompt caching) → `AnalysisResponseParser`(`STOCK_ANALYSIS_SCHEMA` 단일 진실 공급원, `parseOrNull`). AI 불가 시 `ProbabilityInterpreter` 로컬 해석. AI 해석은 `analysis_snapshots.ai_interpretation`에 저장·4h 재사용. `ApiConfigProvider`(volatile+mutex 자격증명 캐시), `WorkManagerHelper`(스케줄), `AppDatabase`(v33, 28 entities, 22 DAOs).
 
 ## Analysis engines (9)
 NaiveBayes · LogisticScoring · HmmRegime · PatternScan · SignalScoring · Correlation · BayesianUpdate · OrderFlow · DartEvent. 모두 `data/engine/`. `StatisticalAnalysisEngine`가 coroutine 병렬 실행 + `RegimeWeightTable` regime-aware 가중. (별개 11번째 엔진 `SectorCorrelationNetwork` — `stock_master.sector`만 사용, 테마 메뉴와 무관, 혼동 금지.)
@@ -55,12 +55,12 @@ NaiveBayes · LogisticScoring · HmmRegime · PatternScan · SignalScoring · Co
 - **BOK ECOS**: 5 macro indicators(base_rate/m2/iip/usd_krw/cpi), 1000ms, Weekly TTL, 2개월 지연 보정.
 - **Scrapers**: NaverFinance(500ms) · EquityReport(8-16s) · FnGuide(1-5s).
 
-## Room DB (v31)
-- Migration `MIGRATION_1_2`~`MIGRATION_30_31` in `core/database/migration/AppDatabaseMigrations.kt`, `.addMigrations(*AppDatabaseMigrations.ALL)`. **`fallbackToDestructiveMigration()` 없음 — 모든 업그레이드 명시적.** Schema JSON `app/schemas/.../2.json~31.json`.
-- v29→30: `theme_group`+`theme_stock` 추가. v30→31: legacy `sector_master`+`sector_index_candle` DROP.
+## Room DB (v33)
+- Migration `MIGRATION_1_2`~`MIGRATION_32_33` in `core/database/migration/AppDatabaseMigrations.kt`, `.addMigrations(*AppDatabaseMigrations.ALL)`. **`fallbackToDestructiveMigration()` 없음 — 모든 업그레이드 명시적.** Schema JSON `app/schemas/.../2.json~33.json`.
+- v30→31: legacy `sector_master`+`sector_index_candle` DROP. v31→32: `etfs`에 `change_rate`/`price`. v32→33: `analysis_snapshots`에 `ai_interpretation`(AI 해석 캐시).
 
 ## Background jobs (WorkManager)
-EtfUpdate(00:30) · MarketOscillator(01:00) · MarketDeposit(02:00) · ThemeUpdate(02:30) · Consensus(03:00) · FearGreed(04:00) · MarketCloseRefresh(19:00) · Macro(Sun 05:30) · DataIntegrityCheck(수동). 모두 network-constrained, exp backoff(30s), foreground(DATA_SYNC), `worker_logs` 기록. 스케줄 사용자 설정 가능, 앱 시작 시 복원.
+EtfUpdate(00:30) · MarketOscillator(01:00) · MarketDeposit(02:00) · ThemeUpdate(02:30) · Consensus(03:00) · FearGreed(04:00) · ProbabilityBatch(05:00, 포트폴리오 종목 로컬 확률분석+임계 돌파 시 `signal_alerts` 채널 알림) · MarketCloseRefresh(19:00) · Macro(Sun 05:30) · DataIntegrityCheck(수동). 모두 network-constrained, exp backoff(30s), foreground(DATA_SYNC), `worker_logs` 기록. 스케줄 사용자 설정 가능, 앱 시작 시 복원.
 
 ## Security (API 자격증명)
 - 모든 자격증명 `EncryptedSharedPreferences`(`api_settings_encrypted`, AES256-SIV key / AES256-GCM value)

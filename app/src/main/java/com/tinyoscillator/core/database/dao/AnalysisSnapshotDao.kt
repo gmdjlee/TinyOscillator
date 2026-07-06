@@ -28,6 +28,9 @@ interface AnalysisSnapshotDao {
     @Query("SELECT COUNT(*) FROM analysis_snapshots WHERE ticker = :ticker")
     suspend fun getCountByTicker(ticker: String): Int
 
+    @Query("UPDATE analysis_snapshots SET ai_interpretation = :interpretation WHERE id = :id")
+    suspend fun updateAiInterpretation(id: Long, interpretation: String)
+
     @Query("SELECT DISTINCT ticker, name FROM analysis_snapshots ORDER BY analyzed_at DESC")
     suspend fun getDistinctTickers(): List<SnapshotTickerInfo>
 

@@ -99,6 +99,63 @@ class AiApiClientTest {
         assertTrue(response.candidates.isEmpty())
     }
 
+    // --- Claude SSE streaming event parsing ---
+
+    @Test
+    fun `Claude stream message_start carries input and cache tokens`() {
+        val jsonStr = """
+            {"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":4200,"output_tokens":1,"cache_read_input_tokens":3900}}}
+        """.trimIndent()
+        val event = json.decodeFromString<com.tinyoscillator.domain.model.ClaudeStreamEvent>(jsonStr)
+        assertEquals("message_start", event.type)
+        assertEquals(4200, event.message?.usage?.inputTokens)
+        assertEquals(3900, event.message?.usage?.cacheReadInputTokens)
+    }
+
+    @Test
+    fun `Claude stream content_block_delta carries text delta`() {
+        val jsonStr = """
+            {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"상승 "}}
+        """.trimIndent()
+        val event = json.decodeFromString<com.tinyoscillator.domain.model.ClaudeStreamEvent>(jsonStr)
+        assertEquals("content_block_delta", event.type)
+        assertEquals("text_delta", event.delta?.type)
+        assertEquals("상승 ", event.delta?.text)
+    }
+
+    @Test
+    fun `Claude stream message_delta carries output tokens`() {
+        val jsonStr = """
+            {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":512}}
+        """.trimIndent()
+        val event = json.decodeFromString<com.tinyoscillator.domain.model.ClaudeStreamEvent>(jsonStr)
+        assertEquals("message_delta", event.type)
+        assertEquals(512, event.usage?.outputTokens)
+    }
+
+    // --- Claude structured output (tool_use) parsing ---
+
+    @Test
+    fun `Claude response parses tool_use input as JSON object`() {
+        val jsonStr = """
+            {
+                "id": "msg_04",
+                "content": [{
+                    "type": "tool_use",
+                    "id": "toolu_01",
+                    "name": "submit_analysis",
+                    "input": {"overall_assessment": "매수 우위", "confidence": 0.72, "action": "분할 매수"}
+                }],
+                "usage": {"input_tokens": 900, "output_tokens": 150, "cache_creation_input_tokens": 800}
+            }
+        """.trimIndent()
+        val response = json.decodeFromString<ClaudeResponse>(jsonStr)
+        val toolUse = response.content.first { it.type == "tool_use" }
+        assertNotNull(toolUse.input)
+        assertTrue(toolUse.input.toString().contains("매수 우위"))
+        assertEquals(800, response.usage.cacheCreationInputTokens)
+    }
+
     // --- Config validation ---
 
     @Test

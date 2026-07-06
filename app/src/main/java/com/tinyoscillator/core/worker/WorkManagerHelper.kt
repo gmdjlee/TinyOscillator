@@ -341,6 +341,17 @@ object WorkManagerHelper {
     fun runIntegrityCheckNow(context: Context) =
         runWorkerNow<DataIntegrityCheckWorker>(context, DataIntegrityCheckWorker.WORK_NAME, DataIntegrityCheckWorker.TAG, "데이터 무결성 검사")
 
+    // ===== 확률분석 배치 (포트폴리오 종목) =====
+
+    fun scheduleProbabilityBatch(context: Context, hour: Int = 5, minute: Int = 0, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<ProbabilityBatchWorker>(context, ProbabilityBatchWorker.WORK_NAME, ProbabilityBatchWorker.TAG, "확률분석 배치", hour, minute, forceUpdate)
+
+    fun cancelProbabilityBatch(context: Context) =
+        cancelWorker(context, ProbabilityBatchWorker.WORK_NAME, "확률분석 배치")
+
+    fun runProbabilityBatchNow(context: Context) =
+        runWorkerNow<ProbabilityBatchWorker>(context, ProbabilityBatchWorker.MANUAL_WORK_NAME, ProbabilityBatchWorker.TAG, "확률분석 배치")
+
     // ===== 테마 (Kiwoom ka90001/ka90002) =====
 
     fun scheduleThemeUpdate(context: Context, hour: Int = 2, minute: Int = 30, forceUpdate: Boolean = false) =

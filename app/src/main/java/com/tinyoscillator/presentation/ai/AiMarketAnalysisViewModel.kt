@@ -7,6 +7,7 @@ import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.domain.model.AiAnalysisState
 import com.tinyoscillator.domain.model.AiAnalysisType
+import com.tinyoscillator.domain.model.AiStreamEvent
 import com.tinyoscillator.domain.model.ChatMessage
 import com.tinyoscillator.domain.model.ChatRole
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
@@ -51,6 +52,14 @@ class AiMarketAnalysisViewModel @Inject constructor(
 
     private val _marketChatLoading = MutableStateFlow(false)
     val marketChatLoading: StateFlow<Boolean> = _marketChatLoading.asStateFlow()
+
+    /** 스트리밍 중인 어시스턴트 응답 (진행 중일 때만 non-null) */
+    private val _streamingReply = MutableStateFlow<String?>(null)
+    val streamingReply: StateFlow<String?> = _streamingReply.asStateFlow()
+
+    /** 채팅 세션 누적 토큰 사용량 */
+    private val _chatTokenUsage = MutableStateFlow(ChatTokenUsage())
+    val chatTokenUsage: StateFlow<ChatTokenUsage> = _chatTokenUsage.asStateFlow()
 
     fun analyzeMarketWithAi() {
         viewModelScope.launch {
@@ -136,29 +145,34 @@ class AiMarketAnalysisViewModel @Inject constructor(
             val userMsg = ChatMessage(ChatRole.USER, userMessage)
             _marketChatMessages.value = _marketChatMessages.value + userMsg
             _marketChatLoading.value = true
+            _streamingReply.value = null
 
             try {
-                val result = aiApiClient.chat(
+                aiApiClient.chatStream(
                     config = aiConfig,
                     systemPrompt = marketSystemPrompt,
-                    messages = _marketChatMessages.value,
+                    messages = trimChatHistory(_marketChatMessages.value),
                     maxTokens = 1024
-                )
-                result.fold(
-                    onSuccess = { response ->
-                        _marketChatMessages.value = _marketChatMessages.value +
-                            ChatMessage(ChatRole.ASSISTANT, response)
-                    },
-                    onFailure = { e ->
-                        _marketChatMessages.value = _marketChatMessages.value +
-                            ChatMessage(ChatRole.ASSISTANT, "오류: ${e.message}")
+                ).collect { event ->
+                    when (event) {
+                        is AiStreamEvent.Delta ->
+                            _streamingReply.value = (_streamingReply.value ?: "") + event.text
+                        is AiStreamEvent.Done -> {
+                            _marketChatMessages.value = _marketChatMessages.value +
+                                ChatMessage(ChatRole.ASSISTANT, event.fullText)
+                            _streamingReply.value = null
+                            _chatTokenUsage.value = _chatTokenUsage.value + event
+                        }
                     }
-                )
+                }
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _marketChatMessages.value = _marketChatMessages.value +
-                    ChatMessage(ChatRole.ASSISTANT, "오류: ${e.message}")
+                val partial = _streamingReply.value
+                _streamingReply.value = null
+                val text = if (partial.isNullOrBlank()) aiErrorMessage(e)
+                else "$partial\n\n(응답 중단) ${aiErrorMessage(e)}"
+                _marketChatMessages.value = _marketChatMessages.value + ChatMessage(ChatRole.ASSISTANT, text)
             } finally {
                 _marketChatLoading.value = false
             }
@@ -167,5 +181,7 @@ class AiMarketAnalysisViewModel @Inject constructor(
 
     fun clearMarketChat() {
         _marketChatMessages.value = emptyList()
+        _streamingReply.value = null
+        _chatTokenUsage.value = ChatTokenUsage()
     }
 }

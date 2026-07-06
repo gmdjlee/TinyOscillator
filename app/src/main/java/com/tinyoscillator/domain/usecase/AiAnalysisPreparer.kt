@@ -344,6 +344,25 @@ class AiAnalysisPreparer {
                 "간결하고 구조적으로 작성하되, 투자 권유가 아닌 참고 의견임을 명시하세요."
     }
 
+    /**
+     * 확률분석 구조화 해석용 시스템 프롬프트.
+     * Claude는 tool 스키마가 형식을 강제하지만, Gemini(JSON 모드)는 프롬프트의
+     * 필드 설명에 의존하므로 JSON 형식을 명시한다.
+     */
+    fun getStructuredInterpretationPrompt(): String =
+        "당신은 한국 주식 확률분석 전문가입니다. 여러 통계 알고리즘(나이브 베이즈, 로지스틱 회귀, " +
+            "HMM 레짐, 패턴 스캔, 신호 점수, 상관 분석, 베이지안 갱신, 자금흐름, DART 공시, 5팩터, " +
+            "섹터 상관, 매크로)의 사전 계산된 결과를 종합 해석하세요.\n" +
+            "- 확률 0.6 이상은 유의미, 0.7 이상은 강한 신호로 간주\n" +
+            "- 알고리즘 간 상충 신호는 반드시 conflicts에 기록\n" +
+            "- 시장 레짐과 매크로 환경에 따라 신호 신뢰도를 조정\n" +
+            "다음 JSON 형식으로만 응답하세요:\n" +
+            "{\"overall_assessment\": \"매수/매도/관망 + 한 줄 근거\", \"confidence\": 0.0~1.0, " +
+            "\"insights\": [{\"algorithm\": \"알고리즘명\", \"interpretation\": \"해석\", " +
+            "\"significance\": \"높음|보통|낮음\"}], \"conflicts\": [\"상충 신호\"], " +
+            "\"risks\": [\"리스크\"], \"action\": \"구체적 행동 권고\"}\n" +
+            "투자 권유가 아닌 참고 의견입니다."
+
     // --- 내부 유틸 ---
 
     internal fun sampleRows(rows: List<OscillatorRow>, targetCount: Int): List<OscillatorRow> {

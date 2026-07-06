@@ -1,5 +1,6 @@
 package com.tinyoscillator.domain.usecase
 
+import com.tinyoscillator.core.database.entity.AnalysisSnapshotEntity
 import com.tinyoscillator.data.engine.FeatureStore
 import com.tinyoscillator.data.engine.RationaleBuilder
 import com.tinyoscillator.data.engine.StatisticalAnalysisEngine
@@ -26,8 +27,14 @@ class ProbabilityAnalysisUseCase @Inject constructor(
     /** Feature Store 캐시 통계 스트림 */
     val cacheStats: Flow<CacheStats> = featureStore.cacheStats
 
-    /** 9개 통계 엔진 병렬 실행 (FeatureStore 캐시 적용) */
-    suspend fun analyze(ticker: String): StatisticalResult = engine.analyze(ticker)
+    /** 진행률 표시용 총 엔진 수 */
+    val totalEngines: Int get() = StatisticalAnalysisEngine.PROGRESS_TOTAL_ENGINES
+
+    /** 9개 통계 엔진 병렬 실행 (FeatureStore 캐시 적용). [onEngineComplete]는 엔진별 완료 시 호출. */
+    suspend fun analyze(
+        ticker: String,
+        onEngineComplete: ((String) -> Unit)? = null
+    ): StatisticalResult = engine.analyze(ticker, onEngineComplete)
 
     /** 앙상블(스태킹 + 점진적) 상승 확률 — 학습 전이면 가중합 폴백 */
     fun getEnsembleProbability(result: StatisticalResult): Double =
@@ -42,4 +49,31 @@ class ProbabilityAnalysisUseCase @Inject constructor(
     /** 분석 결과 → 알고리즘별 점수·한국어 근거 매핑 */
     fun buildAlgoRationales(result: StatisticalResult): Map<String, AlgoResult> =
         RationaleBuilder.build(result)
+
+    /**
+     * 분석 결과 → 저장용 스냅샷 변환.
+     * ViewModel(수동 분석)과 ProbabilityBatchWorker(야간 배치)가 공용으로 사용한다.
+     */
+    fun buildSnapshot(ticker: String, name: String, result: StatisticalResult): AnalysisSnapshotEntity {
+        val algoResults = buildAlgoRationales(result)
+        val scoresJson = algoResults.entries.joinToString(",", prefix = "{", postfix = "}") { (k, v) ->
+            "\"$k\":${v.score}"
+        }
+        val rationalesJson = algoResults.entries.joinToString(",", prefix = "{", postfix = "}") { (k, v) ->
+            "\"$k\":\"${v.rationale.replace("\"", "\\\"")}\""
+        }
+        val ensemble = try {
+            getEnsembleProbability(result)
+        } catch (e: Exception) {
+            0.5
+        }
+        return AnalysisSnapshotEntity(
+            ticker = ticker,
+            name = name,
+            analyzedAt = System.currentTimeMillis(),
+            ensembleScore = ensemble,
+            algoScores = scoresJson,
+            algoRationales = rationalesJson
+        )
+    }
 }

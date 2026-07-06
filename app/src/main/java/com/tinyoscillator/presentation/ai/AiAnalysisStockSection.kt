@@ -12,11 +12,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,6 +29,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -33,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.tinyoscillator.core.database.dao.AnalysisSnapshotDao
 import com.tinyoscillator.domain.model.ChatMessage
 
 @Composable
@@ -46,7 +52,11 @@ internal fun StockTabContent(
     chatMessages: List<ChatMessage>,
     chatLoading: Boolean,
     onSendChat: (String) -> Unit,
-    onClearChat: () -> Unit
+    onClearChat: () -> Unit,
+    streamingText: String? = null,
+    tokenUsage: ChatTokenUsage? = null,
+    recentAnalyzed: List<AnalysisSnapshotDao.SnapshotTickerInfo> = emptyList(),
+    onRecentSelect: (String, String) -> Unit = { _, _ -> }
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -100,13 +110,44 @@ internal fun StockTabContent(
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
                         ) {
-                            Row(
+                            Column(
                                 modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                                Text("데이터 수집 중...")
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                    Text("데이터 수집 중... (${dataState.completedSources.size}/${STOCK_DATA_SOURCES.size})")
+                                }
+                                STOCK_DATA_SOURCES.forEach { source ->
+                                    val done = source in dataState.completedSources
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        if (done) {
+                                            Icon(
+                                                Icons.Default.CheckCircle,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.tertiary
+                                            )
+                                        } else {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
+                                        Text(
+                                            source,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (done) MaterialTheme.colorScheme.onSurface
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -133,7 +174,9 @@ internal fun StockTabContent(
                             onSendChat = onSendChat,
                             onClearChat = onClearChat,
                             placeholder = "${selectedStock.name}에 대해 질문하세요...",
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            streamingText = streamingText,
+                            tokenUsage = tokenUsage
                         )
                     }
 
@@ -174,6 +217,36 @@ internal fun StockTabContent(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    if (recentAnalyzed.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            "최근 분석 종목",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.align(Alignment.Start)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(recentAnalyzed, key = { it.ticker }) { info ->
+                                SuggestionChip(
+                                    onClick = { onRecentSelect(info.ticker, info.name) },
+                                    icon = {
+                                        Icon(
+                                            Icons.Default.History,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    },
+                                    label = { Text(info.name) }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

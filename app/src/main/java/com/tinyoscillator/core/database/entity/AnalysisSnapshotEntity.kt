@@ -36,5 +36,9 @@ data class AnalysisSnapshotEntity(
 
     /** JSON: {"naiveBayes": "상승78% marketCap기여", ...} */
     @ColumnInfo(name = "algo_rationales")
-    val algoRationales: String
+    val algoRationales: String,
+
+    /** AI 구조화 해석 JSON (StockAnalysis 스키마) — 동일 스냅샷 재조회 시 API 호출 없이 재사용 */
+    @ColumnInfo(name = "ai_interpretation")
+    val aiInterpretation: String? = null
 )

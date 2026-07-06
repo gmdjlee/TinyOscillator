@@ -47,6 +47,7 @@ fun ReportScreen(
     onSettingsClick: () -> Unit,
     onReportClick: (ConsensusReport) -> Unit = {},
     onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
+    onOpenProbabilityAnalysis: (String, String) -> Unit = { _, _ -> },
     viewModel: ReportViewModel = hiltViewModel()
 ) {
     val pagedReports by viewModel.pagedReports.collectAsStateWithLifecycle()
@@ -77,6 +78,10 @@ fun ReportScreen(
             onOpenFullAnalysis = { t, n ->
                 quickAnalysisStock = null
                 onOpenFullAnalysis(t, n)
+            },
+            onOpenProbabilityAnalysis = { t, n ->
+                quickAnalysisStock = null
+                onOpenProbabilityAnalysis(t, n)
             }
         )
     }

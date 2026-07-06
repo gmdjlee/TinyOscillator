@@ -82,6 +82,15 @@ internal fun ProbabilityResultContent(
             }
             Spacer(Modifier.height(8.dp))
 
+            if (result.executionMetadata.failedEngines.isNotEmpty()) {
+                Text(
+                    "⚠ ${result.executionMetadata.failedEngines.joinToString()} 엔진은 데이터 부족으로 제외되었습니다",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
             result.marketRegimeResult?.let { regime ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

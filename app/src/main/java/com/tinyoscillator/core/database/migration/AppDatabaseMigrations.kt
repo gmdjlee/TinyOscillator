@@ -54,6 +54,7 @@ object AppDatabaseMigrations {
         MIGRATION_29_30,
         MIGRATION_30_31,
         MIGRATION_31_32,
+        MIGRATION_32_33,
     )
 }
 
@@ -866,6 +867,19 @@ private val MIGRATION_31_32 = object : Migration(31, 32) {
             Timber.d("Migration v31→v32 성공: etfs에 change_rate/price 컬럼 추가")
         } catch (e: Exception) {
             Timber.e(e, "Migration v31→v32 실패")
+            throw e
+        }
+    }
+}
+
+/** Migration v32→v33: added ai_interpretation column to analysis_snapshots (AI 해석 재사용 캐시) */
+private val MIGRATION_32_33 = object : Migration(32, 33) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL("ALTER TABLE `analysis_snapshots` ADD COLUMN `ai_interpretation` TEXT DEFAULT NULL")
+            Timber.d("Migration v32→v33 성공: analysis_snapshots에 ai_interpretation 컬럼 추가")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v32→v33 실패")
             throw e
         }
     }

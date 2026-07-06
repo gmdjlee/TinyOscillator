@@ -143,6 +143,14 @@ fun AppNavigation() {
         navController.popBackStack("main", inclusive = false)
     }
 
+    // 퀵 분석 → AI 확률분석 딥링크: AI 탭 전환 + 확률분석 자동 실행 요청
+    var aiProbabilityRequest by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val openProbabilityAnalysis: (String, String) -> Unit = { ticker, stockName ->
+        aiProbabilityRequest = ticker to stockName
+        selectedNav = BottomNavItem.AI_ANALYSIS
+        navController.popBackStack("main", inclusive = false)
+    }
+
     NavHost(navController = navController, startDestination = "main") {
         composable("main") {
             MainScaffold(
@@ -151,6 +159,9 @@ fun AppNavigation() {
                 selectedNav = selectedNav,
                 onNavSelected = { selectedNav = it },
                 onOpenFullAnalysis = openFullAnalysis,
+                onOpenProbabilityAnalysis = openProbabilityAnalysis,
+                aiProbabilityRequest = aiProbabilityRequest,
+                onAiProbabilityConsumed = { aiProbabilityRequest = null },
                 onSettingsClick = { navController.navigate("settings") },
                 onEtfDetailClick = { ticker -> navController.navigate("etf_detail/$ticker") },
                 onStockClick = { stockTicker -> navController.navigate("stock_aggregated/$stockTicker") },
@@ -180,7 +191,8 @@ fun AppNavigation() {
                 onStockTrendClick = { etfTicker, stockTicker ->
                     navController.navigate("stock_trend/$etfTicker/$stockTicker")
                 },
-                onOpenFullAnalysis = openFullAnalysis
+                onOpenFullAnalysis = openFullAnalysis,
+                onOpenProbabilityAnalysis = openProbabilityAnalysis
             )
         }
         composable("stock_trend/{etfTicker}/{stockTicker}") {
@@ -217,6 +229,9 @@ private fun MainScaffold(
     selectedNav: BottomNavItem,
     onNavSelected: (BottomNavItem) -> Unit,
     onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
+    onOpenProbabilityAnalysis: (String, String) -> Unit = { _, _ -> },
+    aiProbabilityRequest: Pair<String, String>? = null,
+    onAiProbabilityConsumed: () -> Unit = {},
     onSettingsClick: () -> Unit,
     onEtfDetailClick: (String) -> Unit,
     onStockClick: (String) -> Unit = {},
@@ -247,6 +262,7 @@ private fun MainScaffold(
                         onStockClick = onStockClick,
                         onStockTrendClick = onStockTrendClick,
                         onOpenFullAnalysis = onOpenFullAnalysis,
+                        onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
                         windowType = windowType
                     )
                 }
@@ -254,13 +270,16 @@ private fun MainScaffold(
                     ReportScreen(
                         onSettingsClick = onSettingsClick,
                         onReportClick = onReportDetailClick,
-                        onOpenFullAnalysis = onOpenFullAnalysis
+                        onOpenFullAnalysis = onOpenFullAnalysis,
+                        onOpenProbabilityAnalysis = onOpenProbabilityAnalysis
                     )
                 }
                 BottomNavItem.AI_ANALYSIS -> {
                     AiAnalysisScreen(
                         onSettingsClick = onSettingsClick,
-                        onHeatmapClick = onHeatmapClick
+                        onHeatmapClick = onHeatmapClick,
+                        pendingProbabilityRequest = aiProbabilityRequest,
+                        onPendingProbabilityConsumed = onAiProbabilityConsumed
                     )
                 }
                 BottomNavItem.THEME -> {

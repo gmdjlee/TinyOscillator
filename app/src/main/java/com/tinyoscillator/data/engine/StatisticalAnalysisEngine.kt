@@ -90,14 +90,17 @@ class StatisticalAnalysisEngine @Inject constructor(
      * 동일 종목+날짜에 대해 Daily TTL(4시간) 이내 재호출 시 캐시 반환.
      * 캐시 미스 시 7개 엔진 병렬 실행 후 결과를 캐싱.
      */
-    suspend fun analyze(stockCode: String): StatisticalResult {
+    suspend fun analyze(
+        stockCode: String,
+        onEngineComplete: ((String) -> Unit)? = null
+    ): StatisticalResult {
         val key = FeatureKey(ticker = stockCode, featureName = "StatisticalResult")
         return featureStore.getOrCompute(
             key = key,
             ttl = FeatureTtl.Daily,
             serializer = StatisticalResult.serializer()
         ) {
-            analyzeInternal(stockCode)
+            analyzeInternal(stockCode, onEngineComplete)
         }
     }
 
@@ -114,7 +117,10 @@ class StatisticalAnalysisEngine @Inject constructor(
      * 11개 엔진을 병렬 실행하고 결과를 StatisticalResult로 통합.
      * 각 엔진 실패 시 해당 결과만 null로 표시.
      */
-    private suspend fun analyzeInternal(stockCode: String): StatisticalResult = coroutineScope {
+    private suspend fun analyzeInternal(
+        stockCode: String,
+        progress: ((String) -> Unit)? = null
+    ): StatisticalResult = coroutineScope {
         val totalStart = System.currentTimeMillis()
         val timings = mutableMapOf<String, Long>()
         val failedEngines = mutableListOf<String>()
@@ -135,13 +141,13 @@ class StatisticalAnalysisEngine @Inject constructor(
 
         // 9개 엔진 병렬 실행
         val bayesDeferred = async {
-            timedExecution("NaiveBayes", timings, failedEngines) {
+            timedExecution("NaiveBayes", timings, failedEngines, progress) {
                 naiveBayesEngine.analyze(prices, oscillators, demarkRows, fundamentals, etfAmountTrend)
             }
         }
 
         val logisticDeferred = async {
-            timedExecution("Logistic", timings, failedEngines) {
+            timedExecution("Logistic", timings, failedEngines, progress) {
                 val lastDemark = demarkRows.lastOrNull()
                 logisticScoringEngine.analyze(
                     prices, oscillators, fundamentals,
@@ -151,50 +157,54 @@ class StatisticalAnalysisEngine @Inject constructor(
         }
 
         val hmmDeferred = async {
-            timedExecution("HMM", timings, failedEngines) {
+            timedExecution("HMM", timings, failedEngines, progress) {
                 hmmRegimeEngine.analyze(prices)
             }
         }
 
         val patternDeferred = async {
-            timedExecution("PatternScan", timings, failedEngines) {
+            timedExecution("PatternScan", timings, failedEngines, progress) {
                 patternScanEngine.analyze(prices, oscillators, demarkRows, fundamentals)
             }
         }
 
         val correlationDeferred = async {
-            timedExecution("Correlation", timings, failedEngines) {
+            timedExecution("Correlation", timings, failedEngines, progress) {
                 correlationEngine.analyze(oscillators, demarkRows, prices, sectorEtfReturns)
             }
         }
 
         val bayesianUpdateDeferred = async {
-            timedExecution("BayesianUpdate", timings, failedEngines) {
+            timedExecution("BayesianUpdate", timings, failedEngines, progress) {
                 bayesianUpdateEngine.analyze(prices, oscillators, demarkRows, fundamentals, etfAmountTrend)
             }
         }
 
         val orderFlowDeferred = async {
-            timedExecution("OrderFlow", timings, failedEngines) {
+            timedExecution("OrderFlow", timings, failedEngines, progress) {
                 orderFlowEngine.analyze(prices)
             }
         }
 
         val dartEventDeferred = async {
-            timedExecution("DartEvent", timings, failedEngines) {
+            timedExecution("DartEvent", timings, failedEngines, progress) {
                 val dartApiKey = try { apiConfigProvider.getDartApiKey() } catch (_: Exception) { null }
-                dartEventEngine.analyze(dartApiKey, stockCode, prices)
+                // 유일한 네트워크 의존 엔진 — corpCode 다운로드 등이 지연되면
+                // 전체 분석이 무한 대기하므로 타임아웃으로 격리한다.
+                kotlinx.coroutines.withTimeoutOrNull(DART_ENGINE_TIMEOUT_MS) {
+                    dartEventEngine.analyze(dartApiKey, stockCode, prices)
+                } ?: throw IllegalStateException("DartEvent 타임아웃 (${DART_ENGINE_TIMEOUT_MS / 1000}초 초과)")
             }
         }
 
         val korea5FactorDeferred = async {
-            timedExecution("Korea5Factor", timings, failedEngines) {
+            timedExecution("Korea5Factor", timings, failedEngines, progress) {
                 korea5FactorEngine.analyze(prices, stockCode)
             }
         }
 
         val sectorCorrDeferred = async {
-            timedExecution("SectorCorrelation", timings, failedEngines) {
+            timedExecution("SectorCorrelation", timings, failedEngines, progress) {
                 sectorCorrelationNetwork.analyze(prices, stockCode)
             }
         }
@@ -203,7 +213,7 @@ class StatisticalAnalysisEngine @Inject constructor(
         val patternResult = patternDeferred.await()
 
         val signalDeferred = async {
-            timedExecution("SignalScoring", timings, failedEngines) {
+            timedExecution("SignalScoring", timings, failedEngines, progress) {
                 signalScoringEngine.analyze(
                     oscillators, demarkRows, prices, fundamentals, patternResult
                 )
@@ -492,6 +502,7 @@ class StatisticalAnalysisEngine @Inject constructor(
         engineName: String,
         timings: MutableMap<String, Long>,
         failedEngines: MutableList<String>,
+        noinline onComplete: ((String) -> Unit)? = null,
         block: () -> T
     ): T? {
         val start = System.currentTimeMillis()
@@ -499,6 +510,7 @@ class StatisticalAnalysisEngine @Inject constructor(
             val result = block()
             timings[engineName] = System.currentTimeMillis() - start
             Timber.d("  ✓ $engineName: ${timings[engineName]}ms")
+            onComplete?.invoke(engineName)
             result
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
@@ -506,7 +518,16 @@ class StatisticalAnalysisEngine @Inject constructor(
             timings[engineName] = System.currentTimeMillis() - start
             failedEngines.add(engineName)
             Timber.e(e, "  ✗ $engineName 실패: ${e.message}")
+            onComplete?.invoke(engineName)
             null
         }
+    }
+
+    companion object {
+        /** 진행률 표시용 — [analyzeInternal]의 timedExecution 호출 수와 일치해야 한다. */
+        const val PROGRESS_TOTAL_ENGINES = 11
+
+        /** DartEvent(유일한 네트워크 의존 엔진) 타임아웃 — corpCode 최초 다운로드 여유 포함 */
+        const val DART_ENGINE_TIMEOUT_MS = 60_000L
     }
 }

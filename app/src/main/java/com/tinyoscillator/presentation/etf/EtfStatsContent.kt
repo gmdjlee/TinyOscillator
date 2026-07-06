@@ -30,6 +30,7 @@ private enum class StatsTab(val label: String) {
 fun EtfStatsContent(
     onStockClick: (String) -> Unit = {},
     onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
+    onOpenProbabilityAnalysis: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     viewModel: EtfStatsViewModel = hiltViewModel()
 ) {
@@ -71,6 +72,10 @@ fun EtfStatsContent(
             onOpenFullAnalysis = { t, n ->
                 quickAnalysisStock = null
                 onOpenFullAnalysis(t, n)
+            },
+            onOpenProbabilityAnalysis = { t, n ->
+                quickAnalysisStock = null
+                onOpenProbabilityAnalysis(t, n)
             }
         )
     }

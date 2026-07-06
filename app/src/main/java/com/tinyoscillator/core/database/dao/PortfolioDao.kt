@@ -29,8 +29,17 @@ data class HoldingSummaryRow(
     @ColumnInfo(name = "totalSellAmount") val totalSellAmount: Long
 )
 
+data class HoldingStockInfo(
+    @ColumnInfo(name = "ticker") val ticker: String,
+    @ColumnInfo(name = "stockName") val stockName: String
+)
+
 @Dao
 interface PortfolioDao {
+
+    /** 전체 포트폴리오의 보유 종목 (중복 제거) — 야간 확률분석 배치 대상 */
+    @Query("SELECT DISTINCT ticker, stock_name AS stockName FROM portfolio_holdings")
+    suspend fun getDistinctHoldingStocks(): List<HoldingStockInfo>
 
     // Portfolio CRUD
     @Query("SELECT * FROM portfolios ORDER BY created_at ASC")

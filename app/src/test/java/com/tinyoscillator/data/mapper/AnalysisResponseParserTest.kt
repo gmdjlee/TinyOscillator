@@ -156,4 +156,58 @@ class AnalysisResponseParserTest {
         assertEquals("Bayes", result.insights[0].algorithmName)
         assertEquals("HMM", result.insights[1].algorithmName)
     }
+
+    // --- parseOrNull ---
+
+    @Test
+    fun `parseOrNull 정상 JSON은 StockAnalysis 반환`() {
+        val json = """
+        {"overall_assessment": "매수", "confidence": 0.7, "insights": [], "conflicts": [], "risks": [], "action": "분할 매수"}
+        """.trimIndent()
+
+        val result = parser.parseOrNull(json)
+
+        assertNotNull(result)
+        assertEquals("매수", result!!.overallAssessment)
+    }
+
+    @Test
+    fun `parseOrNull 비JSON 텍스트는 null 반환`() {
+        assertNull(parser.parseOrNull("죄송합니다, 분석할 수 없습니다."))
+        assertNull(parser.parseOrNull(""))
+    }
+
+    @Test
+    fun `parseOrNull 핵심 필드 없는 JSON은 null 반환`() {
+        assertNull(parser.parseOrNull("""{"foo": "bar"}"""))
+    }
+
+    // --- STOCK_ANALYSIS_SCHEMA ---
+
+    @Test
+    fun `스키마는 파서가 소비하는 필드와 일치`() {
+        val schema = AnalysisResponseParser.STOCK_ANALYSIS_SCHEMA.toString()
+
+        assertTrue(schema.contains("overall_assessment"))
+        assertTrue(schema.contains("confidence"))
+        assertTrue(schema.contains("insights"))
+        assertTrue(schema.contains("conflicts"))
+        assertTrue(schema.contains("risks"))
+        assertTrue(schema.contains("action"))
+    }
+
+    @Test
+    fun `스키마 강제 출력 형태 JSON 파싱 왕복`() {
+        // Claude tool_use input이 그대로 문자열화된 형태
+        val toolInput = """
+        {"overall_assessment":"관망 - 신호 혼조","confidence":0.55,"insights":[{"algorithm":"OrderFlow","interpretation":"기관 매수 우위","significance":"보통"}],"conflicts":["Bayes 상승 vs HMM 고변동"],"risks":["매크로 긴축"],"action":"관망 유지"}
+        """.trimIndent()
+
+        val result = parser.parseOrNull(toolInput)
+
+        assertNotNull(result)
+        assertEquals(0.55, result!!.confidence, 0.001)
+        assertEquals("OrderFlow", result.insights[0].algorithmName)
+        assertEquals(1, result.conflicts.size)
+    }
 }

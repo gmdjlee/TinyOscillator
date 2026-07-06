@@ -29,6 +29,10 @@ object CollectionNotificationHelper {
     const val INCREMENTAL_MODEL_NOTIFICATION_ID = 1011
     const val SIGNAL_OUTCOME_NOTIFICATION_ID = 1012
     const val THEME_NOTIFICATION_ID = 1013
+    const val PROBABILITY_BATCH_NOTIFICATION_ID = 1014
+
+    const val SIGNAL_ALERT_CHANNEL_ID = "signal_alerts"
+    const val SIGNAL_ALERT_NOTIFICATION_ID = 1015
 
     fun createChannel(context: Context) {
         val channel = NotificationChannel(
@@ -91,6 +95,47 @@ object CollectionNotificationHelper {
             .setAutoCancel(true)
             .setSilent(false)
             .setContentIntent(pendingIntent)
+    }
+
+    /** 신호 알림 채널 — 데이터 수집 채널과 달리 소리/배지가 있는 DEFAULT 중요도 */
+    fun createSignalAlertChannel(context: Context) {
+        val channel = NotificationChannel(
+            SIGNAL_ALERT_CHANNEL_ID,
+            "매매 신호 알림",
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "확률분석 점수가 임계값을 돌파하면 알립니다"
+            setShowBadge(true)
+        }
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(channel)
+    }
+
+    /** 신호 임계 돌파 알림 — 종목별 한 줄씩 InboxStyle로 표시 */
+    fun showSignalAlert(context: Context, lines: List<String>) {
+        if (lines.isEmpty()) return
+        createSignalAlertChannel(context)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val style = NotificationCompat.InboxStyle()
+        lines.forEach { style.addLine(it) }
+
+        val builder = NotificationCompat.Builder(context, SIGNAL_ALERT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("확률분석 신호 (${lines.size}건)")
+            .setContentText(lines.first())
+            .setStyle(style)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+
+        showNotification(context, SIGNAL_ALERT_NOTIFICATION_ID, builder)
     }
 
     fun showNotification(context: Context, notificationId: Int, builder: NotificationCompat.Builder) {

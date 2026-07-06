@@ -81,7 +81,9 @@ class AiStockAnalysisViewModelTest {
         viewModel = AiStockAnalysisViewModel(
             stockRepository, financialRepository, etfRepository,
             calcOscillator, calcDemarkTD, searchStocksUseCase,
-            aiApiClient, aiPreparer, apiConfigProvider
+            aiApiClient, aiPreparer, apiConfigProvider,
+            analysisSnapshotDao = mockk(relaxed = true),
+            stockMasterDao = mockk(relaxed = true)
         )
     }
 
