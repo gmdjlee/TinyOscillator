@@ -36,6 +36,7 @@ class DartApiClient(
 
     companion object {
         private const val BASE_URL = "https://opendart.fss.or.kr/api"
+        private const val LIST_CLOSE_LEN = "</list>".length
     }
 
     private val rateLimitMutex = Mutex()
@@ -190,22 +191,42 @@ class DartApiClient(
      *   ...
      * </result>
      */
-    private fun parseCorpCodeXml(xml: String): List<CorpCodeEntry> {
+    internal fun parseCorpCodeXml(xml: String): List<CorpCodeEntry> {
+        // 정규식 대신 indexOf 단일 패스 — corpCode.xml은 ~11만 <list> 엔트리의
+        // 수십 MB 문서라 lazy 정규식(findAll + DOT_MATCHES_ALL)은 저사양 기기에서
+        // GC 스래싱으로 수 분 이상 걸린다.
         val entries = mutableListOf<CorpCodeEntry>()
-        val listPattern = Regex("<list>(.*?)</list>", RegexOption.DOT_MATCHES_ALL)
-        val corpCodePattern = Regex("<corp_code>(.+?)</corp_code>")
-        val corpNamePattern = Regex("<corp_name>(.+?)</corp_name>")
-        val stockCodePattern = Regex("<stock_code>(.+?)</stock_code>")
+        var pos = 0
+        while (true) {
+            val start = xml.indexOf("<list>", pos)
+            if (start < 0) break
+            val end = xml.indexOf("</list>", start)
+            if (end < 0) break
 
-        for (match in listPattern.findAll(xml)) {
-            val block = match.groupValues[1]
-            val corpCode = corpCodePattern.find(block)?.groupValues?.get(1)?.trim() ?: continue
-            val corpName = corpNamePattern.find(block)?.groupValues?.get(1)?.trim() ?: ""
-            val stockCode = stockCodePattern.find(block)?.groupValues?.get(1)?.trim() ?: ""
-
-            entries.add(CorpCodeEntry(corpCode = corpCode, corpName = corpName, stockCode = stockCode))
+            val corpCode = extractTag(xml, "corp_code", start, end)
+            if (corpCode != null) {
+                entries.add(
+                    CorpCodeEntry(
+                        corpCode = corpCode,
+                        corpName = extractTag(xml, "corp_name", start, end) ?: "",
+                        stockCode = extractTag(xml, "stock_code", start, end) ?: ""
+                    )
+                )
+            }
+            pos = end + LIST_CLOSE_LEN
         }
         return entries
+    }
+
+    /** [from, to) 범위 내 첫 `<tag>값</tag>`의 값을 추출 */
+    private fun extractTag(xml: String, tag: String, from: Int, to: Int): String? {
+        val open = "<$tag>"
+        val start = xml.indexOf(open, from)
+        if (start < 0 || start >= to) return null
+        val valueStart = start + open.length
+        val end = xml.indexOf("</$tag>", valueStart)
+        if (end < 0 || end > to) return null
+        return xml.substring(valueStart, end).trim().ifEmpty { null }
     }
 
     private suspend fun throttle() {
