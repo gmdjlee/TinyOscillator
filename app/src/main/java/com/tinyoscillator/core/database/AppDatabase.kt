@@ -24,6 +24,7 @@ import com.tinyoscillator.core.database.dao.FearGreedDao
 import com.tinyoscillator.core.database.dao.ThemeGroupDao
 import com.tinyoscillator.core.database.dao.ThemeStockDao
 import com.tinyoscillator.core.database.dao.WorkerLogDao
+import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.core.database.entity.AnalysisSnapshotEntity
@@ -52,6 +53,7 @@ import com.tinyoscillator.core.database.entity.StockMasterEntity
 import com.tinyoscillator.core.database.entity.ThemeGroupEntity
 import com.tinyoscillator.core.database.entity.ThemeStockEntity
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
+import com.tinyoscillator.feature.bearsignal.data.local.BearSignalAutoCacheEntity
 
 @Database(
     entities = [
@@ -83,8 +85,9 @@ import com.tinyoscillator.core.database.entity.WorkerLogEntity
         AnalysisSnapshotEntity::class,
         ThemeGroupEntity::class,
         ThemeStockEntity::class,
+        BearSignalAutoCacheEntity::class,
     ],
-    version = 33,
+    version = 34,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -110,4 +113,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun analysisSnapshotDao(): AnalysisSnapshotDao
     abstract fun themeGroupDao(): ThemeGroupDao
     abstract fun themeStockDao(): ThemeStockDao
+    abstract fun bearSignalDao(): BearSignalDao
 }

@@ -55,6 +55,7 @@ object AppDatabaseMigrations {
         MIGRATION_30_31,
         MIGRATION_31_32,
         MIGRATION_32_33,
+        MIGRATION_33_34,
     )
 }
 
@@ -880,6 +881,32 @@ private val MIGRATION_32_33 = object : Migration(32, 33) {
             Timber.d("Migration v32→v33 성공: analysis_snapshots에 ai_interpretation 컬럼 추가")
         } catch (e: Exception) {
             Timber.e(e, "Migration v32→v33 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v33→v34: BearSignal(「주도주 붕괴 판단 계기판」) [A] 등급 자동 지표 캐시 테이블 신설.
+ *
+ * 지표키·값·출처(AUTO/MANUAL)·갱신시각을 저장하는 범용 key-value 캐시 — Phase 2+에서 [B] 등급
+ * 자동 지표를 추가할 때도 새 마이그레이션 없이 키만 늘려 재사용한다(TASK.md §1.2 하이브리드
+ * 데이터 아키텍처).
+ */
+private val MIGRATION_33_34 = object : Migration(33, 34) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `bear_signal_auto_cache` (" +
+                    "`indicator_key` TEXT NOT NULL, " +
+                    "`value` REAL NOT NULL, " +
+                    "`source` TEXT NOT NULL, " +
+                    "`updated_at` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`indicator_key`))"
+            )
+            Timber.d("Migration v33→v34 성공: bear_signal_auto_cache 테이블 생성")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v33→v34 실패")
             throw e
         }
     }
