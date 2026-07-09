@@ -35,4 +35,33 @@ interface BearSignalDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertCountryReturns(entities: List<BearSignalCountryReturnEntity>)
+
+    // ── 수동 오버라이드([C]/[D] 등급 스칼라, Phase 3) ─────────────────────
+
+    @Query("SELECT * FROM bear_signal_manual_input")
+    fun observeManualInputs(): Flow<List<BearSignalManualInputEntity>>
+
+    @Query("SELECT * FROM bear_signal_manual_input")
+    suspend fun getManualInputs(): List<BearSignalManualInputEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertManualInput(entity: BearSignalManualInputEntity)
+
+    /** [com.tinyoscillator.feature.bearsignal.domain.usecase.ResetToReportBaselineUseCase]가 사용 — 수동 오버라이드 전체 삭제 */
+    @Query("DELETE FROM bear_signal_manual_input")
+    suspend fun clearManualInputs()
+
+    // ── 국가별 지수 수익률 수동 오버라이드(Phase 3) ────────────────────────
+
+    @Query("SELECT * FROM bear_signal_manual_country_return")
+    fun observeManualCountryReturns(): Flow<List<BearSignalManualCountryReturnEntity>>
+
+    @Query("SELECT * FROM bear_signal_manual_country_return")
+    suspend fun getManualCountryReturns(): List<BearSignalManualCountryReturnEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertManualCountryReturn(entity: BearSignalManualCountryReturnEntity)
+
+    @Query("DELETE FROM bear_signal_manual_country_return")
+    suspend fun clearManualCountryReturns()
 }

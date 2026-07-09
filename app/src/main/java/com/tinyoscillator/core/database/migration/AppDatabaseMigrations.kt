@@ -57,6 +57,7 @@ object AppDatabaseMigrations {
         MIGRATION_32_33,
         MIGRATION_33_34,
         MIGRATION_34_35,
+        MIGRATION_35_36,
     )
 }
 
@@ -936,6 +937,43 @@ private val MIGRATION_34_35 = object : Migration(34, 35) {
             Timber.d("Migration v34→v35 성공: bear_signal_country_return 테이블 생성")
         } catch (e: Exception) {
             Timber.e(e, "Migration v34→v35 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v35→v36: BearSignal 수동 오버라이드([C]/[D] 등급, TASK.md Phase 3) 캐시 테이블 2종 신설.
+ *
+ * 자동 수집 캐시(`bear_signal_auto_cache`/`bear_signal_country_return`)와 분리된 전용 테이블 —
+ * 자동 갱신이 매번 해당 지표 행을 덮어쓰므로 같은 테이블에 수동값을 두면 다음 자동 갱신 때
+ * 유실된다. `bear_signal_manual_input`은 스칼라 지표(적자상장비중·대어소화·신주비중·신용잔고·
+ * 반대매매임박·정책방향 오버라이드), `bear_signal_manual_country_return`은 국가별 지수 수익률
+ * 수동 오버라이드(§4 "미커버 해외지수" 폴백)를 담는다.
+ */
+private val MIGRATION_35_36 = object : Migration(35, 36) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `bear_signal_manual_input` (" +
+                    "`indicator_key` TEXT NOT NULL, " +
+                    "`value` REAL NOT NULL, " +
+                    "`updated_at` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`indicator_key`))"
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `bear_signal_manual_country_return` (" +
+                    "`country_name` TEXT NOT NULL, " +
+                    "`r_12m` REAL, " +
+                    "`r_6m` REAL, " +
+                    "`r_3m` REAL, " +
+                    "`r_1m` REAL, " +
+                    "`updated_at` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`country_name`))"
+            )
+            Timber.d("Migration v35→v36 성공: bear_signal_manual_input/bear_signal_manual_country_return 테이블 생성")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v35→v36 실패")
             throw e
         }
     }

@@ -7,14 +7,21 @@ import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
 import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalAutoCacheMapper
 import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalCountryReturnMapper
+import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalManualCountryReturnMapper
+import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalManualInputMapper
 import com.tinyoscillator.feature.bearsignal.data.remote.CustomsTradeApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoMarketReturn
+import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalReportBaseline
 import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexRegistry
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
+import com.tinyoscillator.feature.bearsignal.domain.model.ManualBearSignalInputs
+import com.tinyoscillator.feature.bearsignal.domain.model.ManualFieldUpdate
+import com.tinyoscillator.feature.bearsignal.domain.model.ManualIndicatorKey
+import com.tinyoscillator.feature.bearsignal.domain.model.ManualMarketReturn
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketCoverage
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturnsSnapshot
 import com.tinyoscillator.feature.bearsignal.domain.repository.BearSignalRepository
@@ -377,5 +384,57 @@ class BearSignalRepositoryImpl(
             cachedSnapshot?.markets?.find { it.name == name }
                 ?: AutoMarketReturn(name, listOf(null, null, null, null), lead, MarketCoverage.AUTO, now)
         }
+    }
+
+    // ── Phase 3: 수동 오버라이드([C]/[D] 등급) ──────────────────────────
+
+    override fun observeManualInputs(): Flow<ManualBearSignalInputs> =
+        bearSignalDao.observeManualInputs().map { BearSignalManualInputMapper.toDomain(it) }
+
+    override suspend fun getManualInputs(): ManualBearSignalInputs =
+        BearSignalManualInputMapper.toDomain(bearSignalDao.getManualInputs())
+
+    override suspend fun updateManualInput(update: ManualFieldUpdate) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        when (update) {
+            is ManualFieldUpdate.Loss -> upsertManualScalar(ManualIndicatorKey.LOSS, update.value, now)
+            is ManualFieldUpdate.Big -> upsertManualScalar(
+                ManualIndicatorKey.BIG,
+                BearSignalManualInputMapper.encodeBig(update.value),
+                now
+            )
+            is ManualFieldUpdate.IssueRatio -> upsertManualScalar(ManualIndicatorKey.ISSUE_RATIO, update.value, now)
+            is ManualFieldUpdate.Credit -> upsertManualScalar(ManualIndicatorKey.CREDIT, update.value, now)
+            is ManualFieldUpdate.Margin -> upsertManualScalar(
+                ManualIndicatorKey.MARGIN,
+                BearSignalManualInputMapper.encodeBoolean(update.value),
+                now
+            )
+            is ManualFieldUpdate.Dir -> upsertManualScalar(
+                ManualIndicatorKey.DIR,
+                BearSignalManualInputMapper.encodeDir(update.value),
+                now
+            )
+            is ManualFieldUpdate.MarketReturn -> bearSignalDao.upsertManualCountryReturn(
+                BearSignalManualCountryReturnMapper.toEntity(ManualMarketReturn(update.name, update.r, now))
+            )
+        }
+        Timber.i("BearSignal 수동 입력 반영: $update")
+    }
+
+    private suspend fun upsertManualScalar(key: ManualIndicatorKey, value: Double, updatedAt: Long) {
+        bearSignalDao.upsertManualInput(BearSignalManualInputMapper.toEntity(key, value, updatedAt))
+    }
+
+    override fun observeManualMarketReturns(): Flow<List<ManualMarketReturn>> =
+        bearSignalDao.observeManualCountryReturns().map { BearSignalManualCountryReturnMapper.toDomain(it) }
+
+    override suspend fun getManualMarketReturns(): List<ManualMarketReturn> =
+        BearSignalManualCountryReturnMapper.toDomain(bearSignalDao.getManualCountryReturns())
+
+    override suspend fun resetToReportBaseline() = withContext(Dispatchers.IO) {
+        bearSignalDao.clearManualInputs()
+        bearSignalDao.clearManualCountryReturns()
+        Timber.i("BearSignal 수동 오버라이드 리셋 완료 — 리포트 기준값(${BearSignalReportBaseline.REPORT_DATE})으로 복귀")
     }
 }

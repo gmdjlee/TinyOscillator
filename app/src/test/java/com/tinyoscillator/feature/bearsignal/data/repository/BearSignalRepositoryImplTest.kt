@@ -11,8 +11,11 @@ import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.domain.model.EcosDataPoint
 import com.tinyoscillator.domain.model.KrxCredentials
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
+import com.tinyoscillator.feature.bearsignal.data.local.BearSignalManualCountryReturnEntity
+import com.tinyoscillator.feature.bearsignal.data.local.BearSignalManualInputEntity
 import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalAutoCacheMapper
 import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalCountryReturnMapper
+import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalManualInputMapper
 import com.tinyoscillator.feature.bearsignal.data.remote.CustomsTradeApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.FredObservation
@@ -23,12 +26,15 @@ import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoMarketReturn
 import com.tinyoscillator.feature.bearsignal.domain.model.CustomsTradeItem
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
+import com.tinyoscillator.feature.bearsignal.domain.model.ManualFieldUpdate
+import com.tinyoscillator.feature.bearsignal.domain.model.ManualIndicatorKey
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketCoverage
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturnsSnapshot
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -451,5 +457,119 @@ class BearSignalRepositoryImplTest {
         val cached = repository.getCachedMarketReturns()
 
         assertNull(cached)
+    }
+
+    // ── Phase 3: 수동 오버라이드([C]/[D] 등급) ────────────────────
+
+    @Test
+    fun `updateManualInput Loss는 LOSS 키로 upsert된다`() = runTest {
+        val slot = slot<BearSignalManualInputEntity>()
+        coEvery { dao.upsertManualInput(capture(slot)) } returns Unit
+
+        repository.updateManualInput(ManualFieldUpdate.Loss(72.0))
+
+        assertEquals(ManualIndicatorKey.LOSS.key, slot.captured.indicatorKey)
+        assertEquals(72.0, slot.captured.value, 1e-9)
+    }
+
+    @Test
+    fun `updateManualInput Big은 인코딩되어 upsert된다`() = runTest {
+        val slot = slot<BearSignalManualInputEntity>()
+        coEvery { dao.upsertManualInput(capture(slot)) } returns Unit
+
+        repository.updateManualInput(ManualFieldUpdate.Big("failed"))
+
+        assertEquals(ManualIndicatorKey.BIG.key, slot.captured.indicatorKey)
+        assertEquals(BearSignalManualInputMapper.encodeBig("failed"), slot.captured.value, 1e-9)
+    }
+
+    @Test
+    fun `updateManualInput Margin은 boolean 인코딩되어 upsert된다`() = runTest {
+        val slot = slot<BearSignalManualInputEntity>()
+        coEvery { dao.upsertManualInput(capture(slot)) } returns Unit
+
+        repository.updateManualInput(ManualFieldUpdate.Margin(true))
+
+        assertEquals(ManualIndicatorKey.MARGIN.key, slot.captured.indicatorKey)
+        assertEquals(1.0, slot.captured.value, 1e-9)
+    }
+
+    @Test
+    fun `updateManualInput Dir는 DIR 키로 인코딩되어 upsert된다`() = runTest {
+        val slot = slot<BearSignalManualInputEntity>()
+        coEvery { dao.upsertManualInput(capture(slot)) } returns Unit
+
+        repository.updateManualInput(ManualFieldUpdate.Dir("hike"))
+
+        assertEquals(ManualIndicatorKey.DIR.key, slot.captured.indicatorKey)
+        assertEquals(BearSignalManualInputMapper.encodeDir("hike"), slot.captured.value, 1e-9)
+    }
+
+    @Test
+    fun `updateManualInput MarketReturn은 country_return 테이블에 upsert된다`() = runTest {
+        val slot = slot<BearSignalManualCountryReturnEntity>()
+        coEvery { dao.upsertManualCountryReturn(capture(slot)) } returns Unit
+
+        repository.updateManualInput(ManualFieldUpdate.MarketReturn("RTS", listOf(-1.0, -2.0, -3.0, -4.0)))
+
+        assertEquals("RTS", slot.captured.countryName)
+        assertEquals(-4.0, slot.captured.r1m!!, 1e-9)
+    }
+
+    @Test
+    fun `getManualInputs Room 캐시를 도메인 모델로 매핑`() = runTest {
+        coEvery { dao.getManualInputs() } returns listOf(
+            BearSignalManualInputEntity(ManualIndicatorKey.CREDIT.key, 45.0, 100L)
+        )
+
+        val manual = repository.getManualInputs()
+
+        assertEquals(45.0, manual.credit!!.value, 1e-9)
+        assertEquals(InputSource.MANUAL, manual.credit!!.source)
+    }
+
+    @Test
+    fun `observeManualInputs Room Flow를 도메인 모델로 매핑`() = runTest {
+        every { dao.observeManualInputs() } returns flowOf(
+            listOf(BearSignalManualInputEntity(ManualIndicatorKey.LOSS.key, 60.0, 1L))
+        )
+
+        val emitted = repository.observeManualInputs().first()
+
+        assertEquals(60.0, emitted.loss!!.value, 1e-9)
+    }
+
+    @Test
+    fun `getManualMarketReturns Room 캐시를 도메인 모델 리스트로 매핑`() = runTest {
+        coEvery { dao.getManualCountryReturns() } returns listOf(
+            BearSignalManualCountryReturnEntity("RTS", -1.0, -2.0, -3.0, -4.0, 1L)
+        )
+
+        val list = repository.getManualMarketReturns()
+
+        assertEquals(1, list.size)
+        assertEquals("RTS", list.first().name)
+    }
+
+    @Test
+    fun `resetToReportBaseline은 수동 오버라이드 두 테이블을 모두 비운다`() = runTest {
+        coEvery { dao.clearManualInputs() } returns Unit
+        coEvery { dao.clearManualCountryReturns() } returns Unit
+
+        repository.resetToReportBaseline()
+
+        coVerify(exactly = 1) { dao.clearManualInputs() }
+        coVerify(exactly = 1) { dao.clearManualCountryReturns() }
+    }
+
+    @Test
+    fun `resetToReportBaseline은 자동 수집 캐시를 건드리지 않는다`() = runTest {
+        coEvery { dao.clearManualInputs() } returns Unit
+        coEvery { dao.clearManualCountryReturns() } returns Unit
+
+        repository.resetToReportBaseline()
+
+        coVerify(exactly = 0) { dao.upsertAll(any()) }
+        coVerify(exactly = 0) { dao.upsertCountryReturns(any()) }
     }
 }

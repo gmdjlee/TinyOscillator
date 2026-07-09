@@ -9,9 +9,12 @@ import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
 import com.tinyoscillator.feature.bearsignal.data.repository.BearSignalRepositoryImpl
 import com.tinyoscillator.feature.bearsignal.domain.repository.BearSignalRepository
+import com.tinyoscillator.feature.bearsignal.domain.usecase.MergeBearSignalInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshAutoInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshExternalAutoInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshMarketReturnsUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.ResetToReportBaselineUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.UpdateManualInputUseCase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -76,4 +79,20 @@ object BearSignalModule {
     fun provideRefreshMarketReturnsUseCase(
         repository: BearSignalRepository
     ): RefreshMarketReturnsUseCase = RefreshMarketReturnsUseCase(repository)
+
+    @Provides
+    @Singleton
+    fun provideUpdateManualInputUseCase(
+        repository: BearSignalRepository
+    ): UpdateManualInputUseCase = UpdateManualInputUseCase(repository)
+
+    @Provides
+    @Singleton
+    fun provideResetToReportBaselineUseCase(
+        repository: BearSignalRepository
+    ): ResetToReportBaselineUseCase = ResetToReportBaselineUseCase(repository)
+
+    @Provides
+    @Singleton
+    fun provideMergeBearSignalInputsUseCase(): MergeBearSignalInputsUseCase = MergeBearSignalInputsUseCase()
 }

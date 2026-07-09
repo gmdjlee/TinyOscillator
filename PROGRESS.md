@@ -2,6 +2,8 @@
 
 > 근거: `TASK.md` (「주도주 붕괴 판단 계기판」 이식 명세서 v1.0). 각 Phase 완료 시 `PROGRESS:` 마커 갱신.
 
+PROGRESS: P3 — 완료 ([C]/[D] 수동 입력 계층(신용잔고·적자상장비중·신주비중·대어소화·정책방향·반대매매임박·미커버 해외지수) + auto⊕manual 병합(MANUAL 우선) + 리포트 기준값 리셋 + Room v36 + JVM 테스트 46건 신규(총 205건), 2026-07-10)
+
 PROGRESS: P2 — 완료 ([B] 자동 연동 4지표(관세청 수출비중·FRED/ECOS 금리·IPO ETF 방향·해외 19개 지수) + Room v35 + JVM 테스트 89건 신규(총 159건), 2026-07-10)
 
 PROGRESS: P1 — 완료 ([A] 자동 연동 2지표(신호2 통계·코스피 2사 비중) + Room v34 + JVM 테스트 29건 신규(총 70건), 2026-07-09)
@@ -58,6 +60,29 @@ PROGRESS: P0 — 완료 (스캐폴딩·도메인 모델·순수 스코어링·JV
 - **테스트**: 신규 89건(총 159건, 0 실패) — 순수 계산기(`CustomsTradeCalculatorTest` 11, `RateGateInputCalculatorTest` 4, `IpoEtfDirectionCalculatorTest` 10, `GlobalIndexReturnCalculatorTest` 7, 전부 경계값 포함), API 클라이언트 fixture 파싱(`CustomsTradeApiClientTest` 7, `FredApiClientTest` 6, `StooqCsvClientTest` 7 — 실 응답 형태 JSON/CSV 기반), 매퍼(`BearSignalAutoCacheMapperTest` +9, `BearSignalCountryReturnMapperTest` 7), 레지스트리(`GlobalIndexRegistryTest` 6), UseCase 위임(`RefreshExternalAutoInputsUseCaseTest`/`RefreshMarketReturnsUseCaseTest` 각 1), 리포지토리(`BearSignalRepositoryImplTest` +13 — 지표별 best-effort 폴백·Phase1 캐시 보존·전체 실패 시나리오). 기존 70건 회귀 통과.
 - **빌드**: `:app:compileDebugKotlin`/`:app:compileDebugUnitTestKotlin`/`:app:assembleDebug` 전부 BUILD SUCCESSFUL.
 - **수동 폴백(MANUAL_REQUIRED) 처리 지수**: 대만, CAC40, 호주, 유로, FTSE, 태국, 베트남, 상하이, 인도, 멕시코, 브라질, 인니, RTS (13개) — Stooq 티커 신뢰도·RTS 접근성 이슈로 v1은 수동 입력 폴백(§1.1 각주1). v2에서 실기 검증 후 확장 검토.
+
+## P3 상세
+
+- **domain**
+  - `feature/bearsignal/domain/model/BearSignalManualModels.kt` — `ManualIndicatorKey`(LOSS/BIG/ISSUE_RATIO/CREDIT/MARGIN/DIR, `BearIndicatorKey`와 별도 키 공간), `IpoBigConsumption`(smooth/pending/failed 상수+VALID), `ManualBearSignalInputs`(6필드, 전부 `AutoIndicator<T>?`), `ManualMarketReturn`(국가별 수동 오버라이드, 기간별 null 허용), `ManualFieldUpdate` sealed interface(BottomSheet → UseCase 갱신 요청 페이로드, MarketReturn 포함)
+  - `feature/bearsignal/domain/usecase/MergeBearSignalInputsUseCase.kt` — **auto⊕manual 병합 핵심 로직**(§1.2). 필드별 우선순위 MANUAL > AUTO > 리포트 기준값(`BearSignalReportBaseline`). `dir`만 AUTO(P2 ECOS)·MANUAL 양쪽 경로가 있어 실제로 MANUAL 우선 규칙이 검증되는 필드. 국가별 수익률은 지수×기간 단위로 동일 우선순위 적용(`mergeMarkets`, 기간별 부분 오버라이드 지원). `issueRatio`(신주비중)는 §3 스코어링 파라미터가 아니므로 조립 대상에서 명시적으로 제외. 순수 함수, 안드로이드 의존성 0
+  - `feature/bearsignal/domain/usecase/UpdateManualInputUseCase.kt` — `ManualFieldUpdate` 검증(big/dir 허용값, MarketReturn 4기간) 후 repository 위임
+  - `feature/bearsignal/domain/usecase/ResetToReportBaselineUseCase.kt` — repository.resetToReportBaseline() 위임. **범위 결정**: 수동 오버라이드만 삭제하고 [A]/[B] 자동 수집 캐시는 보존(최소 부작용 원칙, KDoc에 근거 명시) — `loss`/`big`/`credit`/`margin`/미커버 해외지수는 AUTO 경로가 아예 없으므로 이 리셋만으로 리포트 기준값과 완전히 일치, `dir`처럼 AUTO 경로가 있는 필드는 리셋 후 최신 자동 수집값이 다시 노출됨(의도된 동작)
+  - `feature/bearsignal/domain/repository/BearSignalRepository.kt` — `observeManualInputs`/`getManualInputs`/`updateManualInput`/`observeManualMarketReturns`/`getManualMarketReturns`/`resetToReportBaseline` 추가
+- **data**
+  - `feature/bearsignal/data/local/BearSignalManualInputEntity.kt` + `BearSignalManualCountryReturnEntity.kt` — 자동 캐시(`bear_signal_auto_cache`/`bear_signal_country_return`)와 분리된 전용 테이블. 자동 갱신이 매번 지표 행을 덮어쓰므로 같은 테이블에 수동값을 두면 유실되기 때문(별도 테이블 필수). `source` 컬럼 없음(테이블 존재 자체가 MANUAL 의미)
+  - `feature/bearsignal/data/mapper/BearSignalManualInputMapper.kt` — margin(Boolean)/big(smooth=0/pending=1/failed=2)/dir(ease=-1/hold=0/hike=1, `BearSignalAutoCacheMapper`와 동일 코드값) Double 인코딩, 키 누락 시 필드별 null
+  - `feature/bearsignal/data/mapper/BearSignalManualCountryReturnMapper.kt` — `ManualMarketReturn` ↔ Entity 변환
+  - `feature/bearsignal/data/repository/BearSignalRepositoryImpl.kt` — `updateManualInput`(6개 `ManualFieldUpdate` 하위타입 → 인코딩 후 upsert) · `resetToReportBaseline`(`clearManualInputs`+`clearManualCountryReturns`, 자동 캐시 테이블 미터치)
+  - `feature/bearsignal/data/local/BearSignalDao.kt` — 수동 오버라이드 CRUD 8메서드 추가(observe/get/upsert/clear ×2테이블)
+  - `feature/bearsignal/di/BearSignalModule.kt` — `UpdateManualInputUseCase`/`ResetToReportBaselineUseCase`/`MergeBearSignalInputsUseCase` Hilt 프로바이더 추가
+- **presentation** (구현 항목 3 — "입력→상태 반영·병합·persistence" 중심, 전체 화면 조립은 Phase 4)
+  - `feature/bearsignal/presentation/ManualInputViewModel.kt` — `@HiltViewModel`, auto/manual/marketsSnapshot/manualMarkets 4-Flow `combine` → `MergeBearSignalInputsUseCase`로 즉시 병합 미리보기(`ManualInputUiState`), 필드별 update 함수 + `reset()`
+  - `feature/bearsignal/presentation/ui/ManualInputBottomSheet.kt` — Material3 `ModalBottomSheet` + Slider(loss/issueRatio) + SegmentedButton(big/dir) + Stepper(credit, +/- IconButton) + Switch(margin) + 리셋 버튼. 헤더·카드·표 등 전체 화면 조립은 Phase 4로 이연
+- **Room**: `AppDatabase` v35→v36(`MIGRATION_35_36`, `bear_signal_manual_input`+`bear_signal_manual_country_return` 테이블 신규). 스키마 `app/schemas/.../36.json` 자동 export 확인 — Room 생성 `createSql`이 수기 마이그레이션 SQL과 문자 단위 일치.
+- **테스트**: 신규 46건(총 205건, 0 실패) — `MergeBearSignalInputsUseCaseTest` 16(골든 케이스 재현: AUTO/MANUAL 전무 → `BearSignalReportBaseline.toInputs()`와 완전 동일 + AMBER 재현, `dir` MANUAL>AUTO>기준값 3단 우선순위, 국가별 수익률 지수×기간 단위 병합 및 부분 오버라이드), `UpdateManualInputUseCaseTest` 8(big/dir 유효값·잘못된 값 예외, MarketReturn 기간 수 검증), `ResetToReportBaselineUseCaseTest` 1, `BearSignalManualInputMapperTest` 8(인코딩 왕복, 키 누락 시 null), `BearSignalManualCountryReturnMapperTest` 3, `BearSignalRepositoryImplTest` +12(6개 `ManualFieldUpdate` 타입별 upsert 검증, get/observe 매핑, 리셋 시 수동 테이블만 삭제·자동 캐시 미터치 검증). 기존 159건 회귀 통과.
+- **빌드**: `:app:compileDebugKotlin`/`:app:compileDebugUnitTestKotlin`/`:app:assembleDebug` 전부 BUILD SUCCESSFUL. Compose `ModalBottomSheet`/`SegmentedButton` 실험적 API `@OptIn(ExperimentalMaterial3Api::class)` 필요(private 헬퍼 컴포저블에도 개별 부여).
+- **범위 참고**: TASK.md 사용자 보충 지시가 나열한 "정책 방향"은 §1.1 매트릭스상 [A] 등급(ECOS 자동, Phase 2 완료)이지만 §4 폴백 열에 "수동"이 명시돼 있어 Phase 3에서 MANUAL 오버라이드 경로를 추가했다(`ManualIndicatorKey.DIR`) — MANUAL 우선 규칙이 실제로 auto와 충돌하는 유일한 필드.
 
 ## 점검 이력 (2026-07-09)
 - kotlin-implementer 셀프리뷰(qa 점검) 결과: 스코어링 5개 함수(analyzeMarkets·scoreS1~S3·scoreGate·amplifier·composite) 전부 프로토타입 `bear_signal_dashboard.jsx`(작업 디렉터리 루트에서 재확보, git 미추적)와 문자 단위 일치 확인.

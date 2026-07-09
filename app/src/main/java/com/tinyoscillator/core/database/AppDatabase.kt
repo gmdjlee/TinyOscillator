@@ -55,6 +55,8 @@ import com.tinyoscillator.core.database.entity.ThemeStockEntity
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalAutoCacheEntity
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalCountryReturnEntity
+import com.tinyoscillator.feature.bearsignal.data.local.BearSignalManualCountryReturnEntity
+import com.tinyoscillator.feature.bearsignal.data.local.BearSignalManualInputEntity
 
 @Database(
     entities = [
@@ -88,8 +90,10 @@ import com.tinyoscillator.feature.bearsignal.data.local.BearSignalCountryReturnE
         ThemeStockEntity::class,
         BearSignalAutoCacheEntity::class,
         BearSignalCountryReturnEntity::class,
+        BearSignalManualInputEntity::class,
+        BearSignalManualCountryReturnEntity::class,
     ],
-    version = 35,
+    version = 36,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
