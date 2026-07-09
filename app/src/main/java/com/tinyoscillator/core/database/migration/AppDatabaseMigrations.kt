@@ -56,6 +56,7 @@ object AppDatabaseMigrations {
         MIGRATION_31_32,
         MIGRATION_32_33,
         MIGRATION_33_34,
+        MIGRATION_34_35,
     )
 }
 
@@ -907,6 +908,34 @@ private val MIGRATION_33_34 = object : Migration(33, 34) {
             Timber.d("Migration v33→v34 성공: bear_signal_auto_cache 테이블 생성")
         } catch (e: Exception) {
             Timber.e(e, "Migration v33→v34 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v34→v35: BearSignal 국가별 지수 수익률(도표48) 캐시 테이블 신설 (TASK.md Phase 2,
+ * §4 "해외 19개 지수"). 지수당 4기간 수익률을 함께 갖는 구조라 범용 스칼라 key-value 캐시
+ * (`bear_signal_auto_cache`)와 분리된 전용 테이블이 필요하다.
+ */
+private val MIGRATION_34_35 = object : Migration(34, 35) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `bear_signal_country_return` (" +
+                    "`country_name` TEXT NOT NULL, " +
+                    "`r_12m` REAL, " +
+                    "`r_6m` REAL, " +
+                    "`r_3m` REAL, " +
+                    "`r_1m` REAL, " +
+                    "`lead` INTEGER NOT NULL, " +
+                    "`coverage` TEXT NOT NULL, " +
+                    "`updated_at` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`country_name`))"
+            )
+            Timber.d("Migration v34→v35 성공: bear_signal_country_return 테이블 생성")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v34→v35 실패")
             throw e
         }
     }

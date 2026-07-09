@@ -51,6 +51,8 @@ internal object PrefsKeys {
     const val FEAR_GREED_SCHEDULE_ENABLED = "fear_greed_schedule_enabled"
     const val DART_API_KEY = "dart_api_key"
     const val ECOS_API_KEY = "ecos_api_key"
+    const val CUSTOMS_TRADE_API_KEY = "customs_trade_api_key"
+    const val FRED_API_KEY = "fred_api_key"
     const val THEME_SCHEDULE_HOUR = "theme_schedule_hour"
     const val THEME_SCHEDULE_MINUTE = "theme_schedule_minute"
     const val THEME_SCHEDULE_ENABLED = "theme_schedule_enabled"
@@ -441,5 +443,29 @@ suspend fun loadEcosApiKey(context: Context): String = withContext(Dispatchers.I
 suspend fun saveEcosApiKey(context: Context, apiKey: String) = withContext(Dispatchers.IO) {
     getEncryptedPrefs(context).edit()
         .putString(PrefsKeys.ECOS_API_KEY, apiKey)
+        .apply()
+}
+
+/** 관세청 무역통계 Open API 인증키 (BearSignal Phase 2, TASK.md §4 "수출 비중") */
+suspend fun loadCustomsTradeApiKey(context: Context): String = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    prefs.getString(PrefsKeys.CUSTOMS_TRADE_API_KEY, "") ?: ""
+}
+
+suspend fun saveCustomsTradeApiKey(context: Context, apiKey: String) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putString(PrefsKeys.CUSTOMS_TRADE_API_KEY, apiKey)
+        .apply()
+}
+
+/** FRED(세인트루이스 연은) API 인증키 (BearSignal Phase 2, TASK.md §4 "미 연준 상단") */
+suspend fun loadFredApiKey(context: Context): String = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    prefs.getString(PrefsKeys.FRED_API_KEY, "") ?: ""
+}
+
+suspend fun saveFredApiKey(context: Context, apiKey: String) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putString(PrefsKeys.FRED_API_KEY, apiKey)
         .apply()
 }

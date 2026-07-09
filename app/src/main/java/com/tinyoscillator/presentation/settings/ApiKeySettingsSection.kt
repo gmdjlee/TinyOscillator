@@ -37,6 +37,8 @@ internal fun ApiTab(
     aiModelId: String, onAiModelIdChange: (String) -> Unit,
     dartApiKey: String = "", onDartApiKeyChange: (String) -> Unit = {},
     ecosApiKey: String = "", onEcosApiKeyChange: (String) -> Unit = {},
+    customsTradeApiKey: String = "", onCustomsTradeApiKeyChange: (String) -> Unit = {},
+    fredApiKey: String = "", onFredApiKeyChange: (String) -> Unit = {},
     saveMessage: String?,
     onSave: () -> Unit
 ) {
@@ -156,6 +158,58 @@ internal fun ApiTab(
             ) {
                 Text(
                     "• ecos.bok.or.kr에서 인증키 발급\n• 기준금리, M2, 산업생산, 환율, CPI 수집\n• 미설정 시 매크로 환경 분석이 비활성화됩니다",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+        }
+
+        // === 관세청 무역통계 Open API (BearSignal 「주도주 붕괴 판단 계기판」) ===
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("관세청 무역통계 (수출 비중)", style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.secondary)
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = customsTradeApiKey,
+                onValueChange = onCustomsTradeApiKeyChange,
+                label = { Text("관세청 API Key") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(12.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    "• data.go.kr(공공데이터포털)에서 관세청_수출입무역통계 인증키 발급\n• 반도체 수출 비중·완충산업 건재 여부 산출\n• 미설정 시 「주도주 붕괴 판단 계기판」 증폭 지표가 비활성화됩니다",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+        }
+
+        // === FRED API (BearSignal 「주도주 붕괴 판단 계기판」) ===
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text("FRED (미 연준 기준금리)", style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.secondary)
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = fredApiKey,
+                onValueChange = onFredApiKeyChange,
+                label = { Text("FRED API Key") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(12.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = MaterialTheme.shapes.small
+            ) {
+                Text(
+                    "• fred.stlouisfed.org에서 무료 API Key 발급\n• 연방기금금리 목표 상단(DFEDTARU) 수집\n• 미설정 시 「주도주 붕괴 판단 계기판」 금리 방아쇠 지표가 비활성화됩니다",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(8.dp)
                 )

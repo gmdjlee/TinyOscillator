@@ -1,15 +1,28 @@
 package com.tinyoscillator.feature.bearsignal.data.repository
 
 import com.krxkt.model.Market
+import com.tinyoscillator.core.api.BokEcosApiClient
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
 import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalAutoCacheMapper
+import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalCountryReturnMapper
+import com.tinyoscillator.feature.bearsignal.data.remote.CustomsTradeApiClient
+import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
+import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
+import com.tinyoscillator.feature.bearsignal.domain.model.AutoMarketReturn
+import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexRegistry
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
+import com.tinyoscillator.feature.bearsignal.domain.model.MarketCoverage
+import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturnsSnapshot
 import com.tinyoscillator.feature.bearsignal.domain.repository.BearSignalRepository
+import com.tinyoscillator.feature.bearsignal.domain.usecase.CustomsTradeCalculator
+import com.tinyoscillator.feature.bearsignal.domain.usecase.GlobalIndexReturnCalculator
+import com.tinyoscillator.feature.bearsignal.domain.usecase.IpoEtfDirectionCalculator
 import com.tinyoscillator.feature.bearsignal.domain.usecase.Kospi2Calculator
+import com.tinyoscillator.feature.bearsignal.domain.usecase.RateGateInputCalculator
 import com.tinyoscillator.feature.bearsignal.domain.usecase.VolatilityStatsCalculator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -19,11 +32,17 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
 /**
- * BearSignal [A] 등급 자동 지표 Repository 구현 — KRX 수집 → 순수 계산 → Room 캐시(오프라인 우선
- * 폴백). TASK.md §4 데이터 소스 연동 명세, §1.2 하이브리드 데이터 아키텍처.
+ * BearSignal 자동 지표 Repository 구현 — KRX/관세청/FRED/ECOS/Stooq 수집 → 순수 계산 → Room 캐시
+ * (오프라인 우선 폴백). TASK.md §4 데이터 소스 연동 명세, §1.2 하이브리드 데이터 아키텍처.
+ *
+ * Phase 1: [refreshAutoInputs] — [A] 등급(KRX 신호2 통계 + 코스피 2사 비중), 전체 실패 시 캐시 폴백.
+ * Phase 2: [refreshExternalAutoInputs] — [B] 등급 스칼라(관세청 수출비중, FRED/ECOS 금리, IPO ETF
+ * 방향)를 지표별 best-effort로 수집(개별 실패는 해당 지표만 캐시 유지). [refreshMarketReturns] —
+ * 코스피(KRX) + 해외지수(Stooq)의 4기간 수익률을 지수별 best-effort로 수집.
  *
  * 기존 [com.tinyoscillator.data.repository.FearGreedRepository] 패턴(로그인 → 조회 → 계산 →
  * 캐시 저장 → finally에서 close)을 따른다.
@@ -31,21 +50,43 @@ import java.time.format.DateTimeFormatter
 class BearSignalRepositoryImpl(
     private val bearSignalDao: BearSignalDao,
     private val krxApiClient: KrxApiClient,
-    private val apiConfigProvider: ApiConfigProvider
+    private val apiConfigProvider: ApiConfigProvider,
+    private val customsTradeApiClient: CustomsTradeApiClient,
+    private val fredApiClient: FredApiClient,
+    private val bokEcosApiClient: BokEcosApiClient,
+    private val stooqCsvClient: StooqCsvClient
 ) : BearSignalRepository {
 
     companion object {
         private val DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd")
+        private val YM_FMT = DateTimeFormatter.ofPattern("yyyyMM")
 
-        /** ~6개월 영업일(130) 확보를 위한 달력일 버퍼(주말·공휴일 포함) */
+        /** ~6개월 영업일(130) 확보를 위한 달력일 버퍼(주말·공휴일 포함) — 신호2 통계용 */
         private const val LOOKBACK_CALENDAR_DAYS = 200L
 
         /** 종가 131건 → 수익률 130건 (§3.2 "직전 6M") */
         private const val TARGET_TRADING_DAYS = 131
 
+        /** ~13개월 영업일(252+α) 확보를 위한 달력일 버퍼 — 코스피 4기간(도표48) 수익률용 */
+        private const val MARKET_RETURN_LOOKBACK_CALENDAR_DAYS = 400L
+
         /** 기존 KRX 연동 관례(500ms rate limit) */
         private const val KRX_CALL_DELAY_MS = 500L
+
+        /** Renaissance IPO ETF — §3.3 `etf` 입력 소스 (Stooq 심볼) */
+        private const val IPO_ETF_TICKER = "ipo.us"
+
+        /** ECOS 기준금리 방향 산출 — 최근 몇 개월을 조회할지(래그·결측 보정 여유분) */
+        private const val ECOS_RATE_LOOKBACK_MONTHS = 3L
+
+        /** 관세청 데이터 발표 랙 보정(전월 기준 조회) */
+        private const val CUSTOMS_DATA_LAG_MONTHS = 1L
+
+        /** ECOS 데이터 발표 랙 보정(전월 기준 조회, [com.tinyoscillator.data.engine.macro.BokEcosCollector]와 동일 관례) */
+        private const val ECOS_DATA_LAG_MONTHS = 1L
     }
+
+    // ── Phase 1: [A] 등급 자동 지표 ──────────────────────────────────────
 
     override fun observeAutoInputs(): Flow<AutoBearSignalInputs?> =
         bearSignalDao.observeAutoCache().map { BearSignalAutoCacheMapper.toDomain(it) }
@@ -94,12 +135,19 @@ class BearSignalRepositoryImpl(
                 )
 
             val now = System.currentTimeMillis()
+            val previous = getCachedAutoInputs()
             val inputs = AutoBearSignalInputs(
                 up3 = AutoIndicator(stats.up3, InputSource.AUTO, now),
                 down3 = AutoIndicator(stats.down3, InputSource.AUTO, now),
                 up4 = AutoIndicator(stats.up4, InputSource.AUTO, now),
                 down4 = AutoIndicator(stats.down4, InputSource.AUTO, now),
-                kospi2 = AutoIndicator(kospi2, InputSource.AUTO, now)
+                kospi2 = AutoIndicator(kospi2, InputSource.AUTO, now),
+                // Phase 2 필드는 이 경로가 다루지 않는 범위 — 기존 캐시값을 그대로 보존한다.
+                semi = previous?.semi,
+                buffer = previous?.buffer,
+                rate = previous?.rate,
+                dir = previous?.dir,
+                etf = previous?.etf
             )
 
             bearSignalDao.upsertAll(BearSignalAutoCacheMapper.toEntities(inputs))
@@ -130,6 +178,204 @@ class BearSignalRepositoryImpl(
             Result.success(cached)
         } else {
             Result.failure(cause)
+        }
+    }
+
+    // ── Phase 2: [B] 등급 스칼라 자동 지표 ────────────────────────────────
+
+    override suspend fun refreshExternalAutoInputs(): Result<AutoBearSignalInputs> = withContext(Dispatchers.IO) {
+        val base = getCachedAutoInputs()
+            ?: return@withContext Result.failure(
+                IllegalStateException("BearSignal [A] 등급 자동 지표가 아직 수집되지 않았습니다 — refreshAutoInputs 선행 필요")
+            )
+
+        val now = System.currentTimeMillis()
+        val (semi, buffer) = collectCustomsInputs(base, now)
+        val rate = collectRateInput(base, now)
+        val dir = collectDirInput(base, now)
+        val etf = collectEtfInput(base, now)
+
+        val merged = base.copy(semi = semi, buffer = buffer, rate = rate, dir = dir, etf = etf)
+        bearSignalDao.upsertAll(BearSignalAutoCacheMapper.toEntities(merged))
+        Timber.i(
+            "BearSignal [B] 외부 지표 수집 완료: semi=${semi?.value} buffer=${buffer?.value} " +
+                "rate=${rate?.value} dir=${dir?.value} etf=${etf?.value}"
+        )
+        Result.success(merged)
+    }
+
+    /** 관세청 무역통계 — semi(반도체 수출비중)·buffer(완충산업 건재) 동시 수집. 실패 시 기존 캐시 유지 */
+    private suspend fun collectCustomsInputs(
+        base: AutoBearSignalInputs,
+        now: Long
+    ): Pair<AutoIndicator<Double>?, AutoIndicator<Boolean>?> {
+        val apiKey = apiConfigProvider.getCustomsTradeApiKey()
+        if (apiKey == null) {
+            Timber.w("관세청 무역통계 API 키 미설정 — 기존 캐시 유지")
+            return base.semi to base.buffer
+        }
+        return try {
+            val endYm = YearMonth.now().minusMonths(CUSTOMS_DATA_LAG_MONTHS)
+            val endYmStr = endYm.format(YM_FMT)
+            val currentItems = customsTradeApiClient.fetchNitemTrade(apiKey, endYmStr, endYmStr)
+
+            val priorYmStr = endYm.minusMonths(12).format(YM_FMT)
+            val priorItems = customsTradeApiClient.fetchNitemTrade(apiKey, priorYmStr, priorYmStr)
+
+            val semiShare = CustomsTradeCalculator.computeSemiShare(currentItems)
+            val bufferIntact = CustomsTradeCalculator.computeBufferIntact(currentItems, priorItems)
+
+            val semiIndicator = semiShare?.let { AutoIndicator(it, InputSource.AUTO, now) } ?: base.semi
+            val bufferIndicator = bufferIntact?.let { AutoIndicator(it, InputSource.AUTO, now) } ?: base.buffer
+            semiIndicator to bufferIndicator
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "관세청 무역통계 수집 실패 — 기존 캐시 유지")
+            base.semi to base.buffer
+        }
+    }
+
+    /** FRED 연방기금금리 목표 상단 — §3.4 `rate` 입력. 실패 시 기존 캐시 유지 */
+    private suspend fun collectRateInput(base: AutoBearSignalInputs, now: Long): AutoIndicator<Double>? {
+        val apiKey = apiConfigProvider.getFredApiKey()
+        if (apiKey == null) {
+            Timber.w("FRED API 키 미설정 — 기존 캐시 유지")
+            return base.rate
+        }
+        return try {
+            val observation = fredApiClient.fetchLatestObservation(apiKey)
+            observation?.let { AutoIndicator(it.value, InputSource.AUTO, now) } ?: base.rate
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "FRED 금리 수집 실패 — 기존 캐시 유지")
+            base.rate
+        }
+    }
+
+    /** 한국은행 기준금리 방향(ECOS 재사용) — §3.4 `dir` 입력. 실패 시 기존 캐시 유지 */
+    private suspend fun collectDirInput(base: AutoBearSignalInputs, now: Long): AutoIndicator<String>? {
+        val apiKey = apiConfigProvider.getEcosApiKey()
+        if (apiKey == null) {
+            Timber.w("ECOS API 키 미설정 — 기준금리 방향 기존 캐시 유지")
+            return base.dir
+        }
+        return try {
+            val endYm = YearMonth.now().minusMonths(ECOS_DATA_LAG_MONTHS)
+            val startYm = endYm.minusMonths(ECOS_RATE_LOOKBACK_MONTHS)
+            val points = bokEcosApiClient.fetchSeries(apiKey, "base_rate", startYm.format(YM_FMT), endYm.format(YM_FMT))
+            val sorted = points.sortedBy { it.time }
+            if (sorted.size < 2) return base.dir
+            val latest = sorted.last().value
+            val previous = sorted[sorted.size - 2].value
+            val dirValue = RateGateInputCalculator.computeDirection(latest, previous)
+            AutoIndicator(dirValue, InputSource.AUTO, now)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "ECOS 기준금리 방향 수집 실패 — 기존 캐시 유지")
+            base.dir
+        }
+    }
+
+    /** Renaissance IPO ETF(Stooq) 방향 — §3.3 `etf` 입력. 실패 시 기존 캐시 유지 */
+    private suspend fun collectEtfInput(base: AutoBearSignalInputs, now: Long): AutoIndicator<String>? {
+        return try {
+            val bars = stooqCsvClient.fetchDailyCloses(IPO_ETF_TICKER)
+            val direction = IpoEtfDirectionCalculator.computeDirection(bars.map { it.close })
+            direction?.let { AutoIndicator(it, InputSource.AUTO, now) } ?: base.etf
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "IPO ETF 방향 수집 실패 — 기존 캐시 유지")
+            base.etf
+        }
+    }
+
+    // ── Phase 2: 국가별 지수 수익률(도표48) ────────────────────────────────
+
+    override fun observeMarketReturns(): Flow<MarketReturnsSnapshot?> =
+        bearSignalDao.observeCountryReturns().map { BearSignalCountryReturnMapper.toDomain(it) }
+
+    override suspend fun getCachedMarketReturns(): MarketReturnsSnapshot? =
+        BearSignalCountryReturnMapper.toDomain(bearSignalDao.getCountryReturns())
+
+    override suspend fun refreshMarketReturns(): Result<MarketReturnsSnapshot> = withContext(Dispatchers.IO) {
+        val cachedSnapshot = getCachedMarketReturns()
+        val now = System.currentTimeMillis()
+
+        val kospiMarket = try {
+            val creds = apiConfigProvider.getKrxCredentials()
+            if (creds.id.isBlank() || creds.password.isBlank()) {
+                throw IllegalStateException("KRX 계정 정보가 설정되지 않았습니다")
+            }
+            val loggedIn = krxApiClient.login(creds.id, creds.password)
+            if (!loggedIn) throw IllegalStateException("KRX 로그인 실패")
+            val krxIndex = krxApiClient.getKrxIndex() ?: throw IllegalStateException("KRX 인덱스 클라이언트 없음")
+
+            val endDate = LocalDate.now().format(DATE_FMT)
+            val startDate = LocalDate.now().minusDays(MARKET_RETURN_LOOKBACK_CALENDAR_DAYS).format(DATE_FMT)
+            val ohlcv = krxIndex.getKospi(startDate, endDate)
+            val closes = ohlcv.sortedBy { it.date }.map { it.close }
+            val returns = GlobalIndexReturnCalculator.computeReturns(closes)
+            if (returns.all { it == null }) {
+                throw IllegalStateException("코스피 데이터 부족(${closes.size}건) — 4기간 수익률 계산 불가")
+            }
+            AutoMarketReturn(
+                name = GlobalIndexRegistry.KOSPI_NAME,
+                r = returns,
+                lead = true,
+                coverage = MarketCoverage.AUTO,
+                updatedAt = now
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "코스피 4기간 수익률 수집 실패 — 기존 캐시 유지")
+            cachedSnapshot?.markets?.find { it.name == GlobalIndexRegistry.KOSPI_NAME }
+                ?: return@withContext Result.failure(e)
+        } finally {
+            try {
+                krxApiClient.close()
+            } catch (e: Exception) {
+                Timber.w(e, "KRX 클라이언트 close 실패")
+            }
+        }
+
+        val overseasMarkets = GlobalIndexRegistry.OVERSEAS_MARKETS.map { spec ->
+            collectOverseasMarket(spec.name, spec.lead, spec.stooqTicker, cachedSnapshot, now)
+        }
+
+        val snapshot = MarketReturnsSnapshot(markets = listOf(kospiMarket) + overseasMarkets)
+        bearSignalDao.upsertCountryReturns(BearSignalCountryReturnMapper.toEntities(snapshot))
+        Timber.i("BearSignal 국가별 수익률 수집 완료: manualRequired=${snapshot.manualRequiredNames}")
+        Result.success(snapshot)
+    }
+
+    private suspend fun collectOverseasMarket(
+        name: String,
+        lead: Boolean,
+        stooqTicker: String?,
+        cachedSnapshot: MarketReturnsSnapshot?,
+        now: Long
+    ): AutoMarketReturn {
+        if (stooqTicker == null) {
+            return AutoMarketReturn(name, listOf(null, null, null, null), lead, MarketCoverage.MANUAL_REQUIRED, now)
+        }
+        return try {
+            val bars = stooqCsvClient.fetchDailyCloses(stooqTicker)
+            val returns = GlobalIndexReturnCalculator.computeReturns(bars.map { it.close })
+            if (returns.all { it == null }) {
+                throw IllegalStateException("$name 데이터 부족(${bars.size}건) — 4기간 수익률 계산 불가")
+            }
+            AutoMarketReturn(name, returns, lead, MarketCoverage.AUTO, now)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "해외지수(%s) 수집 실패 — 기존 캐시 유지", name)
+            cachedSnapshot?.markets?.find { it.name == name }
+                ?: AutoMarketReturn(name, listOf(null, null, null, null), lead, MarketCoverage.AUTO, now)
         }
     }
 }

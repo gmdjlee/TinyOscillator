@@ -54,6 +54,7 @@ import com.tinyoscillator.core.database.entity.ThemeGroupEntity
 import com.tinyoscillator.core.database.entity.ThemeStockEntity
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalAutoCacheEntity
+import com.tinyoscillator.feature.bearsignal.data.local.BearSignalCountryReturnEntity
 
 @Database(
     entities = [
@@ -86,8 +87,9 @@ import com.tinyoscillator.feature.bearsignal.data.local.BearSignalAutoCacheEntit
         ThemeGroupEntity::class,
         ThemeStockEntity::class,
         BearSignalAutoCacheEntity::class,
+        BearSignalCountryReturnEntity::class,
     ],
-    version = 34,
+    version = 35,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

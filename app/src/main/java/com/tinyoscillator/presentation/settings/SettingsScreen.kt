@@ -119,6 +119,8 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     var dartApiKey by remember { mutableStateOf("") }
     var ecosApiKey by remember { mutableStateOf("") }
+    var customsTradeApiKey by remember { mutableStateOf("") }
+    var fredApiKey by remember { mutableStateOf("") }
 
     var includeKeywords by remember { mutableStateOf(DEFAULT_INCLUDE_KEYWORDS) }
     var excludeKeywords by remember { mutableStateOf(DEFAULT_EXCLUDE_KEYWORDS) }
@@ -228,6 +230,8 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             dartApiKey = loadDartApiKey(context)
             ecosApiKey = loadEcosApiKey(context)
+            customsTradeApiKey = loadCustomsTradeApiKey(context)
+            fredApiKey = loadFredApiKey(context)
 
             val keywordFilter = loadEtfKeywordFilter(context)
             includeKeywords = keywordFilter.includeKeywords
@@ -360,6 +364,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onDartApiKeyChange = { dartApiKey = it },
                     ecosApiKey = ecosApiKey,
                     onEcosApiKeyChange = { ecosApiKey = it },
+                    customsTradeApiKey = customsTradeApiKey,
+                    onCustomsTradeApiKeyChange = { customsTradeApiKey = it },
+                    fredApiKey = fredApiKey,
+                    onFredApiKeyChange = { fredApiKey = it },
                     saveMessage = saveMessage,
                     onSave = {
                         scope.launch {
@@ -370,6 +378,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                             saveAiConfig(context, AiApiKeyConfig(aiProvider, aiApiKey, aiModelId))
                             saveDartApiKey(context, dartApiKey)
                             saveEcosApiKey(context, ecosApiKey)
+                            saveCustomsTradeApiKey(context, customsTradeApiKey)
+                            saveFredApiKey(context, fredApiKey)
                         }
                     }
                 )

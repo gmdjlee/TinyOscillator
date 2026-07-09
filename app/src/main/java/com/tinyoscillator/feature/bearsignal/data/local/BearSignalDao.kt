@@ -24,4 +24,15 @@ interface BearSignalDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<BearSignalAutoCacheEntity>)
+
+    // ── 국가별 지수 수익률(도표48, Phase 2) ─────────────────────────────
+
+    @Query("SELECT * FROM bear_signal_country_return")
+    fun observeCountryReturns(): Flow<List<BearSignalCountryReturnEntity>>
+
+    @Query("SELECT * FROM bear_signal_country_return")
+    suspend fun getCountryReturns(): List<BearSignalCountryReturnEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCountryReturns(entities: List<BearSignalCountryReturnEntity>)
 }

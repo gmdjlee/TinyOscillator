@@ -5,21 +5,53 @@ import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.BearIndicatorKey
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
+import com.tinyoscillator.feature.bearsignal.domain.usecase.IpoEtfDirectionCalculator
+import com.tinyoscillator.feature.bearsignal.domain.usecase.RateGateInputCalculator
 
-/** [AutoBearSignalInputs] ↔ [BearSignalAutoCacheEntity] 변환 (data 계층). */
+/**
+ * [AutoBearSignalInputs] ↔ [BearSignalAutoCacheEntity] 변환 (data 계층).
+ *
+ * Phase 2에서 [BearIndicatorKey.AMP_SEMI]/[BearIndicatorKey.AMP_BUFFER]/[BearIndicatorKey.GATE_RATE]/
+ * [BearIndicatorKey.GATE_DIR]/[BearIndicatorKey.S3_ETF] 5개 키가 추가됐다. 캐시 테이블 컬럼이
+ * `value: Double` 하나뿐이라(마이그레이션 회피, P1 설계 의도) Boolean/String 지표는 다음과 같이
+ * 인코딩한다:
+ * - `buffer`(Boolean): true=1.0, false=0.0
+ * - `dir`(String, "ease"/"hold"/"hike"): ease=-1.0, hold=0.0, hike=1.0
+ * - `etf`(String, "up"/"flat"/"down"): down=-1.0, flat=0.0, up=1.0
+ */
 object BearSignalAutoCacheMapper {
 
-    /** 자동 수집 결과 → Room upsert용 엔티티 5건 */
-    fun toEntities(inputs: AutoBearSignalInputs): List<BearSignalAutoCacheEntity> = listOf(
-        intEntity(BearIndicatorKey.S2_UP3, inputs.up3),
-        intEntity(BearIndicatorKey.S2_DOWN3, inputs.down3),
-        intEntity(BearIndicatorKey.S2_UP4, inputs.up4),
-        intEntity(BearIndicatorKey.S2_DOWN4, inputs.down4),
-        doubleEntity(BearIndicatorKey.AMP_KOSPI2, inputs.kospi2)
-    )
+    private const val BOOL_TRUE = 1.0
+    private const val BOOL_FALSE = 0.0
+
+    private const val DIR_EASE_CODE = -1.0
+    private const val DIR_HOLD_CODE = 0.0
+    private const val DIR_HIKE_CODE = 1.0
+
+    private const val ETF_DOWN_CODE = -1.0
+    private const val ETF_FLAT_CODE = 0.0
+    private const val ETF_UP_CODE = 1.0
+
+    /** 자동 수집 결과 → Room upsert용 엔티티. Phase 2 필드는 null이 아닌 것만 포함한다. */
+    fun toEntities(inputs: AutoBearSignalInputs): List<BearSignalAutoCacheEntity> {
+        val entities = mutableListOf(
+            intEntity(BearIndicatorKey.S2_UP3, inputs.up3),
+            intEntity(BearIndicatorKey.S2_DOWN3, inputs.down3),
+            intEntity(BearIndicatorKey.S2_UP4, inputs.up4),
+            intEntity(BearIndicatorKey.S2_DOWN4, inputs.down4),
+            doubleEntity(BearIndicatorKey.AMP_KOSPI2, inputs.kospi2)
+        )
+        inputs.semi?.let { entities.add(doubleEntity(BearIndicatorKey.AMP_SEMI, it)) }
+        inputs.buffer?.let { entities.add(boolEntity(BearIndicatorKey.AMP_BUFFER, it)) }
+        inputs.rate?.let { entities.add(doubleEntity(BearIndicatorKey.GATE_RATE, it)) }
+        inputs.dir?.let { entities.add(dirEntity(it)) }
+        inputs.etf?.let { entities.add(etfEntity(it)) }
+        return entities
+    }
 
     /**
-     * Room 캐시 → 도메인 모델. 필수 5개 키 중 하나라도 없으면 미수집 상태로 간주해 null 반환.
+     * Room 캐시 → 도메인 모델. Phase 1 필수 5개 키(S2_UP3~DOWN4, AMP_KOSPI2) 중 하나라도 없으면
+     * 미수집 상태로 간주해 null 반환(구버전 캐시 호환 — Phase 2 5개 키는 선택적).
      */
     fun toDomain(entities: List<BearSignalAutoCacheEntity>): AutoBearSignalInputs? {
         val byKey = entities.associateBy { it.indicatorKey }
@@ -33,7 +65,12 @@ object BearSignalAutoCacheMapper {
             down3 = toIntIndicator(down3),
             up4 = toIntIndicator(up4),
             down4 = toIntIndicator(down4),
-            kospi2 = toDoubleIndicator(kospi2)
+            kospi2 = toDoubleIndicator(kospi2),
+            semi = byKey[BearIndicatorKey.AMP_SEMI.key]?.let { toDoubleIndicator(it) },
+            buffer = byKey[BearIndicatorKey.AMP_BUFFER.key]?.let { toBoolIndicator(it) },
+            rate = byKey[BearIndicatorKey.GATE_RATE.key]?.let { toDoubleIndicator(it) },
+            dir = byKey[BearIndicatorKey.GATE_DIR.key]?.let { toDirIndicator(it) },
+            etf = byKey[BearIndicatorKey.S3_ETF.key]?.let { toEtfIndicator(it) }
         )
     }
 
@@ -53,11 +90,68 @@ object BearSignalAutoCacheMapper {
             updatedAt = indicator.updatedAt
         )
 
+    private fun boolEntity(key: BearIndicatorKey, indicator: AutoIndicator<Boolean>): BearSignalAutoCacheEntity =
+        BearSignalAutoCacheEntity(
+            indicatorKey = key.key,
+            value = if (indicator.value) BOOL_TRUE else BOOL_FALSE,
+            source = indicator.source.name,
+            updatedAt = indicator.updatedAt
+        )
+
+    private fun dirEntity(indicator: AutoIndicator<String>): BearSignalAutoCacheEntity {
+        val code = when (indicator.value) {
+            RateGateInputCalculator.DIR_EASE -> DIR_EASE_CODE
+            RateGateInputCalculator.DIR_HIKE -> DIR_HIKE_CODE
+            else -> DIR_HOLD_CODE
+        }
+        return BearSignalAutoCacheEntity(
+            indicatorKey = BearIndicatorKey.GATE_DIR.key,
+            value = code,
+            source = indicator.source.name,
+            updatedAt = indicator.updatedAt
+        )
+    }
+
+    private fun etfEntity(indicator: AutoIndicator<String>): BearSignalAutoCacheEntity {
+        val code = when (indicator.value) {
+            IpoEtfDirectionCalculator.DIR_DOWN -> ETF_DOWN_CODE
+            IpoEtfDirectionCalculator.DIR_UP -> ETF_UP_CODE
+            else -> ETF_FLAT_CODE
+        }
+        return BearSignalAutoCacheEntity(
+            indicatorKey = BearIndicatorKey.S3_ETF.key,
+            value = code,
+            source = indicator.source.name,
+            updatedAt = indicator.updatedAt
+        )
+    }
+
     private fun toIntIndicator(entity: BearSignalAutoCacheEntity): AutoIndicator<Int> =
         AutoIndicator(entity.value.toInt(), parseSource(entity.source), entity.updatedAt)
 
     private fun toDoubleIndicator(entity: BearSignalAutoCacheEntity): AutoIndicator<Double> =
         AutoIndicator(entity.value, parseSource(entity.source), entity.updatedAt)
+
+    private fun toBoolIndicator(entity: BearSignalAutoCacheEntity): AutoIndicator<Boolean> =
+        AutoIndicator(entity.value >= 0.5, parseSource(entity.source), entity.updatedAt)
+
+    private fun toDirIndicator(entity: BearSignalAutoCacheEntity): AutoIndicator<String> {
+        val value = when {
+            entity.value <= DIR_EASE_CODE + 0.5 -> RateGateInputCalculator.DIR_EASE
+            entity.value >= DIR_HIKE_CODE - 0.5 -> RateGateInputCalculator.DIR_HIKE
+            else -> RateGateInputCalculator.DIR_HOLD
+        }
+        return AutoIndicator(value, parseSource(entity.source), entity.updatedAt)
+    }
+
+    private fun toEtfIndicator(entity: BearSignalAutoCacheEntity): AutoIndicator<String> {
+        val value = when {
+            entity.value <= ETF_DOWN_CODE + 0.5 -> IpoEtfDirectionCalculator.DIR_DOWN
+            entity.value >= ETF_UP_CODE - 0.5 -> IpoEtfDirectionCalculator.DIR_UP
+            else -> IpoEtfDirectionCalculator.DIR_FLAT
+        }
+        return AutoIndicator(value, parseSource(entity.source), entity.updatedAt)
+    }
 
     private fun parseSource(raw: String): InputSource =
         runCatching { InputSource.valueOf(raw) }.getOrDefault(InputSource.AUTO)

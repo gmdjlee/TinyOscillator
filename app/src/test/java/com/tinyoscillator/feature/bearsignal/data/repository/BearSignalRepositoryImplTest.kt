@@ -5,14 +5,26 @@ import com.krxkt.KrxStock
 import com.krxkt.model.IndexOhlcv
 import com.krxkt.model.Market
 import com.krxkt.model.MarketCap
+import com.tinyoscillator.core.api.BokEcosApiClient
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
+import com.tinyoscillator.domain.model.EcosDataPoint
 import com.tinyoscillator.domain.model.KrxCredentials
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
 import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalAutoCacheMapper
+import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalCountryReturnMapper
+import com.tinyoscillator.feature.bearsignal.data.remote.CustomsTradeApiClient
+import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
+import com.tinyoscillator.feature.bearsignal.data.remote.FredObservation
+import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
+import com.tinyoscillator.feature.bearsignal.data.remote.StooqDailyBar
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
+import com.tinyoscillator.feature.bearsignal.domain.model.AutoMarketReturn
+import com.tinyoscillator.feature.bearsignal.domain.model.CustomsTradeItem
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
+import com.tinyoscillator.feature.bearsignal.domain.model.MarketCoverage
+import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturnsSnapshot
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -21,20 +33,26 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 /**
- * [BearSignalRepositoryImpl] 자동 수집·Room 캐시 폴백 테스트 (TASK.md §1.2, §4, Phase 1).
+ * [BearSignalRepositoryImpl] 자동 수집·Room 캐시 폴백 테스트 (TASK.md §1.2, §4, Phase 1+2).
  *
- * KRX 실호출 없이 [KrxApiClient]/[KrxIndex]/[KrxStock]/[ApiConfigProvider]를 MockK로 대체한다.
+ * KRX/관세청/FRED/ECOS/Stooq 실호출 없이 관련 클라이언트를 MockK로 대체한다.
  */
 class BearSignalRepositoryImplTest {
 
     private lateinit var dao: BearSignalDao
     private lateinit var krxApiClient: KrxApiClient
     private lateinit var apiConfigProvider: ApiConfigProvider
+    private lateinit var customsTradeApiClient: CustomsTradeApiClient
+    private lateinit var fredApiClient: FredApiClient
+    private lateinit var bokEcosApiClient: BokEcosApiClient
+    private lateinit var stooqCsvClient: StooqCsvClient
     private lateinit var repository: BearSignalRepositoryImpl
 
     private val krxIndex: KrxIndex = mockk()
@@ -45,7 +63,14 @@ class BearSignalRepositoryImplTest {
         dao = mockk(relaxed = true)
         krxApiClient = mockk(relaxed = true)
         apiConfigProvider = mockk()
-        repository = BearSignalRepositoryImpl(dao, krxApiClient, apiConfigProvider)
+        customsTradeApiClient = mockk()
+        fredApiClient = mockk()
+        bokEcosApiClient = mockk()
+        stooqCsvClient = mockk()
+        repository = BearSignalRepositoryImpl(
+            dao, krxApiClient, apiConfigProvider,
+            customsTradeApiClient, fredApiClient, bokEcosApiClient, stooqCsvClient
+        )
     }
 
     private fun createIndexOhlcv(date: String, close: Double) = IndexOhlcv(
@@ -70,7 +95,15 @@ class BearSignalRepositoryImplTest {
         kospi2 = AutoIndicator(56.0, InputSource.AUTO, 500L)
     )
 
-    // ── 정상 수집 경로 ─────────────────────────────────────────
+    private fun cachedInputsWithExternal() = cachedInputs().copy(
+        semi = AutoIndicator(20.0, InputSource.AUTO, 400L),
+        buffer = AutoIndicator(true, InputSource.AUTO, 400L),
+        rate = AutoIndicator(4.00, InputSource.AUTO, 400L),
+        dir = AutoIndicator("hold", InputSource.AUTO, 400L),
+        etf = AutoIndicator("flat", InputSource.AUTO, 400L)
+    )
+
+    // ── 정상 수집 경로(Phase 1) ─────────────────────────────────
 
     @Test
     fun `refreshAutoInputs 성공 시 캐시에 upsert하고 결과 반환`() = runTest {
@@ -78,6 +111,7 @@ class BearSignalRepositoryImplTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
         every { krxApiClient.getKrxIndex() } returns krxIndex
         every { krxApiClient.getKrxStock() } returns krxStock
+        coEvery { dao.getAutoCache() } returns emptyList()
 
         // 26개 종가(25 수익률) — MIN_RETURNS(20) 충족, 급변 없이 완만한 흐름
         val closes = (0..25).map { i -> createIndexOhlcv(String.format("202606%02d", i + 1), 2500.0 + i * 0.1) }
@@ -97,7 +131,30 @@ class BearSignalRepositoryImplTest {
         coVerify { krxApiClient.close() }
     }
 
-    // ── 폴백 경로 ─────────────────────────────────────────────
+    @Test
+    fun `refreshAutoInputs 성공 시 기존 Phase2 캐시값을 보존한다`() = runTest {
+        coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        every { krxApiClient.getKrxIndex() } returns krxIndex
+        every { krxApiClient.getKrxStock() } returns krxStock
+        // getCachedAutoInputs()는 refreshAutoInputs 내부에서 두 번 불릴 수 있음(폴백/보존 조회) — 항상 기존 P2값 반환
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputsWithExternal())
+
+        val closes = (0..25).map { i -> createIndexOhlcv(String.format("202606%02d", i + 1), 2500.0 + i * 0.1) }
+        coEvery { krxIndex.getKospi(any(), any()) } returns closes
+        coEvery { krxStock.getMarketCap(any(), Market.KOSPI) } returns listOf(
+            MarketCap("005930", "삼성전자", 70_000L, 0.0, 500_000_000_000L, 1L),
+            MarketCap("000660", "SK하이닉스", 200_000L, 0.0, 300_000_000_000L, 1L)
+        )
+
+        val result = repository.refreshAutoInputs()
+
+        assertTrue(result.isSuccess)
+        assertEquals("hold", result.getOrNull()!!.dir!!.value)
+        assertEquals(20.0, result.getOrNull()!!.semi!!.value, 1e-9)
+    }
+
+    // ── 폴백 경로(Phase 1) ─────────────────────────────────────
 
     @Test
     fun `refreshAutoInputs KRX 로그인 실패 시 캐시로 폴백`() = runTest {
@@ -151,7 +208,7 @@ class BearSignalRepositoryImplTest {
         assertEquals(14, result.getOrNull()!!.up3.value)
     }
 
-    // ── 조회 ─────────────────────────────────────────────────
+    // ── 조회(Phase 1) ────────────────────────────────────────
 
     @Test
     fun `observeAutoInputs Room Flow를 도메인 모델로 매핑`() = runTest {
@@ -170,5 +227,229 @@ class BearSignalRepositoryImplTest {
         val cached = repository.getCachedAutoInputs()
 
         assertEquals(null, cached)
+    }
+
+    // ── Phase 2: refreshExternalAutoInputs ──────────────────────
+
+    private fun customsFixtureItems(yearMonth: String) = listOf(
+        CustomsTradeItem("반도체", "854239", 20_000.0, 0.0, yearMonth),
+        CustomsTradeItem("자동차", "870323", 15_000.0, 0.0, yearMonth),
+        CustomsTradeItem("일반기계", "845011", 10_000.0, 0.0, yearMonth),
+        CustomsTradeItem("석유제품", "271019", 5_000.0, 0.0, yearMonth),
+        CustomsTradeItem("선박", "890120", 5_000.0, 0.0, yearMonth)
+    )
+
+    @Test
+    fun `refreshExternalAutoInputs 성공 시 5개 지표 모두 반영하고 upsert`() = runTest {
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputs())
+        coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns "customs-key"
+        coEvery { customsTradeApiClient.fetchNitemTrade(any(), any(), any()) } coAnswers {
+            customsFixtureItems(secondArg())
+        }
+        coEvery { apiConfigProvider.getFredApiKey() } returns "fred-key"
+        coEvery { fredApiClient.fetchLatestObservation(any()) } returns FredObservation("2026-06-30", 4.25)
+        coEvery { apiConfigProvider.getEcosApiKey() } returns "ecos-key"
+        coEvery { bokEcosApiClient.fetchSeries(any(), "base_rate", any(), any()) } returns listOf(
+            EcosDataPoint("202604", 3.25),
+            EcosDataPoint("202605", 3.50)
+        )
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns listOf(
+            StooqDailyBar("2026-06-01", 40.0),
+            StooqDailyBar("2026-06-30", 41.0)
+        )
+
+        val result = repository.refreshExternalAutoInputs()
+
+        assertTrue(result.isSuccess)
+        val inputs = result.getOrNull()!!
+        assertEquals(4.25, inputs.rate!!.value, 1e-9)
+        assertEquals("hike", inputs.dir!!.value) // 3.50 > 3.25
+        assertEquals(InputSource.AUTO, inputs.semi!!.source)
+        coVerify { dao.upsertAll(any()) }
+    }
+
+    @Test
+    fun `refreshExternalAutoInputs 관세청 키 미설정 시 semi buffer는 기존 캐시 유지`() = runTest {
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputsWithExternal())
+        coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns null
+        coEvery { apiConfigProvider.getFredApiKey() } returns "fred-key"
+        coEvery { fredApiClient.fetchLatestObservation(any()) } returns FredObservation("2026-06-30", 4.25)
+        coEvery { apiConfigProvider.getEcosApiKey() } returns "ecos-key"
+        coEvery { bokEcosApiClient.fetchSeries(any(), "base_rate", any(), any()) } returns listOf(
+            EcosDataPoint("202604", 3.50),
+            EcosDataPoint("202605", 3.50)
+        )
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns listOf(StooqDailyBar("2026-06-30", 40.0))
+
+        val result = repository.refreshExternalAutoInputs()
+
+        assertTrue(result.isSuccess)
+        // 기존 캐시(cachedInputsWithExternal)의 semi=20.0, buffer=true 그대로 유지
+        assertEquals(20.0, result.getOrNull()!!.semi!!.value, 1e-9)
+        assertTrue(result.getOrNull()!!.buffer!!.value)
+    }
+
+    @Test
+    fun `refreshExternalAutoInputs FRED 호출 실패 시 rate만 기존 캐시 유지하고 나머지는 갱신`() = runTest {
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputsWithExternal())
+        coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns "customs-key"
+        coEvery { customsTradeApiClient.fetchNitemTrade(any(), any(), any()) } coAnswers {
+            customsFixtureItems(secondArg())
+        }
+        coEvery { apiConfigProvider.getFredApiKey() } returns "fred-key"
+        coEvery { fredApiClient.fetchLatestObservation(any()) } throws RuntimeException("network error")
+        coEvery { apiConfigProvider.getEcosApiKey() } returns "ecos-key"
+        coEvery { bokEcosApiClient.fetchSeries(any(), "base_rate", any(), any()) } returns listOf(
+            EcosDataPoint("202604", 3.25),
+            EcosDataPoint("202605", 3.50)
+        )
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns listOf(StooqDailyBar("2026-06-30", 40.0))
+
+        val result = repository.refreshExternalAutoInputs()
+
+        assertTrue(result.isSuccess)
+        // rate는 실패 → 기존 캐시(4.00) 유지, dir은 정상 갱신(hike)
+        assertEquals(4.00, result.getOrNull()!!.rate!!.value, 1e-9)
+        assertEquals("hike", result.getOrNull()!!.dir!!.value)
+    }
+
+    @Test
+    fun `refreshExternalAutoInputs ECOS 키 미설정 시 dir은 기존 캐시 유지`() = runTest {
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputsWithExternal())
+        coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns null
+        coEvery { apiConfigProvider.getFredApiKey() } returns null
+        coEvery { apiConfigProvider.getEcosApiKey() } returns null
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns listOf(StooqDailyBar("2026-06-30", 40.0))
+
+        val result = repository.refreshExternalAutoInputs()
+
+        assertTrue(result.isSuccess)
+        assertEquals("hold", result.getOrNull()!!.dir!!.value)
+    }
+
+    @Test
+    fun `refreshExternalAutoInputs IPO ETF 수집 실패 시 etf는 기존 캐시 유지`() = runTest {
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputsWithExternal())
+        coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns null
+        coEvery { apiConfigProvider.getFredApiKey() } returns null
+        coEvery { apiConfigProvider.getEcosApiKey() } returns null
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } throws RuntimeException("network error")
+
+        val result = repository.refreshExternalAutoInputs()
+
+        assertTrue(result.isSuccess)
+        assertEquals("flat", result.getOrNull()!!.etf!!.value)
+    }
+
+    @Test
+    fun `refreshExternalAutoInputs Phase1 기본 캐시가 없으면 failure`() = runTest {
+        coEvery { dao.getAutoCache() } returns emptyList()
+
+        val result = repository.refreshExternalAutoInputs()
+
+        assertTrue(result.isFailure)
+    }
+
+    // ── Phase 2: refreshMarketReturns ────────────────────────────
+
+    private fun kospiCloses() = (0..25).map { i -> createIndexOhlcv(String.format("202606%02d", i + 1), 2500.0 + i) }
+
+    @Test
+    fun `refreshMarketReturns 성공 시 코스피와 커버 지수는 AUTO, 미커버는 MANUAL_REQUIRED`() = runTest {
+        coEvery { dao.getCountryReturns() } returns emptyList()
+        coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        every { krxApiClient.getKrxIndex() } returns krxIndex
+        coEvery { krxIndex.getKospi(any(), any()) } returns kospiCloses()
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns (0..25).map { i ->
+            StooqDailyBar(String.format("2026-06-%02d", (i % 28) + 1), 100.0 + i)
+        }
+
+        val result = repository.refreshMarketReturns()
+
+        assertTrue(result.isSuccess)
+        val snapshot = result.getOrNull()!!
+        assertEquals(20, snapshot.markets.size) // 코스피 1 + 해외 19
+        val kospi = snapshot.markets.first { it.name == "코스피" }
+        assertEquals(MarketCoverage.AUTO, kospi.coverage)
+        assertTrue(kospi.lead)
+        assertTrue(snapshot.manualRequiredNames.isNotEmpty())
+        assertTrue(snapshot.manualRequiredNames.contains("RTS"))
+        coVerify { dao.upsertCountryReturns(any()) }
+    }
+
+    @Test
+    fun `refreshMarketReturns 코스피 조회 실패 시 캐시로 폴백`() = runTest {
+        val cachedSnapshot = MarketReturnsSnapshot(
+            markets = listOf(
+                AutoMarketReturn("코스피", listOf(1.0, 2.0, 3.0, 4.0), lead = true, coverage = MarketCoverage.AUTO, updatedAt = 100L)
+            )
+        )
+        coEvery { dao.getCountryReturns() } returns BearSignalCountryReturnMapper.toEntities(cachedSnapshot)
+        coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
+        coEvery { krxApiClient.login(any(), any()) } returns false
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns emptyList()
+
+        val result = repository.refreshMarketReturns()
+
+        assertTrue(result.isSuccess)
+        val kospi = result.getOrNull()!!.markets.first { it.name == "코스피" }
+        assertEquals(4.0, kospi.r[3]!!, 1e-9)
+    }
+
+    @Test
+    fun `refreshMarketReturns 코스피 실패하고 캐시도 없으면 failure`() = runTest {
+        coEvery { dao.getCountryReturns() } returns emptyList()
+        coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
+        coEvery { krxApiClient.login(any(), any()) } returns false
+
+        val result = repository.refreshMarketReturns()
+
+        assertTrue(result.isFailure)
+    }
+
+    @Test
+    fun `refreshMarketReturns 해외지수 수집 실패 시 해당 지수만 캐시 유지`() = runTest {
+        val cachedSnapshot = MarketReturnsSnapshot(
+            markets = listOf(
+                AutoMarketReturn("닛케이", listOf(10.0, 8.0, 5.0, 1.0), lead = false, coverage = MarketCoverage.AUTO, updatedAt = 100L)
+            )
+        )
+        coEvery { dao.getCountryReturns() } returns BearSignalCountryReturnMapper.toEntities(cachedSnapshot)
+        coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        every { krxApiClient.getKrxIndex() } returns krxIndex
+        coEvery { krxIndex.getKospi(any(), any()) } returns kospiCloses()
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } throws RuntimeException("network error")
+
+        val result = repository.refreshMarketReturns()
+
+        assertTrue(result.isSuccess)
+        val nikkei = result.getOrNull()!!.markets.first { it.name == "닛케이" }
+        assertEquals(1.0, nikkei.r[3]!!, 1e-9)
+    }
+
+    @Test
+    fun `observeMarketReturns Room Flow를 도메인 모델로 매핑`() = runTest {
+        val snapshot = MarketReturnsSnapshot(
+            markets = listOf(
+                AutoMarketReturn("코스피", listOf(1.0, 2.0, 3.0, 4.0), lead = true, coverage = MarketCoverage.AUTO, updatedAt = 100L)
+            )
+        )
+        every { dao.observeCountryReturns() } returns flowOf(BearSignalCountryReturnMapper.toEntities(snapshot))
+
+        val emitted = repository.observeMarketReturns().first()
+
+        assertEquals(1, emitted?.markets?.size)
+        assertEquals("코스피", emitted?.markets?.first()?.name)
+    }
+
+    @Test
+    fun `getCachedMarketReturns 캐시 없으면 null`() = runTest {
+        coEvery { dao.getCountryReturns() } returns emptyList()
+
+        val cached = repository.getCachedMarketReturns()
+
+        assertNull(cached)
     }
 }

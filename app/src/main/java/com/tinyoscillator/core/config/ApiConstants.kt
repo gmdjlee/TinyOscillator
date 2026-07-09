@@ -34,6 +34,15 @@ object ApiConstants {
     /** BOK ECOS API 호출 간 최소 간격 */
     const val BOK_ECOS_RATE_LIMIT_MS = 1_000L
 
+    /** 관세청 무역통계 Open API 호출 간 최소 간격 (공공데이터포털 공통 정책) */
+    const val CUSTOMS_TRADE_RATE_LIMIT_MS = 1_000L
+
+    /** FRED(세인트루이스 연은) API 호출 간 최소 간격 */
+    const val FRED_RATE_LIMIT_MS = 1_000L
+
+    /** Stooq 무료 CSV 시세(IPO ETF·해외지수) 호출 간 최소 간격 */
+    const val STOOQ_RATE_LIMIT_MS = 1_000L
+
     // ---------------------------------------------------------------
     // 토큰 재발급 간격 (OAuth2 토큰 발급 API 제한)
     // ---------------------------------------------------------------

@@ -10,6 +10,8 @@ import com.tinyoscillator.presentation.settings.loadDartApiKey
 import com.tinyoscillator.presentation.settings.loadKisConfig
 import com.tinyoscillator.presentation.settings.loadKiwoomConfig
 import com.tinyoscillator.presentation.settings.loadEcosApiKey
+import com.tinyoscillator.presentation.settings.loadCustomsTradeApiKey
+import com.tinyoscillator.presentation.settings.loadFredApiKey
 import com.tinyoscillator.presentation.settings.loadKrxCredentials
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.sync.Mutex
@@ -37,6 +39,10 @@ class ApiConfigProvider @Inject constructor(
     private var cachedDartApiKey: String? = null
     @Volatile
     private var cachedEcosApiKey: String? = null
+    @Volatile
+    private var cachedCustomsTradeApiKey: String? = null
+    @Volatile
+    private var cachedFredApiKey: String? = null
 
     private val kiwoomMutex = Mutex()
     private val kisMutex = Mutex()
@@ -44,6 +50,8 @@ class ApiConfigProvider @Inject constructor(
     private val aiMutex = Mutex()
     private val dartMutex = Mutex()
     private val ecosMutex = Mutex()
+    private val customsTradeMutex = Mutex()
+    private val fredMutex = Mutex()
 
     suspend fun getKiwoomConfig(): KiwoomApiKeyConfig {
         cachedKiwoomConfig?.let { return it }
@@ -105,6 +113,26 @@ class ApiConfigProvider @Inject constructor(
         }
     }
 
+    suspend fun getCustomsTradeApiKey(): String? {
+        cachedCustomsTradeApiKey?.let { return it.ifBlank { null } }
+        return customsTradeMutex.withLock {
+            cachedCustomsTradeApiKey?.let { return@withLock it.ifBlank { null } }
+            val key = loadCustomsTradeApiKey(context)
+            cachedCustomsTradeApiKey = key
+            key.ifBlank { null }
+        }
+    }
+
+    suspend fun getFredApiKey(): String? {
+        cachedFredApiKey?.let { return it.ifBlank { null } }
+        return fredMutex.withLock {
+            cachedFredApiKey?.let { return@withLock it.ifBlank { null } }
+            val key = loadFredApiKey(context)
+            cachedFredApiKey = key
+            key.ifBlank { null }
+        }
+    }
+
     /** Invalidate all cached configs (call after settings changes). */
     fun invalidateAll() {
         cachedKiwoomConfig = null
@@ -113,6 +141,8 @@ class ApiConfigProvider @Inject constructor(
         cachedAiConfig = null
         cachedDartApiKey = null
         cachedEcosApiKey = null
+        cachedCustomsTradeApiKey = null
+        cachedFredApiKey = null
     }
 
     /** Invalidate only Kiwoom config cache. */
