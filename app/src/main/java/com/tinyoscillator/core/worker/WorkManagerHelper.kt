@@ -72,7 +72,12 @@ object WorkManagerHelper {
      * 월간 Worker 스케줄 등록. WorkManager의 `PeriodicWorkRequest`는 고정 길이(일수) 간격만 지원하고
      * 달력상의 "매월 N일"을 정확히 보장하지 않는다(월별 일수 차이로 점진적 드리프트 가능) — 관세청
      * 무역통계·한국은행 기준금리는 월 1회 발표되고 [BearSignalRepositoryImpl]가 조회 시 전월(lag) 데이터를
-     * 쓰므로, ±수일의 드리프트는 스코어링 정확도에 영향이 없다. flex 1일로 드리프트를 일부 흡수한다.
+     * 쓰므로, ±수일의 드리프트는 스코어링 정확도에 영향이 없다.
+     *
+     * flex interval은 의도적으로 쓰지 않는다: flex가 있으면 첫 실행 시각이
+     * `initialDelay + (interval − flex)`로 계산되어(WorkSpec.calculateNextRunTime — flex는 각 인터벌의
+     * "끝" 구간에서 실행됨) 목표일보다 한 주기 가까이 늦게 시작된다. flex 없이는 첫 실행이 정확히
+     * initialDelay 시점(다음 dayOfMonth hour:minute)이다.
      */
     private inline fun <reified W : ListenableWorker> scheduleMonthlyWorker(
         context: Context,
@@ -103,10 +108,7 @@ object WorkManagerHelper {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<W>(
-            30, TimeUnit.DAYS,
-            1, TimeUnit.DAYS  // flex interval: 설정일 전후 1일 이내 실행(월별 일수 차이 흡수)
-        )
+        val request = PeriodicWorkRequestBuilder<W>(30, TimeUnit.DAYS)
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
