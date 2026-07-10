@@ -68,6 +68,66 @@ object WorkManagerHelper {
         Timber.d("$label 일일 업데이트 스케줄 취소")
     }
 
+    /**
+     * 월간 Worker 스케줄 등록. WorkManager의 `PeriodicWorkRequest`는 고정 길이(일수) 간격만 지원하고
+     * 달력상의 "매월 N일"을 정확히 보장하지 않는다(월별 일수 차이로 점진적 드리프트 가능) — 관세청
+     * 무역통계·한국은행 기준금리는 월 1회 발표되고 [BearSignalRepositoryImpl]가 조회 시 전월(lag) 데이터를
+     * 쓰므로, ±수일의 드리프트는 스코어링 정확도에 영향이 없다. flex 1일로 드리프트를 일부 흡수한다.
+     */
+    private inline fun <reified W : ListenableWorker> scheduleMonthlyWorker(
+        context: Context,
+        workName: String,
+        tag: String,
+        label: String,
+        dayOfMonth: Int,
+        hour: Int,
+        minute: Int,
+        forceUpdate: Boolean = false
+    ) {
+        require(dayOfMonth in 1..28) { "dayOfMonth must be 1-28, got $dayOfMonth" }
+        require(hour in 0..23) { "hour must be 0-23, got $hour" }
+        require(minute in 0..59) { "minute must be 0-59, got $minute" }
+
+        val now = Calendar.getInstance()
+        val target = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, dayOfMonth)
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            if (before(now)) add(Calendar.MONTH, 1)
+        }
+
+        val initialDelay = target.timeInMillis - now.timeInMillis
+
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = PeriodicWorkRequestBuilder<W>(
+            30, TimeUnit.DAYS,
+            1, TimeUnit.DAYS  // flex interval: 설정일 전후 1일 이내 실행(월별 일수 차이 흡수)
+        )
+            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .addTag(tag)
+            .build()
+
+        val policy = if (forceUpdate) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP
+
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(
+                workName,
+                policy,
+                request
+            )
+
+        Timber.d(
+            "$label 월간 업데이트 스케줄 등록: 매월 %d일 %02d:%02d (초기 딜레이: %d분, policy=%s)",
+            dayOfMonth, hour, minute, initialDelay / 60000, policy
+        )
+    }
+
     private inline fun <reified W : ListenableWorker> runWorkerNow(
         context: Context,
         workName: String,
@@ -362,5 +422,25 @@ object WorkManagerHelper {
 
     fun runThemeUpdateNow(context: Context) =
         runWorkerNow<ThemeUpdateWorker>(context, ThemeUpdateWorker.MANUAL_WORK_NAME, ThemeUpdateWorker.TAG, "테마")
+
+    // ===== BearSignal(주도주 붕괴 판단 계기판) 지표 =====
+
+    /** 매월 [dayOfMonth]일 [hour]:[minute] — 관세청 무역통계·한국은행 기준금리 발표 주기(월 1회)에 맞춤 */
+    fun scheduleBearSignalUpdate(
+        context: Context,
+        dayOfMonth: Int = 5,
+        hour: Int = 6,
+        minute: Int = 0,
+        forceUpdate: Boolean = false
+    ) = scheduleMonthlyWorker<BearSignalUpdateWorker>(
+        context, BearSignalUpdateWorker.WORK_NAME, BearSignalUpdateWorker.TAG, "BearSignal 지표",
+        dayOfMonth, hour, minute, forceUpdate
+    )
+
+    fun cancelBearSignalUpdate(context: Context) =
+        cancelWorker(context, BearSignalUpdateWorker.WORK_NAME, "BearSignal 지표")
+
+    fun runBearSignalUpdateNow(context: Context) =
+        runWorkerNow<BearSignalUpdateWorker>(context, BearSignalUpdateWorker.MANUAL_WORK_NAME, BearSignalUpdateWorker.TAG, "BearSignal 지표")
 
 }

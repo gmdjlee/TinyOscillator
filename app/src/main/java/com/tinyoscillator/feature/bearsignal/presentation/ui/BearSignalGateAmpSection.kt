@@ -11,6 +11,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
@@ -30,7 +32,14 @@ fun BearSignalGateAmpSection(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics {
+                    contentDescription = "금리 방아쇠 ${GateState.entries[result.gate].label}, " +
+                        "기준금리 상단 ${"%.2f".format(inputs.rate)}퍼센트, 정책방향 ${dirLabel(inputs.dir)}"
+                }
+        ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
@@ -64,7 +73,15 @@ fun BearSignalGateAmpSection(
             }
         }
 
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics {
+                    contentDescription = "집중 증폭 계수 ${"%.2f".format(result.amp)}배, " +
+                        "반도체 수출비중 ${"%.1f".format(inputs.semi)}퍼센트, " +
+                        "완충산업 ${if (inputs.buffer) "건재" else "부재"}"
+                }
+        ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("유형 4 · 집중 [ 증폭 계수 ]", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("충격을 키우는 계수", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

@@ -26,6 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -149,7 +151,22 @@ private fun CountryRow(
             .fillMaxWidth()
             .heightIn(min = 48.dp) // §5.4 접근성 — 최소 탭 타깃 48dp
             .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
+            .padding(vertical = 6.dp)
+            .semantics {
+                contentDescription = buildString {
+                    append(market.name)
+                    if (market.lead) append(" 주도주")
+                    if (manualRequired) append(" 수동입력 필요")
+                    append(", ")
+                    market.r.forEachIndexed { i, v ->
+                        append(PERIOD_LABELS[i])
+                        append(" ")
+                        append(v?.let { "%.1f".format(it) + "퍼센트" } ?: "값 없음")
+                        if (i < market.r.lastIndex) append(", ")
+                    }
+                    append(". 탭하여 값 수정")
+                }
+            },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1.3f)) {

@@ -15,6 +15,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
@@ -42,7 +44,9 @@ fun BearSignalLeadingSignalsSection(
         SignalCard(
             tag = "신호 1 · 주변부 압착",
             title = "주변부부터 식어가는가",
-            level = result.s1
+            level = result.s1,
+            contentDescription = "신호 1 주변부 압착, 레벨 ${SignalLevel.entries[result.s1].label}, " +
+                "이탈 지수 ${result.ma.neg}개 중 20개"
         ) {
             ReadoutRow(
                 listOf(
@@ -61,7 +65,9 @@ fun BearSignalLeadingSignalsSection(
         SignalCard(
             tag = "신호 2 · 변동성 무게중심",
             title = "급락이 급등을 앞지르나",
-            level = result.s2
+            level = result.s2,
+            contentDescription = "신호 2 변동성 무게중심, 레벨 ${SignalLevel.entries[result.s2].label}, " +
+                "±3시그마 상승 ${inputs.up}일 하락 ${inputs.down}일"
         ) {
             val ratio = if (inputs.up == 0) 0.0 else inputs.down.toDouble() / inputs.up
             ReadoutRow(
@@ -88,7 +94,9 @@ fun BearSignalLeadingSignalsSection(
         SignalCard(
             tag = "신호 3 · IPO 질",
             title = "위험선호의 거울",
-            level = result.s3
+            level = result.s3,
+            contentDescription = "신호 3 IPO 질, 레벨 ${SignalLevel.entries[result.s3].label}, " +
+                "적자상장 비중 ${"%.0f".format(inputs.loss)}퍼센트"
         ) {
             ReadoutRow(
                 listOf(
@@ -118,9 +126,20 @@ internal fun SignalCard(
     tag: String,
     title: String,
     level: Int,
+    contentDescription: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (contentDescription != null) {
+                    Modifier.semantics { this.contentDescription = contentDescription }
+                } else {
+                    Modifier
+                }
+            )
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

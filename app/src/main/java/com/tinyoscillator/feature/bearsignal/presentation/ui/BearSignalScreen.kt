@@ -36,10 +36,12 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tinyoscillator.core.ui.composable.StaleBanner
 import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexRegistry
 import com.tinyoscillator.feature.bearsignal.presentation.BearSignalViewModel
 import com.tinyoscillator.feature.bearsignal.presentation.ManualInputViewModel
 import com.tinyoscillator.presentation.common.SectionHeader
+import com.tinyoscillator.presentation.common.skeleton.BearSignalScreenSkeleton
 
 /**
  * BearSignal 메인 화면(Phase 4) — TASK.md §5.2 7섹션을 `LazyColumn`으로 조립한다.
@@ -102,6 +104,12 @@ fun BearSignalScreen(onBack: () -> Unit) {
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
+        // Room 캐시(4-Flow) 최초 방출 전에만 노출되는 shimmer(§5.4 "성능: shimmer 로딩, 기존 패턴")
+        if (uiState.isLoading) {
+            BearSignalScreenSkeleton(modifier = Modifier.padding(padding).fillMaxSize())
+            return@Scaffold
+        }
+
         val manualRequiredNames = (
             uiState.marketsSnapshot?.manualRequiredNames?.takeIf { it.isNotEmpty() }
                 ?: GlobalIndexRegistry.MANUAL_REQUIRED_NAMES
@@ -118,6 +126,16 @@ fun BearSignalScreen(onBack: () -> Unit) {
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // 오프라인 시 캐시 데이터는 그대로 렌더하고 배너로만 안내(§5.4 "오프라인 우선 렌더")
+                if (uiState.isOffline) {
+                    item(key = "offline_banner") {
+                        StaleBanner(
+                            message = "오프라인 · 마지막 저장 데이터를 표시 중입니다",
+                            onRetry = { viewModel.refresh() }
+                        )
+                    }
+                }
+
                 item(key = "header") {
                     BearSignalHeaderSection(result = uiState.result)
                 }

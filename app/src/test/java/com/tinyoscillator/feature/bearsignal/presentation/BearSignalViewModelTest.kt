@@ -1,5 +1,7 @@
 package com.tinyoscillator.feature.bearsignal.presentation
 
+import android.content.Context
+import com.tinyoscillator.core.network.NetworkUtils
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.BearPhase
@@ -18,6 +20,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.slot
 import io.mockk.unmockkAll
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +61,7 @@ class BearSignalViewModelTest {
     private lateinit var refreshMarketReturnsUseCase: RefreshMarketReturnsUseCase
     private lateinit var updateManualInputUseCase: UpdateManualInputUseCase
     private lateinit var resetToReportBaselineUseCase: ResetToReportBaselineUseCase
+    private lateinit var context: Context
 
     private val baselineInputs = BearSignalReportBaseline.toInputs()
     private val baselineResult = ComputeBearSignalUseCase()(baselineInputs)
@@ -79,6 +83,11 @@ class BearSignalViewModelTest {
         refreshMarketReturnsUseCase = mockk()
         updateManualInputUseCase = mockk(relaxed = true)
         resetToReportBaselineUseCase = mockk(relaxed = true)
+        context = mockk(relaxed = true)
+
+        // 기본값: 온라인(대부분의 테스트가 refresh() 성공 경로를 가정)
+        mockkObject(NetworkUtils)
+        every { NetworkUtils.isNetworkAvailable(any()) } returns true
     }
 
     @After
@@ -95,7 +104,8 @@ class BearSignalViewModelTest {
             refreshExternalAutoInputsUseCase,
             refreshMarketReturnsUseCase,
             updateManualInputUseCase,
-            resetToReportBaselineUseCase
+            resetToReportBaselineUseCase,
+            context
         )
     }
 
@@ -120,6 +130,9 @@ class BearSignalViewModelTest {
         assertEquals(BearSignalReportBaseline.PERIOD_IDX, initial.periodIdx)
         assertTrue(!initial.isRefreshing)
         assertNull(initial.errorMessage)
+        // Room 4-Flow 최초 방출 전(구독 시작 전)이므로 shimmer 노출 상태여야 한다(Phase 5 §5.4)
+        assertTrue(initial.isLoading)
+        assertTrue(!initial.isOffline)
     }
 
     @Test
@@ -131,6 +144,8 @@ class BearSignalViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(baselineResult.phase, state.result.phase)
         assertEquals(baselineInputs, state.inputs)
+        // Room 4-Flow가 최소 한 번 합성됐으므로 isLoading은 false로 전환된다
+        assertTrue(!state.isLoading)
     }
 
     @Test
@@ -167,9 +182,64 @@ class BearSignalViewModelTest {
 
         assertTrue(!viewModel.uiState.value.isRefreshing)
         assertNull(viewModel.uiState.value.errorMessage)
+        assertTrue(!viewModel.uiState.value.isOffline)
         coVerify(exactly = 1) { refreshAutoInputsUseCase() }
         coVerify(exactly = 1) { refreshExternalAutoInputsUseCase() }
         coVerify(exactly = 1) { refreshMarketReturnsUseCase() }
+    }
+
+    // ── 오프라인 폴백(§5.4) ────────────────────────────────
+
+    @Test
+    fun `오프라인이면 자동 지표 UseCase를 호출하지 않고 isOffline이 true가 된다`() = runTest {
+        every { NetworkUtils.isNetworkAvailable(any()) } returns false
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isOffline)
+        assertTrue(!viewModel.uiState.value.isRefreshing)
+        coVerify(exactly = 0) { refreshAutoInputsUseCase() }
+        coVerify(exactly = 0) { refreshExternalAutoInputsUseCase() }
+        coVerify(exactly = 0) { refreshMarketReturnsUseCase() }
+    }
+
+    @Test
+    fun `오프라인 상태에서도 캐시 데이터(inputs result)는 그대로 노출된다`() = runTest {
+        every { NetworkUtils.isNetworkAvailable(any()) } returns false
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.isOffline)
+        assertEquals(baselineResult.phase, state.result.phase)
+        assertEquals(baselineInputs, state.inputs)
+    }
+
+    @Test
+    fun `네트워크 복구 후 refresh 하면 isOffline이 다시 false가 된다`() = runTest {
+        coEvery { refreshAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshExternalAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshMarketReturnsUseCase() } returns Result.success(mockk(relaxed = true))
+
+        every { NetworkUtils.isNetworkAvailable(any()) } returns false
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.refresh()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isOffline)
+
+        every { NetworkUtils.isNetworkAvailable(any()) } returns true
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertTrue(!viewModel.uiState.value.isOffline)
+        coVerify(exactly = 1) { refreshAutoInputsUseCase() }
     }
 
     @Test
@@ -217,7 +287,8 @@ class BearSignalViewModelTest {
             refreshExternalAutoInputsUseCase,
             refreshMarketReturnsUseCase,
             updateManualInputUseCase,
-            resetToReportBaselineUseCase
+            resetToReportBaselineUseCase,
+            context
         )
         advanceUntilIdle()
 

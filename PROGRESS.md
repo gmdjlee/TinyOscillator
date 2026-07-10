@@ -2,6 +2,8 @@
 
 > 근거: `TASK.md` (「주도주 붕괴 판단 계기판」 이식 명세서 v1.0). 각 Phase 완료 시 `PROGRESS:` 마커 갱신.
 
+PROGRESS: P5 — 구현 마감·QA 대기(WorkManager 월간 주기 갱신(`BearSignalUpdateWorker`, 매월 5일 06:00) + 앱 시작 시 스케줄 복원 + shimmer 로딩(`BearSignalScreenSkeleton`) + 오프라인 폴백(`NetworkUtils`+`StaleBanner`, 캐시 데이터 유지+최신 갱신일 표기) + 접근성 최종 점검(신호1~4/증폭 카드·국가별 표 행 contentDescription 보강, 48dp 터치 타깃/색+텍스트 병기 확인) + JVM 테스트 신규 `feature.bearsignal` 패키지 +3건(ViewModel isLoading/isOffline, 총 226건) + `core.worker` 패키지 +6건(`BearSignalUpdateWorkerTest` companion 상수·알림ID 유일성·스케줄 입력 검증), 2026-07-10)
+
 PROGRESS: P4 — 완료 (UI 조립 — `BearSignalScreen` LazyColumn 7섹션(헤더·선행신호3카드·국가별수익률표(전치)·방아쇠증폭·3유형·역사검증·푸터) + Canvas 신호등/게이지/레이더 + `ObserveBearSignalStateUseCase` 신규 + 시장분석 탭 진입점 카드 + Pull-to-refresh/리셋/수동입력 BottomSheet 연결 + JVM 테스트 18건 신규(총 223건), 2026-07-10)
 
 PROGRESS: P3 — 완료 ([C]/[D] 수동 입력 계층(신용잔고·적자상장비중·신주비중·대어소화·정책방향·반대매매임박·미커버 해외지수) + auto⊕manual 병합(MANUAL 우선) + 리포트 기준값 리셋 + Room v36 + JVM 테스트 46건 신규(총 205건), 2026-07-10)
@@ -112,6 +114,31 @@ PROGRESS: P0 — 완료 (스캐폴딩·도메인 모델·순수 스코어링·JV
 - **미검증(가능 범위 밖)**: 360dp 실기/에뮬레이터 렌더링, 다크·라이트 모드 시각 대비, 폰트 스케일 1.3x 붕괴 여부 — 이번 세션은 Bash/Gradle만 사용 가능해 실기 캡처 불가. 코드 레벨로는 Material3 표준 컴포넌트·기존 테마 토큰만 사용해 다크/라이트 자동 대응하도록 작성했으나 시각 검증은 Phase 5(qa-verifier)에서 필요.
 - **PullToRefreshContainer**: Compose Material3 1.2.0(BOM 2024.02.00) API(`rememberPullToRefreshState`+`Modifier.nestedScroll`+`PullToRefreshContainer`, `PullToRefreshBox` 상위 헬퍼는 1.3.0+에만 존재) 확인 후 수동 조립.
 - **범위 참고**: §5.2 섹션2 "자동값 표시/수동 입력 버튼"은 실제 Phase3 도메인에 MANUAL 경로가 있는 필드(신호3의 loss/big, 금리의 dir/credit/margin)에만 노출했다. 신호1(국가별 수익률은 섹션3 표에서 별도 편집)·신호2(±3σ, [A] 완전자동)·증폭(semi/kospi2/buffer, MANUAL 경로 없음)은 §1.1 매트릭스상 애초에 수동 입력이 불필요하거나(완전자동) Phase3에서 그 경로를 구현하지 않았다(v1 범위 밖) — Phase4는 UI 조립만 담당하므로 Room 스키마·Phase3 완료 항목을 확장하지 않았다.
+
+## P5 상세
+
+- **WorkManager 월간 주기 갱신**
+  - `core/worker/BearSignalUpdateWorker.kt` 신규 — `BaseCollectionWorker` 상속(기존 패턴: HiltWorker, foreground DATA_SYNC, exp backoff 30s, `worker_logs` 기록). `RefreshAutoInputsUseCase`([A])→`RefreshExternalAutoInputsUseCase`([B])→`RefreshMarketReturnsUseCase`(도표48) 3단계를 `BearSignalViewModel.refresh()`와 동일 순서로 호출. 각 UseCase는 이미 Phase1/2에서 개별 실패 시 캐시 폴백을 구현했으므로, 워커는 3개 결과를 집계해 **3개 전부 실패했을 때만** retry/failure, 일부 성공 시 success로 처리(부분 갱신도 캐시 신선도 개선에 기여)
+  - `core/worker/WorkManagerHelper.kt` — `scheduleMonthlyWorker` 제네릭 헬퍼 신규(`scheduleDailyWorker`와 대칭 구조) + `scheduleBearSignalUpdate`/`cancelBearSignalUpdate`/`runBearSignalUpdateNow`. 기본 스케줄 매월 5일 06:00, flex 1일(월별 일수 차이 흡수). WorkManager `PeriodicWorkRequest`는 고정 길이 간격만 지원해 정확한 "매월 N일" 보장은 불가하나, 관세청/ECOS 조회가 이미 전월(lag) 데이터를 쓰므로(Phase 2) ±수일 드리프트는 스코어링에 영향 없음 — KDoc에 근거 명시
+  - `core/worker/CollectionNotificationHelper.kt` — `BEAR_SIGNAL_NOTIFICATION_ID = 1016` 추가(기존 1001~1015와 겹치지 않는 다음 번호)
+  - `TinyOscillatorApp.kt` — `onCreate()`에 `WorkManagerHelper.scheduleBearSignalUpdate(this)` 추가(Macro/Regime/MetaLearner와 동일하게 사용자 토글 없이 항상 복원 — 기존 관례 준수)
+  - **캐시 우선 렌더**: `ObserveBearSignalStateUseCase`가 Room 4-Flow를 구독하는 기존 구조 자체가 이미 "워커가 백그라운드에서 갱신 → 화면은 Room 변경을 자동 반영"을 보장하므로 Phase5에서 화면 쪽 추가 배선은 불필요(그대로 재사용 확인)
+- **shimmer 로딩**
+  - `feature/bearsignal/presentation/BearSignalViewModel.kt` — `BearSignalUiState.isLoading: Boolean = true`(기존 shimmer 관례와 동일하게 "Room 캐시 최초 방출 전"만 true). `stateIn`의 초기값(`BearSignalUiState()`)에서만 true, `combine(...)` 람다는 Room 4-Flow가 최소 한 번 합성된 뒤에만 실행되므로 그 시점부터 항상 `isLoading = false`로 고정 — 별도 플래그 오케스트레이션 없이 "초기값 vs 합성값" 차이만으로 로딩 상태를 표현
+  - `presentation/common/skeleton/ScreenSkeletons.kt` — `BearSignalScreenSkeleton` 신규(기존 `ShimmerBox`/`ShimmerLine` 그대로 재사용, §5.2 7섹션 구조를 헤더/3카드/표/방아쇠·증폭/유형·역사 6블록으로 축약)
+  - `feature/bearsignal/presentation/ui/BearSignalScreen.kt` — `uiState.isLoading`이면 `Scaffold` 컨텐츠를 스켈레톤으로 조기 반환(`return@Scaffold`), TopAppBar/BottomSheet/리셋 다이얼로그는 그대로 유지
+- **오프라인 폴백**
+  - `BearSignalViewModel.refresh()` — `NetworkUtils.isNetworkAvailable(context)`를 API 호출 전에 확인(기존 `OscillatorViewModel`/`QuickAnalysisViewModel` 관례 재사용). 오프라인이면 3개 UseCase를 아예 호출하지 않고 `isOffline=true`만 설정 — 화면은 이미 Room 캐시로 렌더돼 있으므로(§1.2 하이브리드 아키텍처) 재시도할 필요가 없다
+  - `BearSignalScreen.kt` — `uiState.isOffline`이면 `LazyColumn` 최상단에 기존 `core/ui/composable/UiStateContent.kt`의 `StaleBanner`(문구 "오프라인 · 마지막 저장 데이터를 표시 중입니다" + 새로고침 버튼)를 노출. 캐시 데이터(`inputs`/`result`)와 "전체 최신 갱신일"(`BearSignalFooterSection`의 `LastUpdatedText`, Phase4에서 이미 구현)은 그대로 유지되므로 요구사항("캐시 데이터 렌더 + 최신 갱신일 표기") 충족
+  - `@ApplicationContext Context` 생성자 주입 추가(`EtfViewModel` 등 기존 패턴과 동일) — Hilt가 자동 주입, JVM 테스트는 `mockk<Context>(relaxed = true)` + `mockkObject(NetworkUtils)`로 검증(기존 `QuickAnalysisViewModelTest` 패턴 재사용)
+- **접근성 최종 점검**
+  - `BearSignalLeadingSignalsSection.kt` — `SignalCard`에 선택적 `contentDescription` 파라미터 추가, 신호1/2/3 카드에 레벨+핵심수치 요약 부여(Phase4는 헤더 카드에만 적용돼 있었음)
+  - `BearSignalGateAmpSection.kt` — 금리 방아쇠·증폭 계수 카드에 각각 `Modifier.semantics { contentDescription }` 추가
+  - `BearSignalCountryTableSection.kt` — `CountryRow`(이미 `.heightIn(min = 48.dp)` 확보돼 있던 터치 타깃)에 국가명+4기간 값 요약 `contentDescription` 추가
+  - **점검 결과(기존 구현 재확인, 변경 불요)**: `TextButton`/`IconButton`/`FilterChip`/`Checkbox` 등 Material3 표준 컴포넌트는 라이브러리 차원에서 최소 48dp 터치 타깃을 강제하므로 추가 조치 불요. 모든 LEVEL 색상은 `SignalLevel.label`/`GateState.label` 텍스트와 항상 병기(Phase4부터 일관). Canvas 커스텀 그래픽(`BearSignalGraphics.kt`)의 라벨은 `sp` 단위 사용으로 시스템 폰트 스케일에 자동 반응 — 다만 **360dp 실기 렌더·다크모드 대비·폰트 1.3x 실측 검증은 이번 세션(Bash/Gradle 전용) 범위 밖**으로 미검증 상태 유지(Phase4와 동일한 한계)
+- **테스트**: `BearSignalViewModelTest` +3(오프라인 시 UseCase 미호출·캐시 데이터 유지·네트워크 복구 후 재갱신, 초기/Room방출 테스트에 isLoading/isOffline 단언 추가) — `feature.bearsignal` 패키지 총 226건. `core/worker/BearSignalUpdateWorkerTest.kt` 신규 6건(companion 상수, 알림ID 유일성, `scheduleBearSignalUpdate` 입력 검증 4종 — `dayOfMonth`/`hour`/`minute` 경계). `doWork()` 자체는 `BaseCollectionWorker.setForeground()`가 실제 WorkManager/Android 런타임을 요구해 JVM 테스트 불가 — 기존 `MacroUpdateWorker`/`ThemeUpdateWorker`도 동일한 이유로 `doWork()` 단위테스트가 없는 것과 동일한 구조적 한계(KDoc·PROGRESS에 명시).
+- **빌드**: `:app:compileDebugKotlin`/`:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"`(226건, 0 실패)/`:app:testDebugUnitTest --tests "com.tinyoscillator.core.worker.*"`(0 실패)/`:app:assembleDebug` 전부 BUILD SUCCESSFUL.
+- **미검증(가능 범위 밖, Phase4와 동일한 한계 승계)**: 실기/에뮬레이터에서 shimmer 애니메이션·오프라인 배너·다크모드 대비·폰트 스케일 1.3x 렌더링 확인, WorkManager 월간 트리거의 실제 발화(달력월 30일 스케줄이므로 단시간 세션에서 실행 확인 불가 — `runBearSignalUpdateNow()` 수동 트리거 경로는 존재하나 실기 실행은 미검증), 관세청 API 실키 검증.
 
 ## 점검 이력 (2026-07-09)
 - kotlin-implementer 셀프리뷰(qa 점검) 결과: 스코어링 5개 함수(analyzeMarkets·scoreS1~S3·scoreGate·amplifier·composite) 전부 프로토타입 `bear_signal_dashboard.jsx`(작업 디렉터리 루트에서 재확보, git 미추적)와 문자 단위 일치 확인.

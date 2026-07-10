@@ -1,7 +1,9 @@
 package com.tinyoscillator.feature.bearsignal.presentation
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tinyoscillator.core.network.NetworkUtils
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalReportBaseline
@@ -18,6 +20,7 @@ import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshMarketReturns
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ResetToReportBaselineUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.UpdateManualInputUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +38,11 @@ private val DEFAULT_RESULT: BearSignalResult = ComputeBearSignalUseCase()(DEFAUL
  * @param periodIdx 현재 선택된 신호1 판정 기간(§5.3 FilterChip) — [inputs.periodIdx]와 항상 동일.
  * @param lastUpdatedAt 자동/수동 전 지표 중 가장 최근 `updatedAt` (§5.2 섹션7 "전체 최신 갱신일").
  * @param errorMessage 최근 갱신 실패 메시지(있으면 Snackbar로 1회성 노출).
+ * @param isLoading Room 캐시(자동/수동/국가별 수익률 4-Flow)의 최초 방출 전 상태 — 이 구간만 shimmer
+ * 스켈레톤을 노출한다(§5.4 "성능: shimmer 로딩"). `stateIn`의 초기값(`BearSignalUiState()`)에서만
+ * `true`이고, [ObserveBearSignalStateUseCase] 결과가 한 번이라도 합성되면 항상 `false`로 고정된다.
+ * @param isOffline 네트워크 미연결로 자동 갱신을 시도하지 않고 건너뛴 상태(§5.4 "오프라인 우선 렌더").
+ * 캐시 데이터는 이미 [inputs]/[result]에 반영돼 있으므로 화면은 그대로 렌더하고 배너로만 안내한다.
  */
 data class BearSignalUiState(
     val inputs: BearSignalInputs = DEFAULT_INPUTS,
@@ -46,7 +54,9 @@ data class BearSignalUiState(
     val periodIdx: Int = BearSignalReportBaseline.PERIOD_IDX,
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
-    val lastUpdatedAt: Long? = null
+    val lastUpdatedAt: Long? = null,
+    val isLoading: Boolean = true,
+    val isOffline: Boolean = false
 )
 
 @HiltViewModel
@@ -56,18 +66,21 @@ class BearSignalViewModel @Inject constructor(
     private val refreshExternalAutoInputsUseCase: RefreshExternalAutoInputsUseCase,
     private val refreshMarketReturnsUseCase: RefreshMarketReturnsUseCase,
     private val updateManualInputUseCase: UpdateManualInputUseCase,
-    private val resetToReportBaselineUseCase: ResetToReportBaselineUseCase
+    private val resetToReportBaselineUseCase: ResetToReportBaselineUseCase,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val periodIdx = MutableStateFlow(BearSignalReportBaseline.PERIOD_IDX)
     private val isRefreshing = MutableStateFlow(false)
     private val errorMessage = MutableStateFlow<String?>(null)
+    private val isOffline = MutableStateFlow(false)
 
     val uiState: StateFlow<BearSignalUiState> = combine(
         observeBearSignalStateUseCase(periodIdx),
         isRefreshing,
-        errorMessage
-    ) { state, refreshing, error ->
+        errorMessage,
+        isOffline
+    ) { state, refreshing, error, offline ->
         BearSignalUiState(
             inputs = state.inputs,
             result = state.result,
@@ -78,15 +91,28 @@ class BearSignalViewModel @Inject constructor(
             periodIdx = state.inputs.periodIdx,
             isRefreshing = refreshing,
             errorMessage = error,
-            lastUpdatedAt = lastUpdatedAt(state)
+            lastUpdatedAt = lastUpdatedAt(state),
+            // Room 4-Flow가 최소 한 번 합성됐다는 뜻 — 초기값(BearSignalUiState())에서만 true로 남는다.
+            isLoading = false,
+            isOffline = offline
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BearSignalUiState())
 
-    /** Pull-to-refresh(§5.4) → [A]/[B] 자동 지표 + 국가별 지수 3계열을 병렬 아님(직렬, 소스 독립) 갱신 */
+    /**
+     * Pull-to-refresh(§5.4) → [A]/[B] 자동 지표 + 국가별 지수 3계열을 병렬 아님(직렬, 소스 독립) 갱신.
+     * 오프라인이면 API 호출을 시도하지 않고 즉시 [isOffline]만 설정한다(§5.4 "오프라인 우선 렌더" —
+     * 화면은 이미 Room 캐시로 렌더돼 있으므로 배너로만 안내, 기존 [NetworkUtils] 관례 재사용).
+     */
     fun refresh() {
         if (isRefreshing.value) return
         viewModelScope.launch {
             isRefreshing.value = true
+            if (!NetworkUtils.isNetworkAvailable(context)) {
+                isOffline.value = true
+                isRefreshing.value = false
+                return@launch
+            }
+            isOffline.value = false
             val failed = mutableListOf<String>()
             refreshAutoInputsUseCase().onFailure { failed += "자동 지표" }
             refreshExternalAutoInputsUseCase().onFailure { failed += "외부 지표" }

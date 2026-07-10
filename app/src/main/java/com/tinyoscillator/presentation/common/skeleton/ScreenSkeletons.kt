@@ -173,6 +173,35 @@ fun MarketAnalysisSkeleton(modifier: Modifier = Modifier) {
     }
 }
 
+/** BearSignal(주도주 붕괴 판단 계기판) 화면 로딩 스켈레톤 — TASK.md §5.2 7섹션 구조 축약 반영 */
+@Composable
+fun BearSignalScreenSkeleton(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        // 1. 종합 국면 헤더(신호등+게이지+레이더)
+        ShimmerBox(height = 220.dp, cornerRadius = 16.dp)
+        // 2. 선행 신호 3 카드
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            repeat(3) {
+                ShimmerBox(height = 130.dp, cornerRadius = 12.dp, modifier = Modifier.weight(1f))
+            }
+        }
+        // 3. 국가별 수익률 표(전치)
+        ShimmerBox(height = 260.dp, cornerRadius = 12.dp)
+        // 4. 방아쇠(금리)·증폭(집중) 카드
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ShimmerBox(height = 110.dp, cornerRadius = 12.dp, modifier = Modifier.weight(1f))
+            ShimmerBox(height = 110.dp, cornerRadius = 12.dp, modifier = Modifier.weight(1f))
+        }
+        // 5~6. 약세장 3유형 · 역사 검증 카드
+        ShimmerBox(height = 140.dp, cornerRadius = 12.dp)
+    }
+}
+
 /** 차트 화면 (DeMark/펀더멘탈/재무 등) 범용 스켈레톤 */
 @Composable
 fun ChartScreenSkeleton(modifier: Modifier = Modifier) {
