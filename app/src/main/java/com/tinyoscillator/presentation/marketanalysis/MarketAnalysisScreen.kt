@@ -46,6 +46,7 @@ import com.tinyoscillator.core.ui.composable.DefaultErrorContent
 import com.tinyoscillator.core.ui.composable.EmptyStateContent
 import com.tinyoscillator.core.ui.composable.LastUpdatedText
 import com.tinyoscillator.core.ui.composable.NeedDataCollectionContent
+import com.tinyoscillator.feature.bearsignal.presentation.ui.BearSignalEntryCard
 import com.tinyoscillator.presentation.common.CollectionProgressBar
 import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.presentation.common.HeatmapScreen
@@ -71,7 +72,8 @@ private enum class MarketAnalysisTab(val label: String) {
 @Composable
 fun MarketAnalysisScreen(
     onSettingsClick: () -> Unit,
-    onTickerClick: (String) -> Unit = {}
+    onTickerClick: (String) -> Unit = {},
+    onBearSignalClick: () -> Unit = {}
 ) {
     val fearGreedViewModel: FearGreedViewModel = hiltViewModel()
     val demarkViewModel: MarketDemarkViewModel = hiltViewModel()
@@ -149,7 +151,8 @@ fun MarketAnalysisScreen(
                     viewModel = fearGreedViewModel,
                     oscillatorViewModel = oscillatorViewModel,
                     depositViewModel = depositViewModel,
-                    themeViewModel = themeViewModel
+                    themeViewModel = themeViewModel,
+                    onBearSignalClick = onBearSignalClick
                 )
                 MarketAnalysisTab.DEMARK -> MarketDemarkTab(viewModel = demarkViewModel)
                 MarketAnalysisTab.OSCILLATOR -> MarketOscillatorTab(viewModel = oscillatorViewModel)
@@ -167,7 +170,8 @@ private fun FearGreedTab(
     viewModel: FearGreedViewModel,
     oscillatorViewModel: MarketOscillatorViewModel,
     depositViewModel: MarketDepositViewModel,
-    themeViewModel: ThemeViewModel
+    themeViewModel: ThemeViewModel,
+    onBearSignalClick: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val selectedMarket by viewModel.selectedMarket.collectAsStateWithLifecycle()
@@ -191,6 +195,9 @@ private fun FearGreedTab(
             depositChange = depositData.depositChanges.lastOrNull(),
             topThemes = themes.sortedByDescending { it.fluRate }.take(3)
         )
+
+        // 시장 국면·리스크 진입점 (TASK.md §5.1 권장안 — 하단바 혼잡 회피)
+        BearSignalEntryCard(onClick = onBearSignalClick)
 
         // 시장 선택
         Card(modifier = Modifier.fillMaxWidth()) {

@@ -39,6 +39,7 @@ import com.tinyoscillator.presentation.common.calculateWindowType
 import com.tinyoscillator.presentation.etf.AggregatedStockTrendScreen
 import com.tinyoscillator.presentation.etf.StockTrendScreen
 import com.tinyoscillator.domain.model.ConsensusReport
+import com.tinyoscillator.feature.bearsignal.presentation.ui.BearSignalScreen
 import com.tinyoscillator.presentation.ai.AiAnalysisScreen
 import com.tinyoscillator.presentation.explore.ExploreScreen
 import com.tinyoscillator.presentation.marketanalysis.MarketAnalysisScreen
@@ -164,8 +165,12 @@ fun AppNavigation() {
                 },
                 onThemeClick = { code, name ->
                     navController.navigate("theme_detail/$code/$name")
-                }
+                },
+                onBearSignalClick = { navController.navigate("bear_signal") }
             )
+        }
+        composable("bear_signal") {
+            BearSignalScreen(onBack = { navController.popBackStack() })
         }
         composable("settings") {
             SettingsScreen(
@@ -222,7 +227,8 @@ private fun MainScaffold(
     onStockClick: (String) -> Unit = {},
     onStockTrendClick: (String, String) -> Unit = { _, _ -> },
     onReportDetailClick: (ConsensusReport) -> Unit = {},
-    onThemeClick: (String, String) -> Unit = { _, _ -> }
+    onThemeClick: (String, String) -> Unit = { _, _ -> },
+    onBearSignalClick: () -> Unit = {}
 ) {
     val screenContent: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier = modifier) {
@@ -230,7 +236,8 @@ private fun MainScaffold(
                 BottomNavItem.MARKET_ANALYSIS -> {
                     MarketAnalysisScreen(
                         onSettingsClick = onSettingsClick,
-                        onTickerClick = onStockClick
+                        onTickerClick = onStockClick,
+                        onBearSignalClick = onBearSignalClick
                     )
                 }
                 BottomNavItem.STOCK_ANALYSIS -> {

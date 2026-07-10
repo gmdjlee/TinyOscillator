@@ -9,7 +9,9 @@ import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
 import com.tinyoscillator.feature.bearsignal.data.repository.BearSignalRepositoryImpl
 import com.tinyoscillator.feature.bearsignal.domain.repository.BearSignalRepository
+import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.MergeBearSignalInputsUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.ObserveBearSignalStateUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshAutoInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshExternalAutoInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshMarketReturnsUseCase
@@ -95,4 +97,20 @@ object BearSignalModule {
     @Provides
     @Singleton
     fun provideMergeBearSignalInputsUseCase(): MergeBearSignalInputsUseCase = MergeBearSignalInputsUseCase()
+
+    @Provides
+    @Singleton
+    fun provideComputeBearSignalUseCase(): ComputeBearSignalUseCase = ComputeBearSignalUseCase()
+
+    @Provides
+    @Singleton
+    fun provideObserveBearSignalStateUseCase(
+        repository: BearSignalRepository,
+        mergeBearSignalInputsUseCase: MergeBearSignalInputsUseCase,
+        computeBearSignalUseCase: ComputeBearSignalUseCase
+    ): ObserveBearSignalStateUseCase = ObserveBearSignalStateUseCase(
+        repository,
+        mergeBearSignalInputsUseCase,
+        computeBearSignalUseCase
+    )
 }

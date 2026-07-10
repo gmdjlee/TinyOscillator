@@ -114,18 +114,29 @@ data class BearSignalResult(
     val ma: MarketAnalysis
 )
 
+/** [BearType.recoveryLabel] 회복 가능성 등급 — 프로토타입 `recoveryC`(red/amber/accent) 색상 힌트와 대응(UI에서 색 매핑) */
+enum class RecoveryOutlook { LOWEST, MEDIUM, PATIENCE }
+
 /**
- * 약세장 3유형 (§3.7 정적 참조 — 유형별 회복 가능성).
- * Phase 4에서 프로토타입 TYPES 시드 텍스트를 그대로 이관한다.
+ * 약세장 3유형 (§3.7 정적 참조 — 유형별 회복 가능성, 프로토타입 `TYPES` 1:1, Phase 4에서 채움).
+ *
+ * @param index 0-based 유형 인덱스(0=유형1 경쟁·역전, 1=유형2 전방수요·사이클, 2=유형3 밸류·금리).
+ * 유형3(index=2)이 `gate>=1`일 때 "현재 활성 방아쇠"로 하이라이트된다
+ * (프로토타입 `i === 2 && r.gate >= 1`, [com.tinyoscillator.feature.bearsignal.domain.model.BearSignalStaticContent.ACTIVE_TYPE_INDEX]).
  */
 data class BearType(
-    val id: Int,
-    val name: String,
-    val recovery: String,
-    val description: String
+    val index: Int,
+    val title: String,
+    val axis: String,
+    val recoveryLabel: String,
+    val recoveryOutlook: RecoveryOutlook,
+    val theory: String,
+    val cases: String,
+    val why: String,
+    val monitor: List<String>
 )
 
-/** 유형별 모니터링 체크리스트 항목 (§3.7 — Phase 3+에서 사용) */
+/** 유형별 모니터링 체크리스트 항목 UI 상태 (§3.7 — Phase 4 화면 조립, persistence 없는 로컬 토글) */
 data class MonitorItem(
     val label: String,
     val checked: Boolean = false

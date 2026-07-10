@@ -2,6 +2,8 @@
 
 > 근거: `TASK.md` (「주도주 붕괴 판단 계기판」 이식 명세서 v1.0). 각 Phase 완료 시 `PROGRESS:` 마커 갱신.
 
+PROGRESS: P4 — 완료 (UI 조립 — `BearSignalScreen` LazyColumn 7섹션(헤더·선행신호3카드·국가별수익률표(전치)·방아쇠증폭·3유형·역사검증·푸터) + Canvas 신호등/게이지/레이더 + `ObserveBearSignalStateUseCase` 신규 + 시장분석 탭 진입점 카드 + Pull-to-refresh/리셋/수동입력 BottomSheet 연결 + JVM 테스트 18건 신규(총 223건), 2026-07-10)
+
 PROGRESS: P3 — 완료 ([C]/[D] 수동 입력 계층(신용잔고·적자상장비중·신주비중·대어소화·정책방향·반대매매임박·미커버 해외지수) + auto⊕manual 병합(MANUAL 우선) + 리포트 기준값 리셋 + Room v36 + JVM 테스트 46건 신규(총 205건), 2026-07-10)
 
 PROGRESS: P2 — 완료 ([B] 자동 연동 4지표(관세청 수출비중·FRED/ECOS 금리·IPO ETF 방향·해외 19개 지수) + Room v35 + JVM 테스트 89건 신규(총 159건), 2026-07-10)
@@ -83,6 +85,33 @@ PROGRESS: P0 — 완료 (스캐폴딩·도메인 모델·순수 스코어링·JV
 - **테스트**: 신규 46건(총 205건, 0 실패) — `MergeBearSignalInputsUseCaseTest` 16(골든 케이스 재현: AUTO/MANUAL 전무 → `BearSignalReportBaseline.toInputs()`와 완전 동일 + AMBER 재현, `dir` MANUAL>AUTO>기준값 3단 우선순위, 국가별 수익률 지수×기간 단위 병합 및 부분 오버라이드), `UpdateManualInputUseCaseTest` 8(big/dir 유효값·잘못된 값 예외, MarketReturn 기간 수 검증), `ResetToReportBaselineUseCaseTest` 1, `BearSignalManualInputMapperTest` 8(인코딩 왕복, 키 누락 시 null), `BearSignalManualCountryReturnMapperTest` 3, `BearSignalRepositoryImplTest` +12(6개 `ManualFieldUpdate` 타입별 upsert 검증, get/observe 매핑, 리셋 시 수동 테이블만 삭제·자동 캐시 미터치 검증). 기존 159건 회귀 통과.
 - **빌드**: `:app:compileDebugKotlin`/`:app:compileDebugUnitTestKotlin`/`:app:assembleDebug` 전부 BUILD SUCCESSFUL. Compose `ModalBottomSheet`/`SegmentedButton` 실험적 API `@OptIn(ExperimentalMaterial3Api::class)` 필요(private 헬퍼 컴포저블에도 개별 부여).
 - **범위 참고**: TASK.md 사용자 보충 지시가 나열한 "정책 방향"은 §1.1 매트릭스상 [A] 등급(ECOS 자동, Phase 2 완료)이지만 §4 폴백 열에 "수동"이 명시돼 있어 Phase 3에서 MANUAL 오버라이드 경로를 추가했다(`ManualIndicatorKey.DIR`) — MANUAL 우선 규칙이 실제로 auto와 충돌하는 유일한 필드.
+
+## P4 상세
+
+- **domain**
+  - `feature/bearsignal/domain/model/BearSignalModels.kt` — `BearType`을 프로토타입 `TYPES` 구조에 맞춰 확장(index/title/axis/recoveryLabel/recoveryOutlook/theory/cases/why/monitor), `RecoveryOutlook`(LOWEST/MEDIUM/PATIENCE) enum 신규
+  - `feature/bearsignal/domain/model/BearSignalStaticContent.kt` — 약세장 3유형(TYPES, 프로토타입 1:1) + 활성 방아쇠 인덱스(유형3) + 역사 검증 3대 모니터링 지표 + 지표↔리포트 매핑 + 면책 문구, 전부 정적 데이터(§3 SSOT 무관)
+  - `feature/bearsignal/domain/usecase/ObserveBearSignalStateUseCase.kt` — TASK.md §2 아키텍처가 명시한 화면 조립 UseCase 신규 구현. Room 4-Flow(auto/manual/marketsSnapshot/manualMarkets) + 기간 선택 Flow를 `combine`해 `MergeBearSignalInputsUseCase` → `ComputeBearSignalUseCase`로 이어지는 파이프라인을 하나의 `State`로 합성. 안드로이드 의존성 0
+  - `feature/bearsignal/di/BearSignalModule.kt` — `ComputeBearSignalUseCase`/`ObserveBearSignalStateUseCase` Hilt 프로바이더 추가
+- **presentation**
+  - `feature/bearsignal/presentation/BearSignalViewModel.kt` — `@HiltViewModel`. `ObserveBearSignalStateUseCase(periodIdx)` + `isRefreshing` + `errorMessage` 3-Flow `combine` → `BearSignalUiState`(`stateIn(WhileSubscribed(5_000))`). `refresh()`(Phase1/2 자동 UseCase 3종 순차 호출, 지표별 실패 메시지 합성) · `selectPeriod()`(§5.3 FilterChip) · `updateMarketReturn()`/`updateLoss()` 등(Phase3 `UpdateManualInputUseCase` 위임) · `reset()`(Phase3 `ResetToReportBaselineUseCase` 위임) · `lastUpdatedAt`(자동+수동 전 지표 `updatedAt` 중 최댓값, §5.2 섹션7)
+  - `feature/bearsignal/presentation/ui/BearSignalScreen.kt` — `LazyColumn` 7섹션 조립(헤더/선행신호3카드/국가별수익률표/방아쇠·증폭/3유형/역사검증/푸터), TopAppBar(뒤로·새로고침·리셋), `PullToRefreshContainer`(material3 1.2.0 API, `rememberPullToRefreshState`+`nestedScroll`), 리셋 확인 다이얼로그, Phase3 `ManualInputBottomSheet` 재사용(별도 `ManualInputViewModel` 인스턴스 — 동일 Room 소스라 자동 동기화)
+  - `feature/bearsignal/presentation/ui/BearSignalHeaderSection.kt` — 섹션1: 신호등+국면 라벨+선행점수 게이지(0~100)+금리방아쇠/증폭/경고신호 readout+레이더+해설문구
+  - `feature/bearsignal/presentation/ui/BearSignalLeadingSignalsSection.kt` — 섹션2: 신호1/2/3 카드(4단 게이지+레벨칩+readout). 신호1은 §섹션3 표에서, 신호3(loss/big)만 실제 MANUAL 오버라이드 경로가 있어 "수동 입력" 버튼 노출 — 신호2(±3σ)는 [A] 완전자동이라 버튼 없음(§1.1 근거, 상세는 "범위 참고" 항목)
+  - `feature/bearsignal/presentation/ui/BearSignalCountryTableSection.kt` — 섹션3: 국가=행(20)×기간=열(4) 전치 표, FilterChip 기간 선택 + 이탈수 요약 칩, 행 탭 → 4기간 편집 다이얼로그(20×4 텍스트필드를 LazyColumn에 직접 배치하지 않고 행 단위 다이얼로그로 대체 — 포커스/성능 리스크 회피)
+  - `feature/bearsignal/presentation/ui/BearSignalGateAmpSection.kt` — 섹션4: 금리 GATE 카드(4상태 게이지+수동입력 버튼) + 증폭 계수 카드(읽기전용, semi/kospi2/buffer는 MANUAL 경로 없음)
+  - `feature/bearsignal/presentation/ui/BearSignalTypesHistorySection.kt` — 섹션5(3유형 카드+로컬 체크박스 모니터링 체크리스트+유형3 활성 하이라이트)+섹션6(일본 3충격 역사 검증+3대 지표)
+  - `feature/bearsignal/presentation/ui/BearSignalFooterSection.kt` — 섹션7: 지표↔리포트 매핑+면책+`LastUpdatedText`(기존 컴포넌트 재사용)
+  - `feature/bearsignal/presentation/ui/BearSignalGraphics.kt` — Canvas 커스텀 그래픽: `TrafficLightColumn`(4구 신호등), `SignalGauge`(4단 세그먼트+라벨, Layout 기반), `BearSignalRadar`(4축 미니 레이더, `TextMeasurer`로 축 라벨 렌더)
+  - `feature/bearsignal/presentation/ui/BearSignalColors.kt` — LEVEL 색 매핑(안전=primary·주의=secondary·경고=오렌지 보강 상수·위험=error, 다크/라이트 대응) + `PhaseMeta`(국면별 라벨·해설, 프로토타입 `PHASE_META` 1:1) + `SourceBadge`(AUTO/MANUAL/기준값+갱신일)
+  - `feature/bearsignal/presentation/ui/BearSignalEntryCard.kt` — 신규 메뉴 진입점(§5.1 권장안), 실시간 국면 미리보기(자체 `BearSignalViewModel` 인스턴스, Room 캐시 기반)
+- **네비게이션**: `MainActivity.kt`에 `composable("bear_signal")` 라우트 추가(기존 4→5탭 유지, 6번째 하단 탭 신설 안함 — §5.1 "권장안" 채택). `MarketAnalysisScreen`(Fear&Greed 탭) `MarketSummaryCard` 바로 아래 `BearSignalEntryCard` 배치, `onBearSignalClick` 콜백을 `MainActivity` → `MainScaffold` → `MarketAnalysisScreen` → `FearGreedTab`으로 스레딩
+- **접근성/모바일**: LEVEL 색 항상 텍스트 라벨 병기(`SignalLevel.label`/`GateState.label`), 헤더 카드에 `Modifier.semantics { contentDescription }` 요약 부여, 표는 전치(국가=행)로 360dp 세로 스크롤 대응, Material3 기본 컴포넌트(Card/Chip/Button) 사용으로 폰트 스케일 대응은 시스템 기본값 상속
+- **테스트**: 신규 18건(총 223건, 0 실패) — `BearSignalStaticContentTest` 5(3유형 개수·순서·활성인덱스·모니터링 비어있지 않음·면책문구), `ObserveBearSignalStateUseCaseTest` 3(Room 캐시 전무 시 골든 케이스 AMBER 재현, 수동 오버라이드 즉시 반영, 기간 선택 반영), `BearSignalViewModelTest` 10(초기값·Room 방출 반영·lastUpdatedAt 계산·refresh 성공/실패/에러클리어·selectPeriod 내부 Flow 갱신·수동입력 위임 3종·reset 위임). `WhileSubscribed(5_000)` StateFlow 테스트 시 `backgroundScope.launch { uiState.collect() }`로 구독 유지 필요(주석에 근거 명시). 기존 205건 회귀 통과.
+- **빌드**: `:app:compileDebugKotlin`/`:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"`/`:app:assembleDebug` 전부 BUILD SUCCESSFUL.
+- **미검증(가능 범위 밖)**: 360dp 실기/에뮬레이터 렌더링, 다크·라이트 모드 시각 대비, 폰트 스케일 1.3x 붕괴 여부 — 이번 세션은 Bash/Gradle만 사용 가능해 실기 캡처 불가. 코드 레벨로는 Material3 표준 컴포넌트·기존 테마 토큰만 사용해 다크/라이트 자동 대응하도록 작성했으나 시각 검증은 Phase 5(qa-verifier)에서 필요.
+- **PullToRefreshContainer**: Compose Material3 1.2.0(BOM 2024.02.00) API(`rememberPullToRefreshState`+`Modifier.nestedScroll`+`PullToRefreshContainer`, `PullToRefreshBox` 상위 헬퍼는 1.3.0+에만 존재) 확인 후 수동 조립.
+- **범위 참고**: §5.2 섹션2 "자동값 표시/수동 입력 버튼"은 실제 Phase3 도메인에 MANUAL 경로가 있는 필드(신호3의 loss/big, 금리의 dir/credit/margin)에만 노출했다. 신호1(국가별 수익률은 섹션3 표에서 별도 편집)·신호2(±3σ, [A] 완전자동)·증폭(semi/kospi2/buffer, MANUAL 경로 없음)은 §1.1 매트릭스상 애초에 수동 입력이 불필요하거나(완전자동) Phase3에서 그 경로를 구현하지 않았다(v1 범위 밖) — Phase4는 UI 조립만 담당하므로 Room 스키마·Phase3 완료 항목을 확장하지 않았다.
 
 ## 점검 이력 (2026-07-09)
 - kotlin-implementer 셀프리뷰(qa 점검) 결과: 스코어링 5개 함수(analyzeMarkets·scoreS1~S3·scoreGate·amplifier·composite) 전부 프로토타입 `bear_signal_dashboard.jsx`(작업 디렉터리 루트에서 재확보, git 미추적)와 문자 단위 일치 확인.
