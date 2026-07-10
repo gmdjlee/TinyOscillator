@@ -2,7 +2,7 @@
 
 > 근거: `TASK.md` (「주도주 붕괴 판단 계기판」 이식 명세서 v1.0). 각 Phase 완료 시 `PROGRESS:` 마커 갱신.
 
-PROGRESS: P5 — 구현 마감·QA 대기(WorkManager 월간 주기 갱신(`BearSignalUpdateWorker`, 매월 5일 06:00) + 앱 시작 시 스케줄 복원 + shimmer 로딩(`BearSignalScreenSkeleton`) + 오프라인 폴백(`NetworkUtils`+`StaleBanner`, 캐시 데이터 유지+최신 갱신일 표기) + 접근성 최종 점검(신호1~4/증폭 카드·국가별 표 행 contentDescription 보강, 48dp 터치 타깃/색+텍스트 병기 확인) + JVM 테스트 신규 `feature.bearsignal` 패키지 +3건(ViewModel isLoading/isOffline, 총 226건) + `core.worker` 패키지 +6건(`BearSignalUpdateWorkerTest` companion 상수·알림ID 유일성·스케줄 입력 검증), 2026-07-10)
+PROGRESS: P5 — 구현 마감·에뮬레이터 QA 1차 통과·잔여 QA 대기(WorkManager 월간 주기 갱신(`BearSignalUpdateWorker`, 매월 5일 06:00) + 앱 시작 시 스케줄 복원 + shimmer 로딩(`BearSignalScreenSkeleton`) + 오프라인 폴백(`NetworkUtils`+`StaleBanner`, 캐시 데이터 유지+최신 갱신일 표기) + 접근성 최종 점검(신호1~4/증폭 카드·국가별 표 행 contentDescription 보강, 48dp 터치 타깃/색+텍스트 병기 확인) + JVM 테스트 신규 `feature.bearsignal` 패키지 +3건(ViewModel isLoading/isOffline, 총 226건) + `core.worker` 패키지 +6건(`BearSignalUpdateWorkerTest` companion 상수·알림ID 유일성·스케줄 입력 검증), 2026-07-10; 에뮬레이터 실기 QA 1차 통과 2026-07-10 — 하단 「실기 QA」 절 참조, 잔여: 360dp/다크/폰트스케일 렌더·월간 워커 실발화·관세청/FRED 실키·Stooq 대체 소스 결정·스펙 조정 2건)
 
 PROGRESS: P4 — 완료 (UI 조립 — `BearSignalScreen` LazyColumn 7섹션(헤더·선행신호3카드·국가별수익률표(전치)·방아쇠증폭·3유형·역사검증·푸터) + Canvas 신호등/게이지/레이더 + `ObserveBearSignalStateUseCase` 신규 + 시장분석 탭 진입점 카드 + Pull-to-refresh/리셋/수동입력 BottomSheet 연결 + JVM 테스트 18건 신규(총 223건), 2026-07-10)
 
@@ -139,6 +139,18 @@ PROGRESS: P0 — 완료 (스캐폴딩·도메인 모델·순수 스코어링·JV
 - **테스트**: `BearSignalViewModelTest` +3(오프라인 시 UseCase 미호출·캐시 데이터 유지·네트워크 복구 후 재갱신, 초기/Room방출 테스트에 isLoading/isOffline 단언 추가) — `feature.bearsignal` 패키지 총 226건. `core/worker/BearSignalUpdateWorkerTest.kt` 신규 6건(companion 상수, 알림ID 유일성, `scheduleBearSignalUpdate` 입력 검증 4종 — `dayOfMonth`/`hour`/`minute` 경계). `doWork()` 자체는 `BaseCollectionWorker.setForeground()`가 실제 WorkManager/Android 런타임을 요구해 JVM 테스트 불가 — 기존 `MacroUpdateWorker`/`ThemeUpdateWorker`도 동일한 이유로 `doWork()` 단위테스트가 없는 것과 동일한 구조적 한계(KDoc·PROGRESS에 명시).
 - **빌드**: `:app:compileDebugKotlin`/`:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"`(226건, 0 실패)/`:app:testDebugUnitTest --tests "com.tinyoscillator.core.worker.*"`(0 실패)/`:app:assembleDebug` 전부 BUILD SUCCESSFUL.
 - **미검증(가능 범위 밖, Phase4와 동일한 한계 승계)**: 실기/에뮬레이터에서 shimmer 애니메이션·오프라인 배너·다크모드 대비·폰트 스케일 1.3x 렌더링 확인, WorkManager 월간 트리거의 실제 발화(달력월 30일 스케줄이므로 단시간 세션에서 실행 확인 불가 — `runBearSignalUpdateNow()` 수동 트리거 경로는 존재하나 실기 실행은 미검증), 관세청 API 실키 검증.
+
+## 실기 QA 1차 (2026-07-10, 에뮬레이터 pixel_fold · 라이트 테마)
+
+- **결과: 통과 (크래시 0, 앱 레벨 에러 로그 0)** — `assembleDebug` APK 설치 후 검증.
+- **렌더**: `BearSignalScreen` 7섹션 전부 정상 — 헤더(신호등 "신호 점등·방아쇠 대기"·선행점수 33/100 게이지·금리 방아쇠 "경계 접근"·집중 증폭 ×1.30·4축 레이더 Canvas), 선행신호 3카드(전부 주의 + 세그먼트 게이지), 국가별 수익률 표 20행(기간 FilterChip·이탈 지수 11/20 배지·"수동 필요" 13지수 배지·양/음수 색 구분), 방아쇠·증폭 카드(기준값 배지), 3유형 카드(유형3 활성 방아쇠 강조 테두리·체크리스트), 역사검증(일본 1980s), 매핑·면책 푸터.
+- **진입점**: 시장분석 탭 `BearSignalEntryCard` 실시간 상태 미리보기("주의" 배지) → 진입 → back 왕복 정상.
+- **수동입력 BottomSheet**: 슬라이더 드래그 중 실시간 반영 확인(logcat `updateManualInput` 5회 연속 발화, 45.2→67.7%) → "리포트 기준값으로 리셋" → `resetToReportBaseline` 로그 + 재오픈 시 45.0% 복원 확인.
+- **월간 워커(ecf4682 수정 실기 검증)**: 앱 시작 로그 `BearSignal 지표 월간 업데이트 스케줄 등록: 매월 5일 06:00 (초기 딜레이: 37571분, policy=KEEP)` — 37571분 ≈ 26.1일 = 정확히 다음 달 5일 06:00. flex 제거 수정이 실기에서 의도대로 동작.
+- **새로고침 폴백**: KRX [A] 지표 수집 성공(up3/down3/kospi2 산출), [B] 외부 지표 전부 null(관세청/FRED 키 미설정 — 기준값 폴백 정상), 해외지수 수집 실패 시 "기존 캐시 유지" 로그 + UI 값 유지.
+- **MINOR 재현**: 체크리스트 체크 → back → 재진입 시 소실 (`remember`→`rememberSaveable` 기지 이슈, `TypesHistorySection`).
+- **신규 발견(외부 요인, 앱 버그 아님)**: **Stooq 안티봇 차단** — `stooq.com/q/d/l/` CSV 엔드포인트가 JS SHA-256 proof-of-work 챌린지 HTML을 HTTP 200으로 반환(호스트 curl 재현 동일). `StooqCsvClient.parseCsv`가 CSV 헤더 불일치로 0건 → AUTO 해외지수 6종(닛케이/다우/S&P/DAX/나스닥/항생) + IPO ETF(`ipo.us`) 자동수집 불가. 앱은 설계된 폴백(캐시/리포트 기준값 유지 + 수동입력 경로)으로 무해 강등. **대응 결정 필요**: 대체 무료 소스(예: Yahoo Finance chart API) 교체 vs 해당 7지표 MANUAL_REQUIRED 강등.
+- **미검증(잔여 QA)**: 360dp 폰 폭·다크 테마·폰트스케일 1.3x 렌더, 월간 워커 실제 발화(`runBearSignalUpdateNow()` 수동 트리거 포함), 관세청/FRED 실키 응답 필드 검증, 스펙 조정 2건 판단(P4 절 참조).
 
 ## 점검 이력 (2026-07-09)
 - kotlin-implementer 셀프리뷰(qa 점검) 결과: 스코어링 5개 함수(analyzeMarkets·scoreS1~S3·scoreGate·amplifier·composite) 전부 프로토타입 `bear_signal_dashboard.jsx`(작업 디렉터리 루트에서 재확보, git 미추적)와 문자 단위 일치 확인.
