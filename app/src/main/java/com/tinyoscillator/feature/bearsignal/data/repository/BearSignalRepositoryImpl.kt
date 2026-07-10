@@ -11,12 +11,16 @@ import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalManualCountry
 import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalManualInputMapper
 import com.tinyoscillator.feature.bearsignal.data.remote.CustomsTradeApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
+import com.tinyoscillator.feature.bearsignal.data.remote.IndexDailyBar
 import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
+import com.tinyoscillator.feature.bearsignal.data.remote.YahooChartApiClient
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoMarketReturn
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalReportBaseline
 import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexRegistry
+import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexSource
+import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexSpec
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualFieldUpdate
@@ -43,13 +47,18 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
 /**
- * BearSignal 자동 지표 Repository 구현 — KRX/관세청/FRED/ECOS/Stooq 수집 → 순수 계산 → Room 캐시
- * (오프라인 우선 폴백). TASK.md §4 데이터 소스 연동 명세, §1.2 하이브리드 데이터 아키텍처.
+ * BearSignal 자동 지표 Repository 구현 — KRX/관세청/FRED/ECOS/시세소스(Yahoo·Stooq) 수집 →
+ * 순수 계산 → Room 캐시(오프라인 우선 폴백). TASK.md §4 데이터 소스 연동 명세, §1.2 하이브리드
+ * 데이터 아키텍처.
  *
  * Phase 1: [refreshAutoInputs] — [A] 등급(KRX 신호2 통계 + 코스피 2사 비중), 전체 실패 시 캐시 폴백.
  * Phase 2: [refreshExternalAutoInputs] — [B] 등급 스칼라(관세청 수출비중, FRED/ECOS 금리, IPO ETF
  * 방향)를 지표별 best-effort로 수집(개별 실패는 해당 지표만 캐시 유지). [refreshMarketReturns] —
- * 코스피(KRX) + 해외지수(Stooq)의 4기간 수익률을 지수별 best-effort로 수집.
+ * 코스피(KRX) + 해외지수의 4기간 수익률을 지수별 best-effort로 수집.
+ *
+ * 해외지수·IPO ETF 시세는 [indexSourceProvider]가 돌려주는 사용자 선택 소스([GlobalIndexSource],
+ * 기본 Yahoo)를 우선 조회하고, 실패(빈 응답·예외) 시 나머지 소스로 자동 폴백한다 — Stooq 안티봇
+ * 차단(2026-07 QA) 대응.
  *
  * 기존 [com.tinyoscillator.data.repository.FearGreedRepository] 패턴(로그인 → 조회 → 계산 →
  * 캐시 저장 → finally에서 close)을 따른다.
@@ -61,7 +70,9 @@ class BearSignalRepositoryImpl(
     private val customsTradeApiClient: CustomsTradeApiClient,
     private val fredApiClient: FredApiClient,
     private val bokEcosApiClient: BokEcosApiClient,
-    private val stooqCsvClient: StooqCsvClient
+    private val stooqCsvClient: StooqCsvClient,
+    private val yahooChartApiClient: YahooChartApiClient,
+    private val indexSourceProvider: suspend () -> GlobalIndexSource = { GlobalIndexSource.DEFAULT }
 ) : BearSignalRepository {
 
     companion object {
@@ -80,8 +91,11 @@ class BearSignalRepositoryImpl(
         /** 기존 KRX 연동 관례(500ms rate limit) */
         private const val KRX_CALL_DELAY_MS = 500L
 
-        /** Renaissance IPO ETF — §3.3 `etf` 입력 소스 (Stooq 심볼) */
-        private const val IPO_ETF_TICKER = "ipo.us"
+        /** Renaissance IPO ETF — §3.3 `etf` 입력의 시세 소스별 티커 */
+        private val IPO_ETF_TICKERS = mapOf(
+            GlobalIndexSource.YAHOO to "IPO",
+            GlobalIndexSource.STOOQ to "ipo.us"
+        )
 
         /** ECOS 기준금리 방향 산출 — 최근 몇 개월을 조회할지(래그·결측 보정 여유분) */
         private const val ECOS_RATE_LOOKBACK_MONTHS = 3L
@@ -286,10 +300,10 @@ class BearSignalRepositoryImpl(
         }
     }
 
-    /** Renaissance IPO ETF(Stooq) 방향 — §3.3 `etf` 입력. 실패 시 기존 캐시 유지 */
+    /** Renaissance IPO ETF(Yahoo·Stooq 폴백) 방향 — §3.3 `etf` 입력. 실패 시 기존 캐시 유지 */
     private suspend fun collectEtfInput(base: AutoBearSignalInputs, now: Long): AutoIndicator<String>? {
         return try {
-            val bars = stooqCsvClient.fetchDailyCloses(IPO_ETF_TICKER)
+            val bars = fetchDailyClosesWithFallback("IPO ETF") { IPO_ETF_TICKERS[it] }
             val direction = IpoEtfDirectionCalculator.computeDirection(bars.map { it.close })
             direction?.let { AutoIndicator(it, InputSource.AUTO, now) } ?: base.etf
         } catch (e: CancellationException) {
@@ -298,6 +312,35 @@ class BearSignalRepositoryImpl(
             Timber.w(e, "IPO ETF 방향 수집 실패 — 기존 캐시 유지")
             base.etf
         }
+    }
+
+    /**
+     * 사용자 선택 소스([indexSourceProvider]) 우선으로 일별 종가를 조회하고, 실패(빈 응답·예외) 시
+     * 나머지 소스로 자동 폴백한다. 모든 소스가 실패하면 빈 리스트.
+     */
+    private suspend fun fetchDailyClosesWithFallback(
+        label: String,
+        tickerFor: (GlobalIndexSource) -> String?
+    ): List<IndexDailyBar> {
+        val preferred = indexSourceProvider()
+        val order = listOf(preferred) + GlobalIndexSource.entries.filter { it != preferred }
+        for (source in order) {
+            val ticker = tickerFor(source) ?: continue
+            val bars = try {
+                when (source) {
+                    GlobalIndexSource.YAHOO -> yahooChartApiClient.fetchDailyCloses(ticker)
+                    GlobalIndexSource.STOOQ -> stooqCsvClient.fetchDailyCloses(ticker)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "%s 시세 조회 실패 (%s:%s) — 다음 소스 폴백", label, source.name, ticker)
+                emptyList()
+            }
+            if (bars.isNotEmpty()) return bars
+            Timber.w("%s 시세 응답 없음 (%s:%s) — 다음 소스 폴백", label, source.name, ticker)
+        }
+        return emptyList()
     }
 
     // ── Phase 2: 국가별 지수 수익률(도표48) ────────────────────────────────
@@ -351,7 +394,7 @@ class BearSignalRepositoryImpl(
         }
 
         val overseasMarkets = GlobalIndexRegistry.OVERSEAS_MARKETS.map { spec ->
-            collectOverseasMarket(spec.name, spec.lead, spec.stooqTicker, cachedSnapshot, now)
+            collectOverseasMarket(spec, cachedSnapshot, now)
         }
 
         val snapshot = MarketReturnsSnapshot(markets = listOf(kospiMarket) + overseasMarkets)
@@ -361,28 +404,28 @@ class BearSignalRepositoryImpl(
     }
 
     private suspend fun collectOverseasMarket(
-        name: String,
-        lead: Boolean,
-        stooqTicker: String?,
+        spec: GlobalIndexSpec,
         cachedSnapshot: MarketReturnsSnapshot?,
         now: Long
     ): AutoMarketReturn {
-        if (stooqTicker == null) {
-            return AutoMarketReturn(name, listOf(null, null, null, null), lead, MarketCoverage.MANUAL_REQUIRED, now)
+        if (!spec.autoCovered) {
+            return AutoMarketReturn(
+                spec.name, listOf(null, null, null, null), spec.lead, MarketCoverage.MANUAL_REQUIRED, now
+            )
         }
         return try {
-            val bars = stooqCsvClient.fetchDailyCloses(stooqTicker)
+            val bars = fetchDailyClosesWithFallback(spec.name) { spec.tickerFor(it) }
             val returns = GlobalIndexReturnCalculator.computeReturns(bars.map { it.close })
             if (returns.all { it == null }) {
-                throw IllegalStateException("$name 데이터 부족(${bars.size}건) — 4기간 수익률 계산 불가")
+                throw IllegalStateException("${spec.name} 데이터 부족(${bars.size}건) — 4기간 수익률 계산 불가")
             }
-            AutoMarketReturn(name, returns, lead, MarketCoverage.AUTO, now)
+            AutoMarketReturn(spec.name, returns, spec.lead, MarketCoverage.AUTO, now)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Timber.w(e, "해외지수(%s) 수집 실패 — 기존 캐시 유지", name)
-            cachedSnapshot?.markets?.find { it.name == name }
-                ?: AutoMarketReturn(name, listOf(null, null, null, null), lead, MarketCoverage.AUTO, now)
+            Timber.w(e, "해외지수(%s) 수집 실패 — 기존 캐시 유지", spec.name)
+            cachedSnapshot?.markets?.find { it.name == spec.name }
+                ?: AutoMarketReturn(spec.name, listOf(null, null, null, null), spec.lead, MarketCoverage.AUTO, now)
         }
     }
 

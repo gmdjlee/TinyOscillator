@@ -9,6 +9,7 @@ import com.tinyoscillator.core.api.KisApiKeyConfig
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
 import com.tinyoscillator.domain.model.AiApiKeyConfig
 import com.tinyoscillator.domain.model.AiProvider
+import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -53,6 +54,7 @@ internal object PrefsKeys {
     const val ECOS_API_KEY = "ecos_api_key"
     const val CUSTOMS_TRADE_API_KEY = "customs_trade_api_key"
     const val FRED_API_KEY = "fred_api_key"
+    const val BEAR_SIGNAL_INDEX_SOURCE = "bear_signal_index_source"
     const val THEME_SCHEDULE_HOUR = "theme_schedule_hour"
     const val THEME_SCHEDULE_MINUTE = "theme_schedule_minute"
     const val THEME_SCHEDULE_ENABLED = "theme_schedule_enabled"
@@ -467,5 +469,17 @@ suspend fun loadFredApiKey(context: Context): String = withContext(Dispatchers.I
 suspend fun saveFredApiKey(context: Context, apiKey: String) = withContext(Dispatchers.IO) {
     getEncryptedPrefs(context).edit()
         .putString(PrefsKeys.FRED_API_KEY, apiKey)
+        .apply()
+}
+
+/** BearSignal 해외지수·IPO ETF 시세 소스 (기본 Yahoo — Stooq 안티봇 차단 대응, TASK.md §4) */
+suspend fun loadBearSignalIndexSource(context: Context): GlobalIndexSource = withContext(Dispatchers.IO) {
+    val prefs = getEncryptedPrefs(context)
+    GlobalIndexSource.fromName(prefs.getString(PrefsKeys.BEAR_SIGNAL_INDEX_SOURCE, null))
+}
+
+suspend fun saveBearSignalIndexSource(context: Context, source: GlobalIndexSource) = withContext(Dispatchers.IO) {
+    getEncryptedPrefs(context).edit()
+        .putString(PrefsKeys.BEAR_SIGNAL_INDEX_SOURCE, source.name)
         .apply()
 }

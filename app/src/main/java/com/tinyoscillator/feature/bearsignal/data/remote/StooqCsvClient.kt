@@ -9,16 +9,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import timber.log.Timber
 
-/** Stooq 일별 종가 한 건 (날짜 오름차순 정렬은 호출자 책임) */
-data class StooqDailyBar(val date: String, val close: Double)
-
 /**
  * Stooq 무료 CSV 시세 클라이언트 (TASK.md §4 "IPO ETF 방향", "해외 19개 지수").
  *
  * 인증키 불필요 — TASK.md §1.1 각주1이 명시한 "무료 CSV(예: Stooq)" 폴백 소스. IPO ETF(티커
  * `ipo.us`)와 해외지수([com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexRegistry]
  * 커버 대상)가 동일 CSV 포맷(`Date,Open,High,Low,Close,Volume`)을 공유하므로 공용 클라이언트로
- * 재사용한다.
+ * 재사용한다. 2026-07 안티봇(JS PoW) 차단이 관측되어
+ * [com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexSource.STOOQ] 백업 소스로 강등 —
+ * 기본 소스는 [YahooChartApiClient].
  *
  * Rate limit: 1000ms per request (mutex 기반, 기존 관례).
  */
@@ -41,7 +40,7 @@ class StooqCsvClient(
      * @param ticker Stooq 심볼 (예: `ipo.us`, `^dji`)
      * @return 종가 리스트(날짜 오름차순), 실패·데이터 없음 시 빈 리스트
      */
-    suspend fun fetchDailyCloses(ticker: String): List<StooqDailyBar> = withContext(Dispatchers.IO) {
+    suspend fun fetchDailyCloses(ticker: String): List<IndexDailyBar> = withContext(Dispatchers.IO) {
         throttle()
 
         val url = "$BASE_URL?s=$ticker&i=d"
@@ -61,13 +60,13 @@ class StooqCsvClient(
         }
     }
 
-    internal fun parseCsv(csv: String): List<StooqDailyBar> {
+    internal fun parseCsv(csv: String): List<IndexDailyBar> {
         val lines = csv.lineSequence().filter { it.isNotBlank() }.toList()
         if (lines.isEmpty()) return emptyList()
         // Stooq는 심볼이 없거나 데이터가 없으면 "No data" 텍스트를 반환한다.
         if (!lines.first().startsWith(CSV_HEADER_PREFIX)) return emptyList()
 
-        val bars = mutableListOf<StooqDailyBar>()
+        val bars = mutableListOf<IndexDailyBar>()
         for (line in lines.drop(1)) {
             val cols = line.split(",")
             if (cols.size < 5) continue
@@ -75,7 +74,7 @@ class StooqCsvClient(
             val closeRaw = cols[4].trim()
             if (date.isEmpty() || closeRaw.isEmpty() || closeRaw == NO_DATA_MARKER) continue
             val close = closeRaw.toDoubleOrNull() ?: continue
-            bars.add(StooqDailyBar(date = date, close = close))
+            bars.add(IndexDailyBar(date = date, close = close))
         }
         return bars.sortedBy { it.date }
     }

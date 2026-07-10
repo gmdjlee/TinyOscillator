@@ -17,6 +17,7 @@ import com.tinyoscillator.core.api.KiwoomApiClient
 import com.tinyoscillator.core.api.KiwoomApiKeyConfig
 import com.tinyoscillator.domain.model.AiModelInfo
 import com.tinyoscillator.domain.model.AiProvider
+import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexSource
 import com.tinyoscillator.presentation.common.CarvedTextField
 import com.tinyoscillator.presentation.common.GlassCard
 import kotlinx.coroutines.launch
@@ -39,6 +40,8 @@ internal fun ApiTab(
     ecosApiKey: String = "", onEcosApiKeyChange: (String) -> Unit = {},
     customsTradeApiKey: String = "", onCustomsTradeApiKeyChange: (String) -> Unit = {},
     fredApiKey: String = "", onFredApiKeyChange: (String) -> Unit = {},
+    bearSignalIndexSource: GlobalIndexSource = GlobalIndexSource.DEFAULT,
+    onBearSignalIndexSourceChange: (GlobalIndexSource) -> Unit = {},
     saveMessage: String?,
     onSave: () -> Unit
 ) {
@@ -216,6 +219,12 @@ internal fun ApiTab(
             }
         }
 
+        // === 해외지수 시세 소스 (BearSignal 「주도주 붕괴 판단 계기판」) ===
+        BearSignalIndexSourceSection(
+            selected = bearSignalIndexSource,
+            onChange = onBearSignalIndexSourceChange
+        )
+
         Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
             Text("저장")
         }
@@ -229,6 +238,60 @@ internal fun ApiTab(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+/** 해외지수·IPO ETF 시세 소스 선택 — 인증키 불필요, 선택 소스 실패 시 나머지 소스로 자동 폴백 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BearSignalIndexSourceSection(
+    selected: GlobalIndexSource,
+    onChange: (GlobalIndexSource) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Text("해외지수 시세 소스 (계기판)", style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.secondary)
+        Spacer(Modifier.height(12.dp))
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it }
+        ) {
+            OutlinedTextField(
+                value = selected.displayName,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("기본 소스") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                GlobalIndexSource.entries.forEach { source ->
+                    DropdownMenuItem(
+                        text = { Text(source.displayName) },
+                        onClick = {
+                            onChange(source)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Surface(
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            shape = MaterialTheme.shapes.small
+        ) {
+            Text(
+                "• 「주도주 붕괴 판단 계기판」 해외지수 6종·IPO ETF 시세 수집 소스\n• 인증키 불필요 — 선택한 소스 실패 시 나머지 소스로 자동 폴백\n• Stooq는 봇 차단이 관측되어 Yahoo Finance 권장",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
     }
 }
 

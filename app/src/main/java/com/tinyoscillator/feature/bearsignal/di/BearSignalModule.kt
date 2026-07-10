@@ -1,5 +1,6 @@
 package com.tinyoscillator.feature.bearsignal.di
 
+import android.content.Context
 import com.tinyoscillator.core.api.BokEcosApiClient
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
@@ -7,6 +8,7 @@ import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
 import com.tinyoscillator.feature.bearsignal.data.remote.CustomsTradeApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
+import com.tinyoscillator.feature.bearsignal.data.remote.YahooChartApiClient
 import com.tinyoscillator.feature.bearsignal.data.repository.BearSignalRepositoryImpl
 import com.tinyoscillator.feature.bearsignal.domain.repository.BearSignalRepository
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase
@@ -17,9 +19,11 @@ import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshExternalAutoI
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshMarketReturnsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ResetToReportBaselineUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.UpdateManualInputUseCase
+import com.tinyoscillator.presentation.settings.loadBearSignalIndexSource
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import javax.inject.Singleton
@@ -46,14 +50,21 @@ object BearSignalModule {
 
     @Provides
     @Singleton
+    fun provideYahooChartApiClient(httpClient: OkHttpClient): YahooChartApiClient =
+        YahooChartApiClient(httpClient = httpClient)
+
+    @Provides
+    @Singleton
     fun provideBearSignalRepository(
+        @ApplicationContext context: Context,
         bearSignalDao: BearSignalDao,
         krxApiClient: KrxApiClient,
         apiConfigProvider: ApiConfigProvider,
         customsTradeApiClient: CustomsTradeApiClient,
         fredApiClient: FredApiClient,
         bokEcosApiClient: BokEcosApiClient,
-        stooqCsvClient: StooqCsvClient
+        stooqCsvClient: StooqCsvClient,
+        yahooChartApiClient: YahooChartApiClient
     ): BearSignalRepository = BearSignalRepositoryImpl(
         bearSignalDao,
         krxApiClient,
@@ -61,7 +72,10 @@ object BearSignalModule {
         customsTradeApiClient,
         fredApiClient,
         bokEcosApiClient,
-        stooqCsvClient
+        stooqCsvClient,
+        yahooChartApiClient,
+        // 설정 변경이 다음 갱신에 즉시 반영되도록 캐시 없이 매 갱신마다 읽는다(월 1회 + 수동 갱신뿐)
+        indexSourceProvider = { loadBearSignalIndexSource(context) }
     )
 
     @Provides

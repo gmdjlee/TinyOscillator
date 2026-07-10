@@ -34,7 +34,7 @@ interface BearSignalRepository {
     suspend fun refreshAutoInputs(): Result<AutoBearSignalInputs>
 
     /**
-     * [B] 등급 스칼라 자동 지표(semi/buffer/rate/dir/etf)를 관세청·FRED·ECOS·Stooq에서 수집한다.
+     * [B] 등급 스칼라 자동 지표(semi/buffer/rate/dir/etf)를 관세청·FRED·ECOS·시세소스(Yahoo·Stooq)에서 수집한다.
      *
      * 소스가 서로 독립적인 4개 외부 API이므로 지표별 best-effort로 동작한다 — 개별 지표 수집이
      * 실패해도 나머지 지표·[refreshAutoInputs]가 채운 [A] 등급 스칼라는 영향받지 않으며, 실패한
@@ -51,7 +51,7 @@ interface BearSignalRepository {
 
     /**
      * 코스피(kotlin_krx) + 해외지수([com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexRegistry]
-     * 커버 대상, Stooq)의 4기간(−12M/−6M/−3M/−1M) 누적수익률을 수집해 Room 캐시에 저장한다.
+     * 커버 대상, Yahoo 기본·Stooq 백업)의 4기간(−12M/−6M/−3M/−1M) 누적수익률을 수집해 Room 캐시에 저장한다.
      *
      * 커버 불가 지수는 [com.tinyoscillator.feature.bearsignal.domain.model.MarketCoverage.MANUAL_REQUIRED]로
      * 표시되며 r 값은 전부 null이다(§1.1 각주1 "미커버 지수는 수동 입력 폴백"). 코스피 수집이

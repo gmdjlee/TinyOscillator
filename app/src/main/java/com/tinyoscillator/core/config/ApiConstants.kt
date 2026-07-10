@@ -40,8 +40,11 @@ object ApiConstants {
     /** FRED(세인트루이스 연은) API 호출 간 최소 간격 */
     const val FRED_RATE_LIMIT_MS = 1_000L
 
-    /** Stooq 무료 CSV 시세(IPO ETF·해외지수) 호출 간 최소 간격 */
+    /** Stooq 무료 CSV 시세(IPO ETF·해외지수 백업 소스) 호출 간 최소 간격 */
     const val STOOQ_RATE_LIMIT_MS = 1_000L
+
+    /** Yahoo Finance chart API(IPO ETF·해외지수 기본 소스) 호출 간 최소 간격 */
+    const val YAHOO_CHART_RATE_LIMIT_MS = 1_000L
 
     // ---------------------------------------------------------------
     // 토큰 재발급 간격 (OAuth2 토큰 발급 API 제한)

@@ -17,6 +17,7 @@ import com.tinyoscillator.core.api.InvestmentMode
 import com.tinyoscillator.domain.model.AiApiKeyConfig
 import com.tinyoscillator.domain.model.AiProvider
 import com.tinyoscillator.domain.model.ThemeExchange
+import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexSource
 import com.tinyoscillator.core.database.AppDatabase
 import com.tinyoscillator.core.worker.EtfUpdateWorker
 import com.tinyoscillator.core.worker.KEY_MESSAGE
@@ -121,6 +122,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var ecosApiKey by remember { mutableStateOf("") }
     var customsTradeApiKey by remember { mutableStateOf("") }
     var fredApiKey by remember { mutableStateOf("") }
+    var bearSignalIndexSource by remember { mutableStateOf(GlobalIndexSource.DEFAULT) }
 
     var includeKeywords by remember { mutableStateOf(DEFAULT_INCLUDE_KEYWORDS) }
     var excludeKeywords by remember { mutableStateOf(DEFAULT_EXCLUDE_KEYWORDS) }
@@ -232,6 +234,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             ecosApiKey = loadEcosApiKey(context)
             customsTradeApiKey = loadCustomsTradeApiKey(context)
             fredApiKey = loadFredApiKey(context)
+            bearSignalIndexSource = loadBearSignalIndexSource(context)
 
             val keywordFilter = loadEtfKeywordFilter(context)
             includeKeywords = keywordFilter.includeKeywords
@@ -368,6 +371,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     onCustomsTradeApiKeyChange = { customsTradeApiKey = it },
                     fredApiKey = fredApiKey,
                     onFredApiKeyChange = { fredApiKey = it },
+                    bearSignalIndexSource = bearSignalIndexSource,
+                    onBearSignalIndexSourceChange = { bearSignalIndexSource = it },
                     saveMessage = saveMessage,
                     onSave = {
                         scope.launch {
@@ -380,6 +385,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             saveEcosApiKey(context, ecosApiKey)
                             saveCustomsTradeApiKey(context, customsTradeApiKey)
                             saveFredApiKey(context, fredApiKey)
+                            saveBearSignalIndexSource(context, bearSignalIndexSource)
                         }
                     }
                 )

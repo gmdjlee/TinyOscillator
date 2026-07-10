@@ -2,7 +2,7 @@
 
 > 근거: `TASK.md` (「주도주 붕괴 판단 계기판」 이식 명세서 v1.0). 각 Phase 완료 시 `PROGRESS:` 마커 갱신.
 
-PROGRESS: P5 — 구현 마감·에뮬레이터 QA 1차 통과·잔여 QA 대기(WorkManager 월간 주기 갱신(`BearSignalUpdateWorker`, 매월 5일 06:00) + 앱 시작 시 스케줄 복원 + shimmer 로딩(`BearSignalScreenSkeleton`) + 오프라인 폴백(`NetworkUtils`+`StaleBanner`, 캐시 데이터 유지+최신 갱신일 표기) + 접근성 최종 점검(신호1~4/증폭 카드·국가별 표 행 contentDescription 보강, 48dp 터치 타깃/색+텍스트 병기 확인) + JVM 테스트 신규 `feature.bearsignal` 패키지 +3건(ViewModel isLoading/isOffline, 총 226건) + `core.worker` 패키지 +6건(`BearSignalUpdateWorkerTest` companion 상수·알림ID 유일성·스케줄 입력 검증), 2026-07-10; 에뮬레이터 실기 QA 1차 통과 2026-07-10 — 하단 「실기 QA」 절 참조, 잔여: 360dp/다크/폰트스케일 렌더·월간 워커 실발화·관세청/FRED 실키·Stooq 대체 소스 결정·스펙 조정 2건)
+PROGRESS: P5 — 구현 마감·에뮬레이터 QA 1차 통과·잔여 QA 대기(WorkManager 월간 주기 갱신(`BearSignalUpdateWorker`, 매월 5일 06:00) + 앱 시작 시 스케줄 복원 + shimmer 로딩(`BearSignalScreenSkeleton`) + 오프라인 폴백(`NetworkUtils`+`StaleBanner`, 캐시 데이터 유지+최신 갱신일 표기) + 접근성 최종 점검(신호1~4/증폭 카드·국가별 표 행 contentDescription 보강, 48dp 터치 타깃/색+텍스트 병기 확인) + JVM 테스트 신규 `feature.bearsignal` 패키지 +3건(ViewModel isLoading/isOffline, 총 226건) + `core.worker` 패키지 +6건(`BearSignalUpdateWorkerTest` companion 상수·알림ID 유일성·스케줄 입력 검증), 2026-07-10; 에뮬레이터 실기 QA 1차 통과 2026-07-10 — 하단 「실기 QA」 절 참조, 잔여: 360dp/다크/폰트스케일 렌더·월간 워커 실발화·관세청/FRED 실키·스펙 조정 2건; Stooq 대체 소스 결정은 2026-07-10 Yahoo 기본+Stooq 백업 멀티소스로 해소 — 하단 「시세 소스 교체」 절 참조)
 
 PROGRESS: P4 — 완료 (UI 조립 — `BearSignalScreen` LazyColumn 7섹션(헤더·선행신호3카드·국가별수익률표(전치)·방아쇠증폭·3유형·역사검증·푸터) + Canvas 신호등/게이지/레이더 + `ObserveBearSignalStateUseCase` 신규 + 시장분석 탭 진입점 카드 + Pull-to-refresh/리셋/수동입력 BottomSheet 연결 + JVM 테스트 18건 신규(총 223건), 2026-07-10)
 
@@ -149,8 +149,21 @@ PROGRESS: P0 — 완료 (스캐폴딩·도메인 모델·순수 스코어링·JV
 - **월간 워커(ecf4682 수정 실기 검증)**: 앱 시작 로그 `BearSignal 지표 월간 업데이트 스케줄 등록: 매월 5일 06:00 (초기 딜레이: 37571분, policy=KEEP)` — 37571분 ≈ 26.1일 = 정확히 다음 달 5일 06:00. flex 제거 수정이 실기에서 의도대로 동작.
 - **새로고침 폴백**: KRX [A] 지표 수집 성공(up3/down3/kospi2 산출), [B] 외부 지표 전부 null(관세청/FRED 키 미설정 — 기준값 폴백 정상), 해외지수 수집 실패 시 "기존 캐시 유지" 로그 + UI 값 유지.
 - **MINOR 재현**: 체크리스트 체크 → back → 재진입 시 소실 (`remember`→`rememberSaveable` 기지 이슈, `TypesHistorySection`).
-- **신규 발견(외부 요인, 앱 버그 아님)**: **Stooq 안티봇 차단** — `stooq.com/q/d/l/` CSV 엔드포인트가 JS SHA-256 proof-of-work 챌린지 HTML을 HTTP 200으로 반환(호스트 curl 재현 동일). `StooqCsvClient.parseCsv`가 CSV 헤더 불일치로 0건 → AUTO 해외지수 6종(닛케이/다우/S&P/DAX/나스닥/항생) + IPO ETF(`ipo.us`) 자동수집 불가. 앱은 설계된 폴백(캐시/리포트 기준값 유지 + 수동입력 경로)으로 무해 강등. **대응 결정 필요**: 대체 무료 소스(예: Yahoo Finance chart API) 교체 vs 해당 7지표 MANUAL_REQUIRED 강등.
+- **신규 발견(외부 요인, 앱 버그 아님)**: **Stooq 안티봇 차단** — `stooq.com/q/d/l/` CSV 엔드포인트가 JS SHA-256 proof-of-work 챌린지 HTML을 HTTP 200으로 반환(호스트 curl 재현 동일). `StooqCsvClient.parseCsv`가 CSV 헤더 불일치로 0건 → AUTO 해외지수 6종(닛케이/다우/S&P/DAX/나스닥/항생) + IPO ETF(`ipo.us`) 자동수집 불가. 앱은 설계된 폴백(캐시/리포트 기준값 유지 + 수동입력 경로)으로 무해 강등. **대응 결정 필요**: 대체 무료 소스(예: Yahoo Finance chart API) 교체 vs 해당 7지표 MANUAL_REQUIRED 강등. → **해소(2026-07-10)**: Yahoo Finance chart API 기본 소스 채택 + Stooq 백업 강등, 설정에서 소스 선택 가능 — 하단 「시세 소스 교체」 절 참조.
 - **미검증(잔여 QA)**: 360dp 폰 폭·다크 테마·폰트스케일 1.3x 렌더, 월간 워커 실제 발화(`runBearSignalUpdateNow()` 수동 트리거 포함), 관세청/FRED 실키 응답 필드 검증, 스펙 조정 2건 판단(P4 절 참조).
+
+## 시세 소스 교체 — Stooq → Yahoo 기본 + 멀티소스 폴백 (2026-07-10)
+
+- **배경**: 실기 QA 1차에서 Stooq 안티봇(JS PoW) 차단 확인 → AUTO 해외지수 6종 + IPO ETF 자동수집 전멸(위 절 참조).
+- **백업 소스 검토 결과**: **Yahoo Finance chart API 채택(기본)** — `query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=2y&interval=1d`, 무인증 JSON, 필요 7개 티커(`^N225`/`^DJI`/`^GSPC`/`^GDAXI`/`^IXIC`/`^HSI`/`IPO`) 전부 실응답 검증(2y ≈ 501봉 ≥ 12M 수익률 요구 253봉). **Stooq는 백업으로 유지**(무인증·차단 해제 가능성). 탈락: FRED(S&P/다우/나스닥만 — DAX·항생·IPO ETF 불가), Alpha Vantage(무료 지수 미지원), Twelve Data(지수 유료 플랜), FMP(무료 제한), 스크래핑(취약).
+- **구현**:
+  - `domain/model/GlobalIndexSource.kt` 신규 — `YAHOO`(기본)/`STOOQ` enum, 검토 근거 KDoc.
+  - `data/remote/YahooChartApiClient.kt` 신규 — chart JSON 파싱(`timestamp`+`quote[0].close`, null 종가 스킵, error 응답 방어), 브라우저 UA 명시(기본 okhttp UA 간헐 차단), 1000ms rate limit. `data/remote/IndexDailyBar.kt` 공용 모델(기존 `StooqDailyBar` 대체, `StooqCsvClient`도 공용화).
+  - `GlobalIndexRegistry` — `GlobalIndexSpec`에 소스별 티커(`yahooTicker`/`stooqTicker`) + `tickerFor(source)`/`autoCovered`. AUTO 6지수는 두 소스 모두 티커 보유(커버리지 변화 없음, MANUAL 13지수 유지).
+  - `BearSignalRepositoryImpl` — `fetchDailyClosesWithFallback()`: 사용자 선택 소스 우선 조회, 실패(빈 응답·예외) 시 나머지 소스 자동 폴백. IPO ETF 티커 소스별 맵(`IPO`/`ipo.us`). `indexSourceProvider` 주입(설정 즉시 반영 위해 매 갱신 시 prefs 재조회).
+  - 설정 — `PrefsKeys.BEAR_SIGNAL_INDEX_SOURCE`(EncryptedSharedPreferences, 기존 관례) + API 탭 「해외지수 시세 소스 (계기판)」 드롭다운(Yahoo Finance/Stooq, 자동 폴백 안내 캡션).
+- **테스트**: `YahooChartApiClientTest` 신규 7건(fixture 파싱·null 종가·error 응답·비JSON·길이 불일치), `GlobalIndexSourceTest` 3건, `GlobalIndexRegistryTest` 7건(소스별 티커 검증으로 갱신), `BearSignalRepositoryImplTest` 33건(Yahoo 우선·Stooq 폴백·양소스 실패·STOOQ 선택 시 역순 검증 추가). `feature.bearsignal` 전체 0 실패, `compileDebugKotlin` 통과.
+- **실검증**: 호스트 curl로 7개 티커 전부 정상 JSON 응답 + `^DJI` 2y 501봉 확인(2026-07-10). 에뮬레이터 실기(설정 UI·자동수집 라이브)는 잔여 QA에 병합.
 
 ## 점검 이력 (2026-07-09)
 - kotlin-implementer 셀프리뷰(qa 점검) 결과: 스코어링 5개 함수(analyzeMarkets·scoreS1~S3·scoreGate·amplifier·composite) 전부 프로토타입 `bear_signal_dashboard.jsx`(작업 디렉터리 루트에서 재확보, git 미추적)와 문자 단위 일치 확인.

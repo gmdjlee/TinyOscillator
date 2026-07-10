@@ -19,12 +19,14 @@ import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalManualInputMa
 import com.tinyoscillator.feature.bearsignal.data.remote.CustomsTradeApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.FredObservation
+import com.tinyoscillator.feature.bearsignal.data.remote.IndexDailyBar
 import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
-import com.tinyoscillator.feature.bearsignal.data.remote.StooqDailyBar
+import com.tinyoscillator.feature.bearsignal.data.remote.YahooChartApiClient
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoMarketReturn
 import com.tinyoscillator.feature.bearsignal.domain.model.CustomsTradeItem
+import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexSource
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualFieldUpdate
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualIndicatorKey
@@ -48,7 +50,8 @@ import org.junit.Test
 /**
  * [BearSignalRepositoryImpl] 자동 수집·Room 캐시 폴백 테스트 (TASK.md §1.2, §4, Phase 1+2).
  *
- * KRX/관세청/FRED/ECOS/Stooq 실호출 없이 관련 클라이언트를 MockK로 대체한다.
+ * KRX/관세청/FRED/ECOS/시세소스(Yahoo·Stooq) 실호출 없이 관련 클라이언트를 MockK로 대체한다.
+ * 시세 소스는 기본값(Yahoo 우선)으로 조회하고, 실패 시 Stooq로 자동 폴백하는 경로를 함께 검증한다.
  */
 class BearSignalRepositoryImplTest {
 
@@ -59,6 +62,7 @@ class BearSignalRepositoryImplTest {
     private lateinit var fredApiClient: FredApiClient
     private lateinit var bokEcosApiClient: BokEcosApiClient
     private lateinit var stooqCsvClient: StooqCsvClient
+    private lateinit var yahooChartApiClient: YahooChartApiClient
     private lateinit var repository: BearSignalRepositoryImpl
 
     private val krxIndex: KrxIndex = mockk()
@@ -73,11 +77,18 @@ class BearSignalRepositoryImplTest {
         fredApiClient = mockk()
         bokEcosApiClient = mockk()
         stooqCsvClient = mockk()
-        repository = BearSignalRepositoryImpl(
-            dao, krxApiClient, apiConfigProvider,
-            customsTradeApiClient, fredApiClient, bokEcosApiClient, stooqCsvClient
-        )
+        yahooChartApiClient = mockk()
+        repository = createRepository()
     }
+
+    private fun createRepository(
+        indexSource: GlobalIndexSource = GlobalIndexSource.DEFAULT
+    ) = BearSignalRepositoryImpl(
+        dao, krxApiClient, apiConfigProvider,
+        customsTradeApiClient, fredApiClient, bokEcosApiClient,
+        stooqCsvClient, yahooChartApiClient,
+        indexSourceProvider = { indexSource }
+    )
 
     private fun createIndexOhlcv(date: String, close: Double) = IndexOhlcv(
         date = date,
@@ -259,9 +270,9 @@ class BearSignalRepositoryImplTest {
             EcosDataPoint("202604", 3.25),
             EcosDataPoint("202605", 3.50)
         )
-        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns listOf(
-            StooqDailyBar("2026-06-01", 40.0),
-            StooqDailyBar("2026-06-30", 41.0)
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns listOf(
+            IndexDailyBar("2026-06-01", 40.0),
+            IndexDailyBar("2026-06-30", 41.0)
         )
 
         val result = repository.refreshExternalAutoInputs()
@@ -285,7 +296,7 @@ class BearSignalRepositoryImplTest {
             EcosDataPoint("202604", 3.50),
             EcosDataPoint("202605", 3.50)
         )
-        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns listOf(StooqDailyBar("2026-06-30", 40.0))
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns listOf(IndexDailyBar("2026-06-30", 40.0))
 
         val result = repository.refreshExternalAutoInputs()
 
@@ -309,7 +320,7 @@ class BearSignalRepositoryImplTest {
             EcosDataPoint("202604", 3.25),
             EcosDataPoint("202605", 3.50)
         )
-        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns listOf(StooqDailyBar("2026-06-30", 40.0))
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns listOf(IndexDailyBar("2026-06-30", 40.0))
 
         val result = repository.refreshExternalAutoInputs()
 
@@ -325,7 +336,7 @@ class BearSignalRepositoryImplTest {
         coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns null
         coEvery { apiConfigProvider.getFredApiKey() } returns null
         coEvery { apiConfigProvider.getEcosApiKey() } returns null
-        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns listOf(StooqDailyBar("2026-06-30", 40.0))
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns listOf(IndexDailyBar("2026-06-30", 40.0))
 
         val result = repository.refreshExternalAutoInputs()
 
@@ -334,17 +345,38 @@ class BearSignalRepositoryImplTest {
     }
 
     @Test
-    fun `refreshExternalAutoInputs IPO ETF 수집 실패 시 etf는 기존 캐시 유지`() = runTest {
+    fun `refreshExternalAutoInputs IPO ETF 두 소스 모두 실패 시 etf는 기존 캐시 유지`() = runTest {
         coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputsWithExternal())
         coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns null
         coEvery { apiConfigProvider.getFredApiKey() } returns null
         coEvery { apiConfigProvider.getEcosApiKey() } returns null
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } throws RuntimeException("network error")
         coEvery { stooqCsvClient.fetchDailyCloses(any()) } throws RuntimeException("network error")
 
         val result = repository.refreshExternalAutoInputs()
 
         assertTrue(result.isSuccess)
         assertEquals("flat", result.getOrNull()!!.etf!!.value)
+    }
+
+    @Test
+    fun `refreshExternalAutoInputs IPO ETF 기본 소스 실패 시 백업 소스로 폴백한다`() = runTest {
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputs())
+        coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns null
+        coEvery { apiConfigProvider.getFredApiKey() } returns null
+        coEvery { apiConfigProvider.getEcosApiKey() } returns null
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns emptyList()
+        // 최신 종가가 최근 고점 근접 → "up"
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns listOf(
+            IndexDailyBar("2026-06-01", 40.0),
+            IndexDailyBar("2026-06-30", 41.0)
+        )
+
+        val result = repository.refreshExternalAutoInputs()
+
+        assertTrue(result.isSuccess)
+        assertEquals("up", result.getOrNull()!!.etf!!.value)
+        coVerify(exactly = 1) { stooqCsvClient.fetchDailyCloses("ipo.us") }
     }
 
     @Test
@@ -367,8 +399,8 @@ class BearSignalRepositoryImplTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
         every { krxApiClient.getKrxIndex() } returns krxIndex
         coEvery { krxIndex.getKospi(any(), any()) } returns kospiCloses()
-        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns (0..25).map { i ->
-            StooqDailyBar(String.format("2026-06-%02d", (i % 28) + 1), 100.0 + i)
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns (0..25).map { i ->
+            IndexDailyBar(String.format("2026-06-%02d", (i % 28) + 1), 100.0 + i)
         }
 
         val result = repository.refreshMarketReturns()
@@ -381,6 +413,8 @@ class BearSignalRepositoryImplTest {
         assertTrue(kospi.lead)
         assertTrue(snapshot.manualRequiredNames.isNotEmpty())
         assertTrue(snapshot.manualRequiredNames.contains("RTS"))
+        // 기본 소스(Yahoo) 성공 시 백업 소스(Stooq)는 호출하지 않는다
+        coVerify(exactly = 0) { stooqCsvClient.fetchDailyCloses(any()) }
         coVerify { dao.upsertCountryReturns(any()) }
     }
 
@@ -394,6 +428,7 @@ class BearSignalRepositoryImplTest {
         coEvery { dao.getCountryReturns() } returns BearSignalCountryReturnMapper.toEntities(cachedSnapshot)
         coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
         coEvery { krxApiClient.login(any(), any()) } returns false
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns emptyList()
         coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns emptyList()
 
         val result = repository.refreshMarketReturns()
@@ -415,7 +450,7 @@ class BearSignalRepositoryImplTest {
     }
 
     @Test
-    fun `refreshMarketReturns 해외지수 수집 실패 시 해당 지수만 캐시 유지`() = runTest {
+    fun `refreshMarketReturns 두 소스 모두 실패 시 해당 지수만 캐시 유지`() = runTest {
         val cachedSnapshot = MarketReturnsSnapshot(
             markets = listOf(
                 AutoMarketReturn("닛케이", listOf(10.0, 8.0, 5.0, 1.0), lead = false, coverage = MarketCoverage.AUTO, updatedAt = 100L)
@@ -426,6 +461,7 @@ class BearSignalRepositoryImplTest {
         coEvery { krxApiClient.login(any(), any()) } returns true
         every { krxApiClient.getKrxIndex() } returns krxIndex
         coEvery { krxIndex.getKospi(any(), any()) } returns kospiCloses()
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } throws RuntimeException("network error")
         coEvery { stooqCsvClient.fetchDailyCloses(any()) } throws RuntimeException("network error")
 
         val result = repository.refreshMarketReturns()
@@ -433,6 +469,45 @@ class BearSignalRepositoryImplTest {
         assertTrue(result.isSuccess)
         val nikkei = result.getOrNull()!!.markets.first { it.name == "닛케이" }
         assertEquals(1.0, nikkei.r[3]!!, 1e-9)
+    }
+
+    @Test
+    fun `refreshMarketReturns 기본 소스(Yahoo) 실패 시 백업 소스(Stooq)로 폴백한다`() = runTest {
+        coEvery { dao.getCountryReturns() } returns emptyList()
+        coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        every { krxApiClient.getKrxIndex() } returns krxIndex
+        coEvery { krxIndex.getKospi(any(), any()) } returns kospiCloses()
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns emptyList()
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns (0..25).map { i ->
+            IndexDailyBar(String.format("2026-06-%02d", (i % 28) + 1), 100.0 + i)
+        }
+
+        val result = repository.refreshMarketReturns()
+
+        assertTrue(result.isSuccess)
+        val nikkei = result.getOrNull()!!.markets.first { it.name == "닛케이" }
+        assertEquals(MarketCoverage.AUTO, nikkei.coverage)
+        assertFalse(nikkei.r.all { it == null })
+        coVerify { stooqCsvClient.fetchDailyCloses("^nkx") }
+    }
+
+    @Test
+    fun `refreshMarketReturns 선택 소스가 STOOQ면 Stooq를 먼저 조회하고 Yahoo는 호출하지 않는다`() = runTest {
+        val stooqFirstRepository = createRepository(indexSource = GlobalIndexSource.STOOQ)
+        coEvery { dao.getCountryReturns() } returns emptyList()
+        coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        every { krxApiClient.getKrxIndex() } returns krxIndex
+        coEvery { krxIndex.getKospi(any(), any()) } returns kospiCloses()
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns (0..25).map { i ->
+            IndexDailyBar(String.format("2026-06-%02d", (i % 28) + 1), 100.0 + i)
+        }
+
+        val result = stooqFirstRepository.refreshMarketReturns()
+
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 0) { yahooChartApiClient.fetchDailyCloses(any()) }
     }
 
     @Test

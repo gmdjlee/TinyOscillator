@@ -64,7 +64,7 @@ enum class BearIndicatorKey(val key: String) {
  *
  * Phase 2 신규 필드는 모두 nullable — 구버전(5키) 캐시와의 하위 호환을 위해서다. [semi]/[buffer]는
  * §3.5 `amplifier` 입력, [rate]/[dir]는 §3.4 `scoreGate` 입력, [etf]는 §3.3 `scoreS3` 입력에 매핑된다.
- * 개별 지표는 원격 소스가 서로 달라(관세청/FRED/ECOS/Stooq) 독립적으로 실패할 수 있으므로,
+ * 개별 지표는 원격 소스가 서로 달라(관세청/FRED/ECOS/시세소스) 독립적으로 실패할 수 있으므로,
  * [com.tinyoscillator.feature.bearsignal.data.repository.BearSignalRepositoryImpl.refreshExternalAutoInputs]는
  * 지표별로 best-effort 수집 후 실패한 지표만 이전 캐시값으로 유지한다.
  */
