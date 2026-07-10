@@ -163,7 +163,12 @@ PROGRESS: P0 — 완료 (스캐폴딩·도메인 모델·순수 스코어링·JV
   - `BearSignalRepositoryImpl` — `fetchDailyClosesWithFallback()`: 사용자 선택 소스 우선 조회, 실패(빈 응답·예외) 시 나머지 소스 자동 폴백. IPO ETF 티커 소스별 맵(`IPO`/`ipo.us`). `indexSourceProvider` 주입(설정 즉시 반영 위해 매 갱신 시 prefs 재조회).
   - 설정 — `PrefsKeys.BEAR_SIGNAL_INDEX_SOURCE`(EncryptedSharedPreferences, 기존 관례) + API 탭 「해외지수 시세 소스 (계기판)」 드롭다운(Yahoo Finance/Stooq, 자동 폴백 안내 캡션).
 - **테스트**: `YahooChartApiClientTest` 신규 7건(fixture 파싱·null 종가·error 응답·비JSON·길이 불일치), `GlobalIndexSourceTest` 3건, `GlobalIndexRegistryTest` 7건(소스별 티커 검증으로 갱신), `BearSignalRepositoryImplTest` 33건(Yahoo 우선·Stooq 폴백·양소스 실패·STOOQ 선택 시 역순 검증 추가). `feature.bearsignal` 전체 0 실패, `compileDebugKotlin` 통과.
-- **실검증**: 호스트 curl로 7개 티커 전부 정상 JSON 응답 + `^DJI` 2y 501봉 확인(2026-07-10). 에뮬레이터 실기(설정 UI·자동수집 라이브)는 잔여 QA에 병합.
+- **실검증**: 호스트 curl로 7개 티커 전부 정상 JSON 응답 + `^DJI` 2y 501봉 확인(2026-07-10).
+- **에뮬레이터 실기 검증 통과 (2026-07-10, pixel_fold, 크래시 0)**:
+  - Yahoo 기본 소스 수집: 새로고침 시 `etf=up`(IPO ETF — Stooq 차단 시절 null이던 지표 라이브 복구) + `국가별 수익률 수집 완료: manualRequired=[13개]`(AUTO 6지수 전부 수집, 폴백·실패 로그 0건, 6지수 ~6초).
+  - UI 라이브 반영: 신호3 IPO ETF 방향 "상승/회복", 국가표에 닛케이(+71.2/+32.6/+22.1/+7.0)·다우(+18.6/+6.1/+9.6/+3.4) 등 AUTO 라이브 값 + "자동 · 07/10" 배지, 미커버 13지수만 "수동 필요" 배지, 이탈 지수 수 재산출(9/20 @-1개월).
+  - 설정 UI: API 탭 「해외지수 시세 소스 (계기판)」 카드·드롭다운(Yahoo Finance/Stooq)·캡션 렌더 정상, 저장→재진입 시 선택값 유지(EncryptedSharedPreferences 왕복).
+  - **폴백 체인 실증**: Stooq로 전환 후 새로고침 → 7종 전부 `시세 응답 없음 (STOOQ:^nkx 등) — 다음 소스 폴백` 로그 후 Yahoo로 수집 완료(`etf=up`, manualRequired 13 동일) — 선택 소스 실패 시 자동 폴백이 실기에서 의도대로 동작. 검증 후 Yahoo로 원복 저장.
 
 ## 점검 이력 (2026-07-09)
 - kotlin-implementer 셀프리뷰(qa 점검) 결과: 스코어링 5개 함수(analyzeMarkets·scoreS1~S3·scoreGate·amplifier·composite) 전부 프로토타입 `bear_signal_dashboard.jsx`(작업 디렉터리 루트에서 재확보, git 미추적)와 문자 단위 일치 확인.
