@@ -11,12 +11,19 @@
 | P0~P3 | 완료(마커 유지) | v1.0과 범위 동일. P3 핵심 화면은 구 P4(v1.0-UI)가 충족 |
 | §3.0 임계치 외부화 | **완료(retrofit)** | BearThresholds 주입 — 하단 「임계치 외부화 (v1.2 §3.0 retrofit)」 절 참조 |
 | P3.5-1 | **완료** | Room 스냅샷 이력 영속(`bear_snapshot`, Room v37) + 국면/방아쇠 전이 감지 — 하단 「Phase 3.5-1 상세」 절 참조 |
-| P3.5 | **잔여** | Sparkline·TransitionLog(ViewModel/UI 조립) — P3.5-1 인프라 위에 구축 |
+| P3.5 | **완료** | Sparkline·TransitionLog·신선도 제안 배너(ViewModel/UI 조립) — 하단 「Phase 3.5 상세」 절 참조 |
 | P4 (웹/LLM 갱신+승인) | **잔여** | §4.5 신설 — 구 P4(v1.0-UI)와 별개 |
 | P5-1 | 대부분 충족 | 구 P5(v1.0-폴리시)가 접근성·오프라인·shimmer·워커 기충족. 델타: 진입 시 신선도 검사, 워커 주기(월간↔일/주 Tier) 조정 판단 |
 | P5-2 (QA) | 잔여 | qa-verifier — §7 v1.2 확장 항목 포함 |
 
 기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수.
+
+PROGRESS: P3.5 — 완료 (Sparkline(lead·gate 90일 Canvas)+TransitionLog("6/30 GREEN→AMBER · 방아쇠 경계 접근"
+형식, 이력 상태 3종 empty/단일/다수 처리) `BearSignalSparklineSection` 신규 + 신선도 제안 배너
+`BearSignalUpdateSuggestionBanner` 신규(승인 원칙 — 수락 버튼만 refresh 트리거, 자동 반영 없음) +
+`BearSignalViewModel` 스냅샷 배선(세션 진입·refresh 시 `upsertToday`, 90일 `observeRange`→스파크라인 이력+
+`DetectTransitionsUseCase` 전이 목록, `EvaluateSnapshotFreshnessUseCase`→`updateSuggestion` 노출) +
+JVM 테스트 11건 신규(총 295건), qa-verifier 게이트 7항목 전부 PASS, 2026-07-13 — 하단 「Phase 3.5 상세」 절 참조)
 
 PROGRESS: P3.5-1 — 완료 (Room 스냅샷 이력 영속(`BearSnapshotEntity`/`BearSnapshotDao`, Room v36→v37) +
 `SnapshotRepository`/`SnapshotRepositoryImpl` + `DetectTransitionsUseCase`(국면·방아쇠 전이 감지) +
@@ -94,6 +101,31 @@ QA 검증 결과 §3 임계치가 presentation 계층에 3곳 복제돼 있음�
 
 - **테스트 결과**: `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` — **248건, 0 실패**(기존 246건 + 신규 2건: `BearSignalViewModelTest`의 config 구동 테스트 — `manyCountries` 7→20 주입 시 골든 상태의 `manyCountriesBreached`가 true→false, `deepeningPct` -6.0→-5.0 주입 시 `deepeningBreached`가 false→true). `BearSignalViewModelTest`는 13건→15건.
 - **빌드**: `:app:compileDebugKotlin` BUILD SUCCESSFUL / `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` BUILD SUCCESSFUL(248/248) / `:app:assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 재검증 — `BearSignalViewModel` 신규 `BearThresholds` 파라미터 정상 해석).
+
+## Phase 3.5 상세 — Sparkline · TransitionLog · 신선도 제안 배선 (2026-07-13)
+
+TASK_bear_signal_console.md §6.1 구현 범위의 잔여분 — P3.5-1 인프라(SnapshotRepository/DetectTransitions/BuildBearSnapshot/EvaluateSnapshotFreshness) 위에 ViewModel 배선과 프레젠테이션(Sparkline+TransitionLog+제안 배너)을 조립. 담당: kotlin-implementer, 게이트 검증: qa-verifier(7항목 전부 PASS).
+
+- **변경/추가 파일**
+  - 신규: `presentation/ui/BearSignalSparklineSection.kt`(lead%·gate 2계열 Canvas 스파크라인 + TransitionLog), `presentation/ui/BearSignalUpdateSuggestionBanner.kt`(신선도 갱신 제안 배너)
+  - 수정: `domain/model/BearSnapshotModels.kt`(`BearSnapshot.leadPct` 확장 프로퍼티 — `lead/9*100` 구조 상수 재사용, 새 임계치 없음), `presentation/BearSignalViewModel.kt`(스냅샷 배선 전체), `presentation/ui/BearSignalScreen.kt`(헤더 바로 아래 배너→섹션 삽입, §5.2-1)
+  - 테스트 수정: `BearSignalViewModelTest.kt`(신규 11건 + 생성자 배선 갱신, 15건→26건)
+  - `BearSignalModule.kt`/data 계층/Room 스키마(v37): 변경 없음 — P3.5-1에서 완결된 프로바이더·인프라 그대로 사용
+
+- **레이어별 요약**
+  - **domain**: `BearSnapshot.leadPct`만 추가(java.time만 import, 안드로이드 무의존 유지). Room에는 원시 `lead` 저장, 백분율은 표시용 파생.
+  - **presentation(ViewModel)**: 생성자에 `SnapshotRepository`/`BuildBearSnapshotUseCase`/`EvaluateSnapshotFreshnessUseCase`/`DetectTransitionsUseCase` 4개 추가(전부 기존 Hilt 프로바이더 재사용, 배선 변경 불요). `uiState`는 기존 4-Flow `core` combine → (core, history, updateSuggestion) 3-way nested combine으로 재구성, `snapshotHistory`/`transitions`/`updateSuggestion` 노출. 스냅샷 저장 시점 2곳: (1) `init{}` 세션 진입 시 1회 — **신선도 평가 → 저장 순서 고정**(역순이면 방금 저장한 오늘자 스냅샷 때문에 제안이 절대 뜨지 않음, KDoc 명시), (2) `refresh()` 온라인 분기 실행 시(지표별 성공/실패 무관 — 각 UseCase가 캐시 폴백을 가져 병합 상태 항상 유효). 이력 조회창 90일(`SPARKLINE_WINDOW_DAYS`, §6.1 "60~90일" 상한 채택).
+  - **presentation(UI)**: `BearSignalSparklineSection` — lead%(0~100)·gate(0~3) 각각 Canvas 라인차트, 이력 상태 3종(empty=안내 문구/단일=점/다수=라인) 분기, TransitionLog는 동일 날짜 `PhaseChange`+`GateAdvance`를 `groupBy(asOf)`로 " · " 결합해 §6.1 예시 형식("6/30 GREEN→AMBER · 방아쇠 경계 접근") 그대로 재현(`GateState.entries[n].label` 재사용). `BearSignalUpdateSuggestionBanner` — 기존 `StaleBanner` 시각 문법 참고하되 tertiaryContainer로 "오류 아님, 제안" 구분, **수락 버튼만이 상태를 바꾼다**(`acceptUpdateSuggestion()` → 제안 클리어 + `refresh()` 트리거). 접근성: contentDescription 3곳, 색+텍스트 병기, 차트 높이 48dp, M3 TextButton 터치 타깃.
+
+- **결정 사항**
+  1. **저장 시점**: 세션 진입 1회 + refresh 시 — "일 단위 upsert"(§6.1)이므로 같은 날 중복 호출은 `day` PK 덮어쓰기로 멱등. `BearSignalEntryCard`(시장분석 탭 미리보기)가 별도 `hiltViewModel()` 인스턴스를 만들어 진입 시 저장이 중복 발생하나 동일 근거로 무해(기존 ManualInputViewModel 인스턴스 패턴과 동일 성격, 별도 조치 없음).
+  2. **승인 원칙(§7)**: `updateSuggestion` 쓰기 경로는 init 세팅 1곳 + `acceptUpdateSuggestion()` 클리어 1곳뿐(qa-verifier 전수 추적 확인). `EvaluateSnapshotFreshnessUseCase`는 순수 비교 함수라 Room 무변경. 제안 존재만으로는 result/inputs 불변 + refresh 미호출을 테스트로 단언.
+  3. qa-verifier 참고 노트(결함 아님): 승인 직후 오프라인이면 배너는 닫히고 갱신은 스킵 — 승인 없는 상태 변경이 아니라 승인 후 갱신 실패 UX이며 다음 세션 진입 시 재평가로 복원. 허용 범위로 기록만.
+
+- **테스트 결과**: `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*" --tests "com.tinyoscillator.core.database.migration.*"` — **295건, 0 실패**(기존 284건 회귀 통과 + 신규 11건: 저장 시점 3건, 이력 3종 3건, 신선도 제안·승인 흐름 5건). 골든(2026.6.30→AMBER)·경계(neg 6/7, rate 4.49/4.5, ratio 0.94/0.95/1.0, loss 44/45/59/60/79/80) 무변경 통과. qa-verifier가 `--rerun` 강제 재실행으로 XML 집계 독립 재현(tests=295 failures=0).
+- **빌드**: `:app:compileDebugKotlin` / `:app:assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 검증 — ViewModel 신규 4개 생성자 파라미터 정상 해석). Room v37 유지(스키마·마이그레이션 변경 없음).
+- **§3 임계치 스위프**: 신규 파일+수정분에 `bear_thresholds.json` 필드값 리터럴 비교 0건(qa-verifier 확인). Sparkline `100f`/`3f`는 leadPct 스케일·gate 레벨 구조 상수, `SPARKLINE_WINDOW_DAYS=90`은 §6.1 UI 파라미터 — 예외 범주.
+- **미해결/차단 요소**: 없음. 신규 섹션(스파크라인·배너)의 360dp/다크/폰트 1.3x 실기 렌더 검증은 기존 QA 항목과 함께 P5-2로 승계. 다음 Phase는 `P4`(§4.5 웹/LLM 갱신+승인 흐름).
 
 ## Phase 3.5-1 상세 — Room 스냅샷 이력 영속 + 국면·방아쇠 전이 감지 (2026-07-13)
 

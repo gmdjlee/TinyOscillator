@@ -6,12 +6,18 @@ import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.BearPhase
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalReportBaseline
+import com.tinyoscillator.feature.bearsignal.domain.model.BearSnapshot
 import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholds
 import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholdsFixture
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualFieldUpdate
+import com.tinyoscillator.feature.bearsignal.domain.model.PhaseChange
+import com.tinyoscillator.feature.bearsignal.domain.repository.SnapshotRepository
+import com.tinyoscillator.feature.bearsignal.domain.usecase.BuildBearSnapshotUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.DetectTransitionsUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.EvaluateSnapshotFreshnessUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ObserveBearSignalStateUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshAutoInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshExternalAutoInputsUseCase
@@ -19,6 +25,7 @@ import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshMarketReturns
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ResetToReportBaselineUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.UpdateManualInputUseCase
 import io.mockk.coEvery
+import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -63,7 +70,14 @@ class BearSignalViewModelTest {
     private lateinit var refreshMarketReturnsUseCase: RefreshMarketReturnsUseCase
     private lateinit var updateManualInputUseCase: UpdateManualInputUseCase
     private lateinit var resetToReportBaselineUseCase: ResetToReportBaselineUseCase
+    private lateinit var snapshotRepository: SnapshotRepository
     private lateinit var context: Context
+
+    // §6.1 순수 함수 UseCase 3종 — 결정적이므로 mock 대신 실제 인스턴스를 사용한다(다른 도메인
+    // 테스트가 이미 개별적으로 검증했으므로 여기서는 ViewModel의 배선만 확인하면 충분하다).
+    private val buildBearSnapshotUseCase = BuildBearSnapshotUseCase()
+    private val evaluateSnapshotFreshnessUseCase = EvaluateSnapshotFreshnessUseCase()
+    private val detectTransitionsUseCase = DetectTransitionsUseCase()
 
     /**
      * §3.0 retrofit 후속 — [BearSignalUiState.manyCountriesBreached]/[BearSignalUiState.deepeningBreached]가
@@ -94,10 +108,33 @@ class BearSignalViewModelTest {
         resetToReportBaselineUseCase = mockk(relaxed = true)
         context = mockk(relaxed = true)
 
+        // §6.1 스냅샷 이력 기본값 — 대부분의 테스트는 이력/신선도 배선 자체를 검증 대상으로 삼지
+        // 않으므로 "이력 없음 · 제안 없음"을 기본으로 스텁하고, 필요한 테스트에서만 개별 재정의한다.
+        snapshotRepository = mockk()
+        every { snapshotRepository.observeRange(any(), any()) } returns flowOf(emptyList())
+        coEvery { snapshotRepository.latestOrNull() } returns null
+        coJustRun { snapshotRepository.upsertToday(any()) }
+
         // 기본값: 온라인(대부분의 테스트가 refresh() 성공 경로를 가정)
         mockkObject(NetworkUtils)
         every { NetworkUtils.isNetworkAvailable(any()) } returns true
     }
+
+    /** [BearSnapshot] 최소 픽스처 — inputsJson/fieldMetaJson은 이 테스트들의 검증 대상이 아니다. */
+    private fun fixtureSnapshot(day: String, phase: BearPhase, gate: Int, lead: Int = 3): BearSnapshot = BearSnapshot(
+        day = day,
+        phase = phase,
+        lead = lead,
+        gate = gate,
+        s1 = 1,
+        s2 = 1,
+        s3 = 1,
+        amp = 1.0,
+        configBasis = "test",
+        inputsJson = "{}",
+        fieldMetaJson = "{}",
+        createdAt = 0L
+    )
 
     @After
     fun tearDown() {
@@ -114,6 +151,10 @@ class BearSignalViewModelTest {
             refreshMarketReturnsUseCase,
             updateManualInputUseCase,
             resetToReportBaselineUseCase,
+            snapshotRepository,
+            buildBearSnapshotUseCase,
+            evaluateSnapshotFreshnessUseCase,
+            detectTransitionsUseCase,
             thresholds,
             context
         )
@@ -332,6 +373,10 @@ class BearSignalViewModelTest {
             refreshMarketReturnsUseCase,
             updateManualInputUseCase,
             resetToReportBaselineUseCase,
+            snapshotRepository,
+            buildBearSnapshotUseCase,
+            evaluateSnapshotFreshnessUseCase,
+            detectTransitionsUseCase,
             thresholds,
             context
         )
@@ -372,5 +417,171 @@ class BearSignalViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { resetToReportBaselineUseCase() }
+    }
+
+    // ── §6.1 스냅샷 저장 시점(a) ────────────────────────────
+
+    @Test
+    fun `상태 최초 로드 시(세션 진입) 오늘자 스냅샷을 저장한다`() = runTest {
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { snapshotRepository.upsertToday(any()) }
+    }
+
+    @Test
+    fun `refresh 성공 시 스냅샷을 다시 저장한다`() = runTest {
+        coEvery { refreshAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshExternalAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshMarketReturnsUseCase() } returns Result.success(mockk(relaxed = true))
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle() // 초기 로드 저장 1회
+
+        viewModel.refresh()
+        advanceUntilIdle() // refresh 저장 1회 추가
+
+        coVerify(exactly = 2) { snapshotRepository.upsertToday(any()) }
+    }
+
+    @Test
+    fun `refresh 일부 지표 실패에도 병합 상태는 유효하므로 스냅샷을 저장한다`() = runTest {
+        coEvery { refreshAutoInputsUseCase() } returns Result.failure(RuntimeException("network"))
+        coEvery { refreshExternalAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshMarketReturnsUseCase() } returns Result.success(mockk(relaxed = true))
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        // 초기 로드 1회 + refresh 1회 = 2회 — "refresh 성공"을 "오프라인으로 건너뛰지 않음"으로
+        // 해석했으므로 개별 지표 실패와 무관하게 저장된다(ViewModel KDoc "저장 시점 결정 2/2" 참조).
+        coVerify(exactly = 2) { snapshotRepository.upsertToday(any()) }
+    }
+
+    @Test
+    fun `오프라인이면 refresh가 조기 반환되어 스냅샷을 추가로 저장하지 않는다`() = runTest {
+        every { NetworkUtils.isNetworkAvailable(any()) } returns false
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle() // 초기 로드 저장 1회(네트워크 상태와 무관)
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { snapshotRepository.upsertToday(any()) }
+    }
+
+    // ── §6.1 이력 Flow → Sparkline/TransitionLog(b)(d) ──────
+
+    @Test
+    fun `이력이 없으면 snapshotHistory와 transitions가 빈 리스트로 노출된다`() = runTest {
+        every { snapshotRepository.observeRange(any(), any()) } returns flowOf(emptyList())
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.snapshotHistory.isEmpty())
+        assertTrue(state.transitions.isEmpty())
+    }
+
+    @Test
+    fun `이력이 1건(단일)이면 snapshotHistory 크기가 1이고 transitions는 비어있다`() = runTest {
+        val only = fixtureSnapshot("2026-06-30", BearPhase.AMBER, gate = 1)
+        every { snapshotRepository.observeRange(any(), any()) } returns flowOf(listOf(only))
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, state.snapshotHistory.size)
+        assertEquals(only, state.snapshotHistory.first())
+        assertTrue(state.transitions.isEmpty())
+    }
+
+    @Test
+    fun `이력이 다수(2건 이상)이면 snapshotHistory와 transitions에 국면·방아쇠 전이가 반영된다`() = runTest {
+        val prev = fixtureSnapshot("2026-06-29", BearPhase.GREEN, gate = 0)
+        val next = fixtureSnapshot("2026-06-30", BearPhase.AMBER, gate = 1)
+        every { snapshotRepository.observeRange(any(), any()) } returns flowOf(listOf(prev, next))
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(prev, next), state.snapshotHistory)
+        // GREEN→AMBER 국면 전이 + gate 0→1 상승, 같은 날(2026-06-30)에 2건 동시 발생(§6.1 의사코드)
+        assertEquals(2, state.transitions.size)
+        assertTrue(state.transitions.any { it.kind is PhaseChange })
+    }
+
+    // ── §6.1 신선도 제안(승인 흐름)(c) ───────────────────────
+
+    @Test
+    fun `최신 스냅샷이 오늘보다 오래되면 updateSuggestion이 노출된다`() = runTest {
+        coEvery { snapshotRepository.latestOrNull() } returns fixtureSnapshot("2020-01-01", BearPhase.GREEN, gate = 0)
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        assertEquals("2020-01-01", viewModel.uiState.value.updateSuggestion?.latestAsOf)
+    }
+
+    @Test
+    fun `신선도 제안이 있어도 result와 inputs는 자동으로 바뀌지 않는다`() = runTest {
+        coEvery { snapshotRepository.latestOrNull() } returns fixtureSnapshot("2020-01-01", BearPhase.GREEN, gate = 0)
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.updateSuggestion != null)
+        // 제안이 존재한다는 사실 자체는 Room 병합 상태(baselineState)에 전혀 영향을 주지 않는다.
+        assertEquals(baselineResult.phase, state.result.phase)
+        assertEquals(baselineInputs, state.inputs)
+        // 승인 없이는 refresh 관련 UseCase도 호출되지 않는다(자동 반영 금지, §7).
+        coVerify(exactly = 0) { refreshAutoInputsUseCase() }
+    }
+
+    @Test
+    fun `이력이 없으면(최초 사용) updateSuggestion은 노출되지 않는다`() = runTest {
+        coEvery { snapshotRepository.latestOrNull() } returns null
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.updateSuggestion)
+    }
+
+    @Test
+    fun `acceptUpdateSuggestion 호출 시 제안이 사라지고 refresh가 트리거된다`() = runTest {
+        coEvery { snapshotRepository.latestOrNull() } returns fixtureSnapshot("2020-01-01", BearPhase.GREEN, gate = 0)
+        coEvery { refreshAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshExternalAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshMarketReturnsUseCase() } returns Result.success(mockk(relaxed = true))
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.updateSuggestion != null)
+
+        viewModel.acceptUpdateSuggestion()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.updateSuggestion)
+        coVerify(exactly = 1) { refreshAutoInputsUseCase() }
     }
 }

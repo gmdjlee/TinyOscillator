@@ -69,3 +69,15 @@ data class SnapshotUpdateSuggestion(
     val latestAsOf: String,
     val today: String
 )
+
+/**
+ * Sparkline 표시용 선행점수 백분율(0~100) — Room에는 원시 합계([BearSnapshot.lead], 0..9)만
+ * 저장하고 표시 시점에만 환산해 중복 저장을 피한다.
+ *
+ * [com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase]가 이미 동일한
+ * 산식(`Math.round(lead / 9.0 * 100)`)을 사용하며, 그 KDoc이 명시하듯 분모 `9.0`은 §3.0 주입
+ * 대상이 아닌 구조 상수(선행 신호 합의 이론적 최댓값 s1+s2+s3=3+3+3)다 — 이 프로퍼티는 그 구조
+ * 상수를 재사용할 뿐 새로운 임계치를 도입하지 않는다.
+ */
+val BearSnapshot.leadPct: Int
+    get() = Math.round(lead / 9.0 * 100).toInt()

@@ -140,6 +140,26 @@ fun BearSignalScreen(onBack: () -> Unit) {
                     BearSignalHeaderSection(result = uiState.result)
                 }
 
+                // §5.2-1 "헤더 바로 아래 Sparkline+TransitionLog 배치"(§6.1) — 신선도 제안 배너는
+                // 제안이 있을 때만(승인 없이 자동 반영하지 않음, §7) 노출한다.
+                uiState.updateSuggestion?.let { suggestion ->
+                    item(key = "snapshot_update_banner") {
+                        SnapshotUpdateSuggestionBanner(
+                            suggestion = suggestion,
+                            onAccept = viewModel::acceptUpdateSuggestion
+                        )
+                    }
+                }
+                item(key = "sparkline_title") {
+                    SectionHeader(title = "국면 추이 — 스코어 이력과 전이 로그")
+                }
+                item(key = "sparkline") {
+                    BearSignalSparklineSection(
+                        history = uiState.snapshotHistory,
+                        transitions = uiState.transitions
+                    )
+                }
+
                 item(key = "leading_title") {
                     SectionHeader(title = "온도계 · 선행 신호 3종 — 위험선호가 어디까지 식었나")
                 }
