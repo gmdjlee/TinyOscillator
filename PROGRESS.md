@@ -13,10 +13,22 @@
 | P3.5-1 | **완료** | Room 스냅샷 이력 영속(`bear_snapshot`, Room v37) + 국면/방아쇠 전이 감지 — 하단 「Phase 3.5-1 상세」 절 참조 |
 | P3.5 | **완료** | Sparkline·TransitionLog·신선도 제안 배너(ViewModel/UI 조립) — 하단 「Phase 3.5 상세」 절 참조 |
 | P4 (웹/LLM 갱신+승인) | **완료** | §4.5 신설 — 구 P4(v1.0-UI)와 별개, `LlmMarketDataSource`+승인 흐름 — 하단 「Phase 4 상세」 절 참조 |
-| P5-1 | 대부분 충족 | 구 P5(v1.0-폴리시)가 접근성·오프라인·shimmer·워커 기충족. 델타: 진입 시 신선도 검사, 워커 주기(월간↔일/주 Tier) 조정 판단 |
+| P5-1 | **완료** | 워커 일/주 Tier 분리 + MINOR 2건(TZ·rememberSaveable) + 레이더 라벨 보정 — 하단 「Phase 5-1 상세」 절 참조. 진입 시 신선도 검사는 P3.5 기충족 재확인 |
 | P5-2 (QA) | 잔여 | qa-verifier — §7 v1.2 확장 항목 포함 |
 
-기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수.
+기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수 — P5-1에서 TZ·rememberSaveable·레이더 라벨 해소, SignColor 다크는 앱 전역 백로그로 이관(하단 P5-1 상세 참조). "월간 워커 실발화" 실기 항목은 주기 재편으로 "일간/주간 워커 실발화"로 대체돼 P5-2로 이월.
+
+PROGRESS: P5-1 — 완료 (워커 주기 일/주 Tier 분리(§2·§4 주기 열) — `BearSignalDailyUpdateWorker` 신규(Tier A:
+`RefreshAutoInputsUseCase` 단독 — 신호2 통계·코스피 2사 비중, 매일 06:30, 알림 ID 1017, TAG
+`collection_bear_signal_daily`) + 기존 `BearSignalUpdateWorker` 주간 전환(Tier B:
+`RefreshExternalAutoInputsUseCase`+`RefreshMarketReturnsUseCase` 2계열, WORK_NAME
+`bear_signal_monthly_update`→`bear_signal_weekly_update`, 매주 월요일 06:00 KST, 2계열 전부 실패 시에만
+retry) + `WorkManagerHelper.scheduleWeeklyWorker` 신설(7일 주기·flex 금지 사유 계승·**Asia/Seoul TZ +
+Locale.US 고정**으로 QA MINOR "TZ 미고정" 해소, `calculateWeeklyInitialDelayMillis` 순수 함수 분리) +
+`scheduleMonthlyWorker` 삭제(호출자 0) + `TinyOscillatorApp` 두 워커 복원 + MINOR 마감 2건(체크리스트
+`rememberSaveable(key)` 전환 — TypesHistorySection, 레이더 라벨 텍스트 실측 투영 배치로 폴리곤 겹침 해소) +
+테스트: core.worker 42건/0실패(신규 BearSignalDailyUpdateWorkerTest 6·CalculateWeeklyInitialDelayMillisTest 4)
++ bearsignal 352건/0실패(골든·경계 무변경), qa-verifier 게이트 8/8 PASS, 2026-07-13 — 하단 「Phase 5-1 상세」 절 참조)
 
 PROGRESS: P4 — 완료 (§4.5 웹/LLM 3-tier 수집·승인 흐름 — `LlmMarketDataSource` 신규(Anthropic
 `/v1/messages` + `web_search_20250305` 서버 도구, 그룹①rate/dir·②bigDeal/lossRatio·③credit
@@ -115,6 +127,35 @@ QA 검증 결과 §3 임계치가 presentation 계층에 3곳 복제돼 있음�
 
 - **테스트 결과**: `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` — **248건, 0 실패**(기존 246건 + 신규 2건: `BearSignalViewModelTest`의 config 구동 테스트 — `manyCountries` 7→20 주입 시 골든 상태의 `manyCountriesBreached`가 true→false, `deepeningPct` -6.0→-5.0 주입 시 `deepeningBreached`가 false→true). `BearSignalViewModelTest`는 13건→15건.
 - **빌드**: `:app:compileDebugKotlin` BUILD SUCCESSFUL / `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` BUILD SUCCESSFUL(248/248) / `:app:assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 재검증 — `BearSignalViewModel` 신규 `BearThresholds` 파라미터 정상 해석).
+
+## Phase 5-1 상세 — 워커 주기 일/주 Tier 분리 · MINOR 마감 (2026-07-13)
+
+TASK_bear_signal_console.md §2(111행 "Phase 5-1에서 일 Tier A / 주 Tier B 조정 검토")·§4 주기 열·§6 Phase 5-1 구현. shimmer·접근성·오프라인·워커 골격은 구 P5(v1.0-폴리시)가 기충족 — 이 절은 델타만 기록한다.
+
+- **변경/추가 파일**
+  - 신규: `core/worker/BearSignalDailyUpdateWorker.kt`(Tier A 일간), 테스트 `BearSignalDailyUpdateWorkerTest.kt`(6건)·`CalculateWeeklyInitialDelayMillisTest.kt`(4건)
+  - 수정: `core/worker/BearSignalUpdateWorker.kt`(Tier B 주간 전환), `core/worker/WorkManagerHelper.kt`(`scheduleWeeklyWorker` 신설·`scheduleMonthlyWorker` 삭제·BearSignal 스케줄 3함수 추가/변경), `core/worker/CollectionNotificationHelper.kt`(`BEAR_SIGNAL_DAILY_NOTIFICATION_ID=1017`), `TinyOscillatorApp.kt`(일간 워커 복원 추가), `presentation/ui/BearSignalTypesHistorySection.kt`(rememberSaveable), `presentation/ui/BearSignalGraphics.kt`(레이더 라벨), 테스트 `BearSignalUpdateWorkerTest.kt`(주간 계약으로 갱신)
+
+- **워커 주기 재편 (§4 주기 열 근거)**
+  - **Tier A 일간(06:30)**: `RefreshAutoInputsUseCase` 단독 — 신호2 통계·코스피 2사 비중(kotlin_krx, §4 주기 "일"). 기존 `scheduleDailyWorker` 재사용(기기 TZ — 앱 전역 관례 유지, 변경 안 함).
+  - **Tier B 주간(월 06:00 KST)**: 기존 워커에서 `RefreshAutoInputsUseCase` 제거(일간과 중복 제거), `RefreshExternalAutoInputsUseCase`(IPO ETF=주 충족, 수출=월·금리=이벤트는 상위 빈도 실행 무해 — 캐시 폴백 기존 보장)+`RefreshMarketReturnsUseCase`(해외지수) 2계열. 실패 집계 3→2(전부 실패 시에만 retry). WORK_NAME `bear_signal_weekly_update`로 개명(미출시 브랜치 — 구 이름 정리 코드 불요).
+  - **`scheduleWeeklyWorker`**: `PeriodicWorkRequestBuilder(7, DAYS)`+initialDelay(다음 dayOfWeek hh:mm), flex 금지(구 monthly KDoc 사유 계승). **Asia/Seoul TZ 고정** — 관세청/KRX/KOFIA 등 한국 발표 주기 앵커이므로 기기 TZ 아닌 KST 기준(QA MINOR "monthly TZ 미고정" 해소). `Locale.US` 명시 고정으로 주 시작 요일 로케일 편차 차단. `calculateWeeklyInitialDelayMillis(nowMillis, …)` 순수 함수 분리로 JVM 결정적 테스트(당일 경과→다음 주, 미래 시각→당일, 주중 이월 등 4건). require fail-fast(dayOfWeek 1..7·hour·minute)는 WorkManager 호출 전 위치.
+  - 월요일 06:00 KST 선택 근거: 주말 미국 마감 데이터(IPO ETF·해외지수) 반영 후 첫 시점.
+
+- **MINOR 마감**
+  - **TZ**: 위 KST 고정으로 해소(주간 워커에 한함 — `scheduleDailyWorker`의 기기 TZ는 앱 전역 관례라 유지, KDoc에 결정 근거).
+  - **rememberSaveable**: 체크리스트 상태 `remember`→`rememberSaveable(key = "bear_type{index}_monitor{idx}")` — back→재진입 시 소실(실기 재현 기지 이슈) 해소, 위치 기반 명시 키로 텍스트 중복 대비.
+  - **레이더 라벨 겹침**: 고정 배율(3.55/3) 대신 텍스트 실측 반너비/반높이를 방사 방향으로 투영한 앵커 반경(`r + 투영 + 3dp`) — 4개 라벨 공통 로직. qa-verifier 산술 검토: 최광폭 라벨이 Canvas 124dp 자체 경계를 수 dp 넘을 수 있으나 drawBehind 비클리핑+배치처 Box 좌우 여백(360dp 기준 ≥80dp)이 흡수 — 가시 클리핑 없음(주석에 명시, P5-2 실기 1.3x 렌더에서 재확인 예정).
+  - **SignColor 다크 변형 미사용**: 앱 전역 이슈(bearsignal 밖 전 화면 공통)라 Phase 스코프 밖 — **앱 전역 백로그로 이관**, 코드 무변경. QA상 가독성 저해 수준 아님 재확인됨.
+
+- **진입 시 신선도 검사(P5-1 델타 항목)**: P3.5에서 기구현(`EvaluateSnapshotFreshnessUseCase` → 제안 배너, 자동 반영 금지) — qa-verifier가 이번 변경으로 회귀 없음 확인(ViewModel 무수정).
+
+- **스펙 조정 2건 판단(P4 이월)** — 현행 유지로 확정(사용자 승인 대상):
+  1. 수동입력 버튼은 MANUAL 경로 존재 필드(신호3 loss/big, 금리 dir/credit/margin)만 노출 — 신호2·증폭은 v1 범위 밖(§1.1)이라 §5.2 "3카드 모두" 대비 축소.
+  2. 국가별 표 §5.3 "인라인 편집" 대신 행 탭→편집 다이얼로그 — 20×4 텍스트필드 포커스/성능 리스크 회피.
+
+- **테스트/게이트 결과**: `core.worker.*` 42건/0실패(신규 10건 포함) + `feature.bearsignal.*` 352건/0실패(골든 2026.6.30→AMBER·경계 neg 6/7, rate 4.49/4.5, ratio 0.94/0.95/1.0, loss 44/45/59/60/79/80 무변경 통과) — qa-verifier 독립 `--rerun` 재실행. `assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 — 일간 워커 `@HiltWorker` 정상 해석). **qa-verifier 게이트 8/8 PASS**(Tier 분리·주간 헬퍼·배선·rememberSaveable·레이더·신선도 회귀·불변 제약(임계치 SSOT/스코어링/§4.5 승인 경로 무변경)·테스트 재실행). 비차단 관찰 1건(레이더 주석 산술 부정확)은 메인 스레드가 주석 정정으로 즉시 해소.
+- **잔여(P5-2로)**: 일간/주간 워커 실발화(에뮬레이터), 관세청/FRED 실키 응답 검증, 실 Claude 키 `web_search` 실기, §7 전 항목 최종 QA, 스펙 조정 2건 사용자 재가.
 
 ## Phase 4 상세 — 웹/LLM 3-tier 수집 · 승인 흐름 (2026-07-13)
 

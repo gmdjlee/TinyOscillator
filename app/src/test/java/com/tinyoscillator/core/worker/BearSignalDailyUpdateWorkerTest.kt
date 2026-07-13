@@ -7,23 +7,21 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /**
- * [BearSignalUpdateWorker] 스케줄링 계약 테스트 (TASK.md §5.4, §6 Phase 5-1 — 월간→주간 전환).
+ * [BearSignalDailyUpdateWorker] 스케줄링 계약 테스트 (TASK.md §2 111행, §4, §6 Phase 5-1 신설).
  *
- * `CoroutineWorker.doWork()`는 `BaseCollectionWorker.setForeground()`가 실제 WorkManager/Android
- * 런타임을 요구하므로(다른 [BaseCollectionWorker] 하위 워커들 — MacroUpdateWorker/ThemeUpdateWorker
- * 등 — 도 동일한 이유로 JVM `doWork()` 단위테스트가 없다), 이 테스트는 기존 관례(예:
- * [MarketCloseRefreshWorkerTest] "notification ID is unique")를 따라 companion 상수·알림 ID
- * 유일성·[WorkManagerHelper.scheduleBearSignalUpdate] 입력 검증(`require`, WorkManager 호출 전에
+ * [BearSignalUpdateWorkerTest]와 동일한 사유(`BaseCollectionWorker.setForeground()`가 실제
+ * WorkManager/Android 런타임을 요구)로 companion 상수·알림 ID 유일성·
+ * [WorkManagerHelper.scheduleBearSignalDailyUpdate] 입력 검증(`require`, WorkManager 호출 전에
  * 즉시 실패)만 커버한다.
  */
-class BearSignalUpdateWorkerTest {
+class BearSignalDailyUpdateWorkerTest {
 
     @Test
     fun `worker companion constants are correct`() {
-        assertEquals("bear_signal_weekly_update", BearSignalUpdateWorker.WORK_NAME)
-        assertEquals("bear_signal_manual_update", BearSignalUpdateWorker.MANUAL_WORK_NAME)
-        assertEquals("collection_bear_signal", BearSignalUpdateWorker.TAG)
-        assertEquals("BearSignal 지표", BearSignalUpdateWorker.LABEL)
+        assertEquals("bear_signal_daily_update", BearSignalDailyUpdateWorker.WORK_NAME)
+        assertEquals("bear_signal_daily_manual_update", BearSignalDailyUpdateWorker.MANUAL_WORK_NAME)
+        assertEquals("collection_bear_signal_daily", BearSignalDailyUpdateWorker.TAG)
+        assertEquals("BearSignal 지표(일간)", BearSignalDailyUpdateWorker.LABEL)
     }
 
     @Test
@@ -47,38 +45,38 @@ class BearSignalUpdateWorkerTest {
             CollectionNotificationHelper.BEAR_SIGNAL_DAILY_NOTIFICATION_ID
         )
         assertEquals(ids.size, ids.toSet().size)
-        assertEquals(1016, CollectionNotificationHelper.BEAR_SIGNAL_NOTIFICATION_ID)
+        assertEquals(1017, CollectionNotificationHelper.BEAR_SIGNAL_DAILY_NOTIFICATION_ID)
     }
 
-    // ── WorkManagerHelper.scheduleBearSignalUpdate 입력 검증(§6 Phase 5-1 "주 1회 주기, KST") ──
+    // ── WorkManagerHelper.scheduleBearSignalDailyUpdate 입력 검증(§4 "일" 주기) ──
 
     private val dummyContext: Context = mockk(relaxed = true)
 
     @Test
-    fun `dayOfWeek 0은 IllegalArgumentException`() {
-        assertThrows(IllegalArgumentException::class.java) {
-            WorkManagerHelper.scheduleBearSignalUpdate(dummyContext, dayOfWeek = 0)
-        }
-    }
-
-    @Test
-    fun `dayOfWeek 8은 IllegalArgumentException`() {
-        assertThrows(IllegalArgumentException::class.java) {
-            WorkManagerHelper.scheduleBearSignalUpdate(dummyContext, dayOfWeek = 8)
-        }
-    }
-
-    @Test
     fun `hour 24는 IllegalArgumentException`() {
         assertThrows(IllegalArgumentException::class.java) {
-            WorkManagerHelper.scheduleBearSignalUpdate(dummyContext, hour = 24)
+            WorkManagerHelper.scheduleBearSignalDailyUpdate(dummyContext, hour = 24)
+        }
+    }
+
+    @Test
+    fun `hour -1은 IllegalArgumentException`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            WorkManagerHelper.scheduleBearSignalDailyUpdate(dummyContext, hour = -1)
         }
     }
 
     @Test
     fun `minute 60은 IllegalArgumentException`() {
         assertThrows(IllegalArgumentException::class.java) {
-            WorkManagerHelper.scheduleBearSignalUpdate(dummyContext, minute = 60)
+            WorkManagerHelper.scheduleBearSignalDailyUpdate(dummyContext, minute = 60)
+        }
+    }
+
+    @Test
+    fun `minute -1은 IllegalArgumentException`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            WorkManagerHelper.scheduleBearSignalDailyUpdate(dummyContext, minute = -1)
         }
     }
 }

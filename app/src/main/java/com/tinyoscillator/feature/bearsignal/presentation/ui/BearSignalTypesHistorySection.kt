@@ -18,7 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,16 +100,22 @@ private fun TypeCard(type: BearType, active: Boolean) {
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            type.monitor.forEach { item ->
-                MonitorChecklistRow(text = item, tint = recoveryColor)
+            type.monitor.forEachIndexed { idx, item ->
+                MonitorChecklistRow(text = item, tint = recoveryColor, saveKey = "bear_type${type.index}_monitor$idx")
             }
         }
     }
 }
 
+/**
+ * 체크리스트 개별 행 — 체크 상태는 [rememberSaveable]로 유지한다(2026-07-13 실기 재현된 MINOR:
+ * back 후 재진입 시 `remember`만으로는 상태가 소실됨). 동일 컴포저블이 [BearSignalTypesSection]에서
+ * 유형(type.index)×항목(idx) 조합으로 반복 호출되므로, 위치 기반 암묵적 키 대신 [saveKey]를 명시
+ * 전달해 프로세스 재생성 후에도 항목별 체크 상태가 올바르게 복원되도록 한다.
+ */
 @Composable
-private fun MonitorChecklistRow(text: String, tint: Color) {
-    var checked by remember { mutableStateOf(false) }
+private fun MonitorChecklistRow(text: String, tint: Color, saveKey: String) {
+    var checked by rememberSaveable(key = saveKey) { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Checkbox(
             checked = checked,

@@ -110,8 +110,12 @@ class TinyOscillatorApp : Application(), Configuration.Provider {
             // 포트폴리오 종목 확률분석 배치 (매일 05:00, 로컬 엔진만 — AI 호출 없음)
             WorkManagerHelper.scheduleProbabilityBatch(this@TinyOscillatorApp)
 
-            // BearSignal(주도주 붕괴 판단 계기판) 지표 월간 업데이트 (매월 5일 06:00, TASK.md §5.4/§6 Phase 5)
+            // BearSignal(주도주 붕괴 판단 계기판) [B] 등급 지표 주간 업데이트 (매주 월요일 06:00 KST,
+            // TASK.md §5.4/§6 Phase 5-1 — v1.0의 월간 스케줄에서 전환)
             WorkManagerHelper.scheduleBearSignalUpdate(this@TinyOscillatorApp)
+
+            // BearSignal [A] 등급 지표(신호2 통계·코스피 2사 비중) 일간 업데이트 (매일 06:30, §6 Phase 5-1 신설)
+            WorkManagerHelper.scheduleBearSignalDailyUpdate(this@TinyOscillatorApp)
 
             // 기존 종목 마스터에 초성 컬럼 백필 (v21→v22 마이그레이션 후 1회)
             try {

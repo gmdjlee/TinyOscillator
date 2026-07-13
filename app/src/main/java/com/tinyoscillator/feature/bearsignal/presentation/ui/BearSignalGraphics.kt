@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tinyoscillator.feature.bearsignal.domain.model.BearPhase
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -160,13 +161,28 @@ fun BearSignalRadar(
         values.forEachIndexed { i, v ->
             drawCircle(color, radius = 2.4.dp.toPx(), center = point(i, v.toFloat()))
         }
-        // 축 라벨
+        // 축 라벨 — 값 폴리곤 최대 반경(레벨3=r) 바로 바깥에 배치하되, 라벨 텍스트 박스가 방사
+        // 방향으로 차지하는 반너비/반높이를 반영해 앵커 반경을 계산한다(전 라벨 공통 로직).
+        // 기존 고정 배율(3.55/3)은 "변동성"·"금리"처럼 가로로 넓은 라벨이 축과 수평으로 배치될 때
+        // 텍스트 폭 절반이 r 안쪽까지 파고들어 값이 큰(레벨 3 근접) 폴리곤과 겹쳤다 — 라벨 폭/높이를
+        // 축 방향으로 투영한 만큼만 추가 여백을 주면 4개 라벨 모두 겹침 없이 동일한 최소 간격을 갖는다.
+        // 여백은 작은 고정값만 더한다. 최광폭 라벨은 Canvas(124.dp) 자체 경계를 수 dp 벗어날 수
+        // 있으나, drawBehind는 자기 경계로 클리핑하지 않고 배치처(Box fillMaxWidth·Center)의
+        // 좌우 여백(360dp 기준 ≥80dp)이 흡수하므로 가시 클리핑·형제 겹침은 없다.
+        val labelGap = 3.dp.toPx()
         labels.forEachIndexed { i, label ->
+            val angle = (-PI / 2 + i * PI / 2).toFloat()
+            val dirX = cos(angle)
+            val dirY = sin(angle)
             val layout = textMeasurer.measure(text = label, style = labelStyle)
-            val p = point(i, 3.55f)
+            val halfW = layout.size.width / 2f
+            val halfH = layout.size.height / 2f
+            val projectedHalfExtent = halfW * abs(dirX) + halfH * abs(dirY)
+            val labelRadius = r + projectedHalfExtent + labelGap
+            val p = Offset(cx + labelRadius * dirX, cy + labelRadius * dirY)
             drawText(
                 textLayoutResult = layout,
-                topLeft = Offset(p.x - layout.size.width / 2f, p.y - layout.size.height / 2f)
+                topLeft = Offset(p.x - halfW, p.y - halfH)
             )
         }
     }

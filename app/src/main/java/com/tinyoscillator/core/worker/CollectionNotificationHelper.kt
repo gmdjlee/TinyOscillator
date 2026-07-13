@@ -35,6 +35,7 @@ object CollectionNotificationHelper {
     const val SIGNAL_ALERT_NOTIFICATION_ID = 1015
 
     const val BEAR_SIGNAL_NOTIFICATION_ID = 1016
+    const val BEAR_SIGNAL_DAILY_NOTIFICATION_ID = 1017
 
     fun createChannel(context: Context) {
         val channel = NotificationChannel(

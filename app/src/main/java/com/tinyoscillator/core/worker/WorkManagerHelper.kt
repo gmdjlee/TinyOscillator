@@ -4,7 +4,42 @@ import android.content.Context
 import androidx.work.*
 import timber.log.Timber
 import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
+
+/**
+ * [WorkManagerHelper]의 주간(KST) 스케줄링에서 "다음 실행 시각까지 초기 딜레이"만 순수 함수로
+ * 분리한 것 — `Calendar.getInstance()`가 참조하는 "현재 시각" 부작용을 격리해 JVM 테스트로
+ * 결정적 검증이 가능하도록 한다(§6 Phase 5-1, "주간 initialDelay 계산" 분리 요구).
+ *
+ * Calendar의 `DAY_OF_WEEK` 세터는 [nowMillis]가 속한 주(일요일 시작) 안에서 [dayOfWeek]에 해당하는
+ * 날짜로 이동한다(과거로 이동할 수도 있음). 그 결과가 [nowMillis] 이전이면 한 주를 더한다 —
+ * [WorkManagerHelper]의 기존 `scheduleRegimeUpdate`/`scheduleMacroUpdate` 등과 동일한 계산 규약.
+ * `Locale.US`(일요일 시작 주)를 명시 고정해, 기기 로케일이 월요일 시작 주(예: 유럽권)로 설정돼도
+ * "다음 [dayOfWeek]"의 의미가 흔들리지 않도록 한다 — 시간대(Asia/Seoul)를 고정한 것과 같은 취지.
+ *
+ * @return 목표 시각(다음 [dayOfWeek] [hour]:[minute], [zone] 기준)까지의 밀리초 델타(항상 ≥ 0)
+ */
+internal fun calculateWeeklyInitialDelayMillis(
+    nowMillis: Long,
+    zone: TimeZone,
+    dayOfWeek: Int,
+    hour: Int,
+    minute: Int
+): Long {
+    val now = Calendar.getInstance(zone, Locale.US).apply { timeInMillis = nowMillis }
+    val target = Calendar.getInstance(zone, Locale.US).apply {
+        timeInMillis = nowMillis
+        set(Calendar.DAY_OF_WEEK, dayOfWeek)
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, minute)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+        if (before(now)) add(Calendar.WEEK_OF_YEAR, 1)
+    }
+    return target.timeInMillis - now.timeInMillis
+}
 
 object WorkManagerHelper {
 
@@ -69,46 +104,47 @@ object WorkManagerHelper {
     }
 
     /**
-     * 월간 Worker 스케줄 등록. WorkManager의 `PeriodicWorkRequest`는 고정 길이(일수) 간격만 지원하고
-     * 달력상의 "매월 N일"을 정확히 보장하지 않는다(월별 일수 차이로 점진적 드리프트 가능) — 관세청
-     * 무역통계·한국은행 기준금리는 월 1회 발표되고 [BearSignalRepositoryImpl]가 조회 시 전월(lag) 데이터를
-     * 쓰므로, ±수일의 드리프트는 스코어링 정확도에 영향이 없다.
+     * 주간 Worker 스케줄 등록(KST 고정). §6 Phase 5-1에서 BearSignal 워커를 월간→주간으로 전환하며
+     * 신설(과거 `scheduleMonthlyWorker`는 호출자가 0이 되어 제거 — git 이력 참조).
      *
      * flex interval은 의도적으로 쓰지 않는다: flex가 있으면 첫 실행 시각이
      * `initialDelay + (interval − flex)`로 계산되어(WorkSpec.calculateNextRunTime — flex는 각 인터벌의
      * "끝" 구간에서 실행됨) 목표일보다 한 주기 가까이 늦게 시작된다. flex 없이는 첫 실행이 정확히
-     * initialDelay 시점(다음 dayOfMonth hour:minute)이다.
+     * initialDelay 시점(다음 dayOfWeek hour:minute)이다. (기존 `scheduleMonthlyWorker`의 동일 사유를
+     * 그대로 계승 — 30일→7일 간격만 다름.)
+     *
+     * 타임존은 기기 로컬이 아닌 **Asia/Seoul(KST)로 고정**한다: 이 스케줄이 갱신하는 지표(관세청
+     * 무역통계·한국은행 기준금리·FRED/ECOS·KOFIA 신용잔고 등)는 전부 한국 시각 기준 발표 주기에
+     * 앵커링돼 있어, 해외 로밍 등으로 기기 TZ가 바뀌어도 발표 주기와 어긋나지 않아야 한다(2026-07-13
+     * QA MINOR "monthly 스케줄 TZ 미고정" 해소). 기존 [scheduleDailyWorker]류는 사용자 개인 루틴에
+     * 맞춘 시각이라 기기 TZ 관례를 유지한다 — 앱 전역 정책 변경이 아니라 본 헬퍼에 한정된 결정이다.
      */
-    private inline fun <reified W : ListenableWorker> scheduleMonthlyWorker(
+    private inline fun <reified W : ListenableWorker> scheduleWeeklyWorker(
         context: Context,
         workName: String,
         tag: String,
         label: String,
-        dayOfMonth: Int,
+        dayOfWeek: Int,
         hour: Int,
         minute: Int,
         forceUpdate: Boolean = false
     ) {
-        require(dayOfMonth in 1..28) { "dayOfMonth must be 1-28, got $dayOfMonth" }
+        require(dayOfWeek in Calendar.SUNDAY..Calendar.SATURDAY) {
+            "dayOfWeek must be Calendar.SUNDAY(1)-Calendar.SATURDAY(7), got $dayOfWeek"
+        }
         require(hour in 0..23) { "hour must be 0-23, got $hour" }
         require(minute in 0..59) { "minute must be 0-59, got $minute" }
 
-        val now = Calendar.getInstance()
-        val target = Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_MONTH, dayOfMonth)
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            if (before(now)) add(Calendar.MONTH, 1)
-        }
-
-        val initialDelay = target.timeInMillis - now.timeInMillis
+        val seoul = TimeZone.getTimeZone("Asia/Seoul")
+        val initialDelay = calculateWeeklyInitialDelayMillis(
+            nowMillis = System.currentTimeMillis(), zone = seoul, dayOfWeek = dayOfWeek, hour = hour, minute = minute
+        )
 
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<W>(30, TimeUnit.DAYS)
+        val request = PeriodicWorkRequestBuilder<W>(7, TimeUnit.DAYS)
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
@@ -125,8 +161,8 @@ object WorkManagerHelper {
             )
 
         Timber.d(
-            "$label 월간 업데이트 스케줄 등록: 매월 %d일 %02d:%02d (초기 딜레이: %d분, policy=%s)",
-            dayOfMonth, hour, minute, initialDelay / 60000, policy
+            "$label 주간(KST) 업데이트 스케줄 등록: dayOfWeek=%d %02d:%02d (초기 딜레이: %d분, policy=%s)",
+            dayOfWeek, hour, minute, initialDelay / 60000, policy
         )
     }
 
@@ -427,22 +463,40 @@ object WorkManagerHelper {
 
     // ===== BearSignal(주도주 붕괴 판단 계기판) 지표 =====
 
-    /** 매월 [dayOfMonth]일 [hour]:[minute] — 관세청 무역통계·한국은행 기준금리 발표 주기(월 1회)에 맞춤 */
+    /**
+     * [B] 등급 자동 지표(관세청·FRED·ECOS·IPO ETF) + 국가별 지수 수익률 주간 업데이트(§6 Phase 5-1).
+     * 기본값: 매주 월요일([dayOfWeek] = [Calendar.MONDAY]) 06:00 KST — 주말 미국 마감 데이터 반영 후
+     * 새 주의 첫 영업일 아침에 갱신한다. [dayOfWeek]는 `Calendar.SUNDAY`(1)~`Calendar.SATURDAY`(7).
+     */
     fun scheduleBearSignalUpdate(
         context: Context,
-        dayOfMonth: Int = 5,
+        dayOfWeek: Int = Calendar.MONDAY,
         hour: Int = 6,
         minute: Int = 0,
         forceUpdate: Boolean = false
-    ) = scheduleMonthlyWorker<BearSignalUpdateWorker>(
-        context, BearSignalUpdateWorker.WORK_NAME, BearSignalUpdateWorker.TAG, "BearSignal 지표",
-        dayOfMonth, hour, minute, forceUpdate
+    ) = scheduleWeeklyWorker<BearSignalUpdateWorker>(
+        context, BearSignalUpdateWorker.WORK_NAME, BearSignalUpdateWorker.TAG, "BearSignal 지표(주간)",
+        dayOfWeek, hour, minute, forceUpdate
     )
 
     fun cancelBearSignalUpdate(context: Context) =
-        cancelWorker(context, BearSignalUpdateWorker.WORK_NAME, "BearSignal 지표")
+        cancelWorker(context, BearSignalUpdateWorker.WORK_NAME, "BearSignal 지표(주간)")
 
     fun runBearSignalUpdateNow(context: Context) =
-        runWorkerNow<BearSignalUpdateWorker>(context, BearSignalUpdateWorker.MANUAL_WORK_NAME, BearSignalUpdateWorker.TAG, "BearSignal 지표")
+        runWorkerNow<BearSignalUpdateWorker>(context, BearSignalUpdateWorker.MANUAL_WORK_NAME, BearSignalUpdateWorker.TAG, "BearSignal 지표(주간)")
+
+    /**
+     * [A] 등급 자동 지표(신호2 통계·코스피 2사 비중, `kotlin_krx` 일별 시세 기반) 일간 업데이트
+     * (§6 Phase 5-1 신설). 기본값: 매일 06:30 — 06:00 [scheduleFeatureCacheEviction]과 겹치지 않도록
+     * 분산 배치.
+     */
+    fun scheduleBearSignalDailyUpdate(context: Context, hour: Int = 6, minute: Int = 30, forceUpdate: Boolean = false) =
+        scheduleDailyWorker<BearSignalDailyUpdateWorker>(context, BearSignalDailyUpdateWorker.WORK_NAME, BearSignalDailyUpdateWorker.TAG, "BearSignal 지표(일간)", hour, minute, forceUpdate)
+
+    fun cancelBearSignalDailyUpdate(context: Context) =
+        cancelWorker(context, BearSignalDailyUpdateWorker.WORK_NAME, "BearSignal 지표(일간)")
+
+    fun runBearSignalDailyUpdateNow(context: Context) =
+        runWorkerNow<BearSignalDailyUpdateWorker>(context, BearSignalDailyUpdateWorker.MANUAL_WORK_NAME, BearSignalDailyUpdateWorker.TAG, "BearSignal 지표(일간)")
 
 }
