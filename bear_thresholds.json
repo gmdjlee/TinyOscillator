@@ -1,0 +1,38 @@
+{
+  "version": "1.2",
+  "basis": "신영증권 「주도주의 물리학」 2026.6.30",
+  "note": "임계치 단일 출처(SSOT). React(bear_signal_dashboard.jsx)와 Kotlin 엔진이 이 파일을 공유한다. 리포트 개정 시 이 파일만 교체하고 version을 올린다. 값 변경은 스코어링 의미론 변경이므로 근거(리포트 도표) 명시 후에만 수행.",
+
+  "s1": {
+    "manyCountries": 7,
+    "deepPct": -12.0,
+    "deepeningPct": -6.0
+  },
+  "s2": {
+    "redLine": 1.0,
+    "warnLine": 0.95,
+    "watchLine": 0.7
+  },
+  "s3": {
+    "loss1": 45.0,
+    "loss2": 60.0,
+    "loss3": 80.0
+  },
+  "gate": {
+    "critical": 4.5,
+    "approach": 4.0,
+    "creditWarn": 35.0
+  },
+  "amp": {
+    "semiExport": 20.0,
+    "kospi2": 50.0,
+    "wSemi": 0.15,
+    "wKospi2": 0.15,
+    "wNoBuffer": 0.20,
+    "cap": 1.6
+  },
+  "phase": {
+    "leadOrange": 6,
+    "leadAmber": 3
+  }
+}
