@@ -26,17 +26,24 @@ import com.tinyoscillator.feature.bearsignal.domain.model.Depth
 import com.tinyoscillator.feature.bearsignal.domain.model.SignalLevel
 
 /**
- * 섹션 2 · 선행 신호 3 카드 (TASK.md §5.2-2, 부록 B #1) — 신호1/2/3 게이지 + 레벨 칩 + 자동값/근거.
+ * 섹션 2 · 선행 신호 3 카드 (TASK_bear_signal_console.md §5.2-2, 부록 B #1) — 신호1/2/3 게이지 + 레벨 칩 + 자동값/근거.
  *
  * 신호1(국가별 수익률)은 §5.2 섹션3 표에서 인라인 편집하고, 신호2(±3σ 통계)는 [A] 완전자동으로
  * 수동 오버라이드 경로가 없다(§1.1). 신호3만 [C]/[D] 등급 수동 입력 경로(loss/big)가 있어
  * "수동 입력" 버튼을 노출한다.
+ *
+ * @param manyCountriesBreached 신호1 "이탈국 다수" 강조 플래그(§3.0 retrofit 후속) —
+ * `result.ma.neg >= BearThresholds.s1.manyCountries`를 ViewModel에서 미리 계산해 전달한다.
+ * @param deepeningBreached 신호1 "낙폭 심화" 강조 플래그 — `result.ma.worstNew <= BearThresholds.s1.deepeningPct`.
+ * 둘 다 컴포저블이 §3 임계치를 직접 비교하지 않도록 한다(§7 "config 구동").
  */
 @Composable
 fun BearSignalLeadingSignalsSection(
     inputs: BearSignalInputs,
     result: BearSignalResult,
     auto: AutoBearSignalInputs?,
+    manyCountriesBreached: Boolean,
+    deepeningBreached: Boolean,
     onManualInputClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -50,8 +57,8 @@ fun BearSignalLeadingSignalsSection(
         ) {
             ReadoutRow(
                 listOf(
-                    Triple("이탈 지수 수", "${result.ma.neg} / 20", if (result.ma.neg >= 7) levelColor(2) else MaterialTheme.colorScheme.onSurfaceVariant),
-                    Triple("신규 이탈 최저 낙폭", "${"%.1f".format(result.ma.worstNew)}%", if (result.ma.worstNew <= -6) levelColor(2) else MaterialTheme.colorScheme.onSurfaceVariant),
+                    Triple("이탈 지수 수", "${result.ma.neg} / 20", if (manyCountriesBreached) levelColor(2) else MaterialTheme.colorScheme.onSurfaceVariant),
+                    Triple("신규 이탈 최저 낙폭", "${"%.1f".format(result.ma.worstNew)}%", if (deepeningBreached) levelColor(2) else MaterialTheme.colorScheme.onSurfaceVariant),
                     Triple("낙폭 판정", depthLabel(result.ma.depth), levelColor(result.s1))
                 )
             )

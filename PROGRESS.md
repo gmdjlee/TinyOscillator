@@ -1,10 +1,32 @@
 # PROGRESS — BearSignal 이식 진행 기록
 
-> 근거: `TASK.md` (「주도주 붕괴 판단 계기판」 이식 명세서 v1.0). 각 Phase 완료 시 `PROGRESS:` 마커 갱신.
+> 근거: `TASK_bear_signal_console.md` (「주도주 붕괴 판단 계기판」 이식 명세서 **v1.2**). 각 Phase 완료 시 `PROGRESS:` 마커 갱신. 실행 순서는 `PHASE_RUNBOOK.md`.
 
-PROGRESS: P5 — 구현 마감·에뮬레이터 QA 1차 통과·잔여 QA 대기(WorkManager 월간 주기 갱신(`BearSignalUpdateWorker`, 매월 5일 06:00) + 앱 시작 시 스케줄 복원 + shimmer 로딩(`BearSignalScreenSkeleton`) + 오프라인 폴백(`NetworkUtils`+`StaleBanner`, 캐시 데이터 유지+최신 갱신일 표기) + 접근성 최종 점검(신호1~4/증폭 카드·국가별 표 행 contentDescription 보강, 48dp 터치 타깃/색+텍스트 병기 확인) + JVM 테스트 신규 `feature.bearsignal` 패키지 +3건(ViewModel isLoading/isOffline, 총 226건) + `core.worker` 패키지 +6건(`BearSignalUpdateWorkerTest` companion 상수·알림ID 유일성·스케줄 입력 검증), 2026-07-10; 에뮬레이터 실기 QA 1차 통과 2026-07-10 — 하단 「실기 QA」 절 참조, 잔여: 360dp/다크/폰트스케일 렌더·월간 워커 실발화·관세청/FRED 실키·스펙 조정 2건; Stooq 대체 소스 결정은 2026-07-10 Yahoo 기본+Stooq 백업 멀티소스로 해소 — 하단 「시세 소스 교체」 절 참조)
+## v1.2 재편성 노트 (2026-07-12)
 
-PROGRESS: P4 — 완료 (UI 조립 — `BearSignalScreen` LazyColumn 7섹션(헤더·선행신호3카드·국가별수익률표(전치)·방아쇠증폭·3유형·역사검증·푸터) + Canvas 신호등/게이지/레이더 + `ObserveBearSignalStateUseCase` 신규 + 시장분석 탭 진입점 카드 + Pull-to-refresh/리셋/수동입력 BottomSheet 연결 + JVM 테스트 18건 신규(총 223건), 2026-07-10)
+명세가 v1.0 → v1.2로 개정되며 Phase 번호가 재편성됐다(`TASK_bear_signal_console.md` §6). 혼동 방지를 위해 **v1.0 구계획의 P4(UI 조립)·P5(폴리시) 마커는 `P4(v1.0-UI)`/`P5(v1.0-폴리시)`로 재태깅** — 아래 상세 절 내용은 유효한 완료 기록이다. v1.2 기준 매핑:
+
+| v1.2 Phase | 상태 | 비고 |
+|---|---|---|
+| P0~P3 | 완료(마커 유지) | v1.0과 범위 동일. P3 핵심 화면은 구 P4(v1.0-UI)가 충족 |
+| §3.0 임계치 외부화 | **완료(retrofit)** | BearThresholds 주입 — 하단 「임계치 외부화 (v1.2 §3.0 retrofit)」 절 참조 |
+| P3.5-1 | **완료** | Room 스냅샷 이력 영속(`bear_snapshot`, Room v37) + 국면/방아쇠 전이 감지 — 하단 「Phase 3.5-1 상세」 절 참조 |
+| P3.5 | **잔여** | Sparkline·TransitionLog(ViewModel/UI 조립) — P3.5-1 인프라 위에 구축 |
+| P4 (웹/LLM 갱신+승인) | **잔여** | §4.5 신설 — 구 P4(v1.0-UI)와 별개 |
+| P5-1 | 대부분 충족 | 구 P5(v1.0-폴리시)가 접근성·오프라인·shimmer·워커 기충족. 델타: 진입 시 신선도 검사, 워커 주기(월간↔일/주 Tier) 조정 판단 |
+| P5-2 (QA) | 잔여 | qa-verifier — §7 v1.2 확장 항목 포함 |
+
+기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수.
+
+PROGRESS: P3.5-1 — 완료 (Room 스냅샷 이력 영속(`BearSnapshotEntity`/`BearSnapshotDao`, Room v36→v37) +
+`SnapshotRepository`/`SnapshotRepositoryImpl` + `DetectTransitionsUseCase`(국면·방아쇠 전이 감지) +
+`BuildBearSnapshotUseCase`(§4.6 bear-snapshot/1 스키마 직렬화) + `EvaluateSnapshotFreshnessUseCase`(세션
+진입 신선도 "제안", 자동 반영 없음) + JVM/Robolectric 테스트 36건 신규(총 284건), 2026-07-13 —
+하단 「Phase 3.5-1 상세」 절 참조)
+
+PROGRESS: P5(v1.0-폴리시) — 구현 마감·에뮬레이터 QA 1차 통과·잔여 QA 대기(WorkManager 월간 주기 갱신(`BearSignalUpdateWorker`, 매월 5일 06:00) + 앱 시작 시 스케줄 복원 + shimmer 로딩(`BearSignalScreenSkeleton`) + 오프라인 폴백(`NetworkUtils`+`StaleBanner`, 캐시 데이터 유지+최신 갱신일 표기) + 접근성 최종 점검(신호1~4/증폭 카드·국가별 표 행 contentDescription 보강, 48dp 터치 타깃/색+텍스트 병기 확인) + JVM 테스트 신규 `feature.bearsignal` 패키지 +3건(ViewModel isLoading/isOffline, 총 226건) + `core.worker` 패키지 +6건(`BearSignalUpdateWorkerTest` companion 상수·알림ID 유일성·스케줄 입력 검증), 2026-07-10; 에뮬레이터 실기 QA 1차 통과 2026-07-10 — 하단 「실기 QA」 절 참조, 잔여: 360dp/다크/폰트스케일 렌더·월간 워커 실발화·관세청/FRED 실키·스펙 조정 2건; Stooq 대체 소스 결정은 2026-07-10 Yahoo 기본+Stooq 백업 멀티소스로 해소 — 하단 「시세 소스 교체」 절 참조)
+
+PROGRESS: P4(v1.0-UI) — 완료 (UI 조립 — `BearSignalScreen` LazyColumn 7섹션(헤더·선행신호3카드·국가별수익률표(전치)·방아쇠증폭·3유형·역사검증·푸터) + Canvas 신호등/게이지/레이더 + `ObserveBearSignalStateUseCase` 신규 + 시장분석 탭 진입점 카드 + Pull-to-refresh/리셋/수동입력 BottomSheet 연결 + JVM 테스트 18건 신규(총 223건), 2026-07-10)
 
 PROGRESS: P3 — 완료 ([C]/[D] 수동 입력 계층(신용잔고·적자상장비중·신주비중·대어소화·정책방향·반대매매임박·미커버 해외지수) + auto⊕manual 병합(MANUAL 우선) + 리포트 기준값 리셋 + Room v36 + JVM 테스트 46건 신규(총 205건), 2026-07-10)
 
@@ -13,6 +35,92 @@ PROGRESS: P2 — 완료 ([B] 자동 연동 4지표(관세청 수출비중·FRED/
 PROGRESS: P1 — 완료 ([A] 자동 연동 2지표(신호2 통계·코스피 2사 비중) + Room v34 + JVM 테스트 29건 신규(총 70건), 2026-07-09)
 
 PROGRESS: P0 — 완료 (스캐폴딩·도메인 모델·순수 스코어링·JVM 테스트 41건, 2026-07-09; 시드 데이터 정정 2026-07-09 점검)
+
+## 임계치 외부화 (v1.2 §3.0 retrofit) — 완료 (2026-07-12)
+
+기존 하드코딩 스코어링 임계치를 `bear_thresholds.json`(리포지토리 루트 SSOT, 값은 `app/src/main/assets/bear_thresholds.json` 사본과 사전 검증상 100% 동일)에서 로드해 생성자 주입하는 retrofit. 신규 기능 추가 없음, 값 변경 0.
+
+- **변경 파일**
+  - 신규: `app/src/main/java/com/tinyoscillator/feature/bearsignal/domain/model/BearThresholds.kt`(§3.0 데이터클래스, `@Serializable`), `app/src/main/java/com/tinyoscillator/feature/bearsignal/data/local/ThresholdsProvider.kt`(assets 로드 + Context 비의존 `decode()` 순수 함수)
+  - 수정: `ComputeBearSignalUseCase.kt`(companion 정적 함수 전부 인스턴스 메서드화, 생성자 `(private val t: BearThresholds)` 주입, `analyzeMarkets`/`scoreS1`~`scoreS3`/`scoreGate`/`amplifier`/`invoke`의 리터럴 임계치를 `t.*` 참조로 치환), `BearSignalModule.kt`(`ThresholdsProvider`/`BearThresholds`/`ComputeBearSignalUseCase` Hilt 프로바이더 갱신), `BearSignalViewModel.kt`(콜드스타트 `DEFAULT_RESULT` 재구성 — 아래 결정 사항 참조)
+  - 테스트 신규: `app/src/test/java/.../domain/model/BearThresholdsFixture.kt`(JSON 리터럴 미러 fixture), `app/src/test/java/.../data/local/ThresholdsProviderTest.kt`(디코딩 3건)
+  - 테스트 수정: `ComputeBearSignalUseCaseTest.kt`(companion static import → `useCase` 인스턴스 위임 래퍼로 전환 + config 구동 3건 추가), `ObserveBearSignalStateUseCaseTest.kt`, `MergeBearSignalInputsUseCaseTest.kt`, `BearSignalViewModelTest.kt`(전부 `ComputeBearSignalUseCase(BearThresholdsFixture.DEFAULT)`로 전환)
+  - KDoc `TASK.md §N` → `TASK_bear_signal_console.md §N` 갱신: `BearSignalViewModel.kt`, `BearSignalModule.kt`, `MergeBearSignalInputsUseCaseTest.kt`, `BearSignalViewModelTest.kt`(수정한 파일에 한함)
+
+- **레이어별 요약**
+  - **domain**: `BearThresholds`(+ 중첩 S1/S2/S3/Gate/Amp/PhaseCfg, kotlinx.serialization 코어 어노테이션만 사용해 안드로이드 무의존 유지) 신규. `ComputeBearSignalUseCase`는 companion object 없이 전부 public 인스턴스 메서드(`analyzeMarkets`/`scoreS1`/`scoreS2`/`scoreS3`/`scoreGate`/`amplifier`/`invoke`)로 전환, 전 임계치 참조를 `t.s1.manyCountries` 등으로 치환. 구조 상수(leadPct 분모 9.0, scoreS2 up==0 폴백 9.0, 레벨 0~3, `dir=="hike"` 문자열 비교)는 리터럴 유지(주입 대상 아님, KDoc 명시).
+  - **data**: `ThresholdsProvider(context, json)` — `load()`는 `context.assets.open("bear_thresholds.json")` 읽어 `decode()`에 위임. `decode(content, json)`는 companion 순수 함수로 Context 없이 JVM 테스트 가능. `Json { ignoreUnknownKeys = true }` 기본값(기존 앱 전역 파싱 관례 — `KiwoomApiClient.createDefaultJson()` 등과 동일 패턴)으로 JSON의 `note` 등 스코어링 무관 필드를 흡수.
+  - **presentation**: `BearSignalModule`에 `provideThresholdsProvider`(Context 필요) → `provideBearThresholds`(`@Singleton`, 앱 기동 시 1회 로드) → `provideComputeBearSignalUseCase(thresholds)` 체인 추가. `BearSignalViewModel`의 top-level `DEFAULT_RESULT`(stateIn 콜드스타트 초기값, Room 4-Flow 최초 방출 전에만 노출되고 `isLoading=true` 구간에서 화면은 스켈레톤으로 대체 렌더)는 `ComputeBearSignalUseCase()` 무인자 호출이 불가능해졌으므로, 재계산 대신 리포트 골든 케이스(2026.6.30)의 **알려진 결과값**을 `BearSignalResult` 리터럴로 직접 스냅샷하도록 재작성(§3 스코어링 로직 자체에는 임계치 하드코딩 없음, 값만 결과 스냅샷).
+
+- **결정 사항**
+  1. companion 정적 함수 → 인스턴스 메서드 전환(파라미터 추가 대신)을 채택 — TASK.md §3.0 스켈레톤(`class ComputeBearSignalUseCase(private val t: BearThresholds) { ... }`)이 명시한 목표 형태와 직접 일치. 기존 테스트(companion static import로 `scoreS1(...)` 등을 직접 호출)는 `useCase.scoreS1(...)`에 위임하는 동일 시그니처 `private fun` 래퍼로 감싸 테스트 본문(약 40개 assert) 무변경 유지.
+  2. `BearSignalViewModel.kt`의 콜드스타트 `DEFAULT_RESULT`는 임계치를 프로덕션 코드에 재하드코딩하지 않기 위해 `ComputeBearSignalUseCase` 호출 자체를 제거하고, 리포트 골든 케이스의 알려진 결과값(s1=1,s2=1,s3=1,gate=1,amp=1.30,phase=AMBER 등)을 `BearSignalResult` 리터럴로 직접 구성했다. 이 값은 `isLoading=true` 구간에만 노출되고 화면은 스켈레톤을 렌더하므로 사용자에게 실질적 영향이 없으며, `BearSignalViewModelTest`의 "초기 uiState 기본값은 리포트 기준값 골든 케이스(AMBER)다" 테스트를 무변경으로 통과시킨다.
+  3. config 구동(§7) 증명 중 "골든 케이스가 AMBER→GREEN으로 바뀐다" 예시는 실제 2026.6.30 리포트 골든 입력(`dir="hike"`)으로는 수학적으로 불가능함을 확인했다 — `scoreGate`의 `else -> if (dir=="hike") 1 else 0` 분기는 `BearThresholds`에 없는 구조 상수(문자열 비교)라 어떤 임계치 조합으로도 `gate`를 0으로 내릴 수 없고, `composite`의 `gate>=1` OR-절 때문에 phase는 항상 최소 AMBER로 고정된다. 대신 (a) 기존 `composite — lead 3 그리고 gate 0이면 AMBER` 테스트와 동일한 합성 입력(`gate=0`)에 `leadAmber`를 3→10으로 올려 AMBER→GREEN 전환을 코드 무수정으로 증명하고, (b) 실제 골든 마켓 데이터(20지수)에 `s1.manyCountries`를 7→20으로 올려 서브스코어 `s1`이 1→0으로 바뀜을 별도로 증명해 "골든 케이스도 config에 반응한다"는 사실을 함께 보강했다.
+
+- **테스트 결과**
+  - `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` — **246건, 0 실패**(기존 240건 회귀 통과 + 신규 6건: `ThresholdsProviderTest` 3건 + `ComputeBearSignalUseCaseTest` config 구동 3건). `ComputeBearSignalUseCaseTest`는 41건(P0)→44건(41 기존 + config 구동 신규 3건).
+  - 골든 케이스(`BearThresholdsFixture.DEFAULT`로 구성한 `ComputeBearSignalUseCase`가 도표48 20지수 입력에 대해 s1=1/s2=1/s3=1/gate=1/amp=1.30/phase=AMBER) 무변경 재현 확인.
+  - 신규 config 구동 테스트: (a) fixture JSON 문자열 디코딩 → 전 필드값 단언(`ThresholdsProviderTest`), (b) `leadAmber` 3→10 주입 시 동일 입력이 AMBER→GREEN(`ComputeBearSignalUseCaseTest`), (c) `gate.critical` 4.5→5.0 주입 시 `rate=4.5`가 3이 아니라 2로 하향(`ComputeBearSignalUseCaseTest`), 보강: `s1.manyCountries` 7→20 주입 시 실제 골든 마켓 데이터의 `s1`이 1→0(`ComputeBearSignalUseCaseTest`).
+
+- **빌드**: `:app:compileDebugKotlin` BUILD SUCCESSFUL / `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` BUILD SUCCESSFUL(246/246) / `:app:assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 검증 겸용 — `ThresholdsProvider`→`BearThresholds`→`ComputeBearSignalUseCase` 프로바이더 체인 정상 해석).
+- **미해결/차단 요소**: 없음. `bear_thresholds.json`(루트) ↔ `app/src/main/assets/bear_thresholds.json` 값은 diff 확인상 완전 동일(변경하지 않음). 다음 Phase(P3.5-1 Room 스냅샷 이력)는 이 retrofit과 독립적으로 착수 가능.
+
+### 후속 수정 — presentation 계층 잔존 하드코딩 제거 (2026-07-13)
+
+QA 검증 결과 §3 임계치가 presentation 계층에 3곳 복제돼 있음을 확인(§7 "config 구동" 위반). 스위프로 1건 추가 발견(총 4곳), 전부 수정.
+
+- **발견 및 수정 (총 4곳, 전부 `s1` 임계치 복제)**
+  1. `BearSignalCountryTableSection.kt:84` — `result.ma.neg >= 7`(강조 배경색) → `s1.manyCountries` 복제
+  2. `BearSignalCountryTableSection.kt:91` — `result.ma.neg >= 7`(텍스트 색) → 동일
+  3. `BearSignalLeadingSignalsSection.kt:53` — `result.ma.neg >= 7`(이탈 지수 수 색) → 동일
+  4. `BearSignalLeadingSignalsSection.kt:54` — `result.ma.worstNew <= -6`(낙폭 색, 스위프로 신규 발견) → `s1.deepeningPct` 복제. 원 QA 목록엔 없었으나 동일 파일·동일 신호(신호1)·동일 결함 유형(§3 값 복제)이라 1~3과 함께 수정.
+
+- **변경 파일**
+  - `presentation/BearSignalViewModel.kt` — 생성자에 `thresholds: BearThresholds` 추가(기존 `BearSignalModule.provideBearThresholds` 싱글턴 그대로 재사용, 신규 Hilt 배선 불요). `BearSignalUiState`에 `manyCountriesBreached`/`deepeningBreached: Boolean` 파생 플래그 추가 — `combine{}` 람다와 `stateIn` 콜드스타트 초기값(`DEFAULT_RESULT` + 주입된 `thresholds`로 계산, 재하드코딩 없음) 양쪽에서 산출.
+  - `presentation/ui/BearSignalCountryTableSection.kt` — `manyCountriesBreached: Boolean` 파라미터 추가, 리터럴 비교 2곳을 파라미터 참조로 치환.
+  - `presentation/ui/BearSignalLeadingSignalsSection.kt` — `manyCountriesBreached`/`deepeningBreached: Boolean` 파라미터 추가, 리터럴 비교 2곳을 파라미터 참조로 치환.
+  - `presentation/ui/BearSignalScreen.kt` — 두 Section 호출부에 `uiState.manyCountriesBreached`/`uiState.deepeningBreached` 전달.
+  - 테스트 수정: `BearSignalViewModelTest.kt` — 생성자 호출 2곳에 `thresholds` 인자 추가(테스트별 교체 가능한 `private var thresholds` 도입), 골든 케이스 단언에 `manyCountriesBreached=true`/`deepeningBreached=false` 추가, config 구동 신규 2건.
+
+- **데이터 흐름 결정**: "권장 옵션" 중 파생 불리언 노출을 채택(원값/`BearThresholds` 객체 자체를 UiState에 얹는 대신). Section 컴포저블이 도메인 `BearThresholds` 타입을 몰라도 되고(결합도 최소화), ViewModel 한 곳에서만 임계치를 참조하면 되므로 "최소 변경" 기준에 부합. `BearThresholds`는 Hilt가 `BearSignalViewModel` 생성자에 싱글턴으로 주입(기존 `ComputeBearSignalUseCase`와 동일한 프로바이더 재사용) — UI 컴포저블은 Hilt를 전혀 참조하지 않음(기존 패턴 준수).
+
+- **추가 스위프 결과 (패턴: `>= 4.0/4.5/35/45/60/80/0.7/0.95`, `> 1.0`, `>= 20/50`, `>= 3/6`)**
+  - 위 4곳 외 §3 임계치(JSON 필드) 값 비교 로직 **잔존 없음**. 다음은 검토했으나 JSON 필드의 직접 복제가 아니라 조치 불요로 판단(발견 목록 보고):
+    - `BearSignalGateAmpSection.kt:92`, `BearSignalHeaderSection.kt:101` — `result.amp >= 1.3`: `1.3`은 `bear_thresholds.json`의 어떤 필드값도 아니며(가장 가까운 값은 `amp.cap=1.6`), domain `amplifier()`에도 `>=1.3` 분기가 없다(도메인은 연속값 1.0~1.6만 산출) — 순수 UI 전용 강조 컷오프. 단, `1.0+wSemi+wKospi2`(현재 0.15+0.15=0.30)와 우연히 일치해 향후 가중치가 바뀌면 시각적 의미가 stale해질 수 있다는 점은 리스크로 기록(§3.0 스코프 밖이라 이번 수정 대상에서는 제외).
+    - `BearSignalHeaderSection.kt:106` — `result.warn >= 2`: `warn`은 `count{ it>=2 }`로 이미 도메인에서 산출된 파생값이고, 비교 대상 `2`는 JSON 필드가 아니라 레벨 상수(WARN=2) — §3.0에서 이미 예외 처리한 "레벨 0~3 자체는 로직 구조" 범주와 동일해 조치 불요.
+    - `BearSignalTypesHistorySection.kt:41` — `gate >= 1`: 도메인 `composite()`의 `gate>=1` OR-절(구조 상수, JSON에 없음)과 동일한 구조적 비교 — 조치 불요.
+    - `BearSignalLeadingSignalsSection.kt:79`(구 72) — `inputs.up == 0`: 도메인 `scoreS2`의 `up==0` 폴백과 동일한 구조 상수(0으로 나눔 방지, §3.0에서 명시적으로 주입 대상 제외) — 조치 불요.
+    - 정적 인용 카피("임계 4.5% = 진짜 긴축", "≈4.5%", "닷컴 정점 직전 1개월 = 7개국") — 로직 비교가 아니라 리포트 해설 문구, §3.0 범위 밖.
+
+- **테스트 결과**: `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` — **248건, 0 실패**(기존 246건 + 신규 2건: `BearSignalViewModelTest`의 config 구동 테스트 — `manyCountries` 7→20 주입 시 골든 상태의 `manyCountriesBreached`가 true→false, `deepeningPct` -6.0→-5.0 주입 시 `deepeningBreached`가 false→true). `BearSignalViewModelTest`는 13건→15건.
+- **빌드**: `:app:compileDebugKotlin` BUILD SUCCESSFUL / `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` BUILD SUCCESSFUL(248/248) / `:app:assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 재검증 — `BearSignalViewModel` 신규 `BearThresholds` 파라미터 정상 해석).
+
+## Phase 3.5-1 상세 — Room 스냅샷 이력 영속 + 국면·방아쇠 전이 감지 (2026-07-13)
+
+TASK_bear_signal_console.md §6.1 구현 범위 중 "Room 스냅샷 이력 영속 + 전이 감지" 인프라(P3.5-1).
+Sparkline/TransitionLog(ViewModel/UI 조립)는 후속 `P3.5` 마커로 이연 — PROGRESS.md 재편성 테이블의
+Phase 3.5 행이 P3.5-1/P3.5 두 마커로 나뉘어 있는 것과 동일한 분리.
+
+- **변경/추가 파일**
+  - 신규(domain): `domain/model/BearSnapshotModels.kt`(`BearSnapshot`, `TransitionKind`/`PhaseChange`/`GateAdvance`/`Transition`, `ValueSource`, `FieldSource`, `SnapshotUpdateSuggestion`), `domain/model/BearSnapshotPayload.kt`(`SnapshotInputsPayload`/`SnapshotMarketEntry`/`SnapshotFieldMetaEntry` — §4.6 JSON 스키마 DTO), `domain/repository/SnapshotRepository.kt`, `domain/usecase/DetectTransitionsUseCase.kt`, `domain/usecase/BuildBearSnapshotUseCase.kt`, `domain/usecase/EvaluateSnapshotFreshnessUseCase.kt`
+  - 신규(data): `data/local/BearSnapshotEntity.kt`, `data/local/BearSnapshotDao.kt`, `data/mapper/BearSnapshotMapper.kt`, `data/repository/SnapshotRepositoryImpl.kt`
+  - 수정: `domain/model/BearSignalReportBaseline.kt`(`CONFIG_BASIS = "신영 2026.6.30"` 상수 추가), `di/BearSignalModule.kt`(`SnapshotRepository`/`DetectTransitionsUseCase`/`BuildBearSnapshotUseCase`/`EvaluateSnapshotFreshnessUseCase` Hilt 프로바이더 추가), `core/database/AppDatabase.kt`(`BearSnapshotEntity`/`BearSnapshotDao` 추가, v36→v37), `core/database/migration/AppDatabaseMigrations.kt`(`MIGRATION_36_37` 추가), `core/di/DaoModule.kt`(`provideBearSnapshotDao` 추가)
+  - 테스트 신규: `domain/usecase/DetectTransitionsUseCaseTest.kt`(10), `domain/usecase/BuildBearSnapshotUseCaseTest.kt`(3), `domain/usecase/EvaluateSnapshotFreshnessUseCaseTest.kt`(5), `data/mapper/BearSnapshotMapperTest.kt`(3), `data/local/BearSnapshotDaoInMemoryTest.kt`(6), `data/repository/SnapshotRepositoryImplTest.kt`(6), `core/database/migration/Migration36To37Test.kt`(3)
+
+- **레이어별 요약**
+  - **domain**: `BearSnapshot`은 §6.1 코드 블록의 Entity와 1:1 필드(day/phase/lead/gate/s1/s2/s3/amp/configBasis/inputsJson/fieldMetaJson/createdAt)를 그대로 가진 도메인 표현. `DetectTransitionsUseCase`는 §6.1 의사코드를 문자 그대로 구현(국면 변화는 방향 무관, gate는 **상승**만 기록). `BuildBearSnapshotUseCase`는 `ObserveBearSignalStateUseCase.State`(inputs/result/auto/manual)를 §4.6 `inputs`/`field_meta` 서브 스키마로 직렬화한다 — `field_meta`는 `MergeBearSignalInputsUseCase`의 실제 병합 우선순위(MANUAL 〉 AUTO 〉 BASELINE)를 병합 로직 재구현 없이 `auto`/`manual` 원본에서 역산한다. `EvaluateSnapshotFreshnessUseCase`는 최신 스냅샷 `day`가 "오늘"보다 이전일 때만 `SnapshotUpdateSuggestion`을 반환하는 순수 비교 함수 — 어떤 Room 캐시도 갱신하지 않는다(승인 원칙).
+  - **data**: `BearSnapshotEntity`/`BearSnapshotDao`는 §6.1 코드 블록을 그대로 구현(`@Upsert`, `day` PK, `observeLatest`/`observeRange`/`latest`). `SnapshotRepositoryImpl`은 `BearSnapshotMapper`로 Entity↔domain 변환 후 Dao에 위임하는 얇은 어댑터.
+  - **presentation**: 이번 Phase는 미변경(ViewModel/UI 조립은 `P3.5`로 이연 — 하드 게이트가 domain/data 계층 테스트만 요구하고, Sparkline/TransitionLog는 명세상 별도 마커이므로 이번 세션은 인프라만 완결해 블라스트 반경을 좁혔다).
+
+- **결정 사항**
+  1. **`ValueSource.SNAPSHOT` 미사용**: §4.6 예시는 `s2_up`에 `"source": "SNAPSHOT"`을 쓰지만, 현재 도메인의 `AutoIndicator.source`는 AUTO/MANUAL 2종만 구분해 "이 앱이 오늘 직접 수집" vs "외부 API의 오래된 값"을 구분할 근거가 없다. `ValueSource` enum 자체는 4종(§4.6 그대로) 정의하되, `BuildBearSnapshotUseCase`는 AUTO/MANUAL/BASELINE 3종만 산출하도록 범위를 좁히고 KDoc에 근거를 명시했다(`SNAPSHOT` 세분화는 §4.5 웹/LLM tier, Phase 4에서 재검토).
+  2. **`origin` 값은 필드별 정적 상수**: 인스턴스별 실제 티커/엔드포인트를 전부 추적하려면 수집 파이프라인 전반의 재배선이 필요해 범위를 벗어난다. 필드별로 고정된 파이프라인 식별 문자열(예: `s2_up`→`kotlin_krx:KS11`, `s4_rate`→`FRED:DFEDTARU`, MANUAL→`user`, BASELINE→`report_baseline`)을 사용했다 — §4.6 스키마 *구조*(키·값 형식)는 그대로 유지하면서 값의 정밀도만 낮춘 의도적 절충.
+  3. **마이그레이션 테스트는 `MigrationTestHelper` 대신 raw `SupportSQLiteDatabase` 직접 호출**: 프로젝트에 Room 스키마 asset 배선(`sourceSets.test.assets`) 선례가 없어, 신규 배선 리스크를 피하고자 `AppDatabaseMigrations.ALL`에서 `startVersion==36 && endVersion==37`로 실제 프로덕션 `Migration` 객체를 찾아 raw DB에 직접 `.migrate(db)` 호출하는 방식을 채택(`MIGRATION_36_37`은 파일-private이라 이름으로 직접 참조 불가 — 배열 필터링 필수). 기존 테이블(`bear_signal_auto_cache`) 데이터 보존 + 신규 테이블 컬럼 정확성(스키마 export `37.json`의 `createSql`과 문자 단위 일치 확인 완료)을 결정적으로 검증한다.
+  4. **세션 진입 "state:latest 저장/로드" 범위**: `SnapshotRepository.upsertToday`(저장)/`observeLatest`·`latestOrNull`(로드) + `EvaluateSnapshotFreshnessUseCase`(신선도 "제안")까지 domain/data 계층에 완결했다. `BearSignalViewModel`이 실제로 `upsertToday`를 호출(예: refresh 성공 시 오늘자 스냅샷 저장)하고 `EvaluateSnapshotFreshnessUseCase` 결과를 `BearSignalUiState`에 노출하는 배선은 **P3.5**(Sparkline/TransitionLog 조립)로 이연했다 — 근거: (a) TASK.md §6.2 마커 순서가 `P3.5-1 → P3.5`로 명시적으로 분리돼 있고 §6.1 상세의 "구현 범위" 마지막 항목("프레젠테이션: Sparkline+TransitionLog")이 P3.5 몫으로 별도 기술됨, (b) 이번 세션의 하드 게이트(Room in-memory/DetectTransitionsUseCase/마이그레이션 테스트)가 domain/data만 요구, (c) `combine()` 4-Flow에 5번째 Flow를 추가하는 ViewModel 변경은 최소 변경 원칙에 부합하지 않아 P3.5에서 Sparkline 데이터 흐름과 함께 한 번에 배선하는 것이 안전.
+
+- **테스트 결과**: `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*" --tests "com.tinyoscillator.core.database.migration.*"` — **284건, 0 실패**(기존 248건 회귀 통과 + 신규 36건: `DetectTransitionsUseCaseTest` 10 — 국면 변화/gate 상승/무변화·동시발생·양방향 국면전이·다중스냅샷 경계 포함, `BuildBearSnapshotUseCaseTest` 3 — 골든케이스(전 필드 BASELINE, AMBER 재현) + AUTO 필드 채움 + MANUAL이 AUTO보다 우선(dir 3단), `EvaluateSnapshotFreshnessUseCaseTest` 5 — 이력없음/오늘과 동일/오래됨/경계값(하루 차이)/미래(방어), `BearSnapshotMapperTest` 3 — 왕복 변환, `BearSnapshotDaoInMemoryTest` 6 — 동일 day upsert 덮어쓰기·observeRange 오름차순·양끝 경계 포함·latest, `SnapshotRepositoryImplTest` 6 — 위임·매핑·null 처리, `Migration36To37Test` 3 — 기존 데이터 보존·신규 테이블 컬럼 정확성·PK 유일성).
+- **빌드**: `:app:compileDebugKotlin` BUILD SUCCESSFUL / `:app:compileDebugUnitTestKotlin` BUILD SUCCESSFUL / `:app:testDebugUnitTest`(위 필터, 284/284) BUILD SUCCESSFUL / `:app:assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 검증 겸용 — `SnapshotRepository`→`SnapshotRepositoryImpl`, `BearSnapshotDao` 프로바이더 체인 정상 해석). 스키마 `app/schemas/.../37.json` 자동 export 확인 — `bear_snapshot` `createSql`이 수기 마이그레이션 SQL과 문자 단위 일치.
+- **미해결/차단 요소**: 없음. `BearSignalViewModel`/`BearSignalScreen`에 스냅샷 저장·신선도 제안 배선 + Sparkline/TransitionLog Canvas 컴포넌트는 `P3.5`에서 착수(위 결정 사항 4 참조). 그 다음은 `P4`(§4.5 웹/LLM 갱신+승인 흐름).
 
 ## P0 상세
 - `feature/bearsignal/domain/model/BearSignalModels.kt` — SignalLevel·GateState·BearPhase·Depth·InputSource·MarketReturns·MarketAnalysis·BearSignalInputs·BearSignalResult + 플레이스홀더(BearType·MonitorItem)

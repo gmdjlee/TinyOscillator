@@ -39,18 +39,23 @@ import com.tinyoscillator.ui.theme.signColor
 private val PERIOD_LABELS = listOf("-12개월", "-6개월", "-3개월", "-1개월")
 
 /**
- * 섹션 3 · 신호1 상세 국가별 수익률 표 (TASK.md §5.2-3, §5.3, 부록 B #7).
+ * 섹션 3 · 신호1 상세 국가별 수익률 표 (TASK_bear_signal_console.md §5.2-3, §5.3, 부록 B #7).
  *
  * 프로토타입은 기간=행/국가=열(광폭)이지만 모바일은 **국가=행(20)×기간=열(4)로 전치**한다.
  * 기간 선택은 FilterChip(§5.3), 선택 기간이 신호1 판정(신호1 카드·`result.ma`)에 즉시 반영된다.
  * 행 탭 → 다이얼로그로 4기간 인라인 편집(§5.3 "값은 인라인 편집(수동 갱신) 가능") — 20행×4열 텍스트필드를
  * LazyColumn 내부에 직접 배치하면 포커스/성능 이슈가 크므로, 행 단위 편집 다이얼로그로 대체한다.
+ *
+ * @param manyCountriesBreached 신호1 "이탈국 다수" 강조 플래그(§3.0 retrofit 후속) —
+ * `result.ma.neg >= BearThresholds.s1.manyCountries`를 [com.tinyoscillator.feature.bearsignal.presentation.BearSignalViewModel]에서
+ * 미리 계산해 전달한다. 컴포저블이 `>= 7` 등 §3 임계치를 직접 비교하지 않도록 한다(§7 "config 구동").
  */
 @Composable
 fun BearSignalCountryTableSection(
     inputs: BearSignalInputs,
     result: BearSignalResult,
     manualRequiredNames: Set<String>,
+    manyCountriesBreached: Boolean,
     onPeriodSelected: (Int) -> Unit,
     onEditMarket: (name: String, r: List<Double?>) -> Unit,
     modifier: Modifier = Modifier
@@ -81,14 +86,14 @@ fun BearSignalCountryTableSection(
 
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = (if (result.ma.neg >= 7) levelColor(2) else MaterialTheme.colorScheme.surfaceVariant).copy(alpha = 0.15f)
+                color = (if (manyCountriesBreached) levelColor(2) else MaterialTheme.colorScheme.surfaceVariant).copy(alpha = 0.15f)
             ) {
                 Text(
                     "이탈 지수 수 ${result.ma.neg} / 20 (선택 기간: ${PERIOD_LABELS[inputs.periodIdx]})",
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (result.ma.neg >= 7) levelColor(2) else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (manyCountriesBreached) levelColor(2) else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 

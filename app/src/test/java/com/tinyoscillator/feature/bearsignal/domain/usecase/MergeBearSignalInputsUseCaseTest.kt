@@ -5,6 +5,7 @@ import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoMarketReturn
 import com.tinyoscillator.feature.bearsignal.domain.model.BearPhase
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalReportBaseline
+import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholdsFixture
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualMarketReturn
@@ -16,7 +17,7 @@ import org.junit.Test
 
 /**
  * [MergeBearSignalInputsUseCase] 병합 우선순위(MANUAL > AUTO > 리포트 기준값) 계약 테스트
- * (TASK.md §1.2 하이브리드 데이터 아키텍처, Phase 3 완료 조건).
+ * (TASK_bear_signal_console.md §1.2 하이브리드 데이터 아키텍처, Phase 3 완료 조건).
  */
 class MergeBearSignalInputsUseCaseTest {
 
@@ -30,7 +31,7 @@ class MergeBearSignalInputsUseCaseTest {
 
         assertEquals(BearSignalReportBaseline.toInputs(), merged)
 
-        val result = ComputeBearSignalUseCase()(merged)
+        val result = ComputeBearSignalUseCase(BearThresholdsFixture.DEFAULT)(merged)
         assertEquals(1, result.s1)
         assertEquals(1, result.s2)
         assertEquals(1, result.s3)

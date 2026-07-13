@@ -44,7 +44,7 @@ import com.tinyoscillator.presentation.common.SectionHeader
 import com.tinyoscillator.presentation.common.skeleton.BearSignalScreenSkeleton
 
 /**
- * BearSignal 메인 화면(Phase 4) — TASK.md §5.2 7섹션을 `LazyColumn`으로 조립한다.
+ * BearSignal 메인 화면(Phase 4) — TASK_bear_signal_console.md §5.2 7섹션을 `LazyColumn`으로 조립한다.
  *
  * 1. 종합 국면 헤더 · 2. 선행 신호 3 카드 · 3. 국가별 수익률 표(전치) · 4. 방아쇠·증폭 카드 ·
  * 5. 약세장 3유형 · 6. 역사 검증 · 7. 지표 매핑·면책·전체 최신 갱신일.
@@ -148,6 +148,8 @@ fun BearSignalScreen(onBack: () -> Unit) {
                         inputs = uiState.inputs,
                         result = uiState.result,
                         auto = uiState.auto,
+                        manyCountriesBreached = uiState.manyCountriesBreached,
+                        deepeningBreached = uiState.deepeningBreached,
                         onManualInputClick = { showManualSheet = true }
                     )
                 }
@@ -157,6 +159,7 @@ fun BearSignalScreen(onBack: () -> Unit) {
                         inputs = uiState.inputs,
                         result = uiState.result,
                         manualRequiredNames = manualRequiredNames,
+                        manyCountriesBreached = uiState.manyCountriesBreached,
                         onPeriodSelected = viewModel::selectPeriod,
                         onEditMarket = viewModel::updateMarketReturn
                     )

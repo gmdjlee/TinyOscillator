@@ -3,32 +3,50 @@ package com.tinyoscillator.feature.bearsignal.domain.usecase
 import com.tinyoscillator.feature.bearsignal.domain.model.BearPhase
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalReportBaseline
+import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholdsFixture
 import com.tinyoscillator.feature.bearsignal.domain.model.Depth
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturns
-import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase.Companion.amplifier
-import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase.Companion.analyzeMarkets
-import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase.Companion.scoreGate
-import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase.Companion.scoreS1
-import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase.Companion.scoreS2
-import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase.Companion.scoreS3
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * ComputeBearSignalUseCase 순수 스코어링 검증 (TASK.md §3 SSOT — 골든/경계 케이스).
+ * ComputeBearSignalUseCase 순수 스코어링 검증 (TASK_bear_signal_console.md §3 SSOT — 골든/경계 케이스).
  *
  * 골든 케이스는 프로토타입 bear_signal_dashboard.jsx `MARKETS` 상수(도표48 전체 20지수,
  * `BearSignalReportBaseline.MARKETS`로 이관 완료)를 그대로 사용한다. 경계 케이스 전용
  * 테스트는 합성 픽스처(newDropout 등)를 사용한다.
+ *
+ * §3.0 임계치 외부화(retrofit) 이후 [ComputeBearSignalUseCase]는 [com.tinyoscillator.feature.bearsignal.domain.model.BearThresholds]를
+ * 생성자로 주입받는다. 이 테스트는 `bear_thresholds.json`을 그대로 미러링한
+ * [BearThresholdsFixture.DEFAULT]로 인스턴스를 구성해 기존 골든/경계값을 그대로 재현한다. 아래
+ * `analyzeMarkets`/`scoreS1`~`scoreS3`/`scoreGate`/`amplifier` 헬퍼는 [useCase] 인스턴스에
+ * 위임하는 얇은 래퍼로, companion 정적 함수 시절과 동일한 호출 형태를 유지해 기존 테스트 본문을
+ * 그대로 보존한다.
  */
 class ComputeBearSignalUseCaseTest {
 
-    private val useCase = ComputeBearSignalUseCase()
+    private val useCase = ComputeBearSignalUseCase(BearThresholdsFixture.DEFAULT)
 
     companion object {
         private const val DELTA = 1e-9
     }
+
+    // -- §3.0 retrofit 이후 companion 정적 함수 대체 래퍼 --
+    private fun analyzeMarkets(markets: List<MarketReturns>, periodIdx: Int) =
+        useCase.analyzeMarkets(markets, periodIdx)
+
+    private fun scoreS1(neg: Int, depth: Depth) = useCase.scoreS1(neg, depth)
+
+    private fun scoreS2(up: Int, down: Int, deepening: Boolean) = useCase.scoreS2(up, down, deepening)
+
+    private fun scoreS3(loss: Double, etf: String, big: String) = useCase.scoreS3(loss, etf, big)
+
+    private fun scoreGate(rate: Double, dir: String, credit: Double, margin: Boolean) =
+        useCase.scoreGate(rate, dir, credit, margin)
+
+    private fun amplifier(semi: Double, kospi2: Double, buffer: Boolean) =
+        useCase.amplifier(semi, kospi2, buffer)
 
     // -- 헬퍼 --
 
@@ -389,5 +407,57 @@ class ComputeBearSignalUseCaseTest {
         assertEquals(2, r.lead)
         assertEquals(0, r.gate)
         assertEquals(BearPhase.GREEN, r.phase)
+    }
+
+    // ==========================================================
+    // config 구동 (v1.2 §3.0) — bear_thresholds.json 교체만으로 판정이 바뀐다(코드 무수정)
+    // ==========================================================
+
+    @Test
+    fun `config 구동 — leadAmber를 10으로 올리면 lead3 gate0 시나리오가 AMBER에서 GREEN으로 바뀐다`() {
+        // 기본 임계치(leadAmber=3)에서는 "composite — lead 3 그리고 gate 0이면 AMBER"와 동일한
+        // 입력이 AMBER다. 참고: 리포트 골든 케이스 자체(dir="hike")는 scoreGate의 "else -> dir==
+        // hike ? 1 : 0" 분기가 구조 상수(BearThresholds에 없는 문자열 비교)라 gate가 항상 >=1로
+        // 바닥을 치므로 어떤 임계치 조합으로도 GREEN까지 내려가지 않는다(§3.4). 대신 gate=0인
+        // 동등한 합성 시나리오로 "임계치 교체만으로 판정이 바뀐다"를 코드 무수정으로 증명한다.
+        val baseline = useCase(inputs(big = "failed"))
+        assertEquals(3, baseline.lead)
+        assertEquals(0, baseline.gate)
+        assertEquals(BearPhase.AMBER, baseline.phase)
+
+        val relaxedThresholds = BearThresholdsFixture.DEFAULT.copy(
+            phase = BearThresholdsFixture.DEFAULT.phase.copy(leadAmber = 10)
+        )
+        val relaxedResult = ComputeBearSignalUseCase(relaxedThresholds)(inputs(big = "failed"))
+        assertEquals(BearPhase.GREEN, relaxedResult.phase)
+    }
+
+    @Test
+    fun `config 구동 — s1 manyCountries를 20으로 올리면 실제 골든 케이스 s1이 1에서 0으로 바뀐다`() {
+        // 실측 리포트 골든 케이스(도표48 20지수)에 직접 임계치 변형을 적용해, 순수 BearThresholds
+        // 참조만으로 산출되는 서브스코어(s1)가 코드 무수정으로 바뀜을 증명한다.
+        val relaxedThresholds = BearThresholdsFixture.DEFAULT.copy(
+            s1 = BearThresholdsFixture.DEFAULT.s1.copy(manyCountries = 20)
+        )
+        val relaxedResult = ComputeBearSignalUseCase(relaxedThresholds)(
+            BearSignalReportBaseline.toInputs(BearSignalReportBaseline.MARKETS)
+        )
+
+        assertEquals(11, relaxedResult.ma.neg) // neg 자체는 임계치 무관 순수 카운트라 불변
+        assertEquals(0, relaxedResult.s1) // many=false(11<20) && depth=SHALLOW → 0 (기본값 1에서 변경)
+    }
+
+    @Test
+    fun `config 구동 경계 — gate critical을 5_0으로 올리면 rate 4_5가 더 이상 3이 아니다`() {
+        // 기존 경계 테스트("scoreGate — rate 사다리 4_49는 2, 4_5는 3")는 기본 임계치(critical=4.5)
+        // 기준이다. critical을 5.0으로 올리면 동일 rate=4.5가 approach(4.0) 구간(2)으로 내려간다 —
+        // §7 수용 기준 예시("gate.critical 4.5→5.0 시 rate=4.5가 3이 아님")를 코드 무수정으로 증명.
+        val relaxedThresholds = BearThresholdsFixture.DEFAULT.copy(
+            gate = BearThresholdsFixture.DEFAULT.gate.copy(critical = 5.0)
+        )
+        val relaxedUseCase = ComputeBearSignalUseCase(relaxedThresholds)
+
+        assertEquals(3, scoreGate(rate = 4.5, dir = "hold", credit = 0.0, margin = false)) // 기본값 기준
+        assertEquals(2, relaxedUseCase.scoreGate(rate = 4.5, dir = "hold", credit = 0.0, margin = false))
     }
 }

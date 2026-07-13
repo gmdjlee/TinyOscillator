@@ -25,6 +25,7 @@ import com.tinyoscillator.core.database.dao.ThemeGroupDao
 import com.tinyoscillator.core.database.dao.ThemeStockDao
 import com.tinyoscillator.core.database.dao.WorkerLogDao
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
+import com.tinyoscillator.feature.bearsignal.data.local.BearSnapshotDao
 import com.tinyoscillator.core.database.entity.AnalysisCacheEntity
 import com.tinyoscillator.core.database.entity.AnalysisHistoryEntity
 import com.tinyoscillator.core.database.entity.AnalysisSnapshotEntity
@@ -57,6 +58,7 @@ import com.tinyoscillator.feature.bearsignal.data.local.BearSignalAutoCacheEntit
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalCountryReturnEntity
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalManualCountryReturnEntity
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalManualInputEntity
+import com.tinyoscillator.feature.bearsignal.data.local.BearSnapshotEntity
 
 @Database(
     entities = [
@@ -92,8 +94,9 @@ import com.tinyoscillator.feature.bearsignal.data.local.BearSignalManualInputEnt
         BearSignalCountryReturnEntity::class,
         BearSignalManualInputEntity::class,
         BearSignalManualCountryReturnEntity::class,
+        BearSnapshotEntity::class,
     ],
-    version = 36,
+    version = 37,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -120,4 +123,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun themeGroupDao(): ThemeGroupDao
     abstract fun themeStockDao(): ThemeStockDao
     abstract fun bearSignalDao(): BearSignalDao
+    abstract fun bearSnapshotDao(): BearSnapshotDao
 }

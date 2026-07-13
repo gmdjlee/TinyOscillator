@@ -6,6 +6,8 @@ import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.BearPhase
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalReportBaseline
+import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholds
+import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholdsFixture
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualFieldUpdate
@@ -44,7 +46,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * [BearSignalViewModel] 상태→UI 매핑 테스트 (TASK.md §5.2 화면 조립, Phase 4).
+ * [BearSignalViewModel] 상태→UI 매핑 테스트 (TASK_bear_signal_console.md §5.2 화면 조립, Phase 4).
  *
  * 스코어링 자체는 [com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCaseTest]
  * 등 도메인 테스트가 이미 커버하므로, 여기서는 ViewModel의 상태 합성(refresh/reset/기간 선택/수동
@@ -63,8 +65,15 @@ class BearSignalViewModelTest {
     private lateinit var resetToReportBaselineUseCase: ResetToReportBaselineUseCase
     private lateinit var context: Context
 
+    /**
+     * §3.0 retrofit 후속 — [BearSignalUiState.manyCountriesBreached]/[BearSignalUiState.deepeningBreached]가
+     * 하드코딩이 아니라 주입된 [BearThresholds]로 구동됨을 증명하기 위해 테스트별로 교체 가능하게 둔다
+     * (기본값은 `bear_thresholds.json` 미러 [BearThresholdsFixture.DEFAULT]).
+     */
+    private var thresholds: BearThresholds = BearThresholdsFixture.DEFAULT
+
     private val baselineInputs = BearSignalReportBaseline.toInputs()
-    private val baselineResult = ComputeBearSignalUseCase()(baselineInputs)
+    private val baselineResult = ComputeBearSignalUseCase(BearThresholdsFixture.DEFAULT)(baselineInputs)
     private val baselineState = ObserveBearSignalStateUseCase.State(
         inputs = baselineInputs,
         result = baselineResult,
@@ -105,6 +114,7 @@ class BearSignalViewModelTest {
             refreshMarketReturnsUseCase,
             updateManualInputUseCase,
             resetToReportBaselineUseCase,
+            thresholds,
             context
         )
     }
@@ -146,6 +156,40 @@ class BearSignalViewModelTest {
         assertEquals(baselineInputs, state.inputs)
         // Room 4-Flow가 최소 한 번 합성됐으므로 isLoading은 false로 전환된다
         assertTrue(!state.isLoading)
+        // 골든 케이스(ma.neg=11, worstNew=-5.1)를 기본 임계치(manyCountries=7, deepeningPct=-6.0)로
+        // 판정: 11>=7 → true, -5.1<=-6.0 → false (§3.0 retrofit 후속, 하드코딩 아님을 아래
+        // "config 구동" 테스트에서 별도로 증명한다)
+        assertTrue(state.manyCountriesBreached)
+        assertTrue(!state.deepeningBreached)
+    }
+
+    // ── §3.0 retrofit 후속: presentation 임계치 config 구동 ──────
+
+    @Test
+    fun `config 구동 — manyCountries를 20으로 올리면 동일 골든 상태의 manyCountriesBreached가 true에서 false로 바뀐다`() = runTest {
+        // 기본 임계치(manyCountries=7)에서는 위 테스트처럼 골든 상태(neg=11)가 true다.
+        thresholds = BearThresholdsFixture.DEFAULT.copy(
+            s1 = BearThresholdsFixture.DEFAULT.s1.copy(manyCountries = 20)
+        )
+        val viewModel = createViewModel() // state는 동일한 baselineState(neg=11) 재사용 — 임계치만 교체
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        assertTrue(!viewModel.uiState.value.manyCountriesBreached)
+    }
+
+    @Test
+    fun `config 구동 — deepeningPct를 -5로 올리면 동일 골든 상태의 deepeningBreached가 false에서 true로 바뀐다`() = runTest {
+        // worstNew=-5.1은 기본 임계치(-6.0) 기준으로는 false이지만, deepeningPct를 -5.0으로 올리면
+        // -5.1 <= -5.0이 성립해 true로 뒤집힌다 — UI 플래그가 BearThresholds 주입값을 그대로 따라간다.
+        thresholds = BearThresholdsFixture.DEFAULT.copy(
+            s1 = BearThresholdsFixture.DEFAULT.s1.copy(deepeningPct = -5.0)
+        )
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.deepeningBreached)
     }
 
     @Test
@@ -288,6 +332,7 @@ class BearSignalViewModelTest {
             refreshMarketReturnsUseCase,
             updateManualInputUseCase,
             resetToReportBaselineUseCase,
+            thresholds,
             context
         )
         advanceUntilIdle()

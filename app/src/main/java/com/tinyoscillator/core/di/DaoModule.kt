@@ -24,6 +24,7 @@ import com.tinyoscillator.core.database.dao.ThemeGroupDao
 import com.tinyoscillator.core.database.dao.ThemeStockDao
 import com.tinyoscillator.core.database.dao.WorkerLogDao
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
+import com.tinyoscillator.feature.bearsignal.data.local.BearSnapshotDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -107,4 +108,7 @@ object DaoModule {
 
     @Provides
     fun provideBearSignalDao(db: AppDatabase): BearSignalDao = db.bearSignalDao()
+
+    @Provides
+    fun provideBearSnapshotDao(db: AppDatabase): BearSnapshotDao = db.bearSnapshotDao()
 }

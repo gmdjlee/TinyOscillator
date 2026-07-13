@@ -10,6 +10,9 @@ object BearSignalReportBaseline {
 
     const val REPORT_DATE = "2026-06-30"
 
+    /** §4.6 스냅샷 계약 `config_basis` 필드값 — [com.tinyoscillator.feature.bearsignal.domain.usecase.BuildBearSnapshotUseCase] 기본값. */
+    const val CONFIG_BASIS = "신영 2026.6.30"
+
     // ── 기준값 스칼라 (부록 C) ──────────────────────────────
     /** 기간 인덱스: 0=12M, 1=6M, 2=3M, 3=1M */
     const val PERIOD_IDX = 3

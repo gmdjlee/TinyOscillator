@@ -58,6 +58,7 @@ object AppDatabaseMigrations {
         MIGRATION_33_34,
         MIGRATION_34_35,
         MIGRATION_35_36,
+        MIGRATION_36_37,
     )
 }
 
@@ -974,6 +975,43 @@ private val MIGRATION_35_36 = object : Migration(35, 36) {
             Timber.d("Migration v35→v36 성공: bear_signal_manual_input/bear_signal_manual_country_return 테이블 생성")
         } catch (e: Exception) {
             Timber.e(e, "Migration v35→v36 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v36→v37: BearSignal 일자별 스코어링 스냅샷 이력 테이블 신설
+ * (TASK_bear_signal_console.md §6.1 Phase 3.5-1).
+ *
+ * `bear_signal_auto_cache`/`bear_signal_manual_input` 등("현재값" 캐시)과 별개로, 국면·방아쇠
+ * 전이 감지([com.tinyoscillator.feature.bearsignal.domain.usecase.DetectTransitionsUseCase])와
+ * Sparkline/TransitionLog(Phase 3.5)를 위해 일자별 이력을 쌓는 전용 테이블이다. `day`(PK)가
+ * as_of이며, `inputsJson`/`fieldMetaJson`은 §4.6 bear-snapshot/1 스키마의 `inputs`/`field_meta`
+ * 서브 오브젝트를 그대로 직렬화한다.
+ */
+private val MIGRATION_36_37 = object : Migration(36, 37) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `bear_snapshot` (" +
+                    "`day` TEXT NOT NULL, " +
+                    "`phase` TEXT NOT NULL, " +
+                    "`lead` INTEGER NOT NULL, " +
+                    "`gate` INTEGER NOT NULL, " +
+                    "`s1` INTEGER NOT NULL, " +
+                    "`s2` INTEGER NOT NULL, " +
+                    "`s3` INTEGER NOT NULL, " +
+                    "`amp` REAL NOT NULL, " +
+                    "`configBasis` TEXT NOT NULL, " +
+                    "`inputsJson` TEXT NOT NULL, " +
+                    "`fieldMetaJson` TEXT NOT NULL, " +
+                    "`createdAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`day`))"
+            )
+            Timber.d("Migration v36→v37 성공: bear_snapshot 테이블 생성")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v36→v37 실패")
             throw e
         }
     }

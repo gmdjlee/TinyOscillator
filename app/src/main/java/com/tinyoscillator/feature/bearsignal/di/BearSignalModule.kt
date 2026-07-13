@@ -5,13 +5,21 @@ import com.tinyoscillator.core.api.BokEcosApiClient
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
+import com.tinyoscillator.feature.bearsignal.data.local.BearSnapshotDao
+import com.tinyoscillator.feature.bearsignal.data.local.ThresholdsProvider
 import com.tinyoscillator.feature.bearsignal.data.remote.CustomsTradeApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
 import com.tinyoscillator.feature.bearsignal.data.remote.YahooChartApiClient
 import com.tinyoscillator.feature.bearsignal.data.repository.BearSignalRepositoryImpl
+import com.tinyoscillator.feature.bearsignal.data.repository.SnapshotRepositoryImpl
+import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholds
 import com.tinyoscillator.feature.bearsignal.domain.repository.BearSignalRepository
+import com.tinyoscillator.feature.bearsignal.domain.repository.SnapshotRepository
+import com.tinyoscillator.feature.bearsignal.domain.usecase.BuildBearSnapshotUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.DetectTransitionsUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.EvaluateSnapshotFreshnessUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.MergeBearSignalInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ObserveBearSignalStateUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshAutoInputsUseCase
@@ -28,7 +36,7 @@ import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import javax.inject.Singleton
 
-/** BearSignal 기능 Hilt 바인딩 모듈 (TASK.md §2). */
+/** BearSignal 기능 Hilt 바인딩 모듈 (TASK_bear_signal_console.md §2). */
 @Module
 @InstallIn(SingletonComponent::class)
 object BearSignalModule {
@@ -112,9 +120,22 @@ object BearSignalModule {
     @Singleton
     fun provideMergeBearSignalInputsUseCase(): MergeBearSignalInputsUseCase = MergeBearSignalInputsUseCase()
 
+    /** §3.0 v1.2 임계치 외부화 — `assets/bear_thresholds.json` 로드 (Context 필요, 앱 전용 계층). */
     @Provides
     @Singleton
-    fun provideComputeBearSignalUseCase(): ComputeBearSignalUseCase = ComputeBearSignalUseCase()
+    fun provideThresholdsProvider(@ApplicationContext context: Context): ThresholdsProvider =
+        ThresholdsProvider(context)
+
+    /** §3.0 임계치 SSOT 인스턴스 — 앱 기동 시 1회 로드해 싱글턴으로 공유(`BearThresholds`). */
+    @Provides
+    @Singleton
+    fun provideBearThresholds(thresholdsProvider: ThresholdsProvider): BearThresholds =
+        thresholdsProvider.load()
+
+    @Provides
+    @Singleton
+    fun provideComputeBearSignalUseCase(thresholds: BearThresholds): ComputeBearSignalUseCase =
+        ComputeBearSignalUseCase(thresholds)
 
     @Provides
     @Singleton
@@ -127,4 +148,24 @@ object BearSignalModule {
         mergeBearSignalInputsUseCase,
         computeBearSignalUseCase
     )
+
+    // ── §6.1 Phase 3.5-1: 스냅샷 이력·전이 감지 ──────────────────────────
+
+    @Provides
+    @Singleton
+    fun provideSnapshotRepository(bearSnapshotDao: BearSnapshotDao): SnapshotRepository =
+        SnapshotRepositoryImpl(bearSnapshotDao)
+
+    @Provides
+    @Singleton
+    fun provideDetectTransitionsUseCase(): DetectTransitionsUseCase = DetectTransitionsUseCase()
+
+    @Provides
+    @Singleton
+    fun provideBuildBearSnapshotUseCase(): BuildBearSnapshotUseCase = BuildBearSnapshotUseCase()
+
+    @Provides
+    @Singleton
+    fun provideEvaluateSnapshotFreshnessUseCase(): EvaluateSnapshotFreshnessUseCase =
+        EvaluateSnapshotFreshnessUseCase()
 }
