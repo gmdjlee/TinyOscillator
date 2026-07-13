@@ -28,6 +28,7 @@ import com.tinyoscillator.feature.bearsignal.domain.model.ManualIndicatorKey
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualMarketReturn
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketCoverage
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturnsSnapshot
+import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionField
 import com.tinyoscillator.feature.bearsignal.domain.repository.BearSignalRepository
 import com.tinyoscillator.feature.bearsignal.domain.usecase.CustomsTradeCalculator
 import com.tinyoscillator.feature.bearsignal.domain.usecase.GlobalIndexReturnCalculator
@@ -479,5 +480,17 @@ class BearSignalRepositoryImpl(
         bearSignalDao.clearManualInputs()
         bearSignalDao.clearManualCountryReturns()
         Timber.i("BearSignal 수동 오버라이드 리셋 완료 — 리포트 기준값(${BearSignalReportBaseline.REPORT_DATE})으로 복귀")
+    }
+
+    // ── Phase 4: §4.5 웹/LLM 제안 승인 ──────────────────────────────────
+
+    override suspend fun applySuggestion(
+        field: SuggestionField,
+        value: String,
+        updatedAt: Long
+    ) = withContext(Dispatchers.IO) {
+        val entity = BearSignalAutoCacheMapper.suggestionEntity(field, value, updatedAt)
+        bearSignalDao.upsertAll(listOf(entity))
+        Timber.i("BearSignal §4.5 제안 승인 반영: field=${field.name} value=$value")
     }
 }

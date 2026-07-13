@@ -13,11 +13,17 @@ import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualFieldUpdate
 import com.tinyoscillator.feature.bearsignal.domain.model.PhaseChange
+import com.tinyoscillator.feature.bearsignal.domain.model.Suggestion
+import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionField
+import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionFetchResult
+import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionGroupOutcome
 import com.tinyoscillator.feature.bearsignal.domain.repository.SnapshotRepository
+import com.tinyoscillator.feature.bearsignal.domain.usecase.ApplySuggestionUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.BuildBearSnapshotUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.DetectTransitionsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.EvaluateSnapshotFreshnessUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.FetchSuggestionsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ObserveBearSignalStateUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshAutoInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshExternalAutoInputsUseCase
@@ -51,6 +57,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.LocalDate
 
 /**
  * [BearSignalViewModel] 상태→UI 매핑 테스트 (TASK_bear_signal_console.md §5.2 화면 조립, Phase 4).
@@ -72,6 +79,8 @@ class BearSignalViewModelTest {
     private lateinit var resetToReportBaselineUseCase: ResetToReportBaselineUseCase
     private lateinit var snapshotRepository: SnapshotRepository
     private lateinit var context: Context
+    private lateinit var fetchSuggestionsUseCase: FetchSuggestionsUseCase
+    private lateinit var applySuggestionUseCase: ApplySuggestionUseCase
 
     // §6.1 순수 함수 UseCase 3종 — 결정적이므로 mock 대신 실제 인스턴스를 사용한다(다른 도메인
     // 테스트가 이미 개별적으로 검증했으므로 여기서는 ViewModel의 배선만 확인하면 충분하다).
@@ -107,6 +116,8 @@ class BearSignalViewModelTest {
         updateManualInputUseCase = mockk(relaxed = true)
         resetToReportBaselineUseCase = mockk(relaxed = true)
         context = mockk(relaxed = true)
+        fetchSuggestionsUseCase = mockk()
+        applySuggestionUseCase = mockk(relaxed = true)
 
         // §6.1 스냅샷 이력 기본값 — 대부분의 테스트는 이력/신선도 배선 자체를 검증 대상으로 삼지
         // 않으므로 "이력 없음 · 제안 없음"을 기본으로 스텁하고, 필요한 테스트에서만 개별 재정의한다.
@@ -156,7 +167,9 @@ class BearSignalViewModelTest {
             evaluateSnapshotFreshnessUseCase,
             detectTransitionsUseCase,
             thresholds,
-            context
+            context,
+            fetchSuggestionsUseCase,
+            applySuggestionUseCase
         )
     }
 
@@ -378,7 +391,9 @@ class BearSignalViewModelTest {
             evaluateSnapshotFreshnessUseCase,
             detectTransitionsUseCase,
             thresholds,
-            context
+            context,
+            fetchSuggestionsUseCase,
+            applySuggestionUseCase
         )
         advanceUntilIdle()
 
@@ -583,5 +598,167 @@ class BearSignalViewModelTest {
 
         assertNull(viewModel.uiState.value.updateSuggestion)
         coVerify(exactly = 1) { refreshAutoInputsUseCase() }
+    }
+
+    // ── §4.5 웹/LLM 제안(Phase 4) ─────────────────────────────────────
+
+    private fun fixtureSuggestion(
+        field: SuggestionField = SuggestionField.RATE,
+        current: String? = "3.75",
+        next: String = "4.50",
+        stale: Boolean = false
+    ) = Suggestion(
+        field = field,
+        currentValue = current,
+        nextValue = next,
+        asOf = LocalDate.of(2026, 7, 10),
+        origin = "Anthropic web_search",
+        stale = stale
+    )
+
+    @Test
+    fun `init 시점에는 fetchSuggestionsUseCase가 호출되지 않는다(비용 고려, 자동 조회 금지)`() = runTest {
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.suggestions.isEmpty())
+        coVerify(exactly = 0) { fetchSuggestionsUseCase(any()) }
+    }
+
+    @Test
+    fun `fetchSuggestions 성공 시 제안 목록과 그룹 오류가 uiState에 반영된다`() = runTest {
+        val suggestion = fixtureSuggestion()
+        coEvery { fetchSuggestionsUseCase(any()) } returns Result.success(
+            SuggestionFetchResult(
+                rateDir = SuggestionGroupOutcome(listOf(suggestion), null),
+                bigDealLossRatio = SuggestionGroupOutcome(emptyList(), "대어 IPO 소화·적자상장비중: 네트워크 오류"),
+                credit = SuggestionGroupOutcome(emptyList(), null)
+            )
+        )
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchSuggestions()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(suggestion), state.suggestions)
+        assertEquals(1, state.suggestionGroupErrors.size)
+        assertTrue(!state.suggestionsLoading)
+    }
+
+    @Test
+    fun `fetchSuggestions가 result와 inputs를 바꾸지 않는다(승인 전 상태 불변)`() = runTest {
+        val suggestion = fixtureSuggestion()
+        coEvery { fetchSuggestionsUseCase(any()) } returns Result.success(
+            SuggestionFetchResult(
+                rateDir = SuggestionGroupOutcome(listOf(suggestion), null),
+                bigDealLossRatio = SuggestionGroupOutcome(emptyList(), null),
+                credit = SuggestionGroupOutcome(emptyList(), null)
+            )
+        )
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchSuggestions()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(baselineResult.phase, state.result.phase)
+        assertEquals(baselineInputs, state.inputs)
+        // ApplySuggestionUseCase.invoke는 `now: Long`에 기본값(System.currentTimeMillis())이 있어
+        // 정확한 값 매칭이 불가능하므로 두 인자 모두 any()로 검증한다(실제 호출 여부만 확인).
+        coVerify(exactly = 0) { applySuggestionUseCase(any(), any()) }
+    }
+
+    @Test
+    fun `fetchSuggestions 최상위 실패(Claude 키 미설정) 시 groupErrors에 안내 메시지가 노출된다`() = runTest {
+        coEvery { fetchSuggestionsUseCase(any()) } returns Result.failure(IllegalStateException("Claude API 키가 설정되지 않았습니다"))
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchSuggestions()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.suggestions.isEmpty())
+        assertEquals(1, state.suggestionGroupErrors.size)
+        assertTrue(!state.suggestionsLoading)
+    }
+
+    @Test
+    fun `approveSuggestion은 ApplySuggestionUseCase를 호출하고 목록에서 제거한다`() = runTest {
+        val suggestion = fixtureSuggestion()
+        coEvery { fetchSuggestionsUseCase(any()) } returns Result.success(
+            SuggestionFetchResult(
+                rateDir = SuggestionGroupOutcome(listOf(suggestion), null),
+                bigDealLossRatio = SuggestionGroupOutcome(emptyList(), null),
+                credit = SuggestionGroupOutcome(emptyList(), null)
+            )
+        )
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchSuggestions()
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.suggestions.size)
+
+        viewModel.approveSuggestion(suggestion)
+        advanceUntilIdle()
+
+        // now(2번째 인자)는 기본값(System.currentTimeMillis())이라 any()로 매칭한다.
+        coVerify(exactly = 1) { applySuggestionUseCase(suggestion, any()) }
+        assertTrue(viewModel.uiState.value.suggestions.isEmpty())
+    }
+
+    @Test
+    fun `approveAllSuggestions은 모든 제안을 일괄 승인하고 목록을 비운다`() = runTest {
+        val s1 = fixtureSuggestion(field = SuggestionField.RATE)
+        val s2 = fixtureSuggestion(field = SuggestionField.CREDIT, current = "38.0", next = "50.0")
+        coEvery { fetchSuggestionsUseCase(any()) } returns Result.success(
+            SuggestionFetchResult(
+                rateDir = SuggestionGroupOutcome(listOf(s1), null),
+                bigDealLossRatio = SuggestionGroupOutcome(emptyList(), null),
+                credit = SuggestionGroupOutcome(listOf(s2), null)
+            )
+        )
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchSuggestions()
+        advanceUntilIdle()
+        assertEquals(2, viewModel.uiState.value.suggestions.size)
+
+        viewModel.approveAllSuggestions()
+        advanceUntilIdle()
+
+        // now(2번째 인자)는 기본값(System.currentTimeMillis())이라 any()로 매칭한다.
+        coVerify(exactly = 1) { applySuggestionUseCase.applyAll(listOf(s1, s2), any()) }
+        assertTrue(viewModel.uiState.value.suggestions.isEmpty())
+    }
+
+    @Test
+    fun `dismissSuggestion은 ApplySuggestionUseCase를 호출하지 않고 목록에서만 제거한다`() = runTest {
+        val suggestion = fixtureSuggestion()
+        coEvery { fetchSuggestionsUseCase(any()) } returns Result.success(
+            SuggestionFetchResult(
+                rateDir = SuggestionGroupOutcome(listOf(suggestion), null),
+                bigDealLossRatio = SuggestionGroupOutcome(emptyList(), null),
+                credit = SuggestionGroupOutcome(emptyList(), null)
+            )
+        )
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchSuggestions()
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.suggestions.size)
+
+        viewModel.dismissSuggestion(suggestion)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.suggestions.isEmpty())
+        coVerify(exactly = 0) { applySuggestionUseCase(any(), any()) }
     }
 }

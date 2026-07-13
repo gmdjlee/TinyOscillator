@@ -9,17 +9,22 @@ import com.tinyoscillator.feature.bearsignal.data.local.BearSnapshotDao
 import com.tinyoscillator.feature.bearsignal.data.local.ThresholdsProvider
 import com.tinyoscillator.feature.bearsignal.data.remote.CustomsTradeApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
+import com.tinyoscillator.feature.bearsignal.data.remote.LlmMarketDataSource
 import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
 import com.tinyoscillator.feature.bearsignal.data.remote.YahooChartApiClient
 import com.tinyoscillator.feature.bearsignal.data.repository.BearSignalRepositoryImpl
 import com.tinyoscillator.feature.bearsignal.data.repository.SnapshotRepositoryImpl
+import com.tinyoscillator.feature.bearsignal.data.repository.SuggestionRepositoryImpl
 import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholds
 import com.tinyoscillator.feature.bearsignal.domain.repository.BearSignalRepository
 import com.tinyoscillator.feature.bearsignal.domain.repository.SnapshotRepository
+import com.tinyoscillator.feature.bearsignal.domain.repository.SuggestionRepository
+import com.tinyoscillator.feature.bearsignal.domain.usecase.ApplySuggestionUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.BuildBearSnapshotUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.DetectTransitionsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.EvaluateSnapshotFreshnessUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.FetchSuggestionsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.MergeBearSignalInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ObserveBearSignalStateUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshAutoInputsUseCase
@@ -168,4 +173,28 @@ object BearSignalModule {
     @Singleton
     fun provideEvaluateSnapshotFreshnessUseCase(): EvaluateSnapshotFreshnessUseCase =
         EvaluateSnapshotFreshnessUseCase()
+
+    // ── §4.5 Phase 4: 웹/LLM 수집 · 승인 흐름 ────────────────────────────
+
+    @Provides
+    @Singleton
+    fun provideLlmMarketDataSource(httpClient: OkHttpClient): LlmMarketDataSource =
+        LlmMarketDataSource(httpClient = httpClient)
+
+    @Provides
+    @Singleton
+    fun provideSuggestionRepository(
+        llmMarketDataSource: LlmMarketDataSource,
+        apiConfigProvider: ApiConfigProvider
+    ): SuggestionRepository = SuggestionRepositoryImpl(llmMarketDataSource, apiConfigProvider)
+
+    @Provides
+    @Singleton
+    fun provideFetchSuggestionsUseCase(repository: SuggestionRepository): FetchSuggestionsUseCase =
+        FetchSuggestionsUseCase(repository)
+
+    @Provides
+    @Singleton
+    fun provideApplySuggestionUseCase(repository: BearSignalRepository): ApplySuggestionUseCase =
+        ApplySuggestionUseCase(repository)
 }

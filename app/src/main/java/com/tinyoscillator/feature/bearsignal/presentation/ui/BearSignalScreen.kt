@@ -197,6 +197,21 @@ fun BearSignalScreen(onBack: () -> Unit) {
                     )
                 }
 
+                item(key = "suggestion_panel_title") {
+                    SectionHeader(title = "AI 제안 — 웹/LLM 데이터 갱신(§4.5, 승인 필요)")
+                }
+                item(key = "suggestion_panel") {
+                    SuggestionPanel(
+                        suggestions = uiState.suggestions,
+                        isLoading = uiState.suggestionsLoading,
+                        groupErrors = uiState.suggestionGroupErrors,
+                        onFetch = viewModel::fetchSuggestions,
+                        onApprove = viewModel::approveSuggestion,
+                        onApproveAll = viewModel::approveAllSuggestions,
+                        onDismiss = viewModel::dismissSuggestion
+                    )
+                }
+
                 item(key = "types_title") {
                     SectionHeader(title = "유형 진단 — 주도주 하락세 판단, 약세장 3유형과 회복 가능성")
                 }

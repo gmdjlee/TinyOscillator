@@ -10,6 +10,7 @@ import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.domain.model.EcosDataPoint
 import com.tinyoscillator.domain.model.KrxCredentials
+import com.tinyoscillator.feature.bearsignal.data.local.BearSignalAutoCacheEntity
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalManualCountryReturnEntity
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalManualInputEntity
@@ -25,6 +26,7 @@ import com.tinyoscillator.feature.bearsignal.data.remote.YahooChartApiClient
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoMarketReturn
+import com.tinyoscillator.feature.bearsignal.domain.model.BearIndicatorKey
 import com.tinyoscillator.feature.bearsignal.domain.model.CustomsTradeItem
 import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexSource
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
@@ -32,6 +34,7 @@ import com.tinyoscillator.feature.bearsignal.domain.model.ManualFieldUpdate
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualIndicatorKey
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketCoverage
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturnsSnapshot
+import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionField
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -646,5 +649,47 @@ class BearSignalRepositoryImplTest {
 
         coVerify(exactly = 0) { dao.upsertAll(any()) }
         coVerify(exactly = 0) { dao.upsertCountryReturns(any()) }
+    }
+
+    // ── Phase 4: §4.5 웹/LLM 제안 승인 ──────────────────────────────────
+
+    @Test
+    fun `applySuggestion RATE는 GATE_RATE 키로 AUTO 엔티티 1건을 upsert한다`() = runTest {
+        coEvery { dao.upsertAll(any()) } returns Unit
+
+        repository.applySuggestion(SuggestionField.RATE, "4.50", 9_000L)
+
+        val slot = slot<List<BearSignalAutoCacheEntity>>()
+        coVerify(exactly = 1) { dao.upsertAll(capture(slot)) }
+        assertEquals(1, slot.captured.size)
+        val entity = slot.captured.first()
+        assertEquals(BearIndicatorKey.GATE_RATE.key, entity.indicatorKey)
+        assertEquals(4.50, entity.value, 1e-9)
+        assertEquals(InputSource.AUTO.name, entity.source)
+        assertEquals(9_000L, entity.updatedAt)
+    }
+
+    @Test
+    fun `applySuggestion CREDIT는 GATE_CREDIT 신규 키로 upsert한다(기존 ManualIndicatorKey CREDIT와 별도)`() = runTest {
+        coEvery { dao.upsertAll(any()) } returns Unit
+
+        repository.applySuggestion(SuggestionField.CREDIT, "50.00", 9_000L)
+
+        val slot = slot<List<BearSignalAutoCacheEntity>>()
+        coVerify(exactly = 1) { dao.upsertAll(capture(slot)) }
+        assertEquals(BearIndicatorKey.GATE_CREDIT.key, slot.captured.first().indicatorKey)
+        assertEquals(50.0, slot.captured.first().value, 1e-9)
+    }
+
+    @Test
+    fun `applySuggestion BIG_DEAL은 열거형 코드로 인코딩되어 upsert된다`() = runTest {
+        coEvery { dao.upsertAll(any()) } returns Unit
+
+        repository.applySuggestion(SuggestionField.BIG_DEAL, "failed", 9_000L)
+
+        val slot = slot<List<BearSignalAutoCacheEntity>>()
+        coVerify(exactly = 1) { dao.upsertAll(capture(slot)) }
+        assertEquals(BearIndicatorKey.S3_BIG_DEAL.key, slot.captured.first().indicatorKey)
+        assertEquals(2.0, slot.captured.first().value, 1e-9) // failed → 2.0
     }
 }

@@ -12,11 +12,25 @@
 | §3.0 임계치 외부화 | **완료(retrofit)** | BearThresholds 주입 — 하단 「임계치 외부화 (v1.2 §3.0 retrofit)」 절 참조 |
 | P3.5-1 | **완료** | Room 스냅샷 이력 영속(`bear_snapshot`, Room v37) + 국면/방아쇠 전이 감지 — 하단 「Phase 3.5-1 상세」 절 참조 |
 | P3.5 | **완료** | Sparkline·TransitionLog·신선도 제안 배너(ViewModel/UI 조립) — 하단 「Phase 3.5 상세」 절 참조 |
-| P4 (웹/LLM 갱신+승인) | **잔여** | §4.5 신설 — 구 P4(v1.0-UI)와 별개 |
+| P4 (웹/LLM 갱신+승인) | **완료** | §4.5 신설 — 구 P4(v1.0-UI)와 별개, `LlmMarketDataSource`+승인 흐름 — 하단 「Phase 4 상세」 절 참조 |
 | P5-1 | 대부분 충족 | 구 P5(v1.0-폴리시)가 접근성·오프라인·shimmer·워커 기충족. 델타: 진입 시 신선도 검사, 워커 주기(월간↔일/주 Tier) 조정 판단 |
 | P5-2 (QA) | 잔여 | qa-verifier — §7 v1.2 확장 항목 포함 |
 
 기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수.
+
+PROGRESS: P4 — 완료 (§4.5 웹/LLM 3-tier 수집·승인 흐름 — `LlmMarketDataSource` 신규(Anthropic
+`/v1/messages` + `web_search_20250305` 서버 도구, 그룹①rate/dir·②bigDeal/lossRatio·③credit
+`supervisorScope`+그룹별 격리, 열거형 위반 필드만 폐기, `pause_turn` 재개(최대 3회, 추가 user
+메시지 없이 assistant content append), 타임아웃 30s+백오프 1회, 급변 재확인(금리 ±0.5%p·신용잔고
+±30%) 1회 재호출 후 일치 시에만 채택) + `Suggestion`/`SuggestionField`/`SuggestionValidation` 도메인
+모델 신규(신선도 STALE 허용연령 §3 비임계치) + `ApplySuggestionUseCase`/`FetchSuggestionsUseCase` +
+`SuggestionRepository`/`SuggestionRepositoryImpl`(Claude 전용 키/제공자 검증, 미설정 시 안내) +
+`BearIndicatorKey` 3종 신규(GATE_CREDIT/S3_LOSS_RATIO/S3_BIG_DEAL, 기존 ManualIndicatorKey와 별도
+키 공간) + `MergeBearSignalInputsUseCase` AUTO 확장(loss/big/credit이 MANUAL〉AUTO〉BASELINE 3단
+우선순위로, 기존 MANUAL 불패 회귀 없음) + `SuggestionPanel` UI 신규(명시적 "AI 제안 가져오기" 버튼
+— init/화면진입 자동 호출 금지, 개별/일괄 승인+무시, STALE 배지 색+텍스트 병기) + `BearSignalScreen`
+방아쇠·증폭 카드 아래 섹션 배선 + JVM 테스트 60건 신규(총 352건 — `bearsignal` 패키지 단독 필터 기준,
+기존 마이그레이션 테스트 3건은 별도 필터라 제외), 2026-07-13 — 하단 「Phase 4 상세」 절 참조)
 
 PROGRESS: P3.5 — 완료 (Sparkline(lead·gate 90일 Canvas)+TransitionLog("6/30 GREEN→AMBER · 방아쇠 경계 접근"
 형식, 이력 상태 3종 empty/단일/다수 처리) `BearSignalSparklineSection` 신규 + 신선도 제안 배너
@@ -101,6 +115,124 @@ QA 검증 결과 §3 임계치가 presentation 계층에 3곳 복제돼 있음�
 
 - **테스트 결과**: `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` — **248건, 0 실패**(기존 246건 + 신규 2건: `BearSignalViewModelTest`의 config 구동 테스트 — `manyCountries` 7→20 주입 시 골든 상태의 `manyCountriesBreached`가 true→false, `deepeningPct` -6.0→-5.0 주입 시 `deepeningBreached`가 false→true). `BearSignalViewModelTest`는 13건→15건.
 - **빌드**: `:app:compileDebugKotlin` BUILD SUCCESSFUL / `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` BUILD SUCCESSFUL(248/248) / `:app:assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 재검증 — `BearSignalViewModel` 신규 `BearThresholds` 파라미터 정상 해석).
+
+## Phase 4 상세 — 웹/LLM 3-tier 수집 · 승인 흐름 (2026-07-13)
+
+TASK_bear_signal_console.md §4.5 구현 범위 전체(Anthropic API + `web_search` 서버 도구, 그룹 분할
+수집, 급변 재확인, 승인 반영). 기존 P4(v1.0-UI, 하단 「P4 상세」 절)와 별개 — 마커 충돌을 피하기 위해
+이 절은 "Phase 4 상세"로 표기한다.
+
+- **변경/추가 파일**
+  - 신규(domain): `domain/model/Suggestion.kt`(`SuggestionField` 5종 enum·`Suggestion`·
+    `SuggestionGroupOutcome`·`SuggestionFetchResult`·`SuggestionValidation` 순수 검증 함수),
+    `domain/repository/SuggestionRepository.kt`, `domain/usecase/ApplySuggestionUseCase.kt`,
+    `domain/usecase/FetchSuggestionsUseCase.kt`
+  - 신규(data): `data/remote/LlmMarketDataSource.kt`(Anthropic `/v1/messages` + `web_search_20250305`
+    호출·그룹①②③·재시도·pause_turn 재개), `data/remote/LlmResponseParsing.kt`(Context 없는 순수
+    파싱 함수 — `parseLlmResponse`/`extractJsonObject`/그룹별 DTO 파서/`parseDateOrToday`/
+    `formatNumber`), `data/repository/SuggestionRepositoryImpl.kt`(Claude 키/제공자 검증)
+  - 신규(presentation): `presentation/ui/SuggestionPanel.kt`("AI 제안 가져오기" 버튼+제안 행+
+    STALE 배지+개별/일괄 승인+무시)
+  - 수정: `domain/model/BearSignalAutoModels.kt`(`BearIndicatorKey`에 `GATE_CREDIT`/`S3_LOSS_RATIO`/
+    `S3_BIG_DEAL` 3종 추가, `AutoBearSignalInputs`에 `credit`/`lossRatio`/`bigDeal` nullable 필드
+    추가), `domain/repository/BearSignalRepository.kt`(`applySuggestion` 추가),
+    `domain/usecase/MergeBearSignalInputsUseCase.kt`(loss/big/credit이 AUTO 폴백 소비하도록 확장,
+    MANUAL〉AUTO〉BASELINE 3단), `data/mapper/BearSignalAutoCacheMapper.kt`(Phase4 3필드 인코딩/
+    디코딩 + `suggestionEntity(field, rawValue, updatedAt)` 신규 — 승인 개별 upsert 경로),
+    `data/repository/BearSignalRepositoryImpl.kt`(`applySuggestion` 구현),
+    `di/BearSignalModule.kt`(`LlmMarketDataSource`/`SuggestionRepository`/
+    `FetchSuggestionsUseCase`/`ApplySuggestionUseCase` Hilt 프로바이더 추가),
+    `presentation/BearSignalViewModel.kt`(제안 상태 배선 — 아래 결정 사항 참조),
+    `presentation/ui/BearSignalScreen.kt`(방아쇠·증폭 카드 아래 제안 패널 섹션 삽입)
+  - 테스트 신규: `domain/model/SuggestionValidationTest.kt`(13),
+    `domain/usecase/ApplySuggestionUseCaseTest.kt`(4),
+    `data/remote/LlmMarketDataSourceTest.kt`(14, MockWebServer),
+    `data/repository/SuggestionRepositoryImplTest.kt`(4)
+  - 테스트 수정: `domain/usecase/MergeBearSignalInputsUseCaseTest.kt`(+6, 기존 3건 제목의 "AUTO 경로
+    없음" 문구를 "AUTO 미설정"으로 정정 — Phase4로 AUTO 경로가 실제로 생겼으므로), `data/mapper/BearSignalAutoCacheMapperTest.kt`(+9),
+    `data/repository/BearSignalRepositoryImplTest.kt`(+3), `presentation/BearSignalViewModelTest.kt`(+7)
+
+- **레이어별 요약**
+  - **domain**: `Suggestion`(field/current/next/as_of/origin/stale) + `SuggestionField`(각 필드가
+    자신의 `BearIndicatorKey`를 직접 보유해 반영 경로를 스키마 레벨에서 고정) + `SuggestionValidation`
+    (열거형 화이트리스트·신선도·급변 판정 — 전부 순수 함수, 안드로이드/네트워크 의존성 0).
+    `MergeBearSignalInputsUseCase`는 기존 `dir` 필드와 동일한 3단 우선순위 패턴을 loss/big/credit에도
+    적용 — 새 코드 대신 기존 검증된 패턴을 재사용해 회귀 위험을 최소화했다.
+  - **data**: `LlmMarketDataSource`는 그룹①(rate/dir)·②(bigDeal/lossRatio)·③(credit)을
+    `supervisorScope`+`async`+그룹별 `try/catch`로 병렬 격리 수집한다. 각 그룹은 Anthropic
+    `/v1/messages`에 `web_search_20250305` 서버 도구를 선언만 하고(클라이언트 측 실행 루프 없음),
+    시스템 프롬프트로 "최종 답은 JSON 객체만"을 강제한 뒤 `LlmResponseParsing.kt`의 Context 없는
+    순수 함수로 파싱한다. `stop_reason=="pause_turn"`이면 받은 `content` 배열을 그대로 assistant
+    메시지로 append해 재요청(최대 3회, 추가 user 메시지 없이). 네트워크는 앱 전역 30s 타임아웃
+    OkHttpClient(`KiwoomApiClient.createDefaultClient()`)를 재사용하고, 백오프 1회(`retryBackoffMs`,
+    테스트에서만 단축)만 수행한다. 급변 재확인(금리 ±0.5%p·신용잔고 ±30% 초과)은 동일 그룹을 1회
+    재호출해 두 결과가 정확히 일치할 때만 채택하고, 재확인 자체가 실패해도(네트워크 오류 등) 보수적으로
+    폐기한다. `SuggestionRepositoryImpl`은 `ApiConfigProvider.getAiConfig()`로 Claude 전용 여부(§4.5
+    "Anthropic 전용")·키 유효성을 확인해 미충족 시 네트워크 호출 자체를 시도하지 않고
+    `ApiError.NoApiKeyError`로 안내한다.
+  - **presentation**: `BearSignalViewModel`에 `FetchSuggestionsUseCase`/`ApplySuggestionUseCase`를
+    추가 주입하고, 제안 관련 상태(`suggestions`/`suggestionsLoading`/`suggestionGroupErrors`)를
+    별도 `SuggestionUiState` 한 묶음의 `MutableStateFlow`로 관리해 `uiState`의 `combine` 인자를
+    4개로 유지한다(kotlinx.coroutines `combine`의 타입 지정 오버로드 한도 고려, 기존 `core`/`history`
+    패턴과 동일한 설계 이유). `fetchSuggestions()`는 **init에서 호출되지 않고** 오직 `SuggestionPanel`의
+    "AI 제안 가져오기" 버튼에서만 트리거된다. `SuggestionPanel`은 STALE 배지(errorContainer 색+"STALE"
+    텍스트 병기), 개별 승인/무시 아이콘 버튼(48dp 기본 IconButton 터치 타깃), 제안 2건 이상일 때만
+    "전체 승인" 노출.
+
+- **결정 사항**
+  1. **반영 경로**: §4.5 웹 수집이 승인되면 기존 `BearSignalAutoCacheEntity`(범용 key-value 자동
+     캐시)에 upsert한다. `GATE_RATE`/`GATE_DIR`은 **기존 키를 재사용**(이미 Phase2 FRED/ECOS가
+     채우던 것과 동일 키 — LLM 제안이 승인되면 그 값을 덮어쓴다). credit/lossRatio/bigDeal은
+     **신규 `BearIndicatorKey`**(`GATE_CREDIT`/`S3_LOSS_RATIO`/`S3_BIG_DEAL`)를 추가했다 —
+     기존 `ManualIndicatorKey.CREDIT`/`LOSS`/`BIG`(사용자 직접 입력, 별도 테이블)와 키 공간이
+     완전히 분리돼 있어 승인된 LLM 제안이 사용자의 수동 입력을 물리적으로 덮어쓸 수 없다(MANUAL
+     불패가 테이블 분리 수준에서부터 구조적으로 보장됨).
+  2. **병합 확장**: `MergeBearSignalInputsUseCase`의 `loss`/`big`/`credit`은 원래 AUTO 경로가
+     없었으나(Phase3까지 순수 수동), 이번에 `manual?.X?.value ?: auto?.X?.value ?: baseline.X`
+     3단 우선순위로 확장했다 — 기존 `dir` 필드가 이미 검증해 온 동일 패턴이라 신규 로직 없이
+     재사용, MANUAL 불패 테스트(`MergeBearSignalInputsUseCaseTest`)로 회귀 없음을 확인했다.
+  3. **신선도 상수**: `SuggestionField.maxAgeDays`는 §3 `bear_thresholds.json` 임계치가 아니라
+     §4.5가 명시한 "허용 연령" UI/수집 파라미터다. rate/dir=45일(미 연준 FOMC 정례회의 주기 약 6주
+     + 여유), credit=10일(KOFIA 주간 통계 발표 주기 7일 + 여유), bigDeal/lossRatio=30일(이벤트성
+     정성 지표, 뉴스 갱신 빈도가 낮아 더 넉넉히 허용) — 전부 KDoc에 근거 명시, Kotlin enum 제약(생성자
+     인자가 자신의 companion object를 참조할 수 없음)으로 top-level private 상수로 선언했다.
+  4. **급변 재확인 임계값**(금리 ±0.5%p·신용잔고 ±30%)도 §3 임계치가 아니라 §4.5가 명시한 수집
+     파이프라인 파라미터로 분류해 `SuggestionValidation`에 상수로 정의했다(`bear_thresholds.json`
+     변경 없음).
+  5. **MockWebServer 테스트를 위한 `baseUrl` 주입**: 기존 관세청/FRED/Stooq 클라이언트는 고정
+     URL이라 MockWebServer 통합 테스트가 불가능했지만(파싱 fixture 테스트만 존재), §4.5는 명세가
+     HTTP 오류·타임아웃·pause_turn 재개 등 프로토콜 레벨 검증을 요구해 `LlmMarketDataSource`에만
+     `baseUrl`(프로덕션 기본값 Anthropic API) 생성자 파라미터를 추가했다 — 다른 기존 클라이언트는
+     변경하지 않았다(최소 변경 원칙).
+  6. **부분 실패 격리 테스트 전략**: `fetchSuggestions()` 오케스트레이션은 3개 그룹이 동시에 같은
+     엔드포인트를 호출하므로 FIFO 큐 기반 MockWebServer로는 그룹별 응답을 결정론적으로 배정할 수
+     없다. 요청 body에 포함된 그룹별 고유 프롬프트 문구(예: "미국 연방준비제도"/"대어급"/"KOFIA")로
+     분기하는 커스텀 `Dispatcher`를 사용해 동시 호출에서도 결정적으로 검증했다.
+
+- **테스트 결과**: `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` —
+  **352건, 0 실패**(기존 292건 회귀 통과 — 이전 마커의 295건은 `core.database.migration.*` 3건이
+  포함된 합산이라 `bearsignal` 단독 필터 기준 292건이 정확한 베이스라인 + 신규 60건: `SuggestionValidationTest`
+  13(열거형·신선도 경계·급변 재확인 임계 경계 0.5/0.30 포함), `ApplySuggestionUseCaseTest` 4(승인
+  전 상태 불변·개별/일괄 위임), `LlmMarketDataSourceTest` 14(성공/열거형 위반 필드만 폐기/HTTP
+  500 재시도 후 실패/타임아웃 재시도 후 실패/pause_turn 재개+assistant append 검증/금리·신용잔고
+  급변 재확인 일치·불일치 각 2쌍/응답 JSON 아님/부분 실패 격리 오케스트레이션), `SuggestionRepositoryImplTest`
+  4(키 미설정·Gemini 제공자·정상 위임·예외 매핑), `MergeBearSignalInputsUseCaseTest` +6(loss/big/credit
+  AUTO 채택 및 MANUAL 불패 각 2건×3필드), `BearSignalAutoCacheMapperTest` +9(Phase4 3필드 인코딩·
+  왕복·구버전 호환 + `suggestionEntity` 5건), `BearSignalRepositoryImplTest` +3(`applySuggestion`
+  RATE 기존 키 재사용·CREDIT 신규 키·BIG_DEAL 열거형 인코딩), `BearSignalViewModelTest` +7(init 시
+  자동 호출 없음·성공 시 상태 반영·상태 불변(승인 전)·최상위 실패 안내·개별 승인·일괄 승인·무시). 골든
+  (2026.6.30→AMBER)·경계(neg 6/7, rate 4.49/4.5, ratio 0.94/0.95/1.0, loss 44/45/59/60/79/80)
+  무변경 통과.
+- **빌드**: `:app:compileDebugKotlin` BUILD SUCCESSFUL / `:app:testDebugUnitTest --tests
+  "com.tinyoscillator.feature.bearsignal.*"` BUILD SUCCESSFUL(352/352) / `:app:assembleDebug`
+  BUILD SUCCESSFUL(Hilt 그래프 검증 — `LlmMarketDataSource`→`SuggestionRepository`→
+  `FetchSuggestionsUseCase`/`ApplySuggestionUseCase` 프로바이더 체인 및 `BearSignalViewModel` 신규
+  2개 생성자 파라미터 정상 해석). Room 스키마·마이그레이션 변경 없음(범용 key-value 캐시 테이블
+  재사용, 신규 컬럼 없음 — v37 유지).
+- **미해결/차단 요소**: 관세청/FRED와 마찬가지로 §4.5도 실제 Claude API 키로 web_search 응답 형태를
+  검증하는 실기 테스트는 미수행(비용·네트워크 필요, qa-verifier/실기 QA 단계 권장). Gemini 지원은
+  명시적으로 범위 밖(§4.5 "Anthropic 전용"). 다음 Phase는 `P5-1`(WorkManager 주기 조정·접근성
+  최종 마감)이다.
 
 ## Phase 3.5 상세 — Sparkline · TransitionLog · 신선도 제안 배선 (2026-07-13)
 

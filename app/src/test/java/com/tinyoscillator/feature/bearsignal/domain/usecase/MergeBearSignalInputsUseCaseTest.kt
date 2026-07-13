@@ -43,7 +43,7 @@ class MergeBearSignalInputsUseCaseTest {
     // ── 스칼라 지표 — MANUAL 우선순위 ────────────────────────────────────
 
     @Test
-    fun `credit는 AUTO가 없는 필드이므로 MANUAL이 있으면 그 값, 없으면 기준값`() {
+    fun `credit는 MANUAL이 있으면 그 값, 없으면 기준값(AUTO 미설정)`() {
         val manual = ManualBearSignalInputs(credit = AutoIndicator(50.0, InputSource.MANUAL, 1L))
         val merged = merge(auto = null, manual = manual, marketsSnapshot = null)
         assertEquals(50.0, merged.credit, 1e-9)
@@ -53,20 +53,67 @@ class MergeBearSignalInputsUseCaseTest {
     }
 
     @Test
-    fun `loss는 MANUAL이 있으면 그 값, 없으면 기준값(AUTO 경로 없음)`() {
+    fun `loss는 MANUAL이 있으면 그 값, 없으면 기준값(AUTO 미설정)`() {
         val manual = ManualBearSignalInputs(loss = AutoIndicator(72.0, InputSource.MANUAL, 1L))
         val merged = merge(auto = null, manual = manual, marketsSnapshot = null)
         assertEquals(72.0, merged.loss, 1e-9)
     }
 
     @Test
-    fun `big는 MANUAL이 있으면 그 값, 없으면 기준값`() {
+    fun `big는 MANUAL이 있으면 그 값, 없으면 기준값(AUTO 미설정)`() {
         val manual = ManualBearSignalInputs(big = AutoIndicator("failed", InputSource.MANUAL, 1L))
         val merged = merge(auto = null, manual = manual, marketsSnapshot = null)
         assertEquals("failed", merged.big)
 
         val mergedNoManual = merge(auto = null, manual = null, marketsSnapshot = null)
         assertEquals(BearSignalReportBaseline.BIG, mergedNoManual.big)
+    }
+
+    // ── Phase 4(§4.5) 확장 — loss/big/credit AUTO(LLM 제안 승인) 경로 ──────────
+
+    @Test
+    fun `credit는 MANUAL이 없고 AUTO(LLM 제안 승인)가 있으면 AUTO 값을 사용한다`() {
+        val auto = autoInputs(credit = AutoIndicator(42.0, InputSource.AUTO, 1L))
+        val merged = merge(auto = auto, manual = null, marketsSnapshot = null)
+        assertEquals(42.0, merged.credit, 1e-9)
+    }
+
+    @Test
+    fun `credit는 MANUAL이 AUTO(LLM 제안 승인)보다 우선한다(MANUAL 불패)`() {
+        val auto = autoInputs(credit = AutoIndicator(42.0, InputSource.AUTO, 1L))
+        val manual = ManualBearSignalInputs(credit = AutoIndicator(50.0, InputSource.MANUAL, 2L))
+        val merged = merge(auto = auto, manual = manual, marketsSnapshot = null)
+        assertEquals(50.0, merged.credit, 1e-9)
+    }
+
+    @Test
+    fun `loss는 MANUAL이 없고 AUTO(LLM 제안 승인)가 있으면 AUTO 값을 사용한다`() {
+        val auto = autoInputs(lossRatio = AutoIndicator(65.0, InputSource.AUTO, 1L))
+        val merged = merge(auto = auto, manual = null, marketsSnapshot = null)
+        assertEquals(65.0, merged.loss, 1e-9)
+    }
+
+    @Test
+    fun `loss는 MANUAL이 AUTO(LLM 제안 승인)보다 우선한다(MANUAL 불패)`() {
+        val auto = autoInputs(lossRatio = AutoIndicator(65.0, InputSource.AUTO, 1L))
+        val manual = ManualBearSignalInputs(loss = AutoIndicator(72.0, InputSource.MANUAL, 2L))
+        val merged = merge(auto = auto, manual = manual, marketsSnapshot = null)
+        assertEquals(72.0, merged.loss, 1e-9)
+    }
+
+    @Test
+    fun `big는 MANUAL이 없고 AUTO(LLM 제안 승인)가 있으면 AUTO 값을 사용한다`() {
+        val auto = autoInputs(bigDeal = AutoIndicator("pending", InputSource.AUTO, 1L))
+        val merged = merge(auto = auto, manual = null, marketsSnapshot = null)
+        assertEquals("pending", merged.big)
+    }
+
+    @Test
+    fun `big는 MANUAL이 AUTO(LLM 제안 승인)보다 우선한다(MANUAL 불패)`() {
+        val auto = autoInputs(bigDeal = AutoIndicator("pending", InputSource.AUTO, 1L))
+        val manual = ManualBearSignalInputs(big = AutoIndicator("failed", InputSource.MANUAL, 2L))
+        val merged = merge(auto = auto, manual = manual, marketsSnapshot = null)
+        assertEquals("failed", merged.big)
     }
 
     @Test
@@ -213,6 +260,9 @@ class MergeBearSignalInputsUseCaseTest {
         buffer: AutoIndicator<Boolean>? = null,
         rate: AutoIndicator<Double>? = null,
         dir: AutoIndicator<String>? = null,
-        etf: AutoIndicator<String>? = null
-    ) = AutoBearSignalInputs(up3, down3, up4, down4, kospi2, semi, buffer, rate, dir, etf)
+        etf: AutoIndicator<String>? = null,
+        credit: AutoIndicator<Double>? = null,
+        lossRatio: AutoIndicator<Double>? = null,
+        bigDeal: AutoIndicator<String>? = null
+    ) = AutoBearSignalInputs(up3, down3, up4, down4, kospi2, semi, buffer, rate, dir, etf, credit, lossRatio, bigDeal)
 }

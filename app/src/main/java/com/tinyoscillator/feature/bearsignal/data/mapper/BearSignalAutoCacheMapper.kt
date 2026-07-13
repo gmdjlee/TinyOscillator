@@ -5,6 +5,8 @@ import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.BearIndicatorKey
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
+import com.tinyoscillator.feature.bearsignal.domain.model.IpoBigConsumption
+import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionField
 import com.tinyoscillator.feature.bearsignal.domain.usecase.IpoEtfDirectionCalculator
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RateGateInputCalculator
 
@@ -32,7 +34,11 @@ object BearSignalAutoCacheMapper {
     private const val ETF_FLAT_CODE = 0.0
     private const val ETF_UP_CODE = 1.0
 
-    /** 자동 수집 결과 → Room upsert용 엔티티. Phase 2 필드는 null이 아닌 것만 포함한다. */
+    private const val BIG_SMOOTH_CODE = 0.0
+    private const val BIG_PENDING_CODE = 1.0
+    private const val BIG_FAILED_CODE = 2.0
+
+    /** 자동 수집 결과 → Room upsert용 엔티티. Phase 2/4 필드는 null이 아닌 것만 포함한다. */
     fun toEntities(inputs: AutoBearSignalInputs): List<BearSignalAutoCacheEntity> {
         val entities = mutableListOf(
             intEntity(BearIndicatorKey.S2_UP3, inputs.up3),
@@ -46,6 +52,10 @@ object BearSignalAutoCacheMapper {
         inputs.rate?.let { entities.add(doubleEntity(BearIndicatorKey.GATE_RATE, it)) }
         inputs.dir?.let { entities.add(dirEntity(it)) }
         inputs.etf?.let { entities.add(etfEntity(it)) }
+        // Phase 4(§4.5) — 웹/LLM 제안 승인 전용 필드
+        inputs.credit?.let { entities.add(doubleEntity(BearIndicatorKey.GATE_CREDIT, it)) }
+        inputs.lossRatio?.let { entities.add(doubleEntity(BearIndicatorKey.S3_LOSS_RATIO, it)) }
+        inputs.bigDeal?.let { entities.add(bigDealEntity(it)) }
         return entities
     }
 
@@ -70,7 +80,10 @@ object BearSignalAutoCacheMapper {
             buffer = byKey[BearIndicatorKey.AMP_BUFFER.key]?.let { toBoolIndicator(it) },
             rate = byKey[BearIndicatorKey.GATE_RATE.key]?.let { toDoubleIndicator(it) },
             dir = byKey[BearIndicatorKey.GATE_DIR.key]?.let { toDirIndicator(it) },
-            etf = byKey[BearIndicatorKey.S3_ETF.key]?.let { toEtfIndicator(it) }
+            etf = byKey[BearIndicatorKey.S3_ETF.key]?.let { toEtfIndicator(it) },
+            credit = byKey[BearIndicatorKey.GATE_CREDIT.key]?.let { toDoubleIndicator(it) },
+            lossRatio = byKey[BearIndicatorKey.S3_LOSS_RATIO.key]?.let { toDoubleIndicator(it) },
+            bigDeal = byKey[BearIndicatorKey.S3_BIG_DEAL.key]?.let { toBigDealIndicator(it) }
         )
     }
 
@@ -123,6 +136,58 @@ object BearSignalAutoCacheMapper {
             value = code,
             source = indicator.source.name,
             updatedAt = indicator.updatedAt
+        )
+    }
+
+    private fun bigDealEntity(indicator: AutoIndicator<String>): BearSignalAutoCacheEntity {
+        val code = when (indicator.value) {
+            IpoBigConsumption.SMOOTH -> BIG_SMOOTH_CODE
+            IpoBigConsumption.FAILED -> BIG_FAILED_CODE
+            else -> BIG_PENDING_CODE
+        }
+        return BearSignalAutoCacheEntity(
+            indicatorKey = BearIndicatorKey.S3_BIG_DEAL.key,
+            value = code,
+            source = indicator.source.name,
+            updatedAt = indicator.updatedAt
+        )
+    }
+
+    private fun toBigDealIndicator(entity: BearSignalAutoCacheEntity): AutoIndicator<String> {
+        val value = when {
+            entity.value <= BIG_SMOOTH_CODE + 0.5 -> IpoBigConsumption.SMOOTH
+            entity.value >= BIG_FAILED_CODE - 0.5 -> IpoBigConsumption.FAILED
+            else -> IpoBigConsumption.PENDING
+        }
+        return AutoIndicator(value, parseSource(entity.source), entity.updatedAt)
+    }
+
+    /**
+     * §4.5 승인된 제안 하나를 캐시 엔티티로 변환(Phase 4, 개별 필드 upsert 경로).
+     *
+     * [rawValue]는 [com.tinyoscillator.feature.bearsignal.domain.model.Suggestion.nextValue] 원문
+     * 문자열이다 — [com.tinyoscillator.feature.bearsignal.domain.model.SuggestionValidation]이 이미
+     * 열거형 필드(dir/bigDeal)를 검증했으므로 여기서는 인코딩만 수행한다.
+     */
+    fun suggestionEntity(field: SuggestionField, rawValue: String, updatedAt: Long): BearSignalAutoCacheEntity {
+        val value = when (field) {
+            SuggestionField.RATE, SuggestionField.LOSS_RATIO, SuggestionField.CREDIT -> rawValue.toDouble()
+            SuggestionField.DIR -> when (rawValue) {
+                RateGateInputCalculator.DIR_EASE -> DIR_EASE_CODE
+                RateGateInputCalculator.DIR_HIKE -> DIR_HIKE_CODE
+                else -> DIR_HOLD_CODE
+            }
+            SuggestionField.BIG_DEAL -> when (rawValue) {
+                IpoBigConsumption.SMOOTH -> BIG_SMOOTH_CODE
+                IpoBigConsumption.FAILED -> BIG_FAILED_CODE
+                else -> BIG_PENDING_CODE
+            }
+        }
+        return BearSignalAutoCacheEntity(
+            indicatorKey = field.indicatorKey.key,
+            value = value,
+            source = InputSource.AUTO.name,
+            updatedAt = updatedAt
         )
     }
 

@@ -5,6 +5,7 @@ import com.tinyoscillator.feature.bearsignal.domain.model.ManualBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualFieldUpdate
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualMarketReturn
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturnsSnapshot
+import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionField
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -82,4 +83,21 @@ interface BearSignalRepository {
      * [com.tinyoscillator.feature.bearsignal.domain.usecase.ResetToReportBaselineUseCase] KDoc 참고).
      */
     suspend fun resetToReportBaseline()
+
+    // ── Phase 4: §4.5 웹/LLM 제안 승인 ──────────────────────────────────
+
+    /**
+     * 승인된 [com.tinyoscillator.feature.bearsignal.domain.model.Suggestion]을 `source=AUTO`로
+     * 반영한다(§4.6 "§4.5 웹 수집의 WEB 출처는 AUTO에 속한다") — 승인되지 않은 제안은 이 메서드가
+     * 호출되지 않으므로 Room에 어떤 영향도 주지 않는다(§7 승인 흐름).
+     *
+     * [field]가 기존 [BearIndicatorKey.GATE_RATE]/[BearIndicatorKey.GATE_DIR]를 가리키면 기존 캐시
+     * 값을 그대로 덮어쓰고(같은 키 재사용), credit/lossRatio/bigDeal은 Phase 4 신규 키
+     * ([BearIndicatorKey.GATE_CREDIT]/[BearIndicatorKey.S3_LOSS_RATIO]/[BearIndicatorKey.S3_BIG_DEAL])에
+     * upsert된다 — 기존 [ManualIndicatorKey] 수동 입력과는 별도 키 공간이므로 MANUAL 값을 덮어쓰지
+     * 않는다(MANUAL 불패, [com.tinyoscillator.feature.bearsignal.domain.usecase.MergeBearSignalInputsUseCase]가 우선순위를 보장).
+     *
+     * @param value [Suggestion.nextValue] 원문 문자열(필드별 인코딩은 data 계층이 담당).
+     */
+    suspend fun applySuggestion(field: SuggestionField, value: String, updatedAt: Long)
 }

@@ -20,6 +20,12 @@ import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturnsSnapshot
  *
  * [ManualBearSignalInputs.issueRatio](신주 비중)는 §3 스코어링 파라미터가 아니므로 조립 대상에서
  * 제외한다(모니터링 전용, §1.1 각주3).
+ *
+ * **Phase 4(§4.5) 확장**: `loss`/`big`/`credit`는 원래 AUTO 경로가 없었으나(Phase 3까지는 순수
+ * 수동 입력), §4.5 웹/LLM 제안이 승인되면 [AutoBearSignalInputs.lossRatio]/[AutoBearSignalInputs.bigDeal]/
+ * [AutoBearSignalInputs.credit]로 채워질 수 있다. 우선순위는 기존 `dir`(MANUAL 〉 AUTO 〉 BASELINE)과
+ * 동일한 3단 규칙을 그대로 적용한다 — MANUAL 오버라이드가 있으면 AUTO(LLM 승인값)를 무시한다
+ * (§4.6 "MANUAL 불패").
  */
 class MergeBearSignalInputsUseCase {
 
@@ -37,12 +43,12 @@ class MergeBearSignalInputsUseCase {
             up = auto?.up3?.value ?: baseline.UP,
             down = auto?.down3?.value ?: baseline.DOWN,
             deepening = baseline.DEEPENING,
-            loss = manual?.loss?.value ?: baseline.LOSS,
+            loss = manual?.loss?.value ?: auto?.lossRatio?.value ?: baseline.LOSS,
             etf = auto?.etf?.value ?: baseline.ETF,
-            big = manual?.big?.value ?: baseline.BIG,
+            big = manual?.big?.value ?: auto?.bigDeal?.value ?: baseline.BIG,
             rate = auto?.rate?.value ?: baseline.RATE,
             dir = manual?.dir?.value ?: auto?.dir?.value ?: baseline.DIR,
-            credit = manual?.credit?.value ?: baseline.CREDIT,
+            credit = manual?.credit?.value ?: auto?.credit?.value ?: baseline.CREDIT,
             margin = manual?.margin?.value ?: baseline.MARGIN,
             semi = auto?.semi?.value ?: baseline.SEMI,
             kospi2 = auto?.kospi2?.value ?: baseline.KOSPI2,

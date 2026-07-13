@@ -48,7 +48,27 @@ enum class BearIndicatorKey(val key: String) {
     GATE_DIR("gate_dir"),
 
     /** §3.3 신호3 — IPO ETF(티커 `IPO`) 방향. -1.0=down, 0.0=flat, 1.0=up 인코딩 */
-    S3_ETF("s3_etf");
+    S3_ETF("s3_etf"),
+
+    /**
+     * §3.4 금리 방아쇠 — 신용거래융자 잔고(조원), §4.5 웹/LLM 제안 승인 전용 AUTO 키(Phase 4).
+     * 기존 [ManualIndicatorKey.CREDIT](사용자 직접 입력)과 별도 키 공간·별도 값 출처다 —
+     * 두 값이 공존할 수 있으며 병합 우선순위(MANUAL 〉 AUTO 〉 BASELINE)는
+     * [com.tinyoscillator.feature.bearsignal.domain.usecase.MergeBearSignalInputsUseCase]가 담당한다.
+     */
+    GATE_CREDIT("gate_credit"),
+
+    /**
+     * §3.3 신호3 — 적자상장비중(%), §4.5 웹/LLM 제안 승인 전용 AUTO 키(Phase 4).
+     * 기존 [ManualIndicatorKey.LOSS]와 별도 키 공간(GATE_CREDIT과 동일한 근거).
+     */
+    S3_LOSS_RATIO("s3_loss_ratio"),
+
+    /**
+     * §3.3 신호3 — 대어(OpenAI·Anthropic 등) 공모 소화 상태(smooth/pending/failed),
+     * §4.5 웹/LLM 제안 승인 전용 AUTO 키(Phase 4). 기존 [ManualIndicatorKey.BIG]와 별도 키 공간.
+     */
+    S3_BIG_DEAL("s3_big_deal");
 
     companion object {
         fun fromKey(key: String): BearIndicatorKey? = entries.find { it.key == key }
@@ -78,5 +98,11 @@ data class AutoBearSignalInputs(
     val buffer: AutoIndicator<Boolean>? = null,
     val rate: AutoIndicator<Double>? = null,
     val dir: AutoIndicator<String>? = null,
-    val etf: AutoIndicator<String>? = null
+    val etf: AutoIndicator<String>? = null,
+    /** §4.5 웹/LLM 제안(Phase 4) 승인 시에만 채워진다 — [BearIndicatorKey.GATE_CREDIT] */
+    val credit: AutoIndicator<Double>? = null,
+    /** §4.5 웹/LLM 제안(Phase 4) 승인 시에만 채워진다 — [BearIndicatorKey.S3_LOSS_RATIO] */
+    val lossRatio: AutoIndicator<Double>? = null,
+    /** §4.5 웹/LLM 제안(Phase 4) 승인 시에만 채워진다 — [BearIndicatorKey.S3_BIG_DEAL] */
+    val bigDeal: AutoIndicator<String>? = null
 )

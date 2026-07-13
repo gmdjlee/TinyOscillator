@@ -18,11 +18,14 @@ import com.tinyoscillator.feature.bearsignal.domain.model.ManualMarketReturn
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketAnalysis
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturnsSnapshot
 import com.tinyoscillator.feature.bearsignal.domain.model.SnapshotUpdateSuggestion
+import com.tinyoscillator.feature.bearsignal.domain.model.Suggestion
 import com.tinyoscillator.feature.bearsignal.domain.model.Transition
 import com.tinyoscillator.feature.bearsignal.domain.repository.SnapshotRepository
+import com.tinyoscillator.feature.bearsignal.domain.usecase.ApplySuggestionUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.BuildBearSnapshotUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.DetectTransitionsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.EvaluateSnapshotFreshnessUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.FetchSuggestionsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ObserveBearSignalStateUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshAutoInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshExternalAutoInputsUseCase
@@ -97,6 +100,12 @@ private val DEFAULT_RESULT: BearSignalResult = BearSignalResult(
  * 이 필드가 non-null이어도 [inputs]/[result] 등 다른 필드는 전혀 영향받지 않는다. 사용자가
  * [BearSignalViewModel.acceptUpdateSuggestion]을 명시적으로 호출해야만 [BearSignalViewModel.refresh]가
  * 트리거된다.
+ * @param suggestions §4.5 웹/LLM 제안 목록(Phase 4) — [BearSignalViewModel.fetchSuggestions]가
+ * 사용자의 명시적 액션("AI 제안 가져오기")으로 호출됐을 때만 채워진다(화면 진입/init 자동 호출
+ * 없음). 승인 전에는 이 목록이 존재해도 [inputs]/[result]/Room에 어떤 영향도 없다(§7 승인 흐름).
+ * @param suggestionsLoading §4.5 제안 조회 진행 중 여부(로딩 표시용).
+ * @param suggestionGroupErrors §4.5 그룹별(rate/dir, bigDeal/lossRatio, credit) 부분 실패 메시지 —
+ * 실패한 그룹이 있어도 성공한 그룹의 [suggestions]는 그대로 노출된다(부분 실패 격리).
  */
 data class BearSignalUiState(
     val inputs: BearSignalInputs = DEFAULT_INPUTS,
@@ -115,7 +124,21 @@ data class BearSignalUiState(
     val deepeningBreached: Boolean = false,
     val snapshotHistory: List<BearSnapshot> = emptyList(),
     val transitions: List<Transition> = emptyList(),
-    val updateSuggestion: SnapshotUpdateSuggestion? = null
+    val updateSuggestion: SnapshotUpdateSuggestion? = null,
+    val suggestions: List<Suggestion> = emptyList(),
+    val suggestionsLoading: Boolean = false,
+    val suggestionGroupErrors: List<String> = emptyList()
+)
+
+/**
+ * §4.5 제안 관련 UI 부분 상태 — [BearSignalViewModel.uiState]의 `combine` 인자 개수를 4개로 유지하기
+ * 위해(kotlinx.coroutines `combine`의 타입 지정 오버로드는 5개까지) 하나의 [MutableStateFlow]로
+ * 묶는다(기존 [BearSignalViewModel.core] 패턴과 동일한 이유).
+ */
+private data class SuggestionUiState(
+    val suggestions: List<Suggestion> = emptyList(),
+    val isLoading: Boolean = false,
+    val groupErrors: List<String> = emptyList()
 )
 
 @HiltViewModel
@@ -131,13 +154,21 @@ class BearSignalViewModel @Inject constructor(
     private val evaluateSnapshotFreshnessUseCase: EvaluateSnapshotFreshnessUseCase,
     private val detectTransitionsUseCase: DetectTransitionsUseCase,
     private val thresholds: BearThresholds,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val fetchSuggestionsUseCase: FetchSuggestionsUseCase,
+    private val applySuggestionUseCase: ApplySuggestionUseCase
 ) : ViewModel() {
 
     private val periodIdx = MutableStateFlow(BearSignalReportBaseline.PERIOD_IDX)
     private val isRefreshing = MutableStateFlow(false)
     private val errorMessage = MutableStateFlow<String?>(null)
     private val isOffline = MutableStateFlow(false)
+
+    /**
+     * §4.5 제안 상태 — **init에서 채우지 않는다**. 사용자가 [fetchSuggestions]를 명시적으로 호출할
+     * 때만 네트워크(Claude API) 호출이 발생한다(비용 고려, §4.5 "UI/UX 지침").
+     */
+    private val suggestionState = MutableStateFlow(SuggestionUiState())
 
     /**
      * §6.1 "state:latest 로드" 신선도 제안 — 세션 진입 시([init] 1회) 평가해 채운다. 이후로는
@@ -175,7 +206,9 @@ class BearSignalViewModel @Inject constructor(
     private val historyTo: String = LocalDate.now().toString()
     private val history: Flow<List<BearSnapshot>> = snapshotRepository.observeRange(historyFrom, historyTo)
 
-    val uiState: StateFlow<BearSignalUiState> = combine(core, history, updateSuggestion) { c, hist, suggestion ->
+    val uiState: StateFlow<BearSignalUiState> = combine(
+        core, history, updateSuggestion, suggestionState
+    ) { c, hist, suggestion, sugState ->
         val state = c.state
         BearSignalUiState(
             inputs = state.inputs,
@@ -195,7 +228,10 @@ class BearSignalViewModel @Inject constructor(
             deepeningBreached = state.result.ma.worstNew <= thresholds.s1.deepeningPct,
             snapshotHistory = hist,
             transitions = detectTransitionsUseCase(hist),
-            updateSuggestion = suggestion
+            updateSuggestion = suggestion,
+            suggestions = sugState.suggestions,
+            suggestionsLoading = sugState.isLoading,
+            suggestionGroupErrors = sugState.groupErrors
         )
     }.stateIn(
         viewModelScope,
@@ -269,6 +305,64 @@ class BearSignalViewModel @Inject constructor(
         refresh()
     }
 
+    /**
+     * §4.5 "AI 제안 가져오기" 버튼 액션 — **명시적 사용자 액션에서만 호출**(비용이 드는 Claude API
+     * 호출이므로 init/화면 진입에서 자동 호출하지 않는다). 조회 자체는 [inputs]/[result]/Room 등
+     * 어떤 상태도 바꾸지 않는다 — 오직 [suggestionState]만 갱신되며, 실제 반영은
+     * [approveSuggestion]/[approveAllSuggestions]가 명시적으로 호출될 때만 일어난다(§7 승인 흐름).
+     */
+    fun fetchSuggestions() {
+        if (suggestionState.value.isLoading) return
+        viewModelScope.launch {
+            suggestionState.value = suggestionState.value.copy(isLoading = true, groupErrors = emptyList())
+            val current = observeBearSignalStateUseCase(periodIdx).first().inputs
+            val result = fetchSuggestionsUseCase(current)
+            suggestionState.value = result.fold(
+                onSuccess = { fetchResult ->
+                    SuggestionUiState(
+                        suggestions = fetchResult.all,
+                        isLoading = false,
+                        groupErrors = fetchResult.failedGroupMessages
+                    )
+                },
+                onFailure = { e ->
+                    SuggestionUiState(
+                        suggestions = emptyList(),
+                        isLoading = false,
+                        groupErrors = listOf(e.message ?: "AI 제안 조회에 실패했습니다")
+                    )
+                }
+            )
+        }
+    }
+
+    /** 제안 하나를 승인 — 승인된 값만 `source=AUTO`로 반영되고, 승인 즉시 목록에서 제거된다. */
+    fun approveSuggestion(suggestion: Suggestion) {
+        viewModelScope.launch {
+            applySuggestionUseCase(suggestion)
+            suggestionState.value = suggestionState.value.copy(
+                suggestions = suggestionState.value.suggestions.filterNot { it == suggestion }
+            )
+        }
+    }
+
+    /** 현재 표시된 제안 전체를 일괄 승인한다(§5.2 "일괄 승인"). */
+    fun approveAllSuggestions() {
+        val toApply = suggestionState.value.suggestions
+        if (toApply.isEmpty()) return
+        viewModelScope.launch {
+            applySuggestionUseCase.applyAll(toApply)
+            suggestionState.value = suggestionState.value.copy(suggestions = emptyList())
+        }
+    }
+
+    /** 제안 하나를 무시(dismiss) — Room에 아무 영향 없이 목록에서만 제거한다. */
+    fun dismissSuggestion(suggestion: Suggestion) {
+        suggestionState.value = suggestionState.value.copy(
+            suggestions = suggestionState.value.suggestions.filterNot { it == suggestion }
+        )
+    }
+
     private suspend fun saveSnapshot(state: ObserveBearSignalStateUseCase.State) {
         val snapshot = buildBearSnapshotUseCase(
             state = state,
@@ -322,6 +416,10 @@ class BearSignalViewModel @Inject constructor(
                 auto.rate?.updatedAt?.let(::add)
                 auto.dir?.updatedAt?.let(::add)
                 auto.etf?.updatedAt?.let(::add)
+                // Phase 4(§4.5) — 웹/LLM 제안 승인 필드도 "전체 최신 갱신일"에 포함
+                auto.credit?.updatedAt?.let(::add)
+                auto.lossRatio?.updatedAt?.let(::add)
+                auto.bigDeal?.updatedAt?.let(::add)
             }
             state.manual.loss?.updatedAt?.let(::add)
             state.manual.big?.updatedAt?.let(::add)

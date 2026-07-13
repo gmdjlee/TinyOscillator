@@ -5,6 +5,7 @@ import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.BearIndicatorKey
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
+import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionField
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -181,5 +182,100 @@ class BearSignalAutoCacheMapperTest {
 
         val result = BearSignalAutoCacheMapper.toDomain(entities)
         assertEquals("flat", result!!.etf!!.value)
+    }
+
+    // ── Phase 4(§4.5) — 웹/LLM 제안 승인 전용 필드(credit/lossRatio/bigDeal) ────
+
+    private fun sampleInputsWithSuggestionFields() = sampleInputs().copy(
+        credit = AutoIndicator(42.0, InputSource.AUTO, 3_000L),
+        lossRatio = AutoIndicator(65.0, InputSource.AUTO, 3_000L),
+        bigDeal = AutoIndicator("pending", InputSource.AUTO, 3_000L)
+    )
+
+    @Test
+    fun `toEntities Phase4 3개 필드까지 채우면 8개 엔티티 생성`() {
+        val entities = BearSignalAutoCacheMapper.toEntities(sampleInputsWithSuggestionFields())
+
+        assertEquals(8, entities.size)
+        val byKey = entities.associateBy { it.indicatorKey }
+        assertEquals(42.0, byKey[BearIndicatorKey.GATE_CREDIT.key]!!.value, 1e-9)
+        assertEquals(65.0, byKey[BearIndicatorKey.S3_LOSS_RATIO.key]!!.value, 1e-9)
+        assertEquals(1.0, byKey[BearIndicatorKey.S3_BIG_DEAL.key]!!.value, 1e-9) // pending → 1.0
+    }
+
+    @Test
+    fun `toEntities toDomain Phase4 포함 왕복 변환 일치`() {
+        val original = sampleInputsWithSuggestionFields()
+
+        val roundTripped = BearSignalAutoCacheMapper.toDomain(BearSignalAutoCacheMapper.toEntities(original))
+
+        assertEquals(original, roundTripped)
+    }
+
+    @Test
+    fun `toDomain Phase4 키가 없으면 해당 필드는 null(구버전 캐시 호환)`() {
+        val entities = BearSignalAutoCacheMapper.toEntities(sampleInputs())
+
+        val result = BearSignalAutoCacheMapper.toDomain(entities)
+
+        assertEquals(null, result!!.credit)
+        assertEquals(null, result.lossRatio)
+        assertEquals(null, result.bigDeal)
+    }
+
+    @Test
+    fun `bigDeal smooth failed도 각각 0점0 2점0으로 인코딩되고 왕복 복원된다`() {
+        val smoothInputs = sampleInputs().copy(bigDeal = AutoIndicator("smooth", InputSource.AUTO, 1_000L))
+        val smoothEntities = BearSignalAutoCacheMapper.toEntities(smoothInputs)
+        assertEquals(0.0, smoothEntities.associateBy { it.indicatorKey }[BearIndicatorKey.S3_BIG_DEAL.key]!!.value, 1e-9)
+        assertEquals("smooth", BearSignalAutoCacheMapper.toDomain(smoothEntities)!!.bigDeal!!.value)
+
+        val failedInputs = sampleInputs().copy(bigDeal = AutoIndicator("failed", InputSource.AUTO, 1_000L))
+        val failedEntities = BearSignalAutoCacheMapper.toEntities(failedInputs)
+        assertEquals(2.0, failedEntities.associateBy { it.indicatorKey }[BearIndicatorKey.S3_BIG_DEAL.key]!!.value, 1e-9)
+        assertEquals("failed", BearSignalAutoCacheMapper.toDomain(failedEntities)!!.bigDeal!!.value)
+    }
+
+    // ── suggestionEntity(field, rawValue, updatedAt) — §4.5 제안 승인 개별 upsert 경로 ─────
+
+    @Test
+    fun `suggestionEntity RATE는 숫자 문자열을 그대로 Double로 인코딩한다`() {
+        val entity = BearSignalAutoCacheMapper.suggestionEntity(SuggestionField.RATE, "4.50", 5_000L)
+
+        assertEquals(BearIndicatorKey.GATE_RATE.key, entity.indicatorKey)
+        assertEquals(4.50, entity.value, 1e-9)
+        assertEquals(InputSource.AUTO.name, entity.source)
+        assertEquals(5_000L, entity.updatedAt)
+    }
+
+    @Test
+    fun `suggestionEntity DIR은 ease hold hike를 -1 0 1로 인코딩한다`() {
+        assertEquals(-1.0, BearSignalAutoCacheMapper.suggestionEntity(SuggestionField.DIR, "ease", 1L).value, 1e-9)
+        assertEquals(0.0, BearSignalAutoCacheMapper.suggestionEntity(SuggestionField.DIR, "hold", 1L).value, 1e-9)
+        assertEquals(1.0, BearSignalAutoCacheMapper.suggestionEntity(SuggestionField.DIR, "hike", 1L).value, 1e-9)
+    }
+
+    @Test
+    fun `suggestionEntity BIG_DEAL은 smooth pending failed를 0 1 2로 인코딩한다`() {
+        assertEquals(0.0, BearSignalAutoCacheMapper.suggestionEntity(SuggestionField.BIG_DEAL, "smooth", 1L).value, 1e-9)
+        assertEquals(1.0, BearSignalAutoCacheMapper.suggestionEntity(SuggestionField.BIG_DEAL, "pending", 1L).value, 1e-9)
+        assertEquals(2.0, BearSignalAutoCacheMapper.suggestionEntity(SuggestionField.BIG_DEAL, "failed", 1L).value, 1e-9)
+    }
+
+    @Test
+    fun `suggestionEntity CREDIT LOSS_RATIO는 숫자 문자열을 그대로 인코딩하고 키가 다르다`() {
+        val credit = BearSignalAutoCacheMapper.suggestionEntity(SuggestionField.CREDIT, "50.00", 1L)
+        val loss = BearSignalAutoCacheMapper.suggestionEntity(SuggestionField.LOSS_RATIO, "65.00", 1L)
+
+        assertEquals(BearIndicatorKey.GATE_CREDIT.key, credit.indicatorKey)
+        assertEquals(50.0, credit.value, 1e-9)
+        assertEquals(BearIndicatorKey.S3_LOSS_RATIO.key, loss.indicatorKey)
+        assertEquals(65.0, loss.value, 1e-9)
+    }
+
+    @Test
+    fun `suggestionEntity source는 항상 AUTO다(승인 반영 경로)`() {
+        val entity = BearSignalAutoCacheMapper.suggestionEntity(SuggestionField.RATE, "4.50", 1L)
+        assertEquals(InputSource.AUTO.name, entity.source)
     }
 }
