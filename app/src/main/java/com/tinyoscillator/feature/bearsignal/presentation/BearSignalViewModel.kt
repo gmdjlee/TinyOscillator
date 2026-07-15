@@ -106,6 +106,8 @@ private val DEFAULT_RESULT: BearSignalResult = BearSignalResult(
  * @param suggestionsLoading §4.5 제안 조회 진행 중 여부(로딩 표시용).
  * @param suggestionGroupErrors §4.5 그룹별(rate/dir, bigDeal/lossRatio, credit) 부분 실패 메시지 —
  * 실패한 그룹이 있어도 성공한 그룹의 [suggestions]는 그대로 노출된다(부분 실패 격리).
+ * @param suggestionSearchWidgetsHtml §4.5 v1.3 "Gemini 경로" — Google 검색 제안 위젯 HTML 목록
+ * (ToS상 사용자 표시 의무). Claude 제공자에서는 항상 비어있다. `SuggestionPanel`이 WebView로 노출한다.
  */
 data class BearSignalUiState(
     val inputs: BearSignalInputs = DEFAULT_INPUTS,
@@ -127,7 +129,8 @@ data class BearSignalUiState(
     val updateSuggestion: SnapshotUpdateSuggestion? = null,
     val suggestions: List<Suggestion> = emptyList(),
     val suggestionsLoading: Boolean = false,
-    val suggestionGroupErrors: List<String> = emptyList()
+    val suggestionGroupErrors: List<String> = emptyList(),
+    val suggestionSearchWidgetsHtml: List<String> = emptyList()
 )
 
 /**
@@ -138,7 +141,8 @@ data class BearSignalUiState(
 private data class SuggestionUiState(
     val suggestions: List<Suggestion> = emptyList(),
     val isLoading: Boolean = false,
-    val groupErrors: List<String> = emptyList()
+    val groupErrors: List<String> = emptyList(),
+    val searchWidgetsHtml: List<String> = emptyList()
 )
 
 @HiltViewModel
@@ -166,7 +170,7 @@ class BearSignalViewModel @Inject constructor(
 
     /**
      * §4.5 제안 상태 — **init에서 채우지 않는다**. 사용자가 [fetchSuggestions]를 명시적으로 호출할
-     * 때만 네트워크(Claude API) 호출이 발생한다(비용 고려, §4.5 "UI/UX 지침").
+     * 때만 네트워크(설정된 AI 제공자 — Claude 또는 Gemini) 호출이 발생한다(비용 고려, §4.5 "UI/UX 지침").
      */
     private val suggestionState = MutableStateFlow(SuggestionUiState())
 
@@ -231,7 +235,8 @@ class BearSignalViewModel @Inject constructor(
             updateSuggestion = suggestion,
             suggestions = sugState.suggestions,
             suggestionsLoading = sugState.isLoading,
-            suggestionGroupErrors = sugState.groupErrors
+            suggestionGroupErrors = sugState.groupErrors,
+            suggestionSearchWidgetsHtml = sugState.searchWidgetsHtml
         )
     }.stateIn(
         viewModelScope,
@@ -306,10 +311,11 @@ class BearSignalViewModel @Inject constructor(
     }
 
     /**
-     * §4.5 "AI 제안 가져오기" 버튼 액션 — **명시적 사용자 액션에서만 호출**(비용이 드는 Claude API
-     * 호출이므로 init/화면 진입에서 자동 호출하지 않는다). 조회 자체는 [inputs]/[result]/Room 등
-     * 어떤 상태도 바꾸지 않는다 — 오직 [suggestionState]만 갱신되며, 실제 반영은
-     * [approveSuggestion]/[approveAllSuggestions]가 명시적으로 호출될 때만 일어난다(§7 승인 흐름).
+     * §4.5 "AI 제안 가져오기" 버튼 액션 — **명시적 사용자 액션에서만 호출**(비용이 드는 AI API
+     * 호출 — 설정된 제공자가 Claude/Gemini 중 무엇이든 — 이므로 init/화면 진입에서 자동 호출하지
+     * 않는다). 조회 자체는 [inputs]/[result]/Room 등 어떤 상태도 바꾸지 않는다 — 오직
+     * [suggestionState]만 갱신되며, 실제 반영은 [approveSuggestion]/[approveAllSuggestions]가
+     * 명시적으로 호출될 때만 일어난다(§7 승인 흐름).
      */
     fun fetchSuggestions() {
         if (suggestionState.value.isLoading) return
@@ -322,7 +328,8 @@ class BearSignalViewModel @Inject constructor(
                     SuggestionUiState(
                         suggestions = fetchResult.all,
                         isLoading = false,
-                        groupErrors = fetchResult.failedGroupMessages
+                        groupErrors = fetchResult.failedGroupMessages,
+                        searchWidgetsHtml = fetchResult.searchWidgetsHtml
                     )
                 },
                 onFailure = { e ->

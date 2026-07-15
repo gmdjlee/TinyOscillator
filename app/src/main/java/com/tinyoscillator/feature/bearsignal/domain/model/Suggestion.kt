@@ -69,10 +69,17 @@ data class Suggestion(
     val stale: Boolean
 )
 
-/** 제안 그룹(§4.5 그룹①②③) 하나의 수집 결과 — 부분 실패 격리(그룹 실패는 다른 그룹에 영향 없음). */
+/**
+ * 제안 그룹(§4.5 그룹①②③) 하나의 수집 결과 — 부분 실패 격리(그룹 실패는 다른 그룹에 영향 없음).
+ *
+ * @param searchWidgetHtml §4.5 v1.3 "Gemini 경로" — `groundingMetadata.searchEntryPoint.renderedContent`
+ * (Google 검색 제안 위젯 HTML, ToS상 사용자 표시 의무). Claude 경로는 항상 null. 급변 재확인 호출의
+ * widget은 무시하고 최초 호출 결과만 담는다.
+ */
 data class SuggestionGroupOutcome(
     val suggestions: List<Suggestion>,
-    val error: String?
+    val error: String?,
+    val searchWidgetHtml: String? = null
 )
 
 /** [com.tinyoscillator.feature.bearsignal.domain.repository.SuggestionRepository.fetchSuggestions] 결과. */
@@ -83,6 +90,11 @@ data class SuggestionFetchResult(
 ) {
     val all: List<Suggestion> get() = rateDir.suggestions + bigDealLossRatio.suggestions + credit.suggestions
     val failedGroupMessages: List<String> get() = listOfNotNull(rateDir.error, bigDealLossRatio.error, credit.error)
+
+    /** §4.5 v1.3 "Gemini 경로" — 그룹별 검색 제안 위젯 HTML을 중복 제거해 모은다(`SuggestionPanel` 표시용). */
+    val searchWidgetsHtml: List<String>
+        get() = listOfNotNull(rateDir.searchWidgetHtml, bigDealLossRatio.searchWidgetHtml, credit.searchWidgetHtml)
+            .distinct()
 }
 
 /**

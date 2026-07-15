@@ -1,10 +1,17 @@
 package com.tinyoscillator.feature.bearsignal.presentation.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -28,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.tinyoscillator.feature.bearsignal.domain.model.Suggestion
 
 /**
@@ -40,6 +48,9 @@ import com.tinyoscillator.feature.bearsignal.domain.model.Suggestion
  *
  * 부분 실패 격리(§4.5): [groupErrors]는 실패한 그룹만 표기하고, 성공한 그룹의 [suggestions]는 그대로
  * 노출한다.
+ *
+ * §4.5 v1.3 "Gemini 경로": [searchWidgetsHtml]이 비어있지 않으면 Google 검색 제안 위젯을 WebView로
+ * 렌더한다(ToS상 사용자 표시 의무). Claude 제공자에서는 항상 빈 리스트라 렌더되지 않는다.
  */
 @Composable
 fun SuggestionPanel(
@@ -50,7 +61,8 @@ fun SuggestionPanel(
     onApprove: (Suggestion) -> Unit,
     onApproveAll: () -> Unit,
     onDismiss: (Suggestion) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    searchWidgetsHtml: List<String> = emptyList()
 ) {
     Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors()) {
         Column(Modifier.padding(16.dp)) {
@@ -111,6 +123,10 @@ fun SuggestionPanel(
                         Text("전체 승인 (${suggestions.size})")
                     }
                 }
+            }
+
+            if (searchWidgetsHtml.isNotEmpty()) {
+                SearchWidgetsSection(searchWidgetsHtml)
             }
         }
     }
@@ -191,4 +207,63 @@ private fun StaleBadge() {
             color = MaterialTheme.colorScheme.onErrorContainer
         )
     }
+}
+
+/**
+ * §4.5 v1.3 "Gemini 경로" — Google 검색 제안 위젯(들) 렌더 섹션. Gemini `groundingMetadata`의
+ * `renderedContent` HTML을 그대로 표시하는 것은 Google의 ToS상 사용자 표시 의무다(검색을 이용해
+ * 응답을 생성했음을 사용자에게 고지). 라벨을 상단에 병기해 이 위젯이 무엇인지 명확히 한다.
+ */
+@Composable
+private fun SearchWidgetsSection(searchWidgetsHtml: List<String>) {
+    Column(Modifier.padding(top = 8.dp)) {
+        Text(
+            "Google 검색 제안",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        searchWidgetsHtml.forEach { html ->
+            GoogleSearchWidget(html, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+}
+
+/**
+ * 개별 Google 검색 제안 위젯 렌더러 — JavaScript는 비활성화(기본값 false 유지)하고, 위젯 내 링크는
+ * 앱 내부가 아닌 외부 브라우저로 연다([WebViewClient.shouldOverrideUrlLoading]). 브라우저가 없는
+ * 기기(워크프로필·키오스크 등)에서는 [ActivityNotFoundException]을 안내 토스트로 흡수한다(크래시 금지).
+ * 배경은 투명 처리(다크 테마 카드 위 흰 띠 방지 — 기존 차트 [AndroidView] 임베드 관례) 하고,
+ * recomposition마다 동일 HTML을 재로드하지 않도록 `tag`로 마지막 로드 내용을 추적한다.
+ */
+@Composable
+private fun GoogleSearchWidget(html: String, modifier: Modifier = Modifier) {
+    AndroidView(
+        modifier = modifier.fillMaxWidth().height(64.dp),
+        factory = { ctx ->
+            WebView(ctx).apply {
+                settings.javaScriptEnabled = false
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView,
+                        request: WebResourceRequest
+                    ): Boolean {
+                        try {
+                            ctx.startActivity(Intent(Intent.ACTION_VIEW, request.url))
+                        } catch (e: ActivityNotFoundException) {
+                            Toast.makeText(ctx, "링크를 열 수 있는 앱이 없습니다", Toast.LENGTH_SHORT).show()
+                        }
+                        return true
+                    }
+                }
+            }
+        },
+        update = { webView ->
+            if (webView.tag != html) {
+                webView.tag = html
+                webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+            }
+        },
+        onRelease = { it.destroy() }
+    )
 }

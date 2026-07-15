@@ -208,7 +208,8 @@ fun BearSignalScreen(onBack: () -> Unit) {
                         onFetch = viewModel::fetchSuggestions,
                         onApprove = viewModel::approveSuggestion,
                         onApproveAll = viewModel::approveAllSuggestions,
-                        onDismiss = viewModel::dismissSuggestion
+                        onDismiss = viewModel::dismissSuggestion,
+                        searchWidgetsHtml = uiState.suggestionSearchWidgetsHtml
                     )
                 }
 

@@ -1,6 +1,12 @@
 # PROGRESS — BearSignal 이식 진행 기록
 
-> 근거: `TASK_bear_signal_console.md` (「주도주 붕괴 판단 계기판」 이식 명세서 **v1.2**). 각 Phase 완료 시 `PROGRESS:` 마커 갱신. 실행 순서는 `PHASE_RUNBOOK.md`.
+> 근거: `TASK_bear_signal_console.md` (「주도주 붕괴 판단 계기판」 이식 명세서 **v1.3**). 각 Phase 완료 시 `PROGRESS:` 마커 갱신. 실행 순서는 `PHASE_RUNBOOK.md`.
+
+## v1.3 개정 노트 (2026-07-15)
+
+§4.5가 Anthropic 전용에서 **Claude/Gemini 제공자 이원화**로 개정됨(`TASK_bear_signal_console.md` §4.5 항목1
+"Gemini 경로(v1.3)"). Phase 6 신설 — P5-2 최종 QA와 독립적인 개정 팔로업(§6.2 마커 순서
+`P0 → P1 → P2 → P3 → P3.5-1 → P3.5 → P4 → P5-1 → LOOP_COMPLETE → P6`). 하단 「Phase 6 상세」 절 참조.
 
 ## v1.2 재편성 노트 (2026-07-12)
 
@@ -15,8 +21,23 @@
 | P4 (웹/LLM 갱신+승인) | **완료** | §4.5 신설 — 구 P4(v1.0-UI)와 별개, `LlmMarketDataSource`+승인 흐름 — 하단 「Phase 4 상세」 절 참조 |
 | P5-1 | **완료** | 워커 일/주 Tier 분리 + MINOR 2건(TZ·rememberSaveable) + 레이더 라벨 보정 — 하단 「Phase 5-1 상세」 절 참조. 진입 시 신선도 검사는 P3.5 기충족 재확인 |
 | P5-2 (QA) | 잔여 | qa-verifier — §7 v1.2 확장 항목 포함 |
+| P6 (§4.5 제공자 이원화, v1.3) | **완료** | Claude/Gemini 이원화 — `LlmMarketDataSource` 제공자 디스패치·`SuggestionPanel` 검색 위젯 — 하단 「Phase 6 상세」 절 참조 |
 
 기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수 — P5-1에서 TZ·rememberSaveable·레이더 라벨 해소, SignColor 다크는 앱 전역 백로그로 이관(하단 P5-1 상세 참조). "월간 워커 실발화" 실기 항목은 주기 재편으로 "일간/주간 워커 실발화"로 대체돼 P5-2로 이월.
+
+PROGRESS: P6 — 완료 (§4.5 LLM 제공자 이원화(Claude+Gemini, v1.3) — `LlmMarketDataSource`에 제공자 디스패치
+`callLlmWithSearch`(CLAUDE→기존 `web_search` 경로 무변경 / GEMINI→신규 `callGeminiWithGoogleSearch`,
+`google_search` grounding 도구, `responseMimeType` 절대 미설정, 인스턴스 `Mutex` 1000ms rate limit)
+추가 + HTTP 오류 매핑 제공자 중립화("Claude API"→"AI API", Gemini 400 전용 안내 메시지) +
+`LlmResponseParsing.parseGeminiLlmResponse` 순수 함수 신규(`candidates[0].content.parts[].text` 이어붙임
++ `groundingMetadata.searchEntryPoint.renderedContent` 추출) + `Suggestion.kt`
+`SuggestionGroupOutcome.searchWidgetHtml`/`SuggestionFetchResult.searchWidgetsHtml` 신규(기본값으로
+기존 호출부 호환) + `SuggestionRepositoryImpl`의 CLAUDE 하드 게이트 제거(`config.isValid()`만 검사) +
+`SuggestionPanel`에 `GoogleSearchWidget`(WebView, JS 비활성화, 외부 링크는 `Intent.ACTION_VIEW`로
+분기 — ToS 표시 의무) 신규 + `BearSignalViewModel` `SuggestionUiState`/`BearSignalUiState`에
+`searchWidgetsHtml` 배선 + JVM 테스트 신규 14건(`LlmMarketDataSourceTest` +9 Gemini 케이스,
+`LlmResponseParsingTest` 신규 5건) + `SuggestionRepositoryImplTest` Gemini 유효/무효 케이스로 갱신,
+2026-07-15 — 하단 「Phase 6 상세」 절 참조)
 
 PROGRESS: P5-1 — 완료 (워커 주기 일/주 Tier 분리(§2·§4 주기 열) — `BearSignalDailyUpdateWorker` 신규(Tier A:
 `RefreshAutoInputsUseCase` 단독 — 신호2 통계·코스피 2사 비중, 매일 06:30, 알림 ID 1017, TAG
@@ -127,6 +148,127 @@ QA 검증 결과 §3 임계치가 presentation 계층에 3곳 복제돼 있음�
 
 - **테스트 결과**: `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` — **248건, 0 실패**(기존 246건 + 신규 2건: `BearSignalViewModelTest`의 config 구동 테스트 — `manyCountries` 7→20 주입 시 골든 상태의 `manyCountriesBreached`가 true→false, `deepeningPct` -6.0→-5.0 주입 시 `deepeningBreached`가 false→true). `BearSignalViewModelTest`는 13건→15건.
 - **빌드**: `:app:compileDebugKotlin` BUILD SUCCESSFUL / `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` BUILD SUCCESSFUL(248/248) / `:app:assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 재검증 — `BearSignalViewModel` 신규 `BearThresholds` 파라미터 정상 해석).
+
+## Phase 6 상세 — §4.5 LLM 제공자 이원화(Claude+Gemini, v1.3) (2026-07-15)
+
+TASK_bear_signal_console.md §4.5 v1.3 개정("Gemini 경로") + §7 "제공자 이원화" 수용 기준 구현. P5-2
+최종 QA와 독립적인 개정 팔로업 — 그룹 오케스트레이션(3그룹 `supervisorScope`·화이트리스트·급변
+재확인·부분 실패 격리)은 무변경, 제공자 분기만 추가했다. `bear_thresholds.json`·§3 스코어링·
+`bear_signal_dashboard.jsx` 동치는 손대지 않았다(무변경 확인 — 골든/경계 테스트 회귀 없음).
+
+- **변경 파일**
+  - 수정: `data/remote/LlmMarketDataSource.kt`(제공자 디스패치 `callLlmWithSearch`/Gemini 호출
+    경로/HTTP 오류 매핑 중립화/Gemini rate limit), `data/remote/LlmResponseParsing.kt`
+    (`parseGeminiLlmResponse`/`ParsedGeminiResponse` 신규), `domain/model/Suggestion.kt`
+    (`SuggestionGroupOutcome.searchWidgetHtml`/`SuggestionFetchResult.searchWidgetsHtml` 신규),
+    `data/repository/SuggestionRepositoryImpl.kt`(CLAUDE 하드 게이트 제거),
+    `domain/repository/SuggestionRepository.kt`(KDoc 갱신), `di/BearSignalModule.kt`(주석만),
+    `presentation/BearSignalViewModel.kt`(`SuggestionUiState`/`BearSignalUiState`에
+    `searchWidgetsHtml` 배선, "Claude API" 문구 정리), `presentation/ui/SuggestionPanel.kt`
+    (`GoogleSearchWidget`/`SearchWidgetsSection` 신규), `presentation/ui/BearSignalScreen.kt`
+    (`SuggestionPanel` 호출부에 `searchWidgetsHtml` 전달)
+  - 테스트 신규: `data/remote/LlmResponseParsingTest.kt`(5건 — parts join·renderedContent 추출·
+    candidates 빈 배열·groundingMetadata 없음·candidates 필드 자체 없음)
+  - 테스트 수정: `data/remote/LlmMarketDataSourceTest.kt`(+9건 — Gemini 요청 형태 단언(엔드포인트·
+    헤더·`google_search`·`responseMimeType` 미포함)·성공 응답+origin 폴백·`searchWidgetHtml` 전달·
+    `SuggestionFetchResult.searchWidgetsHtml` 노출·HTTP 400(재시도 없음)·HTTP 429(1회 재시도)·그룹별
+    부분 실패 격리·급변 재확인 일치/불일치 2건), `data/repository/SuggestionRepositoryImplTest.kt`
+    (Gemini 키 비어있음→`NoApiKeyError`/Gemini 키 유효→위임 2건으로 "Anthropic 전용" 테스트 대체)
+
+- **레이어별 요약**
+  - **domain**: `SuggestionGroupOutcome`/`SuggestionFetchResult`에 nullable `searchWidgetHtml`/
+    파생 `searchWidgetsHtml`(3그룹 중복 제거) 추가 — 둘 다 뒤쪽 기본값(`= null`/getter)이라 기존
+    2-인자 호출부(mapper·usecase 테스트 등)는 전혀 수정 불요(회귀 0). §3 스코어링·`BearThresholds`는
+    이 Phase의 변경 범위 밖.
+  - **data**: `LlmMarketDataSource`의 3그룹 함수(`fetchRateDirGroupOrThrow` 등)는 기존 `callClaudeWithWebSearch`
+    직접 호출을 신규 `callLlmWithSearch(config, ...)` 디스패치로 교체했을 뿐, `supervisorScope`+`async`
+    병렬 오케스트레이션·화이트리스트 검증·급변 재확인 로직은 문자 그대로 유지했다. Gemini 경로
+    (`callGeminiWithGoogleSearch`)는 `tools:[{"google_search":{}}]`만 선언하고 **`responseMimeType`을
+    절대 설정하지 않는다**(Gemini 2.5 이하 `google_search` 병용 시 HTTP 400 — 스펙 §4.5 v1.3 명시
+    제약). `pause_turn` 재개 루프는 Claude 전용으로 남기고(Gemini는 단일 호출), 시스템 프롬프트
+    문구는 "web_search 도구로"→"웹 검색 도구로" 3곳을 제공자 중립으로 수정했다. 기본 `origin`은
+    `defaultOriginFor(config)`로 제공자별 분기("Anthropic web_search"/"Gemini google_search") —
+    DTO에 `*_origin`이 있으면 그 값이 항상 우선한다(기존 동작 무변경). HTTP 오류 매핑은
+    `mapHttpError(code, provider)`로 시그니처를 바꿔 "Claude API" 하드코딩 메시지를 "AI API"로
+    중립화하고, Gemini 400만 전용 안내 메시지(`google_search` 미지원 가능성)를 얹었다. Gemini rate
+    limit은 `AiApiClient`의 인스턴스 `Mutex`+`@Volatile lastCallTime` 관례를 그대로 재사용해
+    호출 간 `geminiRateLimitMs`(기본 `ApiConstants.GEMINI_RATE_LIMIT_MS`=12s — 후속 수정 반영, 테스트는 0ms 생성자 오버라이드) 간격을 강제한다 —
+    3그룹 병렬 호출 + 급변 재확인 호출까지 전부 이 Mutex를 거친다. `LlmResponseParsing.parseGeminiLlmResponse`는
+    기존 `parseLlmResponse`(Claude)와 동일하게 Context 없는 순수 함수로, `candidates[0].content.parts[].text`를
+    이어붙이고 `groundingMetadata.searchEntryPoint.renderedContent`를 추출한다(없으면 null, candidates
+    빈 배열이면 finalText=""). `SuggestionRepositoryImpl`은 `config.provider != CLAUDE` 하드 게이트를
+    제거하고 `config.isValid()`(apiKey/modelId 비어있지 않음)만 검사하도록 단순화했다 — 무효 config는
+    여전히 네트워크 호출 없이 `ApiError.NoApiKeyError`로 즉시 반환된다.
+  - **presentation**: `SuggestionPanel`에 `searchWidgetsHtml: List<String> = emptyList()` 파라미터
+    (기본값이라 기존 프리뷰/호출부 호환)를 추가하고, 비어있지 않을 때만 `SearchWidgetsSection`(라벨
+    "Google 검색 제안" + 항목별 `GoogleSearchWidget`)을 렌더한다. `GoogleSearchWidget`은 기존
+    `NaverStockWebScreen.kt`의 `AndroidView`+`WebView` 패턴을 재사용하되, `javaScriptEnabled=false`
+    (검색 위젯은 정적 HTML만 표시 목적)·`loadDataWithBaseURL(null, html, "text/html", "utf-8", null)`
+    ·`shouldOverrideUrlLoading`에서 링크를 `Intent.ACTION_VIEW`로 외부 브라우저에 위임한다(ToS상
+    "검색을 이용해 응답을 생성했음을 사용자에게 표시" 의무 충족 — KDoc에 명시). `BearSignalViewModel`은
+    `SuggestionUiState`/`BearSignalUiState` 양쪽에 `searchWidgetsHtml`을 추가하고, `fetchSuggestions()`
+    성공 분기에서 `fetchResult.searchWidgetsHtml`을 그대로 채운다 — `approveSuggestion`/
+    `approveAllSuggestions`/`dismissSuggestion`은 기존 `.copy(suggestions = ...)` 패턴이라 이 필드를
+    건드리지 않고 자동 보존된다.
+
+- **결정 사항**
+  1. **`geminiBaseUrl`/`geminiRateLimitMs`를 별도 생성자 파라미터로 분리**(기존 `config.getBaseUrl()`을
+     그대로 쓰지 않음) — `AiApiKeyConfig.getBaseUrl()`은 제공자별 프로덕션 URL을 고정 반환해 MockWebServer로
+     리다이렉트할 수 없다. 기존 `baseUrl`(Claude 전용) 파라미터와 대칭 구조를 유지해 테스트 가능성을
+     확보했다(둘 다 프로덕션 기본값 유지, 테스트에서만 override).
+  2. **에러 메시지 중립화 범위**: `AuthError`/`NetworkError`/`TimeoutError`/일반 `ApiCallError` 메시지는
+     제공자 중립 문구("AI API")로 통일하고, Gemini 400만 원인 특정(구조화 출력·`google_search` 병용
+     제약)이 사용자에게 실질적 도움이 되므로 예외적으로 제공자별 문구를 유지했다 — TASK 지시("제공자
+     중립 또는 제공자별 메시지로 정리")의 두 옵션을 오류 유형별로 혼합 적용.
+  3. **origin 폴백만 제공자별, 명시 origin은 항상 우선**: LLM이 `*_origin` 필드를 응답에 명시했다면
+     그 값을 그대로 쓰고(기존 동작), 없을 때만 `defaultOriginFor(config)`가 개입한다 — 제공자
+     이원화가 기존 "모델이 출처를 명시하면 그걸 신뢰한다"는 원 설계를 침범하지 않도록 최소 변경.
+  4. **재확인(reconfirm) 호출의 검색 위젯은 버림**: `SuggestionGroupOutcome.searchWidgetHtml`은
+     그룹의 **최초** `callLlmWithSearch` 결과만 담고, 급변 재확인 호출의 widget은 무시한다(스펙
+     명시 사항) — 재확인은 값 검증이 목적이라 위젯을 두 번 표시할 필요가 없고, 재확인이 실패해
+     제안 자체가 폐기돼도 최초 호출의 위젯은 그대로 노출돼 ToS 의무를 지킨다.
+
+- **테스트 결과**: `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` —
+  **367건, 0 실패**(`LlmMarketDataSourceTest` 14→23건, `LlmResponseParsingTest` 신규 5건,
+  `SuggestionRepositoryImplTest` 4→5건, 나머지 파일 전부 회귀 없이 그린). 골든 케이스(2026.6.30→AMBER)·
+  경계(neg 6/7, rate 4.49/4.5, ratio 0.94/0.95/1.0, loss 44/45/59/60/79/80) 무변경 재확인(§3 코드
+  자체를 건드리지 않았으므로 회귀 위험 없음, 테스트 그린으로 재확인).
+- **빌드**: `:app:compileDebugKotlin` BUILD SUCCESSFUL / `:app:testDebugUnitTest --tests
+  "com.tinyoscillator.feature.bearsignal.*"` BUILD SUCCESSFUL(367/367).
+- **미해결/차단 요소**: 없음. 실 Gemini API 키를 이용한 `google_search` grounding 실기 검증(HTTP 400
+  회피·`renderedContent` 실응답 형태 확인)은 이번 세션(Bash/Gradle 전용, MockWebServer 단위테스트만
+  가능) 범위 밖 — P5-2 최종 QA의 실키 검증 항목(관세청/FRED/Claude)에 Gemini `google_search`를
+  추가해 함께 승계할 것을 제안. `SuggestionPanel`의 `GoogleSearchWidget` 실기 렌더(WebView HTML 표시·
+  링크 외부 브라우저 위임)도 동일하게 미검증.
+
+### P6 후속 수정 — 4차원 리뷰·적대 검증 반영 (2026-07-16)
+
+구현 직후 멀티에이전트 리뷰(4관점: Gemini API 정합성·스펙 준수/회귀·Compose/WebView·테스트 적정성)
++ 발견별 반박 2표 적대 검증을 수행(검증 에이전트 일부는 세션 리밋으로 실패 — 미판정 항목은 메인
+스레드가 코드 대조로 직접 판정). 반영 내역:
+
+- **[major] Gemini rate limit 상수 모순 수정**: 기본값 1,000ms → `ApiConstants.GEMINI_RATE_LIMIT_MS`
+  (12s, 무료 티어 5 RPM) 직접 참조 — KDoc의 "AiApiClient 관례 재사용" 서술과 실값 일치.
+- **[major] Gemini 400 오진 수정**: Gemini는 무효 API 키도 401이 아닌 400(`API_KEY_INVALID`)으로
+  반환 — `executeOnce`가 오류 body를 `mapHttpError`에 전달하고, body에서 `API_KEY_INVALID`/"API key
+  not valid" 감지 시 `AuthError`("Gemini API 키가 유효하지 않습니다")로 분기(비재시도). 그 외 400은
+  기존 `google_search` 미지원 안내 유지.
+- **[major·검증 확정] `GoogleSearchWidget` 크래시 가드**: `shouldOverrideUrlLoading`의 `startActivity`를
+  `try/catch(ActivityNotFoundException)` + 안내 토스트로 보호(브라우저 없는 기기 즉사 방지).
+- **[minor·검증 확정] WebView 다크모드 배경**: `setBackgroundColor(TRANSPARENT)`(기존 차트
+  `AndroidView` 임베드 관례) — 다크 카드 위 64dp 흰 띠 방지.
+- **[minor] WebView 재로드/릭 방지**: `update` 블록에 `tag` 기반 동일 HTML 재로드 가드 +
+  `onRelease = { it.destroy() }`. 죽은 `@SuppressLint("SetJavaScriptEnabled")`·미사용
+  `android.net.Uri` import 제거.
+- **[minor] Gemini 재시도 rate limit**: `executeWithRetry` 재시도 레그도 `waitForGeminiRateLimit()`
+  슬롯을 예약(병렬 그룹과의 간격 보장 유지).
+- **테스트 보강(+5건 → 372/372 그린)**: Gemini 요청 body 구조 단언(`tools[0].google_search` JSON
+  파싱 검증 + `responseSchema` 부재), Claude 요청 형태 단언(`/v1/messages`·`x-api-key`·
+  `anthropic-version`·`web_search_20250305`), 400 `API_KEY_INVALID`→인증 오류, 429→재시도 성공
+  회복 경로, 잘린 JSON(MAX_TOKENS 상당)→파싱 실패, 파싱 실패에도 위젯 HTML 보존(ToS).
+- **기각/보류 판정**: 고정 64dp 위젯 잘림·터치 충돌(실기 렌더 확인 선행 — P5-2 실기 QA로 승계),
+  제안 소진 후 위젯 잔존(의도된 동작 — 방금 승인한 값의 출처 고지 유지), rate limit 클록 주입
+  리팩터링(AiApiClient와 동일 패턴, 과설계로 판단).
 
 ## Phase 5-1 상세 — 워커 주기 일/주 Tier 분리 · MINOR 마감 (2026-07-13)
 

@@ -174,8 +174,9 @@ object BearSignalModule {
     fun provideEvaluateSnapshotFreshnessUseCase(): EvaluateSnapshotFreshnessUseCase =
         EvaluateSnapshotFreshnessUseCase()
 
-    // ── §4.5 Phase 4: 웹/LLM 수집 · 승인 흐름 ────────────────────────────
+    // ── §4.5 Phase 4/6: 웹/LLM 수집 · 승인 흐름(v1.3부터 Claude+Gemini 이원화) ──────
 
+    /** [LlmMarketDataSource]의 `geminiBaseUrl`/`geminiRateLimitMs`는 프로덕션 기본값(생성자 기본 인자)을 그대로 쓴다. */
     @Provides
     @Singleton
     fun provideLlmMarketDataSource(httpClient: OkHttpClient): LlmMarketDataSource =

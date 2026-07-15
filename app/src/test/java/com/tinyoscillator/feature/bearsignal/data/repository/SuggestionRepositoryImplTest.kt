@@ -16,8 +16,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [SuggestionRepositoryImpl] 테스트 — Claude API 키/제공자 검증(§4.5 "Anthropic 전용", "키 미설정
- * 시 안내") + 성공 시 [LlmMarketDataSource] 위임.
+ * [SuggestionRepositoryImpl] 테스트 — Claude/Gemini API 키 유효성 검증(§4.5 v1.3 "제공자 이원화",
+ * "키 미설정 시 안내") + 성공 시 [LlmMarketDataSource] 위임.
  */
 class SuggestionRepositoryImplTest {
 
@@ -45,15 +45,28 @@ class SuggestionRepositoryImplTest {
     }
 
     @Test
-    fun `Gemini가 선택돼 있으면 Anthropic 전용이므로 failure를 반환한다`() = runTest {
+    fun `Gemini 키가 비어있으면 네트워크 호출 없이 failure를 반환한다`() = runTest {
         coEvery { apiConfigProvider.getAiConfig() } returns AiApiKeyConfig(
-            AiProvider.GEMINI, apiKey = "gemini-key", modelId = "gemini-2.0-flash"
+            AiProvider.GEMINI, apiKey = "", modelId = ""
         )
 
         val result = repository.fetchSuggestions(current)
 
         assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is ApiError.NoApiKeyError)
         coVerify(exactly = 0) { llmMarketDataSource.fetchSuggestions(any(), any()) }
+    }
+
+    @Test
+    fun `Gemini 키가 유효하면 LlmMarketDataSource에 위임한다`() = runTest {
+        val config = AiApiKeyConfig(AiProvider.GEMINI, apiKey = "gemini-key", modelId = "gemini-2.0-flash")
+        coEvery { apiConfigProvider.getAiConfig() } returns config
+        coEvery { llmMarketDataSource.fetchSuggestions(config, current) } returns emptyFetchResult()
+
+        val result = repository.fetchSuggestions(current)
+
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 1) { llmMarketDataSource.fetchSuggestions(config, current) }
     }
 
     @Test

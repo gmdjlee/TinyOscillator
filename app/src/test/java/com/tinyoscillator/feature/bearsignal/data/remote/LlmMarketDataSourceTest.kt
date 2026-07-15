@@ -5,8 +5,13 @@ import com.tinyoscillator.domain.model.AiProvider
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalReportBaseline
 import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionField
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
@@ -29,6 +34,7 @@ class LlmMarketDataSourceTest {
 
     private lateinit var server: MockWebServer
     private val config = AiApiKeyConfig(AiProvider.CLAUDE, apiKey = "test-key", modelId = "claude-3-5-haiku-latest")
+    private val geminiConfig = AiApiKeyConfig(AiProvider.GEMINI, apiKey = "gemini-test-key", modelId = "gemini-2.0-flash")
 
     @Before
     fun setup() {
@@ -45,8 +51,35 @@ class LlmMarketDataSourceTest {
 
     private fun dataSource(
         httpClient: OkHttpClient = OkHttpClient(),
-        retryBackoffMs: Long = 10L
-    ) = LlmMarketDataSource(httpClient = httpClient, baseUrl = baseUrl(), retryBackoffMs = retryBackoffMs)
+        retryBackoffMs: Long = 10L,
+        geminiRateLimitMs: Long = 0L
+    ) = LlmMarketDataSource(
+        httpClient = httpClient,
+        baseUrl = baseUrl(),
+        geminiBaseUrl = baseUrl(),
+        retryBackoffMs = retryBackoffMs,
+        geminiRateLimitMs = geminiRateLimitMs
+    )
+
+    /** Gemini `generateContent` 응답 형태 — `candidates[0].content.parts[].text` 단일 블록. */
+    private fun geminiResponseBody(text: String, renderedContent: String? = null): String = buildJsonObject {
+        put("candidates", buildJsonArray {
+            add(buildJsonObject {
+                put("content", buildJsonObject {
+                    put("parts", buildJsonArray {
+                        add(buildJsonObject { put("text", text) })
+                    })
+                })
+                if (renderedContent != null) {
+                    put("groundingMetadata", buildJsonObject {
+                        put("searchEntryPoint", buildJsonObject {
+                            put("renderedContent", renderedContent)
+                        })
+                    })
+                }
+            })
+        })
+    }.toString()
 
     /** Anthropic `/v1/messages` 응답 형태 — `content`에 단일 text 블록만 담는다. */
     private fun claudeResponseBody(text: String, stopReason: String = "end_turn"): String = buildJsonObject {
@@ -293,5 +326,218 @@ class LlmMarketDataSourceTest {
         assertEquals(1, result.credit.suggestions.size)
         assertEquals(1, result.failedGroupMessages.size)
         assertEquals(3, result.all.size)
+    }
+
+    // ── §4.5 v1.3 제공자 이원화 — Gemini 경로 ──────────────────────────────
+
+    @Test
+    fun `Gemini fetchRateDirGroup은 generateContent 엔드포인트로 x-goog-api-key 헤더와 google_search 도구를 담아 요청하고 responseMimeType은 포함하지 않는다`() = runTest {
+        enqueue(geminiResponseBody("""{"rate":4.00,"rate_as_of":"2026-07-10","dir":"hike","dir_as_of":"2026-07-10"}"""))
+
+        dataSource().fetchRateDirGroup(geminiConfig, currentRate = 3.75)
+
+        val request = server.takeRequest()
+        assertEquals("/v1beta/models/${geminiConfig.modelId}:generateContent", request.path)
+        assertEquals(geminiConfig.apiKey, request.getHeader("x-goog-api-key"))
+        val body = request.body.readUtf8()
+        // 문자열 contains가 아니라 구조 단언 — tools 배열에 빈 객체 google_search 하나만 선언돼야 한다.
+        val bodyJson = Json.parseToJsonElement(body).jsonObject
+        val tools = bodyJson["tools"]!!.jsonArray
+        assertEquals(1, tools.size)
+        assertTrue(tools[0].jsonObject["google_search"] is JsonObject)
+        // 구조화 출력 관련 필드는 google_search 병용 시 HTTP 400 — 어느 쪽도 있어선 안 된다.
+        assertTrue(!body.contains("responseMimeType"))
+        assertTrue(!body.contains("responseSchema"))
+    }
+
+    @Test
+    fun `Claude fetchRateDirGroup은 v1 messages 엔드포인트로 x-api-key 헤더와 web_search_20250305 도구를 담아 요청한다`() = runTest {
+        enqueue(claudeResponseBody("""{"rate":4.00,"rate_as_of":"2026-07-10"}"""))
+
+        dataSource().fetchRateDirGroup(config, currentRate = 3.75)
+
+        val request = server.takeRequest()
+        assertEquals("/v1/messages", request.path)
+        assertEquals(config.apiKey, request.getHeader("x-api-key"))
+        assertEquals("2023-06-01", request.getHeader("anthropic-version"))
+        val tools = Json.parseToJsonElement(request.body.readUtf8()).jsonObject["tools"]!!.jsonArray
+        assertEquals(1, tools.size)
+        assertEquals("web_search_20250305", tools[0].jsonObject["type"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `Gemini fetchRateDirGroup 성공 응답은 제안을 생성하고 origin 미지정 시 Gemini google_search로 폴백한다`() = runTest {
+        enqueue(geminiResponseBody("""{"rate":4.00,"rate_as_of":"2026-07-10"}"""))
+
+        val outcome = dataSource().fetchRateDirGroup(geminiConfig, currentRate = 3.75)
+
+        assertNull(outcome.error)
+        assertEquals(1, outcome.suggestions.size)
+        assertEquals("4.00", outcome.suggestions.first().nextValue)
+        assertEquals("Gemini google_search", outcome.suggestions.first().origin)
+    }
+
+    @Test
+    fun `Gemini renderedContent가 있으면 SuggestionGroupOutcome searchWidgetHtml에 전달된다`() = runTest {
+        enqueue(
+            geminiResponseBody(
+                """{"credit":40.0,"credit_as_of":"2026-07-10"}""",
+                renderedContent = "<div>검색 제안 위젯</div>"
+            )
+        )
+
+        val outcome = dataSource().fetchCreditGroup(geminiConfig, currentCredit = 38.0)
+
+        assertEquals("<div>검색 제안 위젯</div>", outcome.searchWidgetHtml)
+    }
+
+    @Test
+    fun `Gemini fetchSuggestions는 검색 제안 위젯 HTML을 SuggestionFetchResult searchWidgetsHtml에 노출한다`() = runTest {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val body = request.body.readUtf8()
+                return when {
+                    "미국 연방준비제도" in body -> MockResponse().setBody(
+                        geminiResponseBody(
+                            """{"rate":4.00,"rate_as_of":"2026-07-10"}""",
+                            renderedContent = "<div>rate 위젯</div>"
+                        )
+                    )
+                    "대어급" in body -> MockResponse().setBody(
+                        geminiResponseBody("""{"big_deal":"pending","big_deal_as_of":"2026-07-10"}""")
+                    )
+                    "KOFIA" in body -> MockResponse().setBody(
+                        geminiResponseBody("""{"credit":40.0,"credit_as_of":"2026-07-10"}""")
+                    )
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
+
+        val result = dataSource().fetchSuggestions(geminiConfig, current = BearSignalReportBaseline.toInputs())
+
+        assertEquals(listOf("<div>rate 위젯</div>"), result.searchWidgetsHtml)
+    }
+
+    @Test
+    fun `Gemini fetchRateDirGroup HTTP 400은 재시도 없이 Gemini 전용 안내 메시지로 실패한다`() = runTest {
+        enqueue("", code = 400)
+
+        val outcome = dataSource().fetchRateDirGroup(geminiConfig, currentRate = 3.75)
+
+        assertTrue(outcome.suggestions.isEmpty())
+        assertTrue(outcome.error != null)
+        assertTrue(outcome.error!!.contains("Gemini"))
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `Gemini HTTP 400에 API_KEY_INVALID 본문이 오면 인증 오류로 안내한다 — 재시도 없음`() = runTest {
+        // Gemini는 무효 키도 401이 아닌 400(API_KEY_INVALID)으로 반환한다.
+        enqueue(
+            """{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}""",
+            code = 400
+        )
+
+        val outcome = dataSource().fetchRateDirGroup(geminiConfig, currentRate = 3.75)
+
+        assertTrue(outcome.suggestions.isEmpty())
+        assertTrue(outcome.error!!.contains("키가 유효하지 않습니다"))
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `Gemini HTTP 429 후 재시도가 성공하면 제안이 생성된다`() = runTest {
+        enqueue("", code = 429)
+        enqueue(geminiResponseBody("""{"rate":4.00,"rate_as_of":"2026-07-10"}"""))
+
+        val outcome = dataSource().fetchRateDirGroup(geminiConfig, currentRate = 3.75)
+
+        assertEquals(2, server.requestCount)
+        assertNull(outcome.error)
+        assertEquals(1, outcome.suggestions.size)
+        assertEquals("4.00", outcome.suggestions.first().nextValue)
+    }
+
+    @Test
+    fun `Gemini 응답이 잘린 JSON이면 그룹 파싱 실패로 처리된다 — MAX_TOKENS 잘림 상당`() = runTest {
+        enqueue(geminiResponseBody("""{"rate":4.00,"rate_as_of":"2026-07-1""")) // 닫는 중괄호 없음
+
+        val outcome = dataSource().fetchRateDirGroup(geminiConfig, currentRate = 3.75)
+
+        assertTrue(outcome.suggestions.isEmpty())
+        assertTrue(outcome.error!!.contains("파싱 실패"))
+    }
+
+    @Test
+    fun `Gemini 파싱 실패에도 검색 제안 위젯 HTML은 보존된다 — ToS 표시 의무`() = runTest {
+        enqueue(geminiResponseBody("JSON이 아닌 설명 텍스트", renderedContent = "<div>위젯</div>"))
+
+        val outcome = dataSource().fetchRateDirGroup(geminiConfig, currentRate = 3.75)
+
+        assertTrue(outcome.error != null)
+        assertTrue(outcome.suggestions.isEmpty())
+        assertEquals("<div>위젯</div>", outcome.searchWidgetHtml)
+    }
+
+    @Test
+    fun `Gemini fetchRateDirGroup HTTP 429는 1회 재시도 후에도 실패하면 그룹 에러를 반환한다`() = runTest {
+        enqueue("", code = 429)
+        enqueue("", code = 429)
+
+        val outcome = dataSource().fetchRateDirGroup(geminiConfig, currentRate = 3.75)
+
+        assertTrue(outcome.suggestions.isEmpty())
+        assertTrue(outcome.error != null)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `Gemini HTTP 오류는 실패한 그룹만 에러가 되고 다른 그룹 제안은 그대로 반환된다`() = runTest {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val body = request.body.readUtf8()
+                return when {
+                    "미국 연방준비제도" in body -> MockResponse().setResponseCode(400)
+                    "대어급" in body -> MockResponse().setBody(
+                        geminiResponseBody("""{"big_deal":"pending","big_deal_as_of":"2026-07-10"}""")
+                    )
+                    "KOFIA" in body -> MockResponse().setBody(
+                        geminiResponseBody("""{"credit":40.0,"credit_as_of":"2026-07-10"}""")
+                    )
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
+
+        val result = dataSource().fetchSuggestions(geminiConfig, current = BearSignalReportBaseline.toInputs())
+
+        assertTrue(result.rateDir.error != null)
+        assertTrue(result.rateDir.suggestions.isEmpty())
+        assertEquals(1, result.bigDealLossRatio.suggestions.size)
+        assertEquals(1, result.credit.suggestions.size)
+    }
+
+    @Test
+    fun `Gemini 경로에서도 급변 재확인이 동작한다 — 일치하면 포함된다`() = runTest {
+        enqueue(geminiResponseBody("""{"rate":5.00,"rate_as_of":"2026-07-10"}""")) // 최초: 3.75 → 5.00 (급변)
+        enqueue(geminiResponseBody("""{"rate":5.00,"rate_as_of":"2026-07-10"}""")) // 재확인: 동일값
+
+        val outcome = dataSource().fetchRateDirGroup(geminiConfig, currentRate = 3.75)
+
+        assertEquals(2, server.requestCount)
+        assertEquals(1, outcome.suggestions.size)
+        assertEquals("5.00", outcome.suggestions.first().nextValue)
+    }
+
+    @Test
+    fun `Gemini 경로 급변 재확인 불일치면 폐기된다`() = runTest {
+        enqueue(geminiResponseBody("""{"rate":5.00,"rate_as_of":"2026-07-10"}""")) // 최초: 급변
+        enqueue(geminiResponseBody("""{"rate":4.20,"rate_as_of":"2026-07-10"}""")) // 재확인: 다른 값
+
+        val outcome = dataSource().fetchRateDirGroup(geminiConfig, currentRate = 3.75)
+
+        assertEquals(2, server.requestCount)
+        assertTrue(outcome.suggestions.isEmpty())
     }
 }

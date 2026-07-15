@@ -117,6 +117,40 @@ internal fun parseCreditDto(obj: JsonObject): CreditRaw = CreditRaw(
     creditOrigin = obj["credit_origin"]?.jsonPrimitive?.contentOrNull
 )
 
+/**
+ * Gemini `generateContent` 응답 파싱 결과 (§4.5 v1.3 "Gemini 경로").
+ *
+ * @param finalText 첫 candidate의 `content.parts[].text`를 이어붙인 문자열. Claude 경로와 동일하게
+ * 이 문자열에서 JSON을 추출한다([extractJsonObject]).
+ * @param searchWidgetHtml `groundingMetadata.searchEntryPoint.renderedContent` — Google 검색 제안
+ * 위젯 HTML(ToS상 사용자 표시 의무). 없으면 null(예: candidates가 비어있거나 grounding 미사용).
+ */
+internal data class ParsedGeminiResponse(
+    val finalText: String,
+    val searchWidgetHtml: String?
+)
+
+/**
+ * Gemini `generateContent` 응답 body를 파싱한다. `candidates`가 비어있으면 [ParsedGeminiResponse.finalText]는
+ * 빈 문자열, [ParsedGeminiResponse.searchWidgetHtml]는 null이다.
+ */
+internal fun parseGeminiLlmResponse(body: String, json: Json): ParsedGeminiResponse {
+    val root = json.parseToJsonElement(body).jsonObject
+    val firstCandidate = root["candidates"]?.jsonArray?.firstOrNull()?.jsonObject
+
+    val parts = firstCandidate?.get("content")?.jsonObject?.get("parts")?.jsonArray ?: JsonArray(emptyList())
+    val text = parts.joinToString("") { part ->
+        part.jsonObject["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+    }
+
+    val widgetHtml = firstCandidate
+        ?.get("groundingMetadata")?.jsonObject
+        ?.get("searchEntryPoint")?.jsonObject
+        ?.get("renderedContent")?.jsonPrimitive?.contentOrNull
+
+    return ParsedGeminiResponse(finalText = text, searchWidgetHtml = widgetHtml)
+}
+
 /** `as_of` 문자열(YYYY-MM-DD)을 파싱한다. 없거나 파싱 실패면 오늘 날짜로 폴백(신선도는 낙관적으로 처리). */
 internal fun parseDateOrToday(raw: String?): LocalDate {
     if (raw.isNullOrBlank()) return LocalDate.now()

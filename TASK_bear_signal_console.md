@@ -1,4 +1,4 @@
-# TASK_bear_signal_console.md — 「주도주 붕괴 판단 계기판」 TinyOscillator 신규 메뉴 이식 명세서 (v1.2)
+# TASK_bear_signal_console.md — 「주도주 붕괴 판단 계기판」 TinyOscillator 신규 메뉴 이식 명세서 (v1.3)
 
 > 대상: Claude Code (kotlin-implementer / qa-verifier 서브에이전트)
 > 근거 프로토타입: `bear_signal_dashboard.jsx` — **스코어링 로직의 단일 진실 공급원(SSOT)**
@@ -7,6 +7,9 @@
 > 진행 규칙: 각 Phase 완료 시 `PROGRESS:` 마커 갱신, `PHASE_RUNBOOK.md`/`PROGRESS.md` 흐름 준수
 
 ## Changelog
+- v1.3 (2026-07-15, 사용자 승인): §4.5 LLM 제공자 이원화 — Anthropic `web_search` 전용 →
+        설정의 AI 제공자(Claude/Gemini)를 따르도록 개정. Gemini는 `google_search` grounding +
+        프롬프트 JSON 방식(구조화 출력 병용 불가), 검색 제안 위젯 표시 의무 포함. Phase 6 신설.
 - v1.2: 임계치 외부화(`bear_thresholds.json`, §3.0), 웹/LLM 3-tier 수집·승인 신설(§4.5),
         스냅샷 계약 신설(§4.6), Room 이력·전이 감지 Phase 3.5 추가(§6.1).
         병합 근거: `archive/TASK_v1.1_to_v1.2_merge_patch.md` + `PHASE_RUNBOOK.md`.
@@ -256,11 +259,12 @@ composite(inputs):
 
 > [C]/[D] 판단성 필드의 수동 입력 부담을 낮추는 **제안(suggestion) 계층**. 자동 수집(Tier 1: [A], Tier 2: [B])과 달리 Tier 3(웹/LLM)은 **사용자 승인 없이는 절대 상태를 변경하지 않는다**. *(§4.5의 WEB 출처는 §4.6 우선순위상 AUTO에 속한다.)*
 
-1. **`LlmMarketDataSource`** — Anthropic API + `web_search` 도구. 그룹 분할 호출(부분 실패 격리, `Promise.allSettled` 상당):
+1. **`LlmMarketDataSource`** — 설정의 AI 제공자를 따른다(v1.3 개정): **Claude(Anthropic API + `web_search` 서버 도구) 또는 Gemini(Gemini API + `google_search` grounding)**. 그룹 분할 호출(부분 실패 격리, `Promise.allSettled` 상당):
    - ① `rate`/`dir` — 공식 발표·날짜 명시 요구
    - ② `bigDeal`/`lossRatio`
    - ③ `credit` — KOFIA 주간 통계
    - 응답의 열거형 값은 화이트리스트 검증(`dir∈{ease,hold,hike}`, `big∈{smooth,pending,failed}` 등). 위반 시 해당 필드 제안 폐기.
+   - **Gemini 경로(v1.3)**: 구조화 출력과 `google_search`는 병용 불가(Gemini 2.5 이하 HTTP 400) — Claude 경로와 동일하게 프롬프트로 JSON 강제 + 관용 파싱(`extractJsonObject`)한다. 단일 호출(pause_turn 없음). 응답 `groundingMetadata.searchEntryPoint.renderedContent`(Google 검색 제안 위젯)는 **ToS상 사용자 표시 의무** — `SuggestionPanel`이 WebView로 노출한다. 제안 `origin` 기본값은 제공자별("Anthropic web_search" / "Gemini google_search"). 급변 재확인·화이트리스트·STALE 규칙은 제공자와 무관하게 동일.
 2. **`Suggestion(field/current/next/as_of/origin/stale)`** — 필드별 허용 연령 초과 시 `STALE` 마킹.
    급변 값(금리 ±0.5%p 초과·신용잔고 ±30% 초과)은 **자동 1회 재확인**, 두 결과 일치 시에만 목록화.
 3. **`SuggestionPanel` + `ApplySuggestionUseCase`** — 제안은 목록으로만 표시. 개별/일괄 **승인 시에만** `source=AUTO`로 반영(§4.6 우선순위 준수, **MANUAL 불패**).
@@ -350,6 +354,7 @@ data class FieldSource(val source: ValueSource, val asOf: LocalDate?, val origin
 | **4** | **웹/LLM 갱신 + 승인 흐름** (§4.5) | kotlin-implementer | `PROGRESS: P4` |
 | **5-1** | WorkManager 주기 갱신 · shimmer · 접근성 · 엣지케이스 마감 | kotlin-implementer | `PROGRESS: P5-1` |
 | **5-2** | 최종 QA (§7) | qa-verifier | `LOOP_COMPLETE` |
+| **6** | **§4.5 LLM 제공자 이원화(Claude+Gemini, v1.3 개정)** | kotlin-implementer | `PROGRESS: P6` |
 
 > **v1.0→v1.2 재편성 주의**: v1.0 계획의 P4(UI 조립)·P5(폴리시)는 이미 완료됐고 `PROGRESS.md`에
 > `P4(v1.0-UI)`/`P5(v1.0-폴리시)`로 재태깅돼 있다. 위 표의 P4는 **웹/LLM 갱신**이며 별개다.
@@ -401,8 +406,10 @@ class DetectTransitionsUseCase {
 
 ### 6.2 PROGRESS.md 마커 순서
 ```
-P0 → P1 → P2 → P3 → P3.5-1 → P3.5 → P4 → P5-1 → LOOP_COMPLETE
+P0 → P1 → P2 → P3 → P3.5-1 → P3.5 → P4 → P5-1 → LOOP_COMPLETE → P6
 ```
+> P6(v1.3 개정)은 P5-2 최종 QA와 독립적인 개정 팔로업이다 — P5-2 실키 검증이 미완인 상태에서
+> 사용자 지시로 선행 실행될 수 있다(이 경우 P5-2의 SuggestionPanel 실기 검증은 두 제공자를 모두 다룬다).
 
 ---
 
@@ -418,6 +425,7 @@ P0 → P1 → P2 → P3 → P3.5-1 → P3.5 → P4 → P5-1 → LOOP_COMPLETE
 - [ ] **전이 감지(v1.2):** 국면·방아쇠 전이 로그 표시, in-memory DB 테스트 통과.
 - [ ] **승인 흐름(v1.2):** §4.5 제안이 승인 없이 상태를 바꾸지 않음, MANUAL 불패.
 - [ ] **config 구동(v1.2):** `bear_thresholds.json` 교체만으로 판정 변화(코드 무수정), §3 임계치 코드 하드코딩 없음.
+- [ ] **제공자 이원화(v1.3):** CLAUDE/GEMINI 각 유효 config에서 §4.5 제안 조회가 해당 제공자 엔드포인트로 발화(단위테스트), 무효 config는 네트워크 호출 없이 안내 오류. Gemini 응답의 검색 제안 위젯 HTML이 결과에 전달되고 `SuggestionPanel`이 표시. 화이트리스트·급변 재확인·STALE·승인 원칙은 두 제공자에서 동일 동작.
 
 ---
 

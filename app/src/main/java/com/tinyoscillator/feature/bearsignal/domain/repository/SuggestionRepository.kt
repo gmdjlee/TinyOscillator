@@ -16,9 +16,9 @@ interface SuggestionRepository {
      * §4.5 그룹①②③(rate/dir, bigDeal/lossRatio, credit)을 조회해 제안 목록을 반환한다.
      *
      * @param current 병합된 현재 입력값(§4.5 "급변 재확인" 비교 기준 + 제안 패널 "현재값" 표시용).
-     * @return 최상위 [Result.failure]는 Claude API 키 미설정/제공자 불일치 등 그룹 호출 자체를
-     * 시도할 수 없는 경우다. 개별 그룹 호출 실패(네트워크·파싱)는 [Result.success]로 감싼
-     * [SuggestionFetchResult]의 그룹별 `error` 필드로 표현된다(부분 실패 격리).
+     * @return 최상위 [Result.failure]는 Claude/Gemini API 키 미설정 등 그룹 호출 자체를 시도할 수
+     * 없는 경우다(§4.5 v1.3부터 두 제공자 모두 지원). 개별 그룹 호출 실패(네트워크·파싱)는
+     * [Result.success]로 감싼 [SuggestionFetchResult]의 그룹별 `error` 필드로 표현된다(부분 실패 격리).
      */
     suspend fun fetchSuggestions(current: BearSignalInputs): Result<SuggestionFetchResult>
 }
