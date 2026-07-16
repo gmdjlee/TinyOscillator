@@ -76,11 +76,13 @@ fun BearSignalLeadingSignalsSection(
             contentDescription = "신호 2 변동성 무게중심, 레벨 ${SignalLevel.entries[result.s2].label}, " +
                 "±3시그마 상승 ${inputs.up}일 하락 ${inputs.down}일"
         ) {
-            val ratio = if (inputs.up == 0) 0.0 else inputs.down.toDouble() / inputs.up
+            // 상승일 0이면 비율 미정의 — 스코어링(scoreS2)은 sentinel 9.0(천장)으로 간주하므로
+            // 0.00 대신 ∞로 표기해 레벨과 표시값의 모순을 없앤다
+            val ratioText = if (inputs.up == 0) "∞" else "%.2f".format(inputs.down.toDouble() / inputs.up)
             ReadoutRow(
                 listOf(
                     Triple("±3σ 상승/하락일", "${inputs.up} / ${inputs.down}", MaterialTheme.colorScheme.onSurfaceVariant),
-                    Triple("하락/상승 비율", "%.2f".format(ratio), levelColor(result.s2)),
+                    Triple("하락/상승 비율", ratioText, levelColor(result.s2)),
                     Triple(
                         "±4σ 상승/하락(참고)",
                         "${auto?.up4?.value ?: "-"} / ${auto?.down4?.value ?: "-"}",
