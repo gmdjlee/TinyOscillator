@@ -270,6 +270,31 @@ TASK_bear_signal_console.md §4.5 v1.3 개정("Gemini 경로") + §7 "제공자 
   제안 소진 후 위젯 잔존(의도된 동작 — 방금 승인한 값의 출처 고지 유지), rate limit 클록 주입
   리팩터링(AiApiClient와 동일 패턴, 과설계로 판단).
 
+### P6 실기 검증 — Gemini google_search 실키 성공 (2026-07-16, 에뮬레이터 pixel_fold)
+
+사용자 Gemini 실키(gemini-2.5-flash)로 §4.5 전 흐름 실기 검증 **성공, 크래시 0**:
+
+- **모델 목록**: "모델 목록 불러오기" → 39개 모델 로드(키 유효 실증) → Gemini 2.5 Flash 선택 → 저장.
+- **AI 제안 가져오기**: 3그룹 직렬(12s rate limit) 호출 전부 성공 — **5필드 제안 생성**(rate 3.75
+  FOMC 2026-06-17 / dir hike 한은 금통위 2026-07-16 / bigDeal pending Bloomberg·Reuters 2026-07-15 /
+  lossRatio 45.0 DS운용 2026-07-10 / **credit 38→34.79조 KOFIA 2026-07-13** — 실시간 웹 검색 데이터
+  실증). origin은 DTO 명시값 우선 동작 확인, 화이트리스트 통과, STALE 0.
+- **Google 검색 제안 위젯(ToS)**: 그룹별 3개 WebView 렌더 — G 로고+검색어 칩(FOMC/한은 · OpenAI/
+  Anthropic IPO · KOFIA 신용잔고), 투명 배경 정상, 64dp 잘림 없음(보류 판정 항목 실기 해소).
+- **승인 원칙**: 제안 표시만으로 상태 무변경(신용잔고 카드 38조 유지), 개별 ✓/✗·전체 승인(5) 대기.
+- **에러 경로 실증**: 키 미설정 시 v1.3 안내 문구("Claude 또는 Gemini API 키를 등록해야 합니다") 정상.
+
+**신규 발견 버그(P6 범위 밖, 앱 전역 — 백로그)**: 설정 저장(`saveAiConfig` 등) 후
+`ApiConfigProvider.invalidateAll()`을 호출하는 곳이 없어 volatile 캐시가 프로세스 수명 동안 최초
+조회 값으로 고착 — AI 키/모델을 나중에 저장해도 §4.5 등 `getAiConfig()` 경로가 구 값(NoApiKeyError)을
+계속 반환한다(실기 재현: 저장 후에도 실패 → `am force-stop` 재시작 후 정상). 유일한 무효화 호출은
+`OscillatorViewModel.invalidateKiwoom`뿐. 수정 후보: SettingsScreen 저장 onSave에서 `invalidateAll()`
+호출(Hilt 주입). 관세청/FRED/ECOS 키도 동일 영향(저장 후 재시작 전까지 미반영).
+
+**관세청 실키**: HTTP 403 지속(입력 2시간 경과에도) — 키 전파 문제가 아니라 ①Encoding 키 입력(이중
+인코딩) 또는 ②신청 항목 불일치(15101609 아닌 다른 API) 의심. 사용자 확인 필요. FRED 실키는 정상
+(rate=3.75 수집, 신호4 카드 "자동" 배지 반영 실증).
+
 ## Phase 5-1 상세 — 워커 주기 일/주 Tier 분리 · MINOR 마감 (2026-07-13)
 
 TASK_bear_signal_console.md §2(111행 "Phase 5-1에서 일 Tier A / 주 Tier B 조정 검토")·§4 주기 열·§6 Phase 5-1 구현. shimmer·접근성·오프라인·워커 골격은 구 P5(v1.0-폴리시)가 기충족 — 이 절은 델타만 기록한다.
