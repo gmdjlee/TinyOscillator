@@ -32,8 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.ThemeStock
-import com.tinyoscillator.ui.theme.Negative
-import com.tinyoscillator.ui.theme.Positive
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 import com.tinyoscillator.ui.theme.signColor
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
@@ -189,12 +188,12 @@ private fun HeaderCard(stocks: List<ThemeStock>, modifier: Modifier = Modifier) 
                 Text(
                     "상승 ${rise}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Positive,
+                    color = LocalFinanceColors.current.positive,
                 )
                 Text(
                     "하락 ${fall}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Negative,
+                    color = LocalFinanceColors.current.negative,
                 )
             }
             lastUpdated?.let { ts ->

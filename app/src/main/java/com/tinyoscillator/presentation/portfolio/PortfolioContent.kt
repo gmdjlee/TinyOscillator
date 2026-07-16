@@ -23,12 +23,11 @@ import com.tinyoscillator.domain.model.PortfolioSummary
 import com.tinyoscillator.domain.model.PortfolioUiState
 import com.tinyoscillator.domain.model.TransactionItem
 import com.tinyoscillator.presentation.quickanalysis.StockQuickAnalysisSheet
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 import java.text.NumberFormat
 import java.util.Locale
 
 private val krwFormat = NumberFormat.getNumberInstance(Locale.KOREA)
-private val gainColor = Color(0xFFD32F2F) // Red for gain (Korean convention)
-private val lossColor = Color(0xFF1976D2) // Blue for loss (Korean convention)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -304,6 +303,9 @@ fun PortfolioContent(
 
 @Composable
 private fun SummaryCard(summary: PortfolioSummary) {
+    // 손익 부호 색상 — 한국식(상승=적, 하락=청), 다크 모드 변형은 LocalFinanceColors가 제공
+    val gainColor = LocalFinanceColors.current.positive
+    val lossColor = LocalFinanceColors.current.negative
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -470,6 +472,8 @@ private fun HoldingsTable(
     onRowClick: (PortfolioHoldingItem) -> Unit,
     onQuickAnalysisClick: (PortfolioHoldingItem) -> Unit
 ) {
+    val gainColor = LocalFinanceColors.current.positive
+    val lossColor = LocalFinanceColors.current.negative
     val scrollState = rememberScrollState()
 
     Card(modifier = Modifier.fillMaxWidth()) {

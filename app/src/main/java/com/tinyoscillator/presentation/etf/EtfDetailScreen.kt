@@ -18,8 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.core.database.entity.EtfEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.data.repository.EtfRepository
-import com.tinyoscillator.ui.theme.Negative
-import com.tinyoscillator.ui.theme.Positive
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -336,8 +335,8 @@ private fun HoldingChangeBadge(
 ) {
     val (label, color) = when (change) {
         HoldingChange.NEW -> "신규" to MaterialTheme.colorScheme.primary
-        HoldingChange.INCREASED -> "비중↑" to Positive
-        HoldingChange.DECREASED -> "비중↓" to Negative
+        HoldingChange.INCREASED -> "비중↑" to LocalFinanceColors.current.positive
+        HoldingChange.DECREASED -> "비중↓" to LocalFinanceColors.current.negative
     }
     Surface(
         modifier = modifier,

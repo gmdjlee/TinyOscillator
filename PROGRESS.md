@@ -23,7 +23,31 @@
 | P5-2 (QA) | **완료** | qa-verifier §7 ALL PASS(2026-07-14) + 실키 3건(FRED·Gemini·관세청) 실기 통과 — 하단 「관세청 실키 검증·엔드포인트 수정」 절 참조 |
 | P6 (§4.5 제공자 이원화, v1.3) | **완료** | Claude/Gemini 이원화 — `LlmMarketDataSource` 제공자 디스패치·`SuggestionPanel` 검색 위젯 — 하단 「Phase 6 상세」 절 참조 |
 
-기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수 — P5-1에서 TZ·rememberSaveable·레이더 라벨 해소, SignColor 다크는 앱 전역 백로그로 이관(하단 P5-1 상세 참조). "월간 워커 실발화" 실기 항목은 주기 재편으로 "일간/주간 워커 실발화"로 대체돼 P5-2로 이월.
+기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수 — P5-1에서 TZ·rememberSaveable·레이더 라벨 해소, SignColor 다크는 앱 전역 백로그로 이관(하단 P5-1 상세 참조, **2026-07-16 해소** — 상단 「백로그 2건」 마커). "월간 워커 실발화" 실기 항목은 주기 재편으로 "일간/주간 워커 실발화"로 대체돼 P5-2로 이월.
+
+PROGRESS: 백로그 2건 — 완료 (post-LOOP 백로그 마감, 2026-07-16. ①**신용잔고 자동 수집**(§4 표
+"신용잔고 v2 배치" 항목): `BearSignalRepositoryImpl.collectCreditFromDeposits` 신규 —
+`refreshAutoInputs`(일간 06:30 워커·수동 갱신) 진입 시 KRX 성패와 무관하게 best-effort 선행. 로컬
+`market_deposits` 최신 행(NaverFinance 02:00 스크랩, KOFIA 원천, 억원)을 읽어 조원 변환(/10,000) 후
+`GATE_CREDIT` 캐시 upsert(source=AUTO). 허용 연령 10일 초과·데이터 없음·예외는 건너뜀(기존 캐시 유지,
+§3 임계치 무관 수집 파라미터). §4.5 승인값과 동일 키 공유 — 일간 수집이 승인값을 덮을 수 있음(둘 다
+AUTO, 로컬이 더 최신 — KDoc 명시), MANUAL 불패 불변(병합 로직 무수정, 기존 credit AUTO 채택 테스트
+기커버). `MarketDepositDao` 의존성 추가(BearSignalModule 배선), 매퍼 `creditEntity` 신규. 스코어링·
+임계치 무변경. 테스트: `BearSignalRepositoryImplTest` 41건/0실패(신규 4건 — 억→조 변환·연령 초과
+스킵·데이터 없음 스킵·예외 격리) + bearsignal 전체·core.worker 회귀 그린. ②**SignColor 다크 변형
+전역 적용**(구 MINOR, P5-1에서 이관): `signColor()`가 라이트 상수(`Positive`/`Negative`) 하드코딩
+→ `LocalFinanceColors.current`로 교체(다크에서 `PositiveDark`/`NegativeDark` 적용, 헬퍼 사용처
+전 화면 일괄 해소). 직접 상수 참조 9파일도 `LocalFinanceColors`로 이행 — ThemeList/ThemeDetail·
+StockSummary·StockQuickAnalysisSheet·EtfAnalysis/EtfDetail·AmountRankingTab/StockChangeTab +
+포트폴리오 2파일(자체 하드코딩 gainColor/lossColor 제거) + AlgoWaterfallChart(바/기준선/라벨 색
+테마화, 앙상블 금색 유지). `compileDebugKotlin` 통과. **에뮬레이터 실기 QA 통과(2026-07-16,
+pixel_fold, 크래시 0)**: [다크] BearSignal 국가표 양수 산호적(PositiveDark)/음수 하늘청(NegativeDark)
+판독 우수 — 구 MINOR "적색 어두움" 해소 실증, 시장요약카드 예탁금 증감·테마 리스트(기간수익률/등락률/
+상승·하락 카운트)·ETF 리스트 등락률 모두 다크 변형 렌더 확인. [신용잔고 E2E] 설정>데이터 자금동향
+수집(1년, Naver 실수집 341,910억 +759) → BearSignal pull-to-refresh → logcat
+"신용잔고 자동 수집 완료: 341910.0억(2026-07-14) → 34.19조" → 방아쇠 카드 38조(기준값)→34조(AUTO)
+갱신 + 갱신 배지 실증. 미확인 잔여: 포트폴리오 손익색·AI 워터폴 다크 렌더(에뮬레이터 데이터 없음 —
+동일 LocalFinanceColors 팔레트라 리스크 낮음). 검증 후 uimode·앱 테마 원복)
 
 PROGRESS: LOOP_COMPLETE — v1.2/v1.3 전 Phase 마감 (2026-07-16. §6.2 순서상 P5-1 다음 자리이나 P6이
 선완료됨 — v1.3 개정 노트 근거. 근거: ①P5-2 최종 QA qa-verifier §7 ALL PASS 11/11 + 일간/주간 워커

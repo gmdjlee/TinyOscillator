@@ -29,8 +29,7 @@ import com.tinyoscillator.core.ui.composable.EmptyStateContent
 import com.tinyoscillator.presentation.quickanalysis.QuickAnalysisState
 import com.tinyoscillator.presentation.quickanalysis.QuickAnalysisSummaryContent
 import com.tinyoscillator.presentation.quickanalysis.QuickAnalysisViewModel
-import com.tinyoscillator.ui.theme.Negative
-import com.tinyoscillator.ui.theme.Positive
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -93,8 +92,8 @@ fun StockSummaryContent(
                 else -> {
                     val score = ex.ensembleScore
                     val scoreColor = when {
-                        score >= 0.65 -> Positive
-                        score <= 0.35 -> Negative
+                        score >= 0.65 -> LocalFinanceColors.current.positive
+                        score <= 0.35 -> LocalFinanceColors.current.negative
                         else -> MaterialTheme.colorScheme.onSurfaceVariant
                     }
                     val scoreLabel = when {
@@ -189,8 +188,8 @@ fun StockSummaryContent(
                         "괴리율",
                         "%+.1f%%".format(r.divergenceRate),
                         valueColor = when {
-                            r.divergenceRate > 0 -> Positive
-                            r.divergenceRate < 0 -> Negative
+                            r.divergenceRate > 0 -> LocalFinanceColors.current.positive
+                            r.divergenceRate < 0 -> LocalFinanceColors.current.negative
                             else -> null
                         }
                     )

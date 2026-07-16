@@ -36,8 +36,7 @@ import com.tinyoscillator.domain.model.ThemeGroup
 import com.tinyoscillator.domain.model.ThemeSortMode
 import com.tinyoscillator.core.worker.ThemeUpdateWorker
 import com.tinyoscillator.presentation.common.CollectionProgressBar
-import com.tinyoscillator.ui.theme.Negative
-import com.tinyoscillator.ui.theme.Positive
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 import com.tinyoscillator.ui.theme.signColor
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -226,12 +225,12 @@ private fun ThemeCard(theme: ThemeGroup, onClick: () -> Unit) {
                 Text(
                     "상승 ${theme.riseCount}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Positive,
+                    color = LocalFinanceColors.current.positive,
                 )
                 Text(
                     "하락 ${theme.fallCount}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Negative,
+                    color = LocalFinanceColors.current.negative,
                 )
             }
             if (theme.mainStocks.isNotBlank()) {

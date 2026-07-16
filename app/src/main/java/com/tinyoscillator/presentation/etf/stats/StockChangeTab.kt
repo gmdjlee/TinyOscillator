@@ -16,8 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.tinyoscillator.core.ui.composable.EmptyStateContent
 import com.tinyoscillator.domain.model.ChangeType
 import com.tinyoscillator.domain.model.StockChange
-import com.tinyoscillator.ui.theme.Negative
-import com.tinyoscillator.ui.theme.Positive
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -66,12 +65,12 @@ private fun StockChangeCard(
     onStockClick: (String) -> Unit,
     onQuickAnalysisClick: (String, String) -> Unit = { _, _ -> }
 ) {
-    // 색상 규칙: 신규=primary, 비중 증가=Positive(상승), 감소=Negative(하락), 제외=outline
+    // 색상 규칙: 신규=primary, 비중 증가=positive(상승), 감소=negative(하락), 제외=outline
     val badgeColor = when (changeType) {
         ChangeType.NEW -> MaterialTheme.colorScheme.primary
         ChangeType.REMOVED -> MaterialTheme.colorScheme.outline
-        ChangeType.INCREASED -> Positive
-        ChangeType.DECREASED -> Negative
+        ChangeType.INCREASED -> LocalFinanceColors.current.positive
+        ChangeType.DECREASED -> LocalFinanceColors.current.negative
     }
     val badgeText = when (changeType) {
         ChangeType.NEW -> "신규"
@@ -173,7 +172,7 @@ private fun StockChangeCard(
                         "변동: %+.2f%%p".format(diff),
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
-                        color = if (diff > 0) Positive else Negative
+                        color = if (diff > 0) LocalFinanceColors.current.positive else LocalFinanceColors.current.negative
                     )
                 }
             }

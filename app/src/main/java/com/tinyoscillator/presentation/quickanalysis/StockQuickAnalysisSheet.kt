@@ -30,8 +30,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.domain.model.CrossSignal
 import com.tinyoscillator.domain.model.Trend
-import com.tinyoscillator.ui.theme.Negative
-import com.tinyoscillator.ui.theme.Positive
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -152,8 +151,8 @@ internal fun QuickAnalysisSummaryContent(summary: QuickAnalysisSummary) {
                 )
                 summary.changePct?.let { pct ->
                     val color = when {
-                        pct > 0 -> Positive
-                        pct < 0 -> Negative
+                        pct > 0 -> LocalFinanceColors.current.positive
+                        pct < 0 -> LocalFinanceColors.current.negative
                         else -> MaterialTheme.colorScheme.onSurfaceVariant
                     }
                     Text(
@@ -183,13 +182,13 @@ internal fun QuickAnalysisSummaryContent(summary: QuickAnalysisSummary) {
         // DeMark TD 카운트 (9+ 신호 강조)
         SummaryRow(label = "DeMark TD") {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TdCountText(prefix = "Buy", count = summary.tdBuyCount, highlightColor = Positive)
+                TdCountText(prefix = "Buy", count = summary.tdBuyCount, highlightColor = LocalFinanceColors.current.positive)
                 Text(
                     " · ",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                TdCountText(prefix = "Sell", count = summary.tdSellCount, highlightColor = Negative)
+                TdCountText(prefix = "Sell", count = summary.tdSellCount, highlightColor = LocalFinanceColors.current.negative)
             }
         }
     }
@@ -214,8 +213,8 @@ private fun SummaryRow(label: String, content: @Composable () -> Unit) {
 @Composable
 private fun TrendBadge(trend: Trend) {
     val (label, color) = when (trend) {
-        Trend.BULLISH -> "상승" to Positive
-        Trend.BEARISH -> "하락" to Negative
+        Trend.BULLISH -> "상승" to LocalFinanceColors.current.positive
+        Trend.BEARISH -> "하락" to LocalFinanceColors.current.negative
         Trend.NEUTRAL -> "중립" to MaterialTheme.colorScheme.onSurfaceVariant
     }
     LabelBadge(label = label, color = color, modifier = Modifier.padding(start = 6.dp))
@@ -224,8 +223,8 @@ private fun TrendBadge(trend: Trend) {
 @Composable
 private fun CrossSignalBadge(cross: CrossSignal) {
     val (label, color) = when (cross) {
-        CrossSignal.GOLDEN_CROSS -> "골든크로스" to Positive
-        CrossSignal.DEAD_CROSS -> "데드크로스" to Negative
+        CrossSignal.GOLDEN_CROSS -> "골든크로스" to LocalFinanceColors.current.positive
+        CrossSignal.DEAD_CROSS -> "데드크로스" to LocalFinanceColors.current.negative
     }
     LabelBadge(label = label, color = color, modifier = Modifier.padding(start = 4.dp))
 }

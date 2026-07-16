@@ -20,8 +20,7 @@ import com.tinyoscillator.core.ui.composable.NeedDataCollectionContent
 import com.tinyoscillator.core.ui.composable.NoSearchResultContent
 import com.tinyoscillator.presentation.common.CategoryBadge
 import com.tinyoscillator.presentation.common.KrxCredentialDialog
-import com.tinyoscillator.ui.theme.Negative
-import com.tinyoscillator.ui.theme.Positive
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 
 @Composable
 fun EtfAnalysisContent(
@@ -179,7 +178,7 @@ private fun EtfListItem(
             Column(horizontalAlignment = Alignment.End) {
                 // 일일 등락률 (한국 컨벤션: 상승=red, 하락=blue)
                 etf.changeRate?.let { rate ->
-                    val color = if (rate >= 0) Positive else Negative
+                    val color = if (rate >= 0) LocalFinanceColors.current.positive else LocalFinanceColors.current.negative
                     Text(
                         "%+.2f%%".format(rate),
                         color = color,

@@ -22,8 +22,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.domain.model.AmountRankingItem
 import com.tinyoscillator.domain.model.WeightTrend
-import com.tinyoscillator.ui.theme.Negative
-import com.tinyoscillator.ui.theme.Positive
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 
 private enum class SortColumn { AMOUNT, ETF_COUNT, MAX_WEIGHT, AVG_WEIGHT, NEW, INCREASED, DECREASED, REMOVED }
 private enum class SortOrder { ASC, DESC }
@@ -374,10 +373,10 @@ fun AmountRankingTab(
                     )
                     WeightCell(item.maxWeight, item.maxWeightTrend, colModifier(useWeightLayout, ColWeights.MAX_WEIGHT, CompactWidths.MAX_WEIGHT))
                     WeightCell(item.avgWeight, item.avgWeightTrend, colModifier(useWeightLayout, ColWeights.AVG_WEIGHT, CompactWidths.AVG_WEIGHT))
-                    // 색상 규칙: 신규=primary, 증가=Positive, 감소=Negative, 제외=outline (StockChangeTab 배지와 동일)
+                    // 색상 규칙: 신규=primary, 증가=positive, 감소=negative, 제외=outline (StockChangeTab 배지와 동일)
                     CountBadge(item.newCount, MaterialTheme.colorScheme.primary, colModifier(useWeightLayout, ColWeights.NEW, CompactWidths.NEW))
-                    CountBadge(item.increasedCount, Positive, colModifier(useWeightLayout, ColWeights.INCREASED, CompactWidths.INCREASED))
-                    CountBadge(item.decreasedCount, Negative, colModifier(useWeightLayout, ColWeights.DECREASED, CompactWidths.DECREASED))
+                    CountBadge(item.increasedCount, LocalFinanceColors.current.positive, colModifier(useWeightLayout, ColWeights.INCREASED, CompactWidths.INCREASED))
+                    CountBadge(item.decreasedCount, LocalFinanceColors.current.negative, colModifier(useWeightLayout, ColWeights.DECREASED, CompactWidths.DECREASED))
                     CountBadge(item.removedCount, MaterialTheme.colorScheme.outline, colModifier(useWeightLayout, ColWeights.REMOVED, CompactWidths.REMOVED))
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
@@ -446,8 +445,8 @@ private fun WeightCell(
             WeightTrend.NONE -> ""
         }
         val trendColor = when (trend) {
-            WeightTrend.UP -> Positive
-            WeightTrend.DOWN -> Negative
+            WeightTrend.UP -> LocalFinanceColors.current.positive
+            WeightTrend.DOWN -> LocalFinanceColors.current.negative
             WeightTrend.FLAT -> MaterialTheme.colorScheme.onSurface
             WeightTrend.NONE -> MaterialTheme.colorScheme.onSurface
         }

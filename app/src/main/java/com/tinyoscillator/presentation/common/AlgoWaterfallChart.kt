@@ -12,7 +12,9 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.toArgb
 import com.tinyoscillator.domain.model.AlgoResult
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -29,6 +31,12 @@ fun AlgoWaterfallChart(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
+    // 부호 색상 — 한국식(양수=적, 음수=청), 다크 모드 변형은 LocalFinanceColors가 제공
+    val financeColors = LocalFinanceColors.current
+    val positiveBar = financeColors.positive.copy(alpha = 0.8f)
+    val negativeBar = financeColors.negative.copy(alpha = 0.8f)
+    val neutralColor = financeColors.neutral
+    val neutralArgb = financeColors.neutral.toArgb()
     val sorted = algoResults.entries.sortedByDescending { it.value.weight }
 
     val contributions: List<Pair<String, Float>> = sorted.map { (name, r) ->
@@ -61,7 +69,7 @@ fun AlgoWaterfallChart(
 
         // 기준선 (dashed)
         drawLine(
-            color = Color(0xFF8A8580),
+            color = neutralColor,
             start = Offset(paddingPx, baseline),
             end = Offset(size.width - paddingPx, baseline),
             strokeWidth = 1.dp.toPx(),
@@ -75,7 +83,7 @@ fun AlgoWaterfallChart(
             baseline + 5.dp.toPx(),
             android.graphics.Paint().apply {
                 textSize = 11.dp.toPx()
-                color = android.graphics.Color.parseColor("#8A8580")
+                color = neutralArgb
             }
         )
 
@@ -88,7 +96,7 @@ fun AlgoWaterfallChart(
             val bottom = if (contrib >= 0f) cumY else cumY + barH
 
             drawRect(
-                color = if (contrib >= 0f) Color(0xCCD05540) else Color(0xCC4088CC),
+                color = if (contrib >= 0f) positiveBar else negativeBar,
                 topLeft = Offset(x, top),
                 size = Size(barW * 0.7f, bottom - top),
             )
@@ -101,7 +109,7 @@ fun AlgoWaterfallChart(
                 android.graphics.Paint().apply {
                     textSize = 10.dp.toPx()
                     textAlign = android.graphics.Paint.Align.CENTER
-                    color = android.graphics.Color.parseColor("#8A8580")
+                    color = neutralArgb
                 }
             )
 

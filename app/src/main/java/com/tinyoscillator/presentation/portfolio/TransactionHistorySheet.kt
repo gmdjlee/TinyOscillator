@@ -12,16 +12,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.domain.model.TransactionItem
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 import java.text.NumberFormat
 import java.util.Locale
 
 private val krwFormat = NumberFormat.getNumberInstance(Locale.KOREA)
-private val gainColor = Color(0xFFD32F2F)
-private val lossColor = Color(0xFF1976D2)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -172,6 +170,9 @@ private fun TransactionRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    // 매수/손익 부호 색상 — 한국식(상승=적, 하락=청), 다크 모드 변형은 LocalFinanceColors가 제공
+    val gainColor = LocalFinanceColors.current.positive
+    val lossColor = LocalFinanceColors.current.negative
     val isBuy = transaction.shares > 0
     val typeColor = if (isBuy) gainColor else lossColor
     val typeLabel = if (isBuy) "매수" else "매도"
