@@ -237,12 +237,17 @@ class BearSignalRepositoryImpl(
             return base.semi to base.buffer
         }
         return try {
-            val endYm = YearMonth.now().minusMonths(CUSTOMS_DATA_LAG_MONTHS)
-            val endYmStr = endYm.format(YM_FMT)
-            val currentItems = customsTradeApiClient.fetchNitemTrade(apiKey, endYmStr, endYmStr)
+            // 관세청은 매월 15일경 전월 자료를 현행화 — 월초에는 전월 데이터가 아직 없을 수
+            // 있어 한 달 더 이전으로 1회 폴백한다(빈 응답 기준, 최대 2회 시도).
+            var endYm = YearMonth.now().minusMonths(CUSTOMS_DATA_LAG_MONTHS)
+            var currentItems = customsTradeApiClient.fetchItemTrade(apiKey, endYm.format(YM_FMT), endYm.format(YM_FMT))
+            if (currentItems.isEmpty()) {
+                endYm = endYm.minusMonths(1)
+                currentItems = customsTradeApiClient.fetchItemTrade(apiKey, endYm.format(YM_FMT), endYm.format(YM_FMT))
+            }
 
             val priorYmStr = endYm.minusMonths(12).format(YM_FMT)
-            val priorItems = customsTradeApiClient.fetchNitemTrade(apiKey, priorYmStr, priorYmStr)
+            val priorItems = customsTradeApiClient.fetchItemTrade(apiKey, priorYmStr, priorYmStr)
 
             val semiShare = CustomsTradeCalculator.computeSemiShare(currentItems)
             val bufferIntact = CustomsTradeCalculator.computeBufferIntact(currentItems, priorItems)

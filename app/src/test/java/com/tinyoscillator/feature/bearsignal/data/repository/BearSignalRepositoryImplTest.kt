@@ -263,7 +263,7 @@ class BearSignalRepositoryImplTest {
     fun `refreshExternalAutoInputs 성공 시 5개 지표 모두 반영하고 upsert`() = runTest {
         coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputs())
         coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns "customs-key"
-        coEvery { customsTradeApiClient.fetchNitemTrade(any(), any(), any()) } coAnswers {
+        coEvery { customsTradeApiClient.fetchItemTrade(any(), any(), any()) } coAnswers {
             customsFixtureItems(secondArg())
         }
         coEvery { apiConfigProvider.getFredApiKey() } returns "fred-key"
@@ -286,6 +286,30 @@ class BearSignalRepositoryImplTest {
         assertEquals("hike", inputs.dir!!.value) // 3.50 > 3.25
         assertEquals(InputSource.AUTO, inputs.semi!!.source)
         coVerify { dao.upsertAll(any()) }
+    }
+
+    @Test
+    fun `refreshExternalAutoInputs 관세청 최신월 빈 응답이면 한 달 전으로 폴백`() = runTest {
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputs())
+        coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns "customs-key"
+        // 매월 15일경 현행화 전 구간: 최신월(now-1)은 아직 빈 응답, 그 전 달부터 데이터 존재
+        val latestYm = java.time.YearMonth.now().minusMonths(1)
+            .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM"))
+        coEvery { customsTradeApiClient.fetchItemTrade(any(), any(), any()) } coAnswers {
+            if (secondArg<String>() == latestYm) emptyList() else customsFixtureItems(secondArg())
+        }
+        coEvery { apiConfigProvider.getFredApiKey() } returns null
+        coEvery { apiConfigProvider.getEcosApiKey() } returns null
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns listOf(IndexDailyBar("2026-06-30", 40.0))
+
+        val result = repository.refreshExternalAutoInputs()
+
+        assertTrue(result.isSuccess)
+        // 폴백 월 데이터로 semi 산출(반도체 20000/55000)
+        assertEquals(InputSource.AUTO, result.getOrNull()!!.semi!!.source)
+        assertEquals(20_000.0 / 55_000.0 * 100.0, result.getOrNull()!!.semi!!.value, 1e-9)
+        // 호출 3회: 최신월(빈 응답) → 폴백월 → 폴백월 기준 전년동월
+        coVerify(exactly = 3) { customsTradeApiClient.fetchItemTrade(any(), any(), any()) }
     }
 
     @Test
@@ -313,7 +337,7 @@ class BearSignalRepositoryImplTest {
     fun `refreshExternalAutoInputs FRED 호출 실패 시 rate만 기존 캐시 유지하고 나머지는 갱신`() = runTest {
         coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputsWithExternal())
         coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns "customs-key"
-        coEvery { customsTradeApiClient.fetchNitemTrade(any(), any(), any()) } coAnswers {
+        coEvery { customsTradeApiClient.fetchItemTrade(any(), any(), any()) } coAnswers {
             customsFixtureItems(secondArg())
         }
         coEvery { apiConfigProvider.getFredApiKey() } returns "fred-key"

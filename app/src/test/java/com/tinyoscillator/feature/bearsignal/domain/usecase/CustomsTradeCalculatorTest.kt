@@ -30,9 +30,9 @@ class CustomsTradeCalculatorTest {
     )
 
     @Test
-    fun `computeSemiShare 15대 품목 합계 대비 반도체 비중`() {
+    fun `computeSemiShare 전 품목 수출 합계 대비 반도체 비중`() {
         val items = reportBaselineItems()
-        val total = items.sumOf { it.exportUsdThousand }
+        val total = items.sumOf { it.exportUsd }
         val expected = 23_100.0 / total * 100.0
 
         val result = CustomsTradeCalculator.computeSemiShare(items)

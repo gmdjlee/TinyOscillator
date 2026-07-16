@@ -7,19 +7,21 @@ import kotlin.math.abs
  * §3.5 증폭·집중 `semi`(반도체 수출 비중)·`buffer`(완충산업 건재 여부) 입력 계산
  * (TASK.md §1.1 각주5, §4 "수출 비중").
  *
- * **품목 매칭 방식**: 관세청 `getNitemtradeList`는 "15대 품목" 단위로 응답하지만 필드가
- * HS 코드/품목명 중 무엇으로 채워지는지 배포 환경마다 다를 수 있어, 품목명 키워드와 HS 코드
- * 접두사를 **OR 조건**으로 매칭한다(둘 중 하나만 일치해도 해당 카테고리로 분류) — 방어적 파싱.
+ * **품목 매칭 방식**: 관세청 `getItemtradeList`(15101609)는 HS 10단위 전 품목을 반환하므로
+ * HS 코드 접두사 매칭이 1차 기준이다. 품목명 키워드는 OR 조건 보조 매칭으로 유지한다
+ * (둘 중 하나만 일치해도 해당 카테고리로 분류 — 방어적 파싱).
  *
- * **`semi` 산출 방식(구현 결정, SSOT 아님)**: 관세청 API가 "15대 품목"만 반환하고 국가
- * 총수출액을 별도로 제공하지 않아, **15대 품목 합계 대비 반도체 비중**을 근사치로 사용한다.
- * 15대 품목이 통상 총수출의 70~80%대를 구성하는 것으로 알려져 있어 "총수출 대비" 실제값보다
- * 다소 높게 산출될 수 있다(§8 리스크: K-stat 총계 연동은 v2 후보).
+ * **`semi` 산출 방식(구현 결정, SSOT 아님)**: 응답이 HS 전 품목을 포함하므로 분모가
+ * **국가 총수출액 실측**이다 — 반도체(HS 8541·8542) 수출액 / 전 품목 수출 합계 × 100.
+ * (구버전 "15대 품목 합계 대비 근사"는 실제보다 높게 산출되는 리스크가 있었고,
+ * 2026-07-16 엔드포인트 교체로 해소 — 임계치 캘리브레이션 시 총수출 대비 기준 사용.)
  *
- * **`buffer` 산출 방식(구현 결정, SSOT 아님)**: 자동차+일반기계+석유제품 3개 품목 수출 합계의
- * 전년동월대비(YoY) 증감률이 [BUFFER_YOY_COLLAPSE_THRESHOLD_PCT] 이상 급감하지 않으면 "건재"로
- * 판정한다. §3 스코어링 임계치(SSOT)와 무관한 데이터-입력 산출 규칙이며, 리포트 근거가 쌓이면
- * 조정 가능(현재는 v1 캘리브레이션 값).
+ * **`buffer` 산출 방식(구현 결정, SSOT 아님)**: 완충산업(자동차 HS 8703 + 일반기계 HS 84류 +
+ * 석유제품 HS 27류) 수출 합계의 전년동월대비(YoY) 증감률이
+ * [BUFFER_YOY_COLLAPSE_THRESHOLD_PCT] 이상 급감하지 않으면 "건재"로 판정한다. HS 류 단위
+ * 근사(84류는 컴퓨터 등 포함, 27류는 석탄·가스 포함)이나 현재/전년 동일 기준이라 YoY 비교는
+ * 일관적이다. §3 스코어링 임계치(SSOT)와 무관한 데이터-입력 산출 규칙이며, 리포트 근거가
+ * 쌓이면 조정 가능(현재는 v1 캘리브레이션 값).
  *
  * 순수 산술만 수행 — 안드로이드/IO 의존성 0 (JVM 단위테스트 대상).
  */
@@ -44,23 +46,23 @@ object CustomsTradeCalculator {
     const val BUFFER_YOY_COLLAPSE_THRESHOLD_PCT = -20.0
 
     /**
-     * §3.5 `semi` 입력 — 반도체 수출액 / 15대 품목 합계 수출액 × 100 (%).
+     * §3.5 `semi` 입력 — 반도체 수출액 / 전 품목 수출 합계(총수출) × 100 (%).
      *
      * @return null — [items]가 비었거나 합계가 0 이하인 경우
      */
     fun computeSemiShare(items: List<CustomsTradeItem>): Double? {
         if (items.isEmpty()) return null
-        val total = items.sumOf { it.exportUsdThousand }
+        val total = items.sumOf { it.exportUsd }
         if (total <= 0.0) return null
-        val semi = items.filter { matches(it, SEMI_KEYWORDS, SEMI_HS_PREFIXES) }.sumOf { it.exportUsdThousand }
+        val semi = items.filter { matches(it, SEMI_KEYWORDS, SEMI_HS_PREFIXES) }.sumOf { it.exportUsd }
         return semi / total * 100.0
     }
 
     /**
      * §3.5 `buffer` 입력 — 완충산업(자동차+일반기계+석유제품) 수출 합계의 YoY 증감률로 건재 여부 판정.
      *
-     * @param currentItems 최신 조회월 15대 품목 리스트
-     * @param priorYearItems 전년 동월 15대 품목 리스트
+     * @param currentItems 최신 조회월 품목 리스트
+     * @param priorYearItems 전년 동월 품목 리스트
      * @return null — 두 기간 중 하나라도 완충산업 3개 품목 합계를 계산할 수 없는 경우(데이터 없음)
      */
     fun computeBufferIntact(
@@ -80,7 +82,7 @@ object CustomsTradeCalculator {
             matches(it, AUTO_KEYWORDS, AUTO_HS_PREFIXES) ||
                 matches(it, MACHINERY_KEYWORDS, MACHINERY_HS_PREFIXES) ||
                 matches(it, PETROLEUM_KEYWORDS, PETROLEUM_HS_PREFIXES)
-        }.sumOf { it.exportUsdThousand }
+        }.sumOf { it.exportUsd }
     }
 
     private fun matches(item: CustomsTradeItem, keywords: List<String>, hsPrefixes: List<String>): Boolean {
