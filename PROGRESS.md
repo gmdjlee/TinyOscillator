@@ -20,10 +20,18 @@
 | P3.5 | **완료** | Sparkline·TransitionLog·신선도 제안 배너(ViewModel/UI 조립) — 하단 「Phase 3.5 상세」 절 참조 |
 | P4 (웹/LLM 갱신+승인) | **완료** | §4.5 신설 — 구 P4(v1.0-UI)와 별개, `LlmMarketDataSource`+승인 흐름 — 하단 「Phase 4 상세」 절 참조 |
 | P5-1 | **완료** | 워커 일/주 Tier 분리 + MINOR 2건(TZ·rememberSaveable) + 레이더 라벨 보정 — 하단 「Phase 5-1 상세」 절 참조. 진입 시 신선도 검사는 P3.5 기충족 재확인 |
-| P5-2 (QA) | 잔여 | qa-verifier — §7 v1.2 확장 항목 포함 |
+| P5-2 (QA) | **완료** | qa-verifier §7 ALL PASS(2026-07-14) + 실키 3건(FRED·Gemini·관세청) 실기 통과 — 하단 「관세청 실키 검증·엔드포인트 수정」 절 참조 |
 | P6 (§4.5 제공자 이원화, v1.3) | **완료** | Claude/Gemini 이원화 — `LlmMarketDataSource` 제공자 디스패치·`SuggestionPanel` 검색 위젯 — 하단 「Phase 6 상세」 절 참조 |
 
 기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수 — P5-1에서 TZ·rememberSaveable·레이더 라벨 해소, SignColor 다크는 앱 전역 백로그로 이관(하단 P5-1 상세 참조). "월간 워커 실발화" 실기 항목은 주기 재편으로 "일간/주간 워커 실발화"로 대체돼 P5-2로 이월.
+
+PROGRESS: LOOP_COMPLETE — v1.2/v1.3 전 Phase 마감 (2026-07-16. §6.2 순서상 P5-1 다음 자리이나 P6이
+선완료됨 — v1.3 개정 노트 근거. 근거: ①P5-2 최종 QA qa-verifier §7 ALL PASS 11/11 + 일간/주간 워커
+실발화(2026-07-14) ②실키 3건 실기 통과 — FRED(rate=3.75)·Gemini(§4.5 전 흐름+검색 위젯, 2026-07-16)·
+관세청(엔드포인트 수정 후 semi=33.9%/buffer=true 수집, 2026-07-16 — 하단 「관세청 실키 검증·엔드포인트
+수정」 절) ③스펙 조정 2건 현행 유지 재가(2026-07-14) ④semi 임계치 캘리브레이션 판단 — SSOT
+`amp.semiExport=20.0` 유지(HS 기준 실측 34%로 발화 여유, MTI 기저 차 -8%p는 CustomsTradeCalculator
+KDoc에 문서화, 리포트 개정 시 재검토))
 
 PROGRESS: P6 — 완료 (§4.5 LLM 제공자 이원화(Claude+Gemini, v1.3) — `LlmMarketDataSource`에 제공자 디스패치
 `callLlmWithSearch`(CLAUDE→기존 `web_search` 경로 무변경 / GEMINI→신규 `callGeminiWithGoogleSearch`,
@@ -148,6 +156,14 @@ QA 검증 결과 §3 임계치가 presentation 계층에 3곳 복제돼 있음�
 
 - **테스트 결과**: `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` — **248건, 0 실패**(기존 246건 + 신규 2건: `BearSignalViewModelTest`의 config 구동 테스트 — `manyCountries` 7→20 주입 시 골든 상태의 `manyCountriesBreached`가 true→false, `deepeningPct` -6.0→-5.0 주입 시 `deepeningBreached`가 false→true). `BearSignalViewModelTest`는 13건→15건.
 - **빌드**: `:app:compileDebugKotlin` BUILD SUCCESSFUL / `:app:testDebugUnitTest --tests "com.tinyoscillator.feature.bearsignal.*"` BUILD SUCCESSFUL(248/248) / `:app:assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 재검증 — `BearSignalViewModel` 신규 `BearThresholds` 파라미터 정상 해석).
+
+## 관세청 실키 검증·엔드포인트 수정 (2026-07-16, 커밋 `8bd87a7` + 후속)
+
+- **403 근본 원인**: 앱이 미신청 상품 15100475(품목별 국가별)의 `1220000/nitemtrade/getNitemtradeList`를 호출 — 게이트웨이는 활용신청 안 된 서비스에 대해 키 인식 후 403 Forbidden(무효키는 401 Unauthorized)을 반환. 사용자가 활용신청한 15101609 「관세청_품목별 수출입실적(GW)」의 실제 엔드포인트는 `apis.data.go.kr/1220000/Itemtrade/getItemtradeList`(상세 페이지 내장 swagger 원문에서 확인). 진단 과정: 키 무노출 파일 경유 테스트(사용자가 로컬 파일에 키 저장 → 스크립트가 읽어 호출·상태만 출력·종료 후 삭제)로 앱/키/승인 3원인 분리.
+- **응답 특성(실측)**: XML 전용(`type=json` 무시), HS 10단위 전 품목 ~9.6천 행/월(~2.2MB, 페이지네이션 없음 — `totalCount` 태그 부재·전량 반환), 필드 `hsCode`/`statKor`/`expDlr`(달러)/`year`("yyyy.mm"). **말미에 월 총계 행(`hsCode="-"`, `year="총계"`) 1개 포함** — 이 행의 expDlr가 그 달 총수출 전체와 같아 포함 시 semi 분모가 정확히 2배(1차 실기에서 semi=16.97%로 반토막 관측 → 파서에서 숫자 아닌 hsCode 행 제외로 수정).
+- **구현**: `CustomsTradeApiClient` BASE_URL 교체 + XML indexOf 단일 패스 파싱(DART corpCode 관례) + 총계 행 제외, `CustomsTradeItem.exportUsd/importUsd`(달러 단위 정정), `BearSignalRepositoryImpl` 최신월 빈 응답 시 1개월 폴백(매월 15일경 전월 현행화 대비), 테스트 교체·신규(총계 행 제외·hsCode 누락 스킵·expDlr=0 유지 등).
+- **실기 검증(에뮬레이터, 실키)**: `semi=33.94% buffer=true` 수집(2026-06 데이터), 증폭 카드 "자동 · 07/16" 배지 + 계수 ×1.30(semi≥20 발화), 오류 로그 0. 교차검증: 호스트에서 동일 XML 재계산 시 앱 로직 재현값 33.938% — 산업부 공식 5월 총수출 877.5억$와 응답 총계 875.7억$ 일치 확인.
+- **semi 캘리브레이션 판단(SSOT 유지)**: 임계 `amp.semiExport=20.0`의 출처(리포트 힌트 "2023 15.6 → 2026 1Q 23.1")는 MTI 831 기준. HS(8541·8542) 기준은 MTI 대비 약 -8%p(2026-05: MTI 42.3% vs HS 34.0%), statKor "반도체" 키워드 OR 매칭이 장비(8486) 등 +0.7%p 추가. 현 국면 34% ≫ 20으로 판정 영향 없고 SSOT 변경은 리포트 근거 필요 원칙에 따라 **20.0 유지** — MTI 20~25% 경계 구간에서 보수적(지연) 발화 가능성만 `CustomsTradeCalculator` KDoc에 기록.
 
 ## Phase 6 상세 — §4.5 LLM 제공자 이원화(Claude+Gemini, v1.3) (2026-07-15)
 

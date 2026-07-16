@@ -59,6 +59,40 @@ class CustomsTradeApiClientTest {
     }
 
     @Test
+    fun `parseResponse 월 총계 행(hsCode 하이픈)은 제외한다 - 분모 2배 오염 방지`() {
+        // 실응답 말미의 총계 행(2026-07-16 실측): expDlr가 그 달 총수출 전체와 같아
+        // 포함 시 semi 분모가 정확히 2배가 된다.
+        val fixture = """
+            <response>
+              <header><resultCode>00</resultCode><resultMsg>정상서비스.</resultMsg></header>
+              <body><items>
+                <item><expDlr>23100000</expDlr><hsCode>8542321000</hsCode><impDlr>5000000</impDlr><statKor>메모리</statKor><year>2026.05</year></item>
+                <item><balPayments>26840938027</balPayments><expDlr>87583046102</expDlr><expWgt>13571773579</expWgt><hsCode>-</hsCode><impDlr>60742108075</impDlr><impWgt>39665399024</impWgt><statKor>-</statKor><year>총계</year></item>
+              </items></body>
+            </response>
+        """.trimIndent()
+
+        val items = client.parseResponse(fixture)
+
+        assertEquals(1, items.size)
+        assertEquals("8542321000", items[0].hsCd)
+    }
+
+    @Test
+    fun `parseResponse hsCode 태그 누락 항목은 스킵`() {
+        val fixture = """
+            <response>
+              <header><resultCode>00</resultCode><resultMsg>정상서비스.</resultMsg></header>
+              <body><items>
+                <item><expDlr>100</expDlr><impDlr>0</impDlr><statKor>품목</statKor><year>2026.05</year></item>
+              </items></body>
+            </response>
+        """.trimIndent()
+
+        assertTrue(client.parseResponse(fixture).isEmpty())
+    }
+
+    @Test
     fun `parseResponse expDlr 태그 누락 항목은 스킵`() {
         val fixture = """
             <response>

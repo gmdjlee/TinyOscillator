@@ -121,7 +121,10 @@ class CustomsTradeApiClient(
 
     private fun parseItem(xml: String, from: Int, to: Int): CustomsTradeItem? {
         val statKor = extractTag(xml, "statKor", from, to) ?: return null
-        val hsCd = extractTag(xml, "hsCode", from, to) ?: ""
+        val hsCd = extractTag(xml, "hsCode", from, to) ?: return null
+        // 응답 말미의 월 총계 행(hsCode="-", statKor="-", year="총계")은 실품목이 아니므로 제외
+        // — 포함 시 semi 분모(전 품목 합)가 정확히 2배가 된다(2026-07-16 실측 검증에서 발견).
+        if (hsCd.isEmpty() || !hsCd.all { it.isDigit() }) return null
         // expDlr 부재 항목은 스킵(방어), "0"은 유효값(수입 전용 품목)
         val expDlr = extractTag(xml, "expDlr", from, to)?.replace(",", "")?.toDoubleOrNull() ?: return null
         val impDlr = extractTag(xml, "impDlr", from, to)?.replace(",", "")?.toDoubleOrNull() ?: 0.0
