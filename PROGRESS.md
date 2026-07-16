@@ -25,6 +25,26 @@
 
 기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수 — P5-1에서 TZ·rememberSaveable·레이더 라벨 해소, SignColor 다크는 앱 전역 백로그로 이관(하단 P5-1 상세 참조, **2026-07-16 해소** — 상단 「백로그 2건」 마커). "월간 워커 실발화" 실기 항목은 주기 재편으로 "일간/주간 워커 실발화"로 대체돼 P5-2로 이월.
 
+PROGRESS: 국가별 수익률 자동 커버리지 확장 — 완료 (2026-07-17, 커밋 `036c7cb` 푸시.
+①**AUTO 6→17 확장**: `GlobalIndexRegistry`에 Yahoo chart API 실검증(호스트 curl, 지수별 476~511
+종가 — 12M 요건 253개 충족) 통과 티커 11개 추가 — 대만 `^TWII`·CAC40 `^FCHI`·호주 `^AXJO`·유로
+`^STOXX50E`·FTSE `^FTSE`·태국 `^SET.BK`·상하이 `000001.SS`·인도 `^NSEI`(Nifty 50 채택, Sensex
+`^BSESN` 주석 병기)·멕시코 `^MXX`·브라질 `^BVSP`·인니 `^JKSE`. 수동 잔여 = **베트남**(VN지수 Yahoo
+미제공)·**RTS**(심볼은 있으나 2022 제재 후 종가 중단)만 — Stooq 대체도 안티봇 차단으로 불가.
+Stooq 백업 티커는 기존 핵심 6개만 유지(신규분 심볼 미검증, Yahoo 단독 — 기존 6지수와 동일 리스크).
+②**수동 배지 강등 보강**: `collectOverseasMarket` 수집 실패 + 유효 캐시(non-null r 행) 없으면
+기존 `coverage=AUTO`+전부 null 대신 `MANUAL_REQUIRED` 강등 — 배지 미표시로 수동 입력 안내가 누락되던
+구멍 봉합(§5.3 MANUAL 요청 플래그), 전부-null 구버전 캐시 행도 재사용 없이 강등. 스코어링·임계치
+무변경(레지스트리는 입력 수집 규칙). 테스트: 레지스트리 커버리지 재검증(AUTO 17/Stooq 6/수동
+[베트남, RTS]) + 강등 2건 신규, "STOOQ 선택 시 Yahoo 미호출"은 Yahoo 전용 티커 폴백이 정상이라 의도
+갱신(Stooq 보유 지수만 Yahoo 미호출 검증) — bearsignal 107건 그린(Repo 43·Registry 9·Merge 22·VM 33).
+**에뮬레이터 실기 QA 통과(2026-07-17, pixel_fold, 크래시 0)**: 갱신 → logcat `국가별 수익률 수집
+완료: manualRequired=[베트남, RTS]` + 폴백 로그 0건(17지수 Yahoo 전부 1차 성공), 국가표 20행 전수 —
+신규 11개국 라이브 값(대만 +102.3/+57.5/+25.7/+3.3, 태국 +47.4/+28.7/+10.6/+3.1 등) + "수동 필요"
+배지 베트남·RTS 정확히 2곳(기준값 표시 유지). 유의: MANUAL 불패로 기존 수동입력 국가는 수동값 우선
+지속(자동값 원하면 수동 삭제), 갱신 소요 ~7s→~18s(1000ms rate limit×17지수). 부수 관찰(범위 밖):
+코스피 -1M −23.1%(KRX)는 Yahoo `^KS11` −16.5%와 하락 방향 일치 — 실제 급락 반영, 데이터 오염 아님)
+
 PROGRESS: 백로그 2건 — 완료 (post-LOOP 백로그 마감, 2026-07-16. ①**신용잔고 자동 수집**(§4 표
 "신용잔고 v2 배치" 항목): `BearSignalRepositoryImpl.collectCreditFromDeposits` 신규 —
 `refreshAutoInputs`(일간 06:30 워커·수동 갱신) 진입 시 KRX 성패와 무관하게 best-effort 선행. 로컬
