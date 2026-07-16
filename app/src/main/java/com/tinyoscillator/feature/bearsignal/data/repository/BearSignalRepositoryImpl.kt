@@ -479,9 +479,12 @@ class BearSignalRepositoryImpl(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Timber.w(e, "해외지수(%s) 수집 실패 — 기존 캐시 유지", spec.name)
-            cachedSnapshot?.markets?.find { it.name == spec.name }
-                ?: AutoMarketReturn(spec.name, listOf(null, null, null, null), spec.lead, MarketCoverage.AUTO, now)
+            // 유효한 캐시(값이 하나라도 있는 행)가 없으면 MANUAL_REQUIRED로 강등 —
+            // coverage=AUTO+r=null이면 UI가 "수동 필요" 배지를 못 띄워 사용자가 수동 입력을
+            // 안내받지 못한다(§5.3 MANUAL 요청 플래그).
+            Timber.w(e, "해외지수(%s) 수집 실패 — 기존 캐시 유지, 유효 캐시 없으면 수동 강등", spec.name)
+            cachedSnapshot?.markets?.find { it.name == spec.name }?.takeIf { m -> m.r.any { it != null } }
+                ?: AutoMarketReturn(spec.name, listOf(null, null, null, null), spec.lead, MarketCoverage.MANUAL_REQUIRED, now)
         }
     }
 

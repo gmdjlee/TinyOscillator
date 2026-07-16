@@ -581,6 +581,48 @@ class BearSignalRepositoryImplTest {
     }
 
     @Test
+    fun `refreshMarketReturns 두 소스 모두 실패하고 캐시도 없으면 MANUAL_REQUIRED로 강등`() = runTest {
+        coEvery { dao.getCountryReturns() } returns emptyList()
+        coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        every { krxApiClient.getKrxIndex() } returns krxIndex
+        coEvery { krxIndex.getKospi(any(), any()) } returns kospiCloses()
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } throws RuntimeException("network error")
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } throws RuntimeException("network error")
+
+        val result = repository.refreshMarketReturns()
+
+        assertTrue(result.isSuccess)
+        val nikkei = result.getOrNull()!!.markets.first { it.name == "닛케이" }
+        assertEquals(MarketCoverage.MANUAL_REQUIRED, nikkei.coverage)
+        assertTrue(nikkei.r.all { it == null })
+        assertTrue(result.getOrNull()!!.manualRequiredNames.contains("닛케이"))
+    }
+
+    @Test
+    fun `refreshMarketReturns 수집 실패 시 전부 null인 캐시 행은 재사용하지 않고 강등`() = runTest {
+        // 구버전(강등 도입 전)이 남긴 coverage=AUTO + r=null 행 — 유효값이 없으므로 수동 강등 대상
+        val cachedSnapshot = MarketReturnsSnapshot(
+            markets = listOf(
+                AutoMarketReturn("닛케이", listOf(null, null, null, null), lead = false, coverage = MarketCoverage.AUTO, updatedAt = 100L)
+            )
+        )
+        coEvery { dao.getCountryReturns() } returns BearSignalCountryReturnMapper.toEntities(cachedSnapshot)
+        coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        every { krxApiClient.getKrxIndex() } returns krxIndex
+        coEvery { krxIndex.getKospi(any(), any()) } returns kospiCloses()
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } throws RuntimeException("network error")
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } throws RuntimeException("network error")
+
+        val result = repository.refreshMarketReturns()
+
+        assertTrue(result.isSuccess)
+        val nikkei = result.getOrNull()!!.markets.first { it.name == "닛케이" }
+        assertEquals(MarketCoverage.MANUAL_REQUIRED, nikkei.coverage)
+    }
+
+    @Test
     fun `refreshMarketReturns 기본 소스(Yahoo) 실패 시 백업 소스(Stooq)로 폴백한다`() = runTest {
         coEvery { dao.getCountryReturns() } returns emptyList()
         coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
@@ -602,21 +644,25 @@ class BearSignalRepositoryImplTest {
     }
 
     @Test
-    fun `refreshMarketReturns 선택 소스가 STOOQ면 Stooq를 먼저 조회하고 Yahoo는 호출하지 않는다`() = runTest {
+    fun `refreshMarketReturns 선택 소스가 STOOQ면 Stooq 티커가 있는 지수는 Yahoo를 호출하지 않는다`() = runTest {
         val stooqFirstRepository = createRepository(indexSource = GlobalIndexSource.STOOQ)
         coEvery { dao.getCountryReturns() } returns emptyList()
         coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
         coEvery { krxApiClient.login(any(), any()) } returns true
         every { krxApiClient.getKrxIndex() } returns krxIndex
         coEvery { krxIndex.getKospi(any(), any()) } returns kospiCloses()
-        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns (0..25).map { i ->
-            IndexDailyBar(String.format("2026-06-%02d", (i % 28) + 1), 100.0 + i)
-        }
+        val bars = (0..25).map { i -> IndexDailyBar(String.format("2026-06-%02d", (i % 28) + 1), 100.0 + i) }
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } returns bars
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns bars
 
         val result = stooqFirstRepository.refreshMarketReturns()
 
         assertTrue(result.isSuccess)
-        coVerify(exactly = 0) { yahooChartApiClient.fetchDailyCloses(any()) }
+        // 핵심 6개(양 소스 티커 보유)는 Stooq 성공으로 종결 — Yahoo 미호출
+        coVerify(exactly = 0) { yahooChartApiClient.fetchDailyCloses("^N225") }
+        coVerify(exactly = 1) { stooqCsvClient.fetchDailyCloses("^nkx") }
+        // Yahoo 전용 지수는 선택 소스가 STOOQ여도 Yahoo로 폴백해 수집한다
+        coVerify(exactly = 1) { yahooChartApiClient.fetchDailyCloses("^TWII") }
     }
 
     @Test
