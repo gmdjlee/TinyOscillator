@@ -4,6 +4,7 @@ import android.content.Context
 import com.tinyoscillator.core.api.BokEcosApiClient
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
+import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
 import com.tinyoscillator.feature.bearsignal.data.local.BearSnapshotDao
 import com.tinyoscillator.feature.bearsignal.data.local.ThresholdsProvider
@@ -77,7 +78,8 @@ object BearSignalModule {
         fredApiClient: FredApiClient,
         bokEcosApiClient: BokEcosApiClient,
         stooqCsvClient: StooqCsvClient,
-        yahooChartApiClient: YahooChartApiClient
+        yahooChartApiClient: YahooChartApiClient,
+        marketDepositDao: MarketDepositDao
     ): BearSignalRepository = BearSignalRepositoryImpl(
         bearSignalDao,
         krxApiClient,
@@ -87,6 +89,7 @@ object BearSignalModule {
         bokEcosApiClient,
         stooqCsvClient,
         yahooChartApiClient,
+        marketDepositDao,
         // 설정 변경이 다음 갱신에 즉시 반영되도록 캐시 없이 매 갱신마다 읽는다(월 1회 + 수동 갱신뿐)
         indexSourceProvider = { loadBearSignalIndexSource(context) }
     )

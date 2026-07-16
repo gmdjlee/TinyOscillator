@@ -51,9 +51,11 @@ enum class BearIndicatorKey(val key: String) {
     S3_ETF("s3_etf"),
 
     /**
-     * §3.4 금리 방아쇠 — 신용거래융자 잔고(조원), §4.5 웹/LLM 제안 승인 전용 AUTO 키(Phase 4).
-     * 기존 [ManualIndicatorKey.CREDIT](사용자 직접 입력)과 별도 키 공간·별도 값 출처다 —
-     * 두 값이 공존할 수 있으며 병합 우선순위(MANUAL 〉 AUTO 〉 BASELINE)는
+     * §3.4 금리 방아쇠 — 신용거래융자 잔고(조원). 두 AUTO 경로가 같은 키에 쓴다:
+     * ① 일간 자동 수집(로컬 `market_deposits` 테이블, NaverFinance 스크랩 KOFIA 원천 — Phase 1
+     * `refreshAutoInputs` 경로), ② §4.5 웹/LLM 제안 승인(Phase 4). 일간 수집이 승인값을 덮어쓸 수
+     * 있다(둘 다 AUTO, 로컬이 더 최신). 기존 [ManualIndicatorKey.CREDIT](사용자 직접 입력)과 별도
+     * 키 공간·별도 값 출처다 — 두 값이 공존할 수 있으며 병합 우선순위(MANUAL 〉 AUTO 〉 BASELINE)는
      * [com.tinyoscillator.feature.bearsignal.domain.usecase.MergeBearSignalInputsUseCase]가 담당한다.
      */
     GATE_CREDIT("gate_credit"),
@@ -99,7 +101,7 @@ data class AutoBearSignalInputs(
     val rate: AutoIndicator<Double>? = null,
     val dir: AutoIndicator<String>? = null,
     val etf: AutoIndicator<String>? = null,
-    /** §4.5 웹/LLM 제안(Phase 4) 승인 시에만 채워진다 — [BearIndicatorKey.GATE_CREDIT] */
+    /** 일간 자동 수집(로컬 예탁금 테이블) 또는 §4.5 웹/LLM 제안 승인으로 채워진다 — [BearIndicatorKey.GATE_CREDIT] */
     val credit: AutoIndicator<Double>? = null,
     /** §4.5 웹/LLM 제안(Phase 4) 승인 시에만 채워진다 — [BearIndicatorKey.S3_LOSS_RATIO] */
     val lossRatio: AutoIndicator<Double>? = null,

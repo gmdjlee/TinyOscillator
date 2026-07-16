@@ -4,6 +4,7 @@ import com.krxkt.model.Market
 import com.tinyoscillator.core.api.BokEcosApiClient
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
+import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
 import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalAutoCacheMapper
 import com.tinyoscillator.feature.bearsignal.data.mapper.BearSignalCountryReturnMapper
@@ -53,6 +54,8 @@ import java.time.format.DateTimeFormatter
  * 데이터 아키텍처.
  *
  * Phase 1: [refreshAutoInputs] — [A] 등급(KRX 신호2 통계 + 코스피 2사 비중), 전체 실패 시 캐시 폴백.
+ * 신용잔고(`GATE_CREDIT`)도 이 경로에서 로컬 `market_deposits` 테이블(NaverFinance 02:00 일간
+ * 스크랩, KOFIA 원천)을 읽어 best-effort로 upsert한다 — KRX 성패와 무관하게 먼저 수행.
  * Phase 2: [refreshExternalAutoInputs] — [B] 등급 스칼라(관세청 수출비중, FRED/ECOS 금리, IPO ETF
  * 방향)를 지표별 best-effort로 수집(개별 실패는 해당 지표만 캐시 유지). [refreshMarketReturns] —
  * 코스피(KRX) + 해외지수의 4기간 수익률을 지수별 best-effort로 수집.
@@ -73,6 +76,7 @@ class BearSignalRepositoryImpl(
     private val bokEcosApiClient: BokEcosApiClient,
     private val stooqCsvClient: StooqCsvClient,
     private val yahooChartApiClient: YahooChartApiClient,
+    private val marketDepositDao: MarketDepositDao,
     private val indexSourceProvider: suspend () -> GlobalIndexSource = { GlobalIndexSource.DEFAULT }
 ) : BearSignalRepository {
 
@@ -106,6 +110,16 @@ class BearSignalRepositoryImpl(
 
         /** ECOS 데이터 발표 랙 보정(전월 기준 조회, [com.tinyoscillator.data.engine.macro.BokEcosCollector]와 동일 관례) */
         private const val ECOS_DATA_LAG_MONTHS = 1L
+
+        /**
+         * 신용잔고 로컬 데이터([MarketDepositDao]) 허용 연령 — KOFIA 주간 발표 주기(7일) + 여유.
+         * §4.5 `SuggestionField.CREDIT.maxAgeDays`(웹 제안 신선도)와 같은 근거지만 별개 파라미터
+         * (§3 임계치 아님 — `bear_thresholds.json` 무관).
+         */
+        private const val CREDIT_DEPOSIT_MAX_AGE_DAYS = 10L
+
+        /** 신용잔고 단위 변환 — `market_deposits.credit_amount`는 억원, §3.4 `credit` 입력은 조원 */
+        private const val EOK_PER_JO = 10_000.0
     }
 
     // ── Phase 1: [A] 등급 자동 지표 ──────────────────────────────────────
@@ -117,6 +131,8 @@ class BearSignalRepositoryImpl(
         BearSignalAutoCacheMapper.toDomain(bearSignalDao.getAutoCache())
 
     override suspend fun refreshAutoInputs(): Result<AutoBearSignalInputs> = withContext(Dispatchers.IO) {
+        // 신용잔고는 로컬 테이블 조회뿐이라 KRX 성패와 무관 — 먼저 best-effort로 갱신한다.
+        collectCreditFromDeposits(System.currentTimeMillis())
         try {
             val creds = apiConfigProvider.getKrxCredentials()
             if (creds.id.isBlank() || creds.password.isBlank()) {
@@ -189,6 +205,40 @@ class BearSignalRepositoryImpl(
             } catch (e: Exception) {
                 Timber.w(e, "KRX 클라이언트 close 실패")
             }
+        }
+    }
+
+    /**
+     * 신용잔고 자동 수집 — 로컬 `market_deposits` 최신 행(NaverFinance 일간 스크랩, KOFIA 원천)을
+     * 읽어 억원→조원 변환 후 `GATE_CREDIT` 캐시에 upsert한다(§3.4 `credit` 입력, §4 표 "v2 배치").
+     *
+     * - 최신 행이 없거나 날짜가 [CREDIT_DEPOSIT_MAX_AGE_DAYS]보다 오래되면 건너뛴다(기존 캐시 유지)
+     *   — 스크랩 워커 미실행·장기 휴장 시 낡은 값이 §3.4 `scoreGate`에 흘러드는 것을 방지.
+     * - §4.5 웹/LLM 제안 승인값과 같은 키를 쓰므로 일간 갱신이 승인값을 덮어쓸 수 있다 — 둘 다
+     *   `source=AUTO`이고 로컬 데이터가 더 최신이므로 의도된 동작. MANUAL 오버라이드는 별도 키
+     *   공간이라 영향 없다(§4.6 "MANUAL 불패",
+     *   [com.tinyoscillator.feature.bearsignal.domain.usecase.MergeBearSignalInputsUseCase]).
+     * - 실패는 이 지표만 건너뛴다(best-effort) — [refreshAutoInputs]의 KRX 수집과 격리.
+     */
+    private suspend fun collectCreditFromDeposits(now: Long) {
+        try {
+            val latest = marketDepositDao.getLatestDeposit()
+            if (latest == null) {
+                Timber.w("신용잔고 자동 수집 건너뜀 — market_deposits 데이터 없음(예탁금 워커 미실행?)")
+                return
+            }
+            val depositDate = LocalDate.parse(latest.date)
+            if (depositDate.isBefore(LocalDate.now().minusDays(CREDIT_DEPOSIT_MAX_AGE_DAYS))) {
+                Timber.w("신용잔고 자동 수집 건너뜀 — 최신 데이터(${latest.date})가 허용 연령(${CREDIT_DEPOSIT_MAX_AGE_DAYS}일) 초과")
+                return
+            }
+            val creditJo = latest.creditAmount / EOK_PER_JO
+            bearSignalDao.upsertAll(listOf(BearSignalAutoCacheMapper.creditEntity(creditJo, now)))
+            Timber.i("BearSignal 신용잔고 자동 수집 완료: ${latest.creditAmount}억(${latest.date}) → ${"%.2f".format(creditJo)}조")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "신용잔고 자동 수집 실패 — 기존 캐시 유지")
         }
     }
 

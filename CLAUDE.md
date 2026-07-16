@@ -65,7 +65,7 @@ NaiveBayes · LogisticScoring · HmmRegime · PatternScan · SignalScoring · Co
 - v32→33: `analysis_snapshots.ai_interpretation`(AI 해석 캐시). v33→37 (BearSignal): `bear_signal_auto_cache`(범용 key-value) · `bear_signal_country_return` · 수동입력 2테이블(자동 캐시와 분리 — 덮어쓰기 방지) · `bear_snapshot`(day PK 이력).
 
 ## Background jobs (WorkManager)
-EtfUpdate(00:30) · MarketOscillator(01:00) · MarketDeposit(02:00) · ThemeUpdate(02:30) · Consensus(03:00) · FearGreed(04:00) · ProbabilityBatch(05:00, 포트폴리오 종목 로컬 확률분석+임계 돌파 시 `signal_alerts` 채널 알림) · BearSignalDaily(06:30, KRX 자동지표) · BearSignal주간(월 06:00 KST 고정, 외부지표+해외지수) · MarketCloseRefresh(19:00) · Macro(Sun 05:30) · DataIntegrityCheck(수동). 모두 network-constrained, exp backoff(30s), foreground(DATA_SYNC), `worker_logs` 기록. 스케줄 사용자 설정 가능, 앱 시작 시 복원. 주기 워커에 flex 사용 금지(첫 실행 지연 버그 — `WorkManagerHelper` KDoc 참조).
+EtfUpdate(00:30) · MarketOscillator(01:00) · MarketDeposit(02:00) · ThemeUpdate(02:30) · Consensus(03:00) · FearGreed(04:00) · ProbabilityBatch(05:00, 포트폴리오 종목 로컬 확률분석+임계 돌파 시 `signal_alerts` 채널 알림) · BearSignalDaily(06:30, KRX 자동지표+신용잔고←`market_deposits`) · BearSignal주간(월 06:00 KST 고정, 외부지표+해외지수) · MarketCloseRefresh(19:00) · Macro(Sun 05:30) · DataIntegrityCheck(수동). 모두 network-constrained, exp backoff(30s), foreground(DATA_SYNC), `worker_logs` 기록. 스케줄 사용자 설정 가능, 앱 시작 시 복원. 주기 워커에 flex 사용 금지(첫 실행 지연 버그 — `WorkManagerHelper` KDoc 참조).
 
 ## Security (API 자격증명)
 - 모든 자격증명 `EncryptedSharedPreferences`(`api_settings_encrypted`, AES256-SIV key / AES256-GCM value)

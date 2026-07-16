@@ -14,7 +14,8 @@ import timber.log.Timber
  * (TASK.md §2 111행, §4 데이터 소스 주기 열, §6 Phase 5-1 신설).
  *
  * 신호2 통계(±3σ/±4σ 카운트)·코스피 2사 비중은 `kotlin_krx` 일별 시세를 원천으로 하므로 §4 주기
- * 열의 "일"에 해당한다 — 기존 [BearSignalUpdateWorker](월간→주간 전환)가 3개 UseCase를 월 1회
+ * 열의 "일"에 해당한다. 신용잔고(§3.4 `credit`)도 같은 경로에서 로컬 `market_deposits`(02:00
+ * NaverFinance 스크랩)를 읽어 best-effort로 갱신한다 — 02:00 워커가 채운 데이터를 06:30에 소비 — 기존 [BearSignalUpdateWorker](월간→주간 전환)가 3개 UseCase를 월 1회
  * 갱신하던 것에서 [A] 등급만 분리해 매일 갱신한다(§4의 다른 지표는 [BearSignalUpdateWorker]가
  * 계속 담당하므로 갱신 대상이 겹치지 않는다).
  *
@@ -40,7 +41,7 @@ class BearSignalDailyUpdateWorker @AssistedInject constructor(
         showInitialNotification("BearSignal 지표 갱신 준비 중(일간)...")
 
         try {
-            updateProgress("[A] 자동 지표 갱신 중(신호2 통계·코스피 2사 비중)...", STATUS_RUNNING, 0.5f)
+            updateProgress("[A] 자동 지표 갱신 중(신호2 통계·코스피 2사 비중·신용잔고)...", STATUS_RUNNING, 0.5f)
             updateNotification("[A] 자동 지표 갱신 중...", 50)
 
             var failed = false
@@ -56,7 +57,7 @@ class BearSignalDailyUpdateWorker @AssistedInject constructor(
                 showCompletion(msg, isError = true)
                 if (runAttemptCount < 3) Result.retry() else Result.failure()
             } else {
-                val msg = "완료: [A] 자동 지표(신호2 통계·코스피 2사 비중) 갱신 성공"
+                val msg = "완료: [A] 자동 지표(신호2 통계·코스피 2사 비중·신용잔고) 갱신 성공"
                 Timber.i(msg)
                 updateProgress(msg, STATUS_SUCCESS, 1f)
                 showCompletion(msg)

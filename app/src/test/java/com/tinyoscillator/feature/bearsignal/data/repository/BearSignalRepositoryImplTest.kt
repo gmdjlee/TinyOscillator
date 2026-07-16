@@ -8,6 +8,8 @@ import com.krxkt.model.MarketCap
 import com.tinyoscillator.core.api.BokEcosApiClient
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
+import com.tinyoscillator.core.database.dao.MarketDepositDao
+import com.tinyoscillator.core.database.entity.MarketDepositEntity
 import com.tinyoscillator.domain.model.EcosDataPoint
 import com.tinyoscillator.domain.model.KrxCredentials
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalAutoCacheEntity
@@ -66,6 +68,7 @@ class BearSignalRepositoryImplTest {
     private lateinit var bokEcosApiClient: BokEcosApiClient
     private lateinit var stooqCsvClient: StooqCsvClient
     private lateinit var yahooChartApiClient: YahooChartApiClient
+    private lateinit var marketDepositDao: MarketDepositDao
     private lateinit var repository: BearSignalRepositoryImpl
 
     private val krxIndex: KrxIndex = mockk()
@@ -81,6 +84,9 @@ class BearSignalRepositoryImplTest {
         bokEcosApiClient = mockk()
         stooqCsvClient = mockk()
         yahooChartApiClient = mockk()
+        marketDepositDao = mockk()
+        // 기본: 예탁금 데이터 없음 — 신용잔고 수집은 건너뛴다(기존 테스트 동작 불변)
+        coEvery { marketDepositDao.getLatestDeposit() } returns null
         repository = createRepository()
     }
 
@@ -89,7 +95,7 @@ class BearSignalRepositoryImplTest {
     ) = BearSignalRepositoryImpl(
         dao, krxApiClient, apiConfigProvider,
         customsTradeApiClient, fredApiClient, bokEcosApiClient,
-        stooqCsvClient, yahooChartApiClient,
+        stooqCsvClient, yahooChartApiClient, marketDepositDao,
         indexSourceProvider = { indexSource }
     )
 
@@ -226,6 +232,82 @@ class BearSignalRepositoryImplTest {
 
         assertTrue(result.isSuccess)
         assertEquals(14, result.getOrNull()!!.up3.value)
+    }
+
+    // ── 신용잔고 자동 수집(로컬 market_deposits → GATE_CREDIT) ─────────
+
+    private fun depositEntity(date: String, creditEok: Double) = MarketDepositEntity(
+        date = date,
+        depositAmount = 500_000.0,
+        depositChange = 100.0,
+        creditAmount = creditEok,
+        creditChange = 50.0
+    )
+
+    @Test
+    fun `refreshAutoInputs 최신 예탁금 데이터로 GATE_CREDIT upsert - 억을 조로 변환`() = runTest {
+        // KRX 실패 경로여도 신용잔고 수집은 선행 — 계정 미설정으로 최소 셋업
+        coEvery { apiConfigProvider.getKrxCredentials() } returns KrxCredentials("", "")
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputs())
+        val today = java.time.LocalDate.now().toString()
+        coEvery { marketDepositDao.getLatestDeposit() } returns depositEntity(today, 347_900.0)
+
+        val entitiesSlot = slot<List<BearSignalAutoCacheEntity>>()
+        repository.refreshAutoInputs()
+
+        coVerify { dao.upsertAll(capture(entitiesSlot)) }
+        val credit = entitiesSlot.captured.single { it.indicatorKey == BearIndicatorKey.GATE_CREDIT.key }
+        assertEquals(34.79, credit.value, 1e-9)
+        assertEquals(InputSource.AUTO.name, credit.source)
+    }
+
+    @Test
+    fun `refreshAutoInputs 예탁금 데이터가 허용 연령 초과 시 GATE_CREDIT 미기록`() = runTest {
+        coEvery { apiConfigProvider.getKrxCredentials() } returns KrxCredentials("", "")
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputs())
+        val staleDate = java.time.LocalDate.now().minusDays(11).toString()
+        coEvery { marketDepositDao.getLatestDeposit() } returns depositEntity(staleDate, 347_900.0)
+
+        repository.refreshAutoInputs()
+
+        coVerify(exactly = 0) {
+            dao.upsertAll(match { list -> list.any { it.indicatorKey == BearIndicatorKey.GATE_CREDIT.key } })
+        }
+    }
+
+    @Test
+    fun `refreshAutoInputs 예탁금 데이터 없으면 GATE_CREDIT 미기록`() = runTest {
+        coEvery { apiConfigProvider.getKrxCredentials() } returns KrxCredentials("", "")
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputs())
+        // setup 기본값: getLatestDeposit() returns null
+
+        repository.refreshAutoInputs()
+
+        coVerify(exactly = 0) {
+            dao.upsertAll(match { list -> list.any { it.indicatorKey == BearIndicatorKey.GATE_CREDIT.key } })
+        }
+    }
+
+    @Test
+    fun `refreshAutoInputs 신용잔고 조회 예외는 KRX 수집과 격리`() = runTest {
+        coEvery { marketDepositDao.getLatestDeposit() } throws RuntimeException("DB 오류")
+        coEvery { apiConfigProvider.getKrxCredentials() } returns validCredentials()
+        coEvery { krxApiClient.login(any(), any()) } returns true
+        every { krxApiClient.getKrxIndex() } returns krxIndex
+        every { krxApiClient.getKrxStock() } returns krxStock
+        coEvery { dao.getAutoCache() } returns emptyList()
+        val closes = (0..25).map { i -> createIndexOhlcv(String.format("202606%02d", i + 1), 2500.0 + i * 0.1) }
+        coEvery { krxIndex.getKospi(any(), any()) } returns closes
+        coEvery { krxStock.getMarketCap(any(), Market.KOSPI) } returns listOf(
+            MarketCap("005930", "삼성전자", 70_000L, 0.0, 500_000_000_000L, 1L),
+            MarketCap("000660", "SK하이닉스", 200_000L, 0.0, 300_000_000_000L, 1L),
+            MarketCap("005380", "현대차", 200_000L, 0.0, 200_000_000_000L, 1L)
+        )
+
+        val result = repository.refreshAutoInputs()
+
+        assertTrue(result.isSuccess)
+        assertEquals(80.0, result.getOrNull()!!.kospi2.value, 1e-9)
     }
 
     // ── 조회(Phase 1) ────────────────────────────────────────

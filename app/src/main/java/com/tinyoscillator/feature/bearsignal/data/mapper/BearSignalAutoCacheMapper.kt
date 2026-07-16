@@ -163,6 +163,19 @@ object BearSignalAutoCacheMapper {
     }
 
     /**
+     * 로컬 예탁금 테이블(`market_deposits`, NaverFinance 스크랩)에서 수집한 신용잔고(조원) →
+     * [BearIndicatorKey.GATE_CREDIT] 캐시 엔티티(개별 필드 upsert 경로). §4 데이터 소스 표의
+     * "신용잔고 v2 배치" 항목 — 값은 이미 조원으로 변환된 상태여야 한다(억→조 변환은 수집처 책임).
+     */
+    fun creditEntity(creditJo: Double, updatedAt: Long): BearSignalAutoCacheEntity =
+        BearSignalAutoCacheEntity(
+            indicatorKey = BearIndicatorKey.GATE_CREDIT.key,
+            value = creditJo,
+            source = InputSource.AUTO.name,
+            updatedAt = updatedAt
+        )
+
+    /**
      * §4.5 승인된 제안 하나를 캐시 엔티티로 변환(Phase 4, 개별 필드 upsert 경로).
      *
      * [rawValue]는 [com.tinyoscillator.feature.bearsignal.domain.model.Suggestion.nextValue] 원문
