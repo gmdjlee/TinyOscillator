@@ -295,6 +295,24 @@ TASK_bear_signal_console.md §4.5 v1.3 개정("Gemini 경로") + §7 "제공자 
 인코딩) 또는 ②신청 항목 불일치(15101609 아닌 다른 API) 의심. 사용자 확인 필요. FRED 실키는 정상
 (rate=3.75 수집, 신호4 카드 "자동" 배지 반영 실증).
 
+### P6 후속 수정 2 — 실기 발견 버그 2건 해소 (2026-07-16)
+
+- **`ApiConfigProvider` 캐시 고착 수정**: `SettingsScreen` 기존 `SettingsEntryPoint`에
+  `apiConfigProvider()` 추가, API 탭 저장(onSave) 마지막에 `invalidateAll()` 호출. **실기 실증**:
+  설정 저장 직후(프로세스 유지) AI 제안 재조회 성공 — 이전에는 재시작 전까지 NoApiKeyError 고착.
+- **관세청 `serviceKey` 인코딩 수정**: `CustomsTradeApiClient.encodeServiceKey` 신설 — 원문
+  (Decoding) 키의 `+`/`/`/`=`를 percent-encode(OkHttp `HttpUrl`은 쿼리의 `+`를 인코딩하지 않아
+  게이트웨이가 공백으로 복호화할 수 있음), `%` 포함(Encoding) 키는 이중 인코딩 방지 위해 그대로.
+  오류 응답 body 앞 200자 로깅 추가(자격증명 미포함 — 거부 사유 진단용) + 오류 경로 `use{}` 정리.
+  테스트 +3건(원문 인코딩/이중 인코딩 방지/무변경) → bearsignal 375/375 그린, assembleDebug 그린.
+- **관세청 403 원인 확정(앱 외부)**: 게이트웨이 프로빙 결과 무효 키 = **401 Unauthorized**,
+  사용자 키 = **403 Forbidden**(body "Forbidden") — 키 문자열은 유효하게 전달되며(401 아님),
+  해당 오퍼레이션 **이용 권한 거부** 상태. 인코딩 수정 후에도 동일 → 코드 원인 배제.
+  data.go.kr 마이페이지에서 「관세청_품목별 수출입실적(GW)」 활용신청 **승인 상태**(개발계정
+  자동승인 여부)와 미리보기 호출 성공 여부를 사용자가 확인해야 함.
+- **2차 실기 보너스**: 재조회에서 **STALE 배지 실렌더 첫 확인**(적자상장비중 제안 기준일
+  2025-05-28 → 30일 초과 마킹 정상), 5필드 제안·위젯 재현성 확인.
+
 ## Phase 5-1 상세 — 워커 주기 일/주 Tier 분리 · MINOR 마감 (2026-07-13)
 
 TASK_bear_signal_console.md §2(111행 "Phase 5-1에서 일 Tier A / 주 Tier B 조정 검토")·§4 주기 열·§6 Phase 5-1 구현. shimmer·접근성·오프라인·워커 골격은 구 P5(v1.0-폴리시)가 기충족 — 이 절은 델타만 기록한다.

@@ -45,6 +45,9 @@ import kotlin.coroutines.cancellation.CancellationException
 interface SettingsEntryPoint {
     fun appDatabase(): AppDatabase
     fun workerLogDao(): com.tinyoscillator.core.database.dao.WorkerLogDao
+
+    /** 설정 저장 직후 volatile 캐시 무효화용([ApiConfigProvider.invalidateAll]). */
+    fun apiConfigProvider(): com.tinyoscillator.core.config.ApiConfigProvider
 }
 
 data class CollectionState(
@@ -386,6 +389,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                             saveCustomsTradeApiKey(context, customsTradeApiKey)
                             saveFredApiKey(context, fredApiKey)
                             saveBearSignalIndexSource(context, bearSignalIndexSource)
+                            // 저장 직후 ApiConfigProvider volatile 캐시 무효화 — 미호출 시 새 키가
+                            // 프로세스 재시작 전까지 반영되지 않는다(2026-07-16 실기 검증에서 발견).
+                            EntryPointAccessors.fromApplication(
+                                context.applicationContext, SettingsEntryPoint::class.java
+                            ).apiConfigProvider().invalidateAll()
                         }
                     }
                 )

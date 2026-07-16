@@ -35,6 +35,16 @@ class CustomsTradeApiClient(
     companion object {
         private const val BASE_URL = "https://apis.data.go.kr/1220000/nitemtrade/getNitemtradeList"
         private const val RESULT_CODE_SUCCESS = "00"
+
+        /**
+         * data.go.kr 인증키의 base64 유사 문자(`+` `/` `=`)를 percent-encode한다. URL 문자열에
+         * 원문을 그대로 결합하면 OkHttp `HttpUrl`이 쿼리의 `+`를 인코딩하지 않고 통과시켜
+         * 게이트웨이가 공백으로 복호화 → 키 불일치(HTTP 403)가 난다(2026-07-16 실키 검증에서 발견).
+         * 이미 인코딩된 키(포털의 'Encoding' 키, `%` 포함)는 이중 인코딩을 피해 그대로 반환한다.
+         */
+        internal fun encodeServiceKey(apiKey: String): String =
+            if (apiKey.contains('%')) apiKey
+            else java.net.URLEncoder.encode(apiKey, Charsets.UTF_8.name())
     }
 
     private val rateLimitMutex = Mutex()
@@ -43,7 +53,8 @@ class CustomsTradeApiClient(
     /**
      * 15대 품목별 수출입 실적 조회.
      *
-     * @param apiKey 공공데이터포털 인증키(디코딩된 값 — OkHttp가 쿼리 인코딩을 처리하므로 원문 전달)
+     * @param apiKey 공공데이터포털 인증키 — Decoding/Encoding 키 모두 허용. 원문(Decoding) 키는
+     * 내부에서 percent-encode하고([encodeServiceKey]), 이미 인코딩된(`%` 포함) 키는 그대로 쓴다.
      * @param strtYymm 조회 시작 연월(yyyymm)
      * @param endYymm 조회 종료 연월(yyyymm)
      * @return 품목별 실적 리스트, 실패 시 빈 리스트
@@ -55,17 +66,21 @@ class CustomsTradeApiClient(
     ): List<CustomsTradeItem> = withContext(Dispatchers.IO) {
         throttle()
 
-        val url = "$BASE_URL?serviceKey=$apiKey&strtYymm=$strtYymm&endYymm=$endYymm&type=json&numOfRows=100"
+        val url = "$BASE_URL?serviceKey=${encodeServiceKey(apiKey)}&strtYymm=$strtYymm&endYymm=$endYymm&type=json&numOfRows=100"
         val request = Request.Builder().url(url).build()
 
         try {
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Timber.e("관세청 무역통계 API HTTP 오류: %d", response.code)
-                return@withContext emptyList()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    // 오류 body에는 게이트웨이 거부 사유(SERVICE_KEY_IS_NOT_REGISTERED 등)가 담긴다
+                    // — 자격증명은 포함되지 않으므로 앞부분만 로깅해 원인 진단을 돕는다.
+                    val reason = response.body?.string()?.take(200)
+                    Timber.e("관세청 무역통계 API HTTP 오류: %d %s", response.code, reason ?: "")
+                    return@withContext emptyList()
+                }
+                val body = response.body?.string() ?: return@withContext emptyList()
+                parseResponse(body)
             }
-            val body = response.body?.string() ?: return@withContext emptyList()
-            parseResponse(body)
         } catch (e: Exception) {
             Timber.e(e, "관세청 무역통계 API 호출 실패")
             emptyList()

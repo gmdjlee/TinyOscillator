@@ -88,6 +88,29 @@ class CustomsTradeApiClientTest {
         assertEquals(23_100_000.0, items[0].exportUsdThousand, 1e-6)
     }
 
+    // ── encodeServiceKey — data.go.kr 인증키 percent-encode (403 원인 수정, 2026-07-16) ──
+
+    @Test
+    fun `encodeServiceKey 원문(Decoding) 키의 + 슬래시 =는 percent-encode된다`() {
+        assertEquals(
+            "abc%2Bdef%2Fghi%3D%3D",
+            CustomsTradeApiClient.encodeServiceKey("abc+def/ghi==")
+        )
+    }
+
+    @Test
+    fun `encodeServiceKey 이미 인코딩된(Encoding) 키는 그대로 반환한다 - 이중 인코딩 방지`() {
+        assertEquals(
+            "abc%2Bdef%2Fghi%3D%3D",
+            CustomsTradeApiClient.encodeServiceKey("abc%2Bdef%2Fghi%3D%3D")
+        )
+    }
+
+    @Test
+    fun `encodeServiceKey 특수문자 없는 키는 무변경`() {
+        assertEquals("plainkey123", CustomsTradeApiClient.encodeServiceKey("plainkey123"))
+    }
+
     @Test
     fun `parseResponse 오류 코드 응답은 빈 리스트`() {
         val errorFixture = """
