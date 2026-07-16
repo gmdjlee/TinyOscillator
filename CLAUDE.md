@@ -3,7 +3,7 @@
 > **파일 규칙**: 이 파일은 **코드베이스 사실**(구조·스택·컨벤션)만 담는다. 60~120줄 유지 — 갱신 시 오래된 항목을 지우고 추가하며 줄 수를 넘기지 마라. 에이전트 운영 방식(역할 분담·명령어)은 `AGENTS.md` 참조.
 
 ## Overview
-한국 주식시장 분석 Android 앱(리테일 투자자 대상). 오실레이터 기술분석, DeMark TD Sequential, 재무제표 분석, ETF 섹터 분석, Fear&Greed 지수, 애널리스트 컨센서스, AI 분석(Claude/Gemini API), 포트폴리오 관리. 순수 Kotlin. MVVM + Clean Architecture, ~1,430 passing tests, Room DB v33.
+한국 주식시장 분석 Android 앱(리테일 투자자 대상). 오실레이터 기술분석, DeMark TD Sequential, 재무제표 분석, ETF 섹터 분석, Fear&Greed 지수, 애널리스트 컨센서스, AI 분석(Claude/Gemini API), 시장 국면·리스크 계기판(BearSignal), 포트폴리오 관리. 순수 Kotlin. MVVM + Clean Architecture, ~2,490 passing tests, Room DB v37.
 
 ## Tech stack
 | Property | Value | | Library | Ver | Purpose |
@@ -26,12 +26,13 @@ app/src/main/java/com/tinyoscillator/
   core/    api|config|database|di|network|scraper|util|worker
   data/    dto|engine|mapper|repository
   domain/  model|repository|usecase
+  feature/bearsignal/       # 시장 국면·리스크 계기판 (data|di|domain|presentation 자체 계층)
   presentation/  ai|chart|consensus|demark|etf|financial|fundamental|market|
                  marketanalysis|portfolio|quickanalysis|report|settings|theme|viewmodel
   ui/theme/                 # Material3 theme
-app/src/test/               # 164 test files (~1,420 tests)
+app/src/test/               # 214 test files (~2,490 tests)
 app/src/androidTest/        # Compose UI smoke tests
-app/schemas/                # Room schema exports v2~v33
+app/schemas/                # Room schema exports v2~v37
 settings.gradle.kts         # includeBuild("../kotlin_krx")
 ```
 - 소스: `app/src/main` 아래 ~323 Kotlin 파일. `:app` 단일 모듈 + `../kotlin_krx` composite build.
@@ -42,7 +43,9 @@ settings.gradle.kts         # includeBuild("../kotlin_krx")
 - **Presentation**: Compose 스크린, ViewModel, theme
 - **Core**: API 클라이언트, DB, DI, network, worker
 
-핵심 클래스: `StatisticalAnalysisEngine`(9-엔진 병렬 오케스트레이터, 개별 실패 격리 + 진행 콜백) → `AiApiClient`(스트리밍 SSE `chatStream`, 구조화 출력 `analyzeStructured` Claude tool_choice/Gemini JSON 모드, Claude prompt caching) → `AnalysisResponseParser`(`STOCK_ANALYSIS_SCHEMA` 단일 진실 공급원, `parseOrNull`). AI 불가 시 `ProbabilityInterpreter` 로컬 해석. AI 해석은 `analysis_snapshots.ai_interpretation`에 저장·4h 재사용. `ApiConfigProvider`(volatile+mutex 자격증명 캐시), `WorkManagerHelper`(스케줄), `AppDatabase`(v33, 28 entities, 22 DAOs).
+핵심 클래스: `StatisticalAnalysisEngine`(9-엔진 병렬 오케스트레이터, 개별 실패 격리 + 진행 콜백) → `AiApiClient`(스트리밍 SSE `chatStream`, 구조화 출력 `analyzeStructured` Claude tool_choice/Gemini JSON 모드, Claude prompt caching) → `AnalysisResponseParser`(`STOCK_ANALYSIS_SCHEMA` 단일 진실 공급원, `parseOrNull`). AI 불가 시 `ProbabilityInterpreter` 로컬 해석. AI 해석은 `analysis_snapshots.ai_interpretation`에 저장·4h 재사용. `ApiConfigProvider`(volatile+mutex 자격증명 캐시 — 설정 저장 시 `invalidateAll()` 필수), `WorkManagerHelper`(스케줄), `AppDatabase`(v37, 33 entities, 24 DAOs).
+
+**BearSignal**(`feature/bearsignal/`): 주도주 붕괴 판단 계기판 — 신영증권 리포트 기반. 스코어링 SSOT=루트 `bear_signal_dashboard.jsx`, 임계치 SSOT=`bear_thresholds.json`(assets 사본, `ThresholdsProvider` 주입) — **스코어링 함수·임계치 임의 수정 금지**(골든 테스트 가드). 입력 우선순위 MANUAL > AUTO > 리포트 기준값(`MergeBearSignalInputsUseCase`). §4.5 AI 제안(Claude web_search/Gemini google_search)은 명시 버튼 트리거+승인 필수, 자동 fetch 금지. 명세 `TASK_bear_signal_console.md`, 진행 기록 `PROGRESS.md`.
 
 ## Analysis engines (9)
 NaiveBayes · LogisticScoring · HmmRegime · PatternScan · SignalScoring · Correlation · BayesianUpdate · OrderFlow · DartEvent. 모두 `data/engine/`. `StatisticalAnalysisEngine`가 coroutine 병렬 실행 + `RegimeWeightTable` regime-aware 가중. (별개 11번째 엔진 `SectorCorrelationNetwork` — `stock_master.sector`만 사용, 테마 메뉴와 무관, 혼동 금지.)
@@ -53,14 +56,16 @@ NaiveBayes · LogisticScoring · HmmRegime · PatternScan · SignalScoring · Co
 - **AI API**: Claude Haiku/Sonnet, Gemini Flash. 1000ms rate limit.
 - **DART**: corpCode.xml→Room(30d TTL), 10k/day, event study(OLS beta, CAR [-5,+20]).
 - **BOK ECOS**: 5 macro indicators(base_rate/m2/iip/usd_krw/cpi), 1000ms, Weekly TTL, 2개월 지연 보정.
+- **관세청 무역통계** (BearSignal): data.go.kr 15101609 `apis.data.go.kr/1220000/Itemtrade/getItemtradeList` — **XML 전용**, HS 10단위 전 품목 ~2.2MB/월 + 말미 월 총계 행(`hsCode="-"`, 파서에서 제외 필수). 유사 상품 `nitemtrade`(15100475)와 혼동 금지 — 미신청 경로는 403. 1000ms.
+- **FRED** (BearSignal): DFEDTARU 연방기금금리 상단. **Yahoo chart API** (BearSignal): 해외지수 기본 소스(브라우저 UA 필수), Stooq 백업 폴백.
 - **Scrapers**: NaverFinance(500ms) · EquityReport(8-16s) · FnGuide(1-5s).
 
-## Room DB (v33)
-- Migration `MIGRATION_1_2`~`MIGRATION_32_33` in `core/database/migration/AppDatabaseMigrations.kt`, `.addMigrations(*AppDatabaseMigrations.ALL)`. **`fallbackToDestructiveMigration()` 없음 — 모든 업그레이드 명시적.** Schema JSON `app/schemas/.../2.json~33.json`.
-- v30→31: legacy `sector_master`+`sector_index_candle` DROP. v31→32: `etfs`에 `change_rate`/`price`. v32→33: `analysis_snapshots`에 `ai_interpretation`(AI 해석 캐시).
+## Room DB (v37)
+- Migration `MIGRATION_1_2`~`MIGRATION_36_37` in `core/database/migration/AppDatabaseMigrations.kt`, `.addMigrations(*AppDatabaseMigrations.ALL)`. **`fallbackToDestructiveMigration()` 없음 — 모든 업그레이드 명시적.** Schema JSON `app/schemas/.../2.json~37.json`.
+- v32→33: `analysis_snapshots.ai_interpretation`(AI 해석 캐시). v33→37 (BearSignal): `bear_signal_auto_cache`(범용 key-value) · `bear_signal_country_return` · 수동입력 2테이블(자동 캐시와 분리 — 덮어쓰기 방지) · `bear_snapshot`(day PK 이력).
 
 ## Background jobs (WorkManager)
-EtfUpdate(00:30) · MarketOscillator(01:00) · MarketDeposit(02:00) · ThemeUpdate(02:30) · Consensus(03:00) · FearGreed(04:00) · ProbabilityBatch(05:00, 포트폴리오 종목 로컬 확률분석+임계 돌파 시 `signal_alerts` 채널 알림) · MarketCloseRefresh(19:00) · Macro(Sun 05:30) · DataIntegrityCheck(수동). 모두 network-constrained, exp backoff(30s), foreground(DATA_SYNC), `worker_logs` 기록. 스케줄 사용자 설정 가능, 앱 시작 시 복원.
+EtfUpdate(00:30) · MarketOscillator(01:00) · MarketDeposit(02:00) · ThemeUpdate(02:30) · Consensus(03:00) · FearGreed(04:00) · ProbabilityBatch(05:00, 포트폴리오 종목 로컬 확률분석+임계 돌파 시 `signal_alerts` 채널 알림) · BearSignalDaily(06:30, KRX 자동지표) · BearSignal주간(월 06:00 KST 고정, 외부지표+해외지수) · MarketCloseRefresh(19:00) · Macro(Sun 05:30) · DataIntegrityCheck(수동). 모두 network-constrained, exp backoff(30s), foreground(DATA_SYNC), `worker_logs` 기록. 스케줄 사용자 설정 가능, 앱 시작 시 복원. 주기 워커에 flex 사용 금지(첫 실행 지연 버그 — `WorkManagerHelper` KDoc 참조).
 
 ## Security (API 자격증명)
 - 모든 자격증명 `EncryptedSharedPreferences`(`api_settings_encrypted`, AES256-SIV key / AES256-GCM value)
