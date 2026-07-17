@@ -1,4 +1,4 @@
-# TASK_bear_signal_console.md — 「주도주 붕괴 판단 계기판」 TinyOscillator 신규 메뉴 이식 명세서 (v1.3)
+# TASK_bear_signal_console.md — 「주도주 붕괴 판단 계기판」 TinyOscillator 신규 메뉴 이식 명세서 (v1.4)
 
 > 대상: Claude Code (kotlin-implementer / qa-verifier 서브에이전트)
 > 근거 프로토타입: `bear_signal_dashboard.jsx` — **스코어링 로직의 단일 진실 공급원(SSOT)**
@@ -7,6 +7,10 @@
 > 진행 규칙: 각 Phase 완료 시 `PROGRESS:` 마커 갱신, `PHASE_RUNBOOK.md`/`PROGRESS.md` 흐름 준수
 
 ## Changelog
+- v1.4 (2026-07-17, **초안 — 승인 대기**): §4.7 정적 참조 콘텐츠 동적 갱신 신설 — 유형별
+        모니터링 체크리스트·사례(cases)·역사 검증 "현재 비교" 문단을 LLM 웹검색 + 클레임 단위
+        인용 검증 + 승인제로 갱신. why·이론·1980s 서사는 정적 전용(fallback 겸용). 면책 문구
+        전면 제거(§5.2-7, 부록 B #9) — AI 갱신 카드의 출처·기준일·제공자 표기로 갈음. Phase 7 신설.
 - v1.3 (2026-07-15, 사용자 승인): §4.5 LLM 제공자 이원화 — Anthropic `web_search` 전용 →
         설정의 AI 제공자(Claude/Gemini)를 따르도록 개정. Gemini는 `google_search` grounding +
         프롬프트 JSON 방식(구조화 출력 병용 불가), 검색 제안 위젯 표시 의무 포함. Phase 6 신설.
@@ -235,6 +239,7 @@ composite(inputs):
 - **약세장 3유형**(회복 가능성): 유형1 경쟁·역전=최저 / 유형2 전방수요·사이클=중간 / 유형3 밸류·금리=펀더멘털 생존·인내. **유형3이 현재 활성 방아쇠(gate≥1일 때 하이라이트).**
 - **유형별 모니터링 체크리스트**, **역사 검증(일본 1980s 3충격 + 3대 지표)**, **도표48 국가별 수익률 시드**(20개 지수 × 4기간) — 프로토타입 값 그대로 이관(부록 C).
 - *(`PHASE_RUNBOOK.md`의 "§3.8 유형 축" 참조는 본 절에 해당. TypePriorityEngine·CharacterAxes는 jsx 프로토타입에 없어 v1 스코어링 도입 금지 — §4.6 `axes`는 직렬화 선택 필드.)*
+- **(v1.4)** 위 정적 콘텐츠 중 **유형별 모니터링 체크리스트 · 유형 사례(cases) · 역사 검증 "현재 비교" 문단**은 §4.7 동적 갱신 대상이다. 정적 원문은 **fallback 기준선**으로 코드에 존치(첫 실행·키 미설정·수집 실패·미승인 시 표시)하며 무손실 골든 테스트 대상으로 유지한다. **`why`·`theory`·역사 1980s 서사는 동적 갱신 금지(정적 전용).**
 
 ---
 
@@ -310,6 +315,63 @@ enum class ValueSource { MANUAL, SNAPSHOT, AUTO, BASELINE }  // ordinal = 우선
 data class FieldSource(val source: ValueSource, val asOf: LocalDate?, val origin: String?)
 ```
 
+### 4.7 정적 참조 콘텐츠 동적 갱신 (v1.4 신설)
+
+> §3.7 정적 참조 데이터 중 **시효성 항목**을 LLM 웹검색으로 갱신하는 **표시 전용(display-only) 계층**.
+> §4.5 제안(지표값)과 달리 산출물이 텍스트이며 **스코어링(§3)에 절대 유입되지 않는다**.
+> §4.5 대원칙 계승: **명시 버튼 트리거만 허용(자동 fetch·워커 편입 금지), 승인 없이는 표시 콘텐츠 불변.**
+
+#### 갱신 대상 (section_key)
+
+| section_key | 대상 | 정적 fallback |
+|---|---|---|
+| `type{0,1,2}_monitor` | 유형별 모니터링 체크리스트 항목 | `BearSignalStaticContent.TYPES[*].monitor` |
+| `type{0,1,2}_cases` | 유형별 사례(cases) — 검증 가능한 사실만 | `TYPES[*].cases` |
+| `history_current` | 역사 검증 "현재 한국 위치 비교" 문단 | `HISTORY_BODY` 후반부 + `HISTORY_METRICS` |
+
+**동적 갱신 금지(정적 전용):** `why` · `theory` · 역사 1980s 서사(`HISTORY_BODY` 전반부) · `HISTORY_TITLE`.
+이를 위해 `HISTORY_BODY`는 **정적 서사부 / "현재 비교" 문단** 상수 2개로 분리한다.
+
+#### 클레임 스키마 (프롬프트-JSON — §4.5 관용 파싱 `extractJsonObject` 재사용)
+
+```json
+{ "claims": [ {
+    "section_key": "type0_monitor",
+    "text": "…",
+    "type": "fact | interpretation",
+    "source_url": "…", "source_title": "…", "source_date": "YYYY-MM-DD",
+    "quote": "출처 페이지 원문 인용(검증·증거 보존용)"
+} ] }
+```
+
+- `monitor`·`cases` 클레임은 **`type=fact`만 허용** — `interpretation`이면 폐기.
+- `history_current`는 `interpretation` 허용하되 UI에 **"AI 견해" 배지** 필수. `fact` 클레임은 아래 검증 통과 필수.
+
+#### 검증 파이프라인 (기계 검증 — 위반 시 클레임 단위 폐기, 그룹 폐기 아님)
+
+1. **URL 교차검증:** `source_url`이 **같은 응답에 동봉된 실제 검색결과 URL 목록**(Claude `web_search_tool_result` / Gemini `groundingMetadata.groundingChunks`)에 없으면 폐기 — 환각(조작) URL 차단.
+2. `source_date` 부재 → 폐기. **STALE 판정:** `monitor` 45d / `cases`·`history_current` 30d 초과 → STALE 배지(폐기 아님). *(§3 임계치 아님 — §4.5 `maxAgeDays` 관례와 동일한 UI 파라미터.)*
+3. `fact` 클레임의 `quote` 부재 → 폐기. quote의 페이지 실증(Jsoup fetch 대조)은 **v1.4 범위 외** — 승인 미리보기의 사람 확인으로 갈음(v2 후보).
+4. 저장 시 `quote` 동봉 — 출처 링크 사망 후에도 증거 보존.
+
+#### 제공자 정책
+
+- **Claude 우선**(`web_search` — 응답 내 결과 URL 목록·인용 신뢰도 우수). **Gemini 허용**하되 grounding redirect URI 만료 특성상 **"출처 약검증" 배지** 병기. 검색 제안 위젯 표시 의무(§4.5 v1.3)는 동일 적용.
+- 프롬프트-JSON + 관용 파싱, 30s 타임아웃 + 백오프 1회, Gemini rate limit — §4.5 기존 규약 전부 재사용.
+
+#### 트리거 · 승인 · 저장 · 렌더
+
+- 유형 진단·역사 검증 **섹션 헤더 "정세 업데이트" 버튼**으로만 발화.
+- **승인 미리보기:** 클레임별 `text · 출처 링크 · quote · source_date` 노출 → 개별/일괄 적용.
+- **저장:** `bear_signal_ai_context` 테이블(Room 마이그레이션 +1) — `section_key` PK, `content_json`(승인 클레임 배열), `as_of`, `provider`, `approved_at`.
+- **렌더:** 승인 캐시 존재 시 **AI 배지 + as_of + STALE + 출처 각주(탭→브라우저)**. 캐시 없으면 정적 fallback 그대로.
+
+#### 면책 정리 (v1.4)
+
+- 기존 전역 면책(`DISCLAIMER` 상수·푸터 표시) **전면 제거**(§5.2-7, 부록 B #9 개정).
+- 대체 최소 표기: **AI 갱신 카드에 한해 출처·기준일(as_of)·제공자 표기**(위 렌더 규칙) — 별도 면책 문장 없음.
+- `INDICATOR_MAPPING`(도표 매핑)은 **정적 기준선 전용** 표기로 존치.
+
 ---
 
 ## 5. UI/UX 명세 (Compose · Material 3 · 모바일)
@@ -324,9 +386,9 @@ data class FieldSource(val source: ValueSource, val asOf: LocalDate?, val origin
 2. **선행 신호 3 카드** — 신호1/2/3, 4셀 게이지 + 레벨 칩(색+텍스트) + [자동값 표시 / 수동 입력 버튼].
 3. **신호1 상세: 국가별 수익률(도표48)** — §5.3.
 4. **방아쇠(금리)·증폭(집중) 카드**.
-5. **약세장 3유형 카드** — 회복 가능성 + 모니터링 체크리스트, 활성 방아쇠 하이라이트.
-6. **역사 검증(일본 3충격)** + 3대 모니터링 지표.
-7. **지표↔리포트 매핑 + 면책 + 전체 최신 갱신일**.
+5. **약세장 3유형 카드** — 회복 가능성 + 모니터링 체크리스트, 활성 방아쇠 하이라이트. *(v1.4: 섹션 헤더 "정세 업데이트" 버튼 — §4.7 체크리스트·사례 갱신, AI 배지·출처 각주 오버레이)*
+6. **역사 검증(일본 3충격)** + 3대 모니터링 지표. *(v1.4: "현재 비교" 문단만 §4.7 갱신 대상 — 정적 서사부와 분리 렌더)*
+7. **지표↔리포트 매핑 + 전체 최신 갱신일**. *(v1.4: 면책 문구 제거 — §4.7 "면책 정리")*
 
 ### 5.3 국가별 수익률 표 — 모바일 대응(전치)
 - 프로토타입은 기간=행/국가=열(광폭). **모바일은 국가=행(20) × 기간=열(4)로 전치**하여 세로 스크롤·가독 확보.
@@ -355,6 +417,10 @@ data class FieldSource(val source: ValueSource, val asOf: LocalDate?, val origin
 | **5-1** | WorkManager 주기 갱신 · shimmer · 접근성 · 엣지케이스 마감 | kotlin-implementer | `PROGRESS: P5-1` |
 | **5-2** | 최종 QA (§7) | qa-verifier | `LOOP_COMPLETE` |
 | **6** | **§4.5 LLM 제공자 이원화(Claude+Gemini, v1.3 개정)** | kotlin-implementer | `PROGRESS: P6` |
+| **7-1** | **§4.7 데이터 계층** — Room 마이그레이션 +1(`bear_signal_ai_context`) · 클레임 모델 · 검증 순수함수(URL 교차검증·STALE) + JVM 단위테스트 · `HISTORY_BODY` 분리 | kotlin-implementer | `PROGRESS: P7-1` |
+| **7-2** | **§4.7 LLM 수집 확장** — `LlmMarketDataSource` 그룹 ④monitor ⑤cases ⑥history_current · 클레임 파싱·검증 파이프라인 연결 | kotlin-implementer | `PROGRESS: P7-2` |
+| **7-3** | **§4.7 UI** — "정세 업데이트" 버튼 · 승인 미리보기 · AI 배지/출처 각주/STALE 오버레이 · 면책 제거(푸터·`DISCLAIMER`·골든 테스트 단언 정리) | kotlin-implementer | `PROGRESS: P7-3` |
+| **7-4** | §4.7 수용 검증(§7 v1.4 항목) + 에뮬레이터 실기(실키) | qa-verifier | `PROGRESS: P7` |
 
 > **v1.0→v1.2 재편성 주의**: v1.0 계획의 P4(UI 조립)·P5(폴리시)는 이미 완료됐고 `PROGRESS.md`에
 > `P4(v1.0-UI)`/`P5(v1.0-폴리시)`로 재태깅돼 있다. 위 표의 P4는 **웹/LLM 갱신**이며 별개다.
@@ -406,7 +472,7 @@ class DetectTransitionsUseCase {
 
 ### 6.2 PROGRESS.md 마커 순서
 ```
-P0 → P1 → P2 → P3 → P3.5-1 → P3.5 → P4 → P5-1 → LOOP_COMPLETE → P6
+P0 → P1 → P2 → P3 → P3.5-1 → P3.5 → P4 → P5-1 → LOOP_COMPLETE → P6 → P7-1 → P7-2 → P7-3 → P7
 ```
 > P6(v1.3 개정)은 P5-2 최종 QA와 독립적인 개정 팔로업이다 — P5-2 실키 검증이 미완인 상태에서
 > 사용자 지시로 선행 실행될 수 있다(이 경우 P5-2의 SuggestionPanel 실기 검증은 두 제공자를 모두 다룬다).
@@ -426,6 +492,7 @@ P0 → P1 → P2 → P3 → P3.5-1 → P3.5 → P4 → P5-1 → LOOP_COMPLETE �
 - [ ] **승인 흐름(v1.2):** §4.5 제안이 승인 없이 상태를 바꾸지 않음, MANUAL 불패.
 - [ ] **config 구동(v1.2):** `bear_thresholds.json` 교체만으로 판정 변화(코드 무수정), §3 임계치 코드 하드코딩 없음.
 - [ ] **제공자 이원화(v1.3):** CLAUDE/GEMINI 각 유효 config에서 §4.5 제안 조회가 해당 제공자 엔드포인트로 발화(단위테스트), 무효 config는 네트워크 호출 없이 안내 오류. Gemini 응답의 검색 제안 위젯 HTML이 결과에 전달되고 `SuggestionPanel`이 표시. 화이트리스트·급변 재확인·STALE·승인 원칙은 두 제공자에서 동일 동작.
+- [ ] **콘텐츠 갱신(v1.4):** §4.7 — ① URL 교차검증 위반·`source_date` 부재·fact `quote` 부재 클레임 폐기(단위테스트), `monitor`/`cases`에 `interpretation` 클레임 폐기. ② 승인 없이 표시 콘텐츠 불변(버튼→미리보기→적용 경로만 존재, 자동 fetch·워커 경로 없음 — 코드 검사). ③ 정적 fallback 무손실(골든 테스트 존속 — 면책 단언만 제거), 캐시 없으면 정적 원문 렌더. ④ AI 배지·as_of·STALE·출처 각주 표시, Gemini 경로 "출처 약검증" 배지. ⑤ `why`·`theory`·1980s 서사에 동적 경로 없음(코드 검사). ⑥ 스코어링(§3) 입력에 §4.7 산출물 미유입(코드 검사).
 
 ---
 
@@ -439,6 +506,9 @@ P0 → P1 → P2 → P3 → P3.5-1 → P3.5 → P4 → P5-1 → LOOP_COMPLETE �
 | DART 증권신고서 파싱 난도 | v1 수동. 자동화 필요 시 v2에서 Chaquopy Python 포팅 후보 |
 | 임계치 임의 변경 | `bear_thresholds.json`이 SSOT(§3.0). 변경은 리포트 근거 + 골든 테스트 갱신 동반 시에만 |
 | LLM 제안 오염(환각·낡은 값) | 화이트리스트 검증 + STALE 마킹 + 급변 재확인 + 승인제(§4.5) |
+| LLM 콘텐츠 출처 오귀속(실존 URL에 틀린 요지) | `quote` 동봉 + 승인 미리보기 사람 확인(§4.7). v2에서 Jsoup quote 페이지 실증 후보 |
+| 출처 링크 부패 · Gemini redirect URI 만료 | 승인 시 `quote` 텍스트 저장(증거 보존) + Gemini "출처 약검증" 배지(§4.7) |
+| 면책 제거에 따른 책임 소재 | AI 갱신 카드에 출처·기준일·제공자 상시 표기(§4.7 렌더 규칙)가 최소 방어선 — 사용자 승인(v1.4) 결정 사항 |
 
 ---
 
@@ -535,7 +605,9 @@ fun composite(i: BearSignalInputs): BearResult {
 | 6 | 역사 검증(일본 3충격) + 3대 모니터링 | 역사 섹션 | ✅ |
 | 7 | 신호1 상세 국가별 수익률 표(도표48, 기간 선택·자동 산출·편집) | 표 섹션(전치) | ✅ |
 | 8 | 리포트 기준값 리셋 | 헤더 액션 | ✅ |
-| 9 | 지표↔리포트 매핑 + 면책 | 푸터 | ✅ |
+| 9 | 지표↔리포트 매핑 *(v1.4: 면책 제거, 매핑만 존치)* | 푸터 | ✅ |
+
+> **v1.4 주:** #5 체크리스트·사례와 #6 "현재 비교" 문단은 §4.7 동적 오버레이 대상 — 정적 fallback이 코드에 존치되므로 무손실 원칙은 유지된다. #9 면책 문구는 v1.4에서 제거(사용자 승인), AI 갱신 카드의 출처·기준일·제공자 표기로 갈음.
 
 ---
 
@@ -545,4 +617,4 @@ fun composite(i: BearSignalInputs): BearResult {
 - **기준값(2026.6.30):** period=1m, up=14/down=12/deepening=true, loss=45/etf=up/big=pending, rate=3.75/dir=hike/credit=38/margin=false, semi=23.1/kospi2=56/buffer=true → **국면 AMBER**.
 - **3유형·모니터링 체크리스트·역사(일본 3충격)·3대 지표:** 프로토타입 `TYPES`/역사 섹션 텍스트 그대로 이관.
 
-> 원문·임계치는 신영증권「주도주의 물리학」(2026.6.30)에만 근거. 본 계기판은 투자 판단 보조 도구이며 종목 선택·투자 시기의 최종 책임 근거로 사용될 수 없다.
+> **임계치(§3.0)와 정적 fallback 콘텐츠**는 신영증권「주도주의 물리학」(2026.6.30)에 근거한다 — 이 임계치 SSOT는 v1.4에서도 불변. §4.7 승인 갱신 콘텐츠는 출처·기준일·제공자를 함께 저장·표기한다. *(v1.4: 면책 문구 제거 — §4.7 "면책 정리")*
