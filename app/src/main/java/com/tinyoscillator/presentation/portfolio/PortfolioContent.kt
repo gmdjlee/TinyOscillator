@@ -527,7 +527,7 @@ private fun HoldingsTable(
                 WeightedCell("종목명", COL_WEIGHT_NAME, fontWeight = FontWeight.Bold)
                 WeightedCell("신호", COL_WEIGHT_SIGNAL, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 WeightedCell("현재가", COL_WEIGHT_PRICE, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                WeightedCell("수익률%", COL_WEIGHT_RETURN_PCT, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                WeightedCell("수익%", COL_WEIGHT_RETURN_PCT, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                 WeightedCell("수익금", COL_WEIGHT_PROFIT_AMOUNT, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                 Spacer(modifier = Modifier.width(EXPAND_ICON_WIDTH))
             }
@@ -583,7 +583,14 @@ private fun HoldingsTable(
                             textAlign = TextAlign.End
                         )
                         WeightedCell(
-                            "${if (holding.profitLossPercent >= 0) "+" else ""}${String.format("%.1f", holding.profitLossPercent)}",
+                            // |수익률|≥100%는 소수점을 버려 0.7f 셀 폭(≈39dp)에서 말줄임 방지
+                            "${if (holding.profitLossPercent >= 0) "+" else ""}${
+                                if (kotlin.math.abs(holding.profitLossPercent) >= 100.0) {
+                                    String.format(Locale.KOREA, "%.0f", holding.profitLossPercent)
+                                } else {
+                                    String.format(Locale.KOREA, "%.1f", holding.profitLossPercent)
+                                }
+                            }",
                             COL_WEIGHT_RETURN_PCT,
                             textAlign = TextAlign.End,
                             color = plColor
