@@ -45,4 +45,20 @@ class BearSignalStaticContentTest {
         assertTrue(BearSignalStaticContent.INDICATOR_MAPPING.isNotBlank())
         assertTrue(BearSignalStaticContent.DISCLAIMER.contains("신영증권"))
     }
+
+    @Test
+    fun `HISTORY_BODY_STATIC과 HISTORY_BODY_CURRENT를 결합하면 HISTORY_BODY와 문자 단위로 동일하다`() {
+        assertEquals(
+            BearSignalStaticContent.HISTORY_BODY,
+            BearSignalStaticContent.HISTORY_BODY_STATIC + BearSignalStaticContent.HISTORY_BODY_CURRENT
+        )
+    }
+
+    @Test
+    fun `HISTORY_BODY_CURRENT는 현재 비교 문단만 담고 HISTORY_BODY_STATIC은 1980s 서사부만 담는다`() {
+        assertTrue(BearSignalStaticContent.HISTORY_BODY_STATIC.contains("엘피다가 2013년 마이크론에 피인수"))
+        assertTrue(BearSignalStaticContent.HISTORY_BODY_CURRENT.startsWith("지금 한국이 서 있는 자리가"))
+        assertTrue(!BearSignalStaticContent.HISTORY_BODY_CURRENT.contains("엘피다"))
+        assertTrue(!BearSignalStaticContent.HISTORY_BODY_STATIC.contains("지금 한국이 서 있는 자리가"))
+    }
 }

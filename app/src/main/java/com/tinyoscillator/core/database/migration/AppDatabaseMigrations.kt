@@ -59,6 +59,7 @@ object AppDatabaseMigrations {
         MIGRATION_34_35,
         MIGRATION_35_36,
         MIGRATION_36_37,
+        MIGRATION_37_38,
     )
 }
 
@@ -1012,6 +1013,34 @@ private val MIGRATION_36_37 = object : Migration(36, 37) {
             Timber.d("Migration v36→v37 성공: bear_snapshot 테이블 생성")
         } catch (e: Exception) {
             Timber.e(e, "Migration v36→v37 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v37→v38: §4.7 "정적 참조 콘텐츠 동적 갱신" 승인 캐시 테이블 신설
+ * (TASK_bear_signal_console.md §4.7, Phase 7-1).
+ *
+ * `bear_signal_ai_context`는 §3 스코어링에 유입되지 않는 표시 전용 텍스트(유형별 모니터링
+ * 체크리스트·사례·역사 검증 "현재 비교" 문단)의 AI 승인 콘텐츠만 담는다. `section_key`(PK)당
+ * 최신 승인 스냅샷 1건만 유지(upsert 대체) — 이력 보관은 범위 밖(`bear_snapshot`과 무관).
+ */
+private val MIGRATION_37_38 = object : Migration(37, 38) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `bear_signal_ai_context` (" +
+                    "`section_key` TEXT NOT NULL, " +
+                    "`content_json` TEXT NOT NULL, " +
+                    "`as_of` TEXT NOT NULL, " +
+                    "`provider` TEXT NOT NULL, " +
+                    "`approved_at` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`section_key`))"
+            )
+            Timber.d("Migration v37→v38 성공: bear_signal_ai_context 테이블 생성")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v37→v38 실패")
             throw e
         }
     }

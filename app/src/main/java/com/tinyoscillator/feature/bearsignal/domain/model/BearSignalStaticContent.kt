@@ -77,11 +77,27 @@ object BearSignalStaticContent {
 
     const val HISTORY_TITLE = "최악의 조합 — 3충격 동시 결합 (일본 1980s)"
 
-    const val HISTORY_BODY =
+    /**
+     * 역사 검증 본문 — 1980년대 일본 서사부(v1.4 §4.7 "동적 갱신 금지" 대상, 정적 전용).
+     *
+     * [HISTORY_BODY]가 [HISTORY_BODY_STATIC] + [HISTORY_BODY_CURRENT]로 분리된 배경은
+     * TASK_bear_signal_console.md §4.7 "동적 갱신 대상" 표 — `history_current`(현재 비교 문단)만
+     * LLM 웹검색 갱신 대상이고, 이 서사부는 갱신 금지(`HISTORY_BODY` 전반부)다.
+     */
+    const val HISTORY_BODY_STATIC =
         "세 유형은 독립적으로만 오지 않는다. 1980년대 일본 메모리 산업은 세 충격을 시차를 두고 겹쳐 맞으며 무너졌다 — " +
             "① 플라자 합의 엔고 + 버블 붕괴·금리(멀티플·유형3), ② PC 전환·다운사이클(전방수요·유형2), " +
-            "③ 한국·대만 추격(경쟁·유형1). 결국 엘피다가 2013년 마이크론에 피인수. " +
-            "지금 한국이 서 있는 자리가 1988년 일본과 겹치지 않는지 감시해야 할 3대 지표:"
+            "③ 한국·대만 추격(경쟁·유형1). 결국 엘피다가 2013년 마이크론에 피인수. "
+
+    /**
+     * 역사 검증 본문 — "현재 한국 위치 비교" 문단(v1.4 §4.7 동적 갱신 대상 `history_current`,
+     * 승인 캐시 존재 시 AI 배지·as_of·STALE 오버레이 렌더, P7-3 몫).
+     */
+    const val HISTORY_BODY_CURRENT =
+        "지금 한국이 서 있는 자리가 1988년 일본과 겹치지 않는지 감시해야 할 3대 지표:"
+
+    /** 무손실 결합(기존 참조 호환) — [HISTORY_BODY_STATIC] + [HISTORY_BODY_CURRENT]와 문자 단위로 동일해야 한다. */
+    const val HISTORY_BODY = HISTORY_BODY_STATIC + HISTORY_BODY_CURRENT
 
     /** 부록 B #9 "지표↔리포트 매핑" — 프로토타입 푸터 문구 그대로 */
     const val INDICATOR_MAPPING =

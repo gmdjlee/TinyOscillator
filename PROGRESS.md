@@ -25,6 +25,26 @@
 
 기존 잔여 QA(월간 워커 실발화·관세청/FRED 실키·MINOR 3건)는 P5-1/P5-2에서 흡수 — P5-1에서 TZ·rememberSaveable·레이더 라벨 해소, SignColor 다크는 앱 전역 백로그로 이관(하단 P5-1 상세 참조, **2026-07-16 해소** — 상단 「백로그 2건」 마커). "월간 워커 실발화" 실기 항목은 주기 재편으로 "일간/주간 워커 실발화"로 대체돼 P5-2로 이월.
 
+## v1.4 개정 노트 (2026-07-17)
+
+§4.7 "정적 참조 콘텐츠 동적 갱신" 신설(`TASK_bear_signal_console.md` §4.7, 커밋 `8128f79`) — §3.7 정적 참조
+데이터 중 시효성 항목(유형별 모니터링 체크리스트·사례·역사 검증 "현재 비교" 문단)을 LLM 웹검색으로
+갱신하는 표시 전용(display-only) 계층. §4.5 대원칙(명시 버튼 트리거만, 자동 fetch 금지) 계승. §6 Phase
+표에 P7-1~P7-4 신설(§6.2 마커 순서 `… → P6 → P7-1 → P7-2 → P7-3 → P7`).
+
+PROGRESS: P7-1 — 완료 (§4.7 데이터 계층: Room 마이그레이션 v37→v38(`bear_signal_ai_context` —
+`section_key` PK·`content_json`·`as_of`·`provider`·`approved_at`, `BearSignalAiContextEntity`/`BearSignalAiContextDao`
+신규) + 클레임 도메인 모델(`AiContextSectionKey` 7종·`ClaimType`·`AiContextClaimDraft`/`AiContextClaim`,
+`AiContextModels.kt`) + 검증 순수함수 `AiContextClaimValidation`(URL 교차검증·source_date 부재·
+monitor/cases는 fact만 허용·fact quote 부재 → 클레임 단위 폐기, STALE 판정은 `SuggestionValidation.isStale`
+재사용) + `HISTORY_BODY`를 `HISTORY_BODY_STATIC`(1980s 서사부, 동적 갱신 금지)/`HISTORY_BODY_CURRENT`
+("현재 비교" 문단, §4.7 갱신 대상)로 분리(무손실 결합 유지, UI 참조 `BearSignalTypesHistorySection.kt:141`
+불변). JVM 테스트 신규 33건(`AiContextClaimValidationTest` 20건 — URL/날짜/타입/quote 폐기 사유별 +
+STALE 경계 monitor 45d/46d·cases·history_current 30d/31d, `BearSignalAiContextDaoInMemoryTest` 6건 Robolectric
+in-memory upsert/조회/삭제, `BearSignalStaticContentTest` +2건 무손실 결합 검증) — `feature.bearsignal`
+패키지 전체 414건/0실패. 스키마 `app/schemas/.../38.json` export 확인(`bear_signal_ai_context` DDL 마이그레이션과
+1:1 일치). `assembleDebug` 통과. 임계치/스코어링 미변경, 자동 fetch·워커 편입 없음(P7-2/7-3 몫), 2026-07-17)
+
 PROGRESS: 국가별 수익률 자동 커버리지 확장 — 완료 (2026-07-17, 커밋 `036c7cb` 푸시.
 ①**AUTO 6→17 확장**: `GlobalIndexRegistry`에 Yahoo chart API 실검증(호스트 curl, 지수별 476~511
 종가 — 12M 요건 253개 충족) 통과 티커 11개 추가 — 대만 `^TWII`·CAC40 `^FCHI`·호주 `^AXJO`·유로
