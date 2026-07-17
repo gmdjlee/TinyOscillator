@@ -32,6 +32,7 @@ import com.tinyoscillator.presentation.etf.EtfAnalysisContent
 import com.tinyoscillator.presentation.etf.EtfDetailContent
 import com.tinyoscillator.presentation.etf.EtfStatsContent
 import com.tinyoscillator.presentation.report.ReportContent
+import com.tinyoscillator.presentation.report.ReportDetailPane
 import com.tinyoscillator.presentation.theme.ThemeDetailPane
 import com.tinyoscillator.presentation.theme.ThemeListContent
 import com.tinyoscillator.ui.theme.LocalThemeModeState
@@ -64,6 +65,13 @@ fun ExploreScreen(
     var selectedEtfTicker by rememberSaveable { mutableStateOf<String?>(null) }
     // 코드/이름 단일 state — 분리 시 중간 recomposition에서 짝이 어긋날 수 있음
     var selectedTheme by rememberSaveable(
+        stateSaver = listSaver<Pair<String, String>?, String>(
+            save = { if (it == null) emptyList() else listOf(it.first, it.second) },
+            restore = { if (it.isEmpty()) null else it[0] to it[1] }
+        )
+    ) { mutableStateOf<Pair<String, String>?>(null) }
+    // ticker/writeDate 단일 state — 분리 시 중간 recomposition에서 짝이 어긋날 수 있음
+    var selectedReport by rememberSaveable(
         stateSaver = listSaver<Pair<String, String>?, String>(
             save = { if (it == null) emptyList() else listOf(it.first, it.second) },
             restore = { if (it.isEmpty()) null else it[0] to it[1] }
@@ -202,12 +210,57 @@ fun ExploreScreen(
                     }
                 }
                 ExploreTab.REPORT -> {
-                    ReportContent(
-                        onReportClick = onReportClick,
-                        onOpenFullAnalysis = onOpenFullAnalysis,
-                        onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (isTwoPane) {
+                        TwoPaneLayout(
+                            windowType = windowType,
+                            listPane = {
+                                ReportContent(
+                                    onReportClick = { report ->
+                                        selectedReport = report.stockTicker to report.writeDate
+                                    },
+                                    onOpenFullAnalysis = onOpenFullAnalysis,
+                                    onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            },
+                            detailPane = {
+                                val report = selectedReport
+                                if (report != null) {
+                                    ReportDetailPane(
+                                        ticker = report.first,
+                                        writeDate = report.second,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "리포트를 선택해주세요.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            },
+                            singlePane = {
+                                ReportContent(
+                                    onReportClick = onReportClick,
+                                    onOpenFullAnalysis = onOpenFullAnalysis,
+                                    onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        )
+                    } else {
+                        ReportContent(
+                            onReportClick = onReportClick,
+                            onOpenFullAnalysis = onOpenFullAnalysis,
+                            onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
         }

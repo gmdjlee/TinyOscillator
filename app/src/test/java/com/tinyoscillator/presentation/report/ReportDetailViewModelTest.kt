@@ -16,6 +16,7 @@ import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
@@ -108,23 +109,34 @@ class ReportDetailViewModelTest {
     }
 
     @Test
-    fun `empty ticker - shows error state`() = runTest {
-        val vm = createViewModel(ticker = "", writeDate = testWriteDate)
+    fun `blank initial selection - skips load and keeps default state without crash`() = runTest {
+        val vm = createViewModel(ticker = "", writeDate = "")
         advanceUntilIdle()
 
         val state = vm.uiState.value
+        assertEquals(ReportDetailUiState(), state)
         assertFalse(state.headerLoaded)
-        assertNotNull(state.error)
+        assertFalse(state.chartLoaded)
+        assertFalse(state.financialLoaded)
+        assertFalse(state.etfLoaded)
+        assertNull(state.error)
+        coVerify(exactly = 0) { consensusRepository.getReportsByTicker(any()) }
     }
 
     @Test
-    fun `empty writeDate - shows error state`() = runTest {
+    fun `blank ticker only - skips load and keeps default state`() = runTest {
+        val vm = createViewModel(ticker = "", writeDate = testWriteDate)
+        advanceUntilIdle()
+
+        assertEquals(ReportDetailUiState(), vm.uiState.value)
+    }
+
+    @Test
+    fun `blank writeDate only - skips load and keeps default state`() = runTest {
         val vm = createViewModel(ticker = testTicker, writeDate = "")
         advanceUntilIdle()
 
-        val state = vm.uiState.value
-        assertFalse(state.headerLoaded)
-        assertNotNull(state.error)
+        assertEquals(ReportDetailUiState(), vm.uiState.value)
     }
 
     @Test
@@ -228,6 +240,8 @@ class ReportDetailViewModelTest {
         assertNull(state.financialSummary)
         assertNull(state.latestStability)
         assertNull(state.error) // should not set error for partial failure
+        // 실패한 섹션의 코루틴이 끝까지 실행돼 로딩 카드가 걷혔음을 보장 (섹션 자체가 안 돌면 기본값과 구분 불가)
+        assertTrue(state.financialLoaded)
     }
 
     @Test
@@ -243,6 +257,8 @@ class ReportDetailViewModelTest {
         val state = vm.uiState.value
         assertNull(state.chartData)
         assertNull(state.error) // should not set error for partial failure
+        // 실패한 섹션의 코루틴이 끝까지 실행돼 로딩 카드가 걷혔음을 보장 (섹션 자체가 안 돌면 기본값과 구분 불가)
+        assertTrue(state.chartLoaded)
     }
 
     @Test
@@ -267,5 +283,170 @@ class ReportDetailViewModelTest {
         advanceUntilIdle()
 
         assertEquals(0, vm.uiState.value.etfHoldingCount)
+    }
+
+    // --- 2-Pane selectReport 배선 ---
+
+    @Test
+    fun `selectReport with different report - resets state then reloads`() = runTest {
+        val reportA = createReport(ticker = testTicker, writeDate = testWriteDate)
+        val otherTicker = "000660"
+        val otherWriteDate = "2026-04-01"
+        val reportB = createReport(ticker = otherTicker, writeDate = otherWriteDate)
+        coEvery { consensusRepository.getReportsByTicker(testTicker) } returns listOf(reportA)
+        coEvery { consensusRepository.getReportsByTicker(otherTicker) } returns listOf(reportB)
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+        assertEquals(reportA, vm.uiState.value.report)
+
+        vm.selectReport(otherTicker, otherWriteDate)
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertTrue(state.headerLoaded)
+        assertEquals(reportB, state.report)
+    }
+
+    @Test
+    fun `selectReport with same values - is a no-op, does not reload`() = runTest {
+        coEvery { consensusRepository.getReportsByTicker(testTicker) } returns listOf(createReport())
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+        coVerify(exactly = 1) { consensusRepository.getReportsByTicker(testTicker) }
+
+        // 동일 ticker/writeDate 재호출 — StateFlow 동등성으로 재방출 없음
+        vm.selectReport(testTicker, testWriteDate)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { consensusRepository.getReportsByTicker(testTicker) }
+    }
+
+    @Test
+    fun `rapid selectReport calls - cancels stale load, final state matches latest selection`() = runTest {
+        val slowTicker = "111111"
+        val slowWriteDate = "2026-05-01"
+        val slowReport = createReport(ticker = slowTicker, writeDate = slowWriteDate)
+        val fastTicker = "222222"
+        val fastWriteDate = "2026-05-02"
+        val fastReport = createReport(ticker = fastTicker, writeDate = fastWriteDate)
+
+        coEvery { consensusRepository.getReportsByTicker(testTicker) } returns listOf(createReport())
+        // 완료 플래그 — StateFlow conflation만으로도 최종 상태는 fastReport가 되므로,
+        // 취소 자체는 "느린 로드 본문이 delay 이후를 실행하지 못했다"로 관측해야 한다.
+        // collectLatest를 collect로 바꾸는 회귀 시 delay가 끝까지 실행되어 이 플래그가 true가 된다.
+        var slowCompleted = false
+        coEvery { consensusRepository.getReportsByTicker(slowTicker) } coAnswers {
+            delay(5_000)
+            slowCompleted = true
+            listOf(slowReport)
+        }
+        coEvery { consensusRepository.getReportsByTicker(fastTicker) } returns listOf(fastReport)
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        // slowTicker 선택 — 로드가 delay(5000)에서 멈춘 상태로 진행시킨다
+        vm.selectReport(slowTicker, slowWriteDate)
+        testDispatcher.scheduler.runCurrent()
+
+        // 완료 전에 fastTicker로 전환 — collectLatest가 slowTicker 로드를 취소해야 한다
+        vm.selectReport(fastTicker, fastWriteDate)
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertEquals(fastReport, state.report)
+        assertTrue(state.headerLoaded)
+        assertFalse("stale 로드는 취소되어 delay 이후 본문이 실행되면 안 된다", slowCompleted)
+    }
+
+    @Test
+    fun `selectReport - stale marketCap from previous selection does not leak into new report`() = runTest {
+        // A(testTicker)는 캐시 시총 500조 보유, B(000660)는 캐시 없음.
+        // 리셋(_uiState = ReportDetailUiState())이 빠지면 B 헤더가
+        // `if (cachedMarketCap > 0) cachedMarketCap else it.marketCap`에서 A의 500조를 보존한다.
+        val reportA = createReport(ticker = testTicker, writeDate = testWriteDate)
+        val otherTicker = "000660"
+        val otherWriteDate = "2026-04-01"
+        val reportB = createReport(ticker = otherTicker, writeDate = otherWriteDate)
+        coEvery { consensusRepository.getReportsByTicker(testTicker) } returns listOf(reportA)
+        coEvery { consensusRepository.getReportsByTicker(otherTicker) } returns listOf(reportB)
+        coEvery { analysisCacheDao.getLatestDate(testTicker) } returns "20260323"
+        coEvery {
+            analysisCacheDao.getByTickerDateRange(testTicker, "20260323", "20260323")
+        } returns listOf(
+            AnalysisCacheEntity(testTicker, "20260323", 500_000_000_000_000L, 0L, 0L, 75000)
+        )
+        coEvery { analysisCacheDao.getLatestDate(otherTicker) } returns null
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+        assertEquals(500_000_000_000_000L, vm.uiState.value.marketCap)
+        assertEquals(75000, vm.uiState.value.currentPrice)
+
+        vm.selectReport(otherTicker, otherWriteDate)
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertEquals(reportB, state.report)
+        assertEquals("이전 선택의 시총이 리셋 없이 잔존하면 안 된다", 0L, state.marketCap)
+        assertEquals("캐시 없으면 리포트 현재가 폴백", 212000, state.currentPrice)
+    }
+
+    // --- marketCap 우선순위: 캐시 > 차트 (양방향 도착 순서) ---
+
+    private fun stubValidChart(marketCapFromChart: Long, chartDelayMs: Long = 0L) {
+        coEvery { apiConfigProvider.getKiwoomConfig() } returns KiwoomApiKeyConfig("key", "secret")
+        coEvery { stockRepository.getDailyTradingData(any(), any(), any(), any()) } coAnswers {
+            if (chartDelayMs > 0) delay(chartDelayMs)
+            listOf(mockk(relaxed = true))
+        }
+        every { calcOscillator.execute(any(), any()) } returns listOf(
+            mockk(relaxed = true) { every { marketCap } returns marketCapFromChart }
+        )
+    }
+
+    @Test
+    fun `marketCap priority - cache wins even when chart arrives first`() = runTest {
+        coEvery { consensusRepository.getReportsByTicker(testTicker) } returns listOf(createReport())
+        stubValidChart(marketCapFromChart = 111L)
+        // 헤더 경로를 지연시켜 차트가 먼저 시총을 채우게 한다
+        coEvery { analysisCacheDao.getLatestDate(testTicker) } coAnswers {
+            delay(1_000)
+            "20260323"
+        }
+        coEvery {
+            analysisCacheDao.getByTickerDateRange(testTicker, "20260323", "20260323")
+        } returns listOf(
+            AnalysisCacheEntity(testTicker, "20260323", 222L, 0L, 0L, 75000)
+        )
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertTrue(state.chartLoaded)
+        assertTrue(state.headerLoaded)
+        assertEquals("차트가 먼저 채워도 캐시 시총이 이겨야 한다", 222L, state.marketCap)
+    }
+
+    @Test
+    fun `marketCap priority - late chart does not overwrite cache value`() = runTest {
+        coEvery { consensusRepository.getReportsByTicker(testTicker) } returns listOf(createReport())
+        stubValidChart(marketCapFromChart = 111L, chartDelayMs = 1_000)
+        coEvery { analysisCacheDao.getLatestDate(testTicker) } returns "20260323"
+        coEvery {
+            analysisCacheDao.getByTickerDateRange(testTicker, "20260323", "20260323")
+        } returns listOf(
+            AnalysisCacheEntity(testTicker, "20260323", 222L, 0L, 0L, 75000)
+        )
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertTrue(state.chartLoaded)
+        assertEquals("늦게 도착한 차트가 캐시 시총을 덮으면 안 된다", 222L, state.marketCap)
     }
 }

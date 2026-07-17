@@ -29,9 +29,11 @@ import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.presentation.chart.OscillatorChart
 import com.tinyoscillator.ui.theme.LocalFinanceColors
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -57,11 +59,30 @@ data class ReportDetailUiState(
     val financialLoaded: Boolean = false,
     val etfHoldings: List<StockInEtfRow> = emptyList(),
     val etfLoaded: Boolean = false,
+    // 현재 설정 경로 없음(블랭크 selection은 로드 스킵) — 향후 치명 오류 표시용으로 분기와 함께 보존
     val error: String? = null
 ) {
     val etfHoldingCount: Int get() = etfHoldings.size
 }
 
+/** 리포트 선택 키 — ticker/writeDate 쌍. 하나라도 비어있으면 [isBlank]. */
+private data class ReportSelection(val ticker: String, val writeDate: String) {
+    val isBlank: Boolean get() = ticker.isBlank() || writeDate.isBlank()
+}
+
+/**
+ * 리포트 상세(헤더·가격·차트·재무·ETF) ViewModel.
+ *
+ * 초기 선택은 SavedStateHandle(`report_detail/{ticker}/{writeDate}` 라우트)에서 오고,
+ * 태블릿 2-Pane 임베드에서는 [selectReport]로 리포트를 동적으로 전환한다.
+ * 선택이 바뀌면 [collectLatest]가 이전 선택의 로드(4개 섹션 코루틴)를 전부 취소하고
+ * 상태를 리셋한 뒤 재로드한다.
+ *
+ * 블랭크 selection(ticker 또는 writeDate 비어있음)은 로드를 스킵하고 현재 상태를 유지한다 —
+ * 2-Pane 페인의 초기 selection은 SavedStateHandle에 값이 없어 블랭크이며, `LaunchedEffect`가
+ * [selectReport]를 보내기 전 첫 프레임에 에러가 노출되는 것을 막기 위함이다. 전체화면 라우트는
+ * 경로 세그먼트 2개(`{ticker}`, `{writeDate}`)가 항상 채워져 있어 블랭크에 도달하지 않는다.
+ */
 @HiltViewModel
 class ReportDetailViewModel @Inject constructor(
     private val consensusRepository: ConsensusRepository,
@@ -74,26 +95,42 @@ class ReportDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val ticker: String = savedStateHandle["ticker"] ?: ""
-    private val writeDate: String = savedStateHandle["writeDate"] ?: ""
     private val fmt = DateFormats.yyyyMMdd
+
+    private val _selection = MutableStateFlow(
+        ReportSelection(
+            ticker = savedStateHandle["ticker"] ?: "",
+            writeDate = savedStateHandle["writeDate"] ?: ""
+        )
+    )
 
     private val _uiState = MutableStateFlow(ReportDetailUiState())
     val uiState: StateFlow<ReportDetailUiState> = _uiState.asStateFlow()
 
     init {
-        if (ticker.isNotEmpty() && writeDate.isNotEmpty()) {
-            loadData()
-        } else {
-            _uiState.value = ReportDetailUiState(error = "종목 정보가 없습니다.")
+        viewModelScope.launch {
+            _selection.collectLatest { sel ->
+                if (sel.isBlank) return@collectLatest
+                _uiState.value = ReportDetailUiState()
+                loadData(sel.ticker, sel.writeDate)
+            }
         }
     }
 
-    private fun loadData() {
+    /**
+     * 2-Pane 임베드에서 목록 탭으로 리포트 전환. 동일 선택이면 no-op(StateFlow 동등성으로 재방출 없음).
+     * 블랭크 인자는 무시 — 진행 중인 로드를 취소하고 로딩 스켈레톤에 갇히는 것을 방지.
+     */
+    fun selectReport(ticker: String, writeDate: String) {
+        if (ticker.isBlank() || writeDate.isBlank()) return
+        _selection.value = ReportSelection(ticker, writeDate)
+    }
+
+    private suspend fun loadData(ticker: String, writeDate: String) = coroutineScope {
         // 헤더/가격 (로컬 DB — 즉시 도착)
-        viewModelScope.launch {
-            val report = loadReport()
-            val (cachedPrice, cachedMarketCap) = loadPriceData()
+        launch {
+            val report = loadReport(ticker, writeDate)
+            val (cachedPrice, cachedMarketCap) = loadPriceData(ticker)
 
             // 캐시 가격 우선, 없으면 리포트의 현재가 사용
             val currentPrice = if (cachedPrice > 0) cachedPrice
@@ -118,8 +155,8 @@ class ReportDetailViewModel @Inject constructor(
         }
 
         // 수급오실레이터 차트 (Kiwoom API — 최대 수십 초)
-        viewModelScope.launch {
-            val chartData = loadChartData()
+        launch {
+            val chartData = loadChartData(ticker)
             _uiState.update {
                 it.copy(
                     chartData = chartData,
@@ -131,8 +168,8 @@ class ReportDetailViewModel @Inject constructor(
         }
 
         // 재무 요약 (KIS API/캐시)
-        viewModelScope.launch {
-            val (financialSummary, latestStability) = loadFinancialSummary()
+        launch {
+            val (financialSummary, latestStability) = loadFinancialSummary(ticker)
             _uiState.update {
                 it.copy(
                     financialSummary = financialSummary,
@@ -143,13 +180,13 @@ class ReportDetailViewModel @Inject constructor(
         }
 
         // ETF 보유 (로컬 DB)
-        viewModelScope.launch {
-            val etfHoldings = loadEtfHoldings()
+        launch {
+            val etfHoldings = loadEtfHoldings(ticker)
             _uiState.update { it.copy(etfHoldings = etfHoldings, etfLoaded = true) }
         }
     }
 
-    private suspend fun loadReport(): ConsensusReport? {
+    private suspend fun loadReport(ticker: String, writeDate: String): ConsensusReport? {
         return try {
             val reports = consensusRepository.getReportsByTicker(ticker)
             reports.find { it.writeDate == writeDate } ?: reports.firstOrNull()
@@ -160,7 +197,7 @@ class ReportDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadPriceData(): Pair<Int, Long> {
+    private suspend fun loadPriceData(ticker: String): Pair<Int, Long> {
         return try {
             val latestDate = analysisCacheDao.getLatestDate(ticker)
             if (latestDate != null) {
@@ -177,7 +214,7 @@ class ReportDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadChartData(): ChartData? {
+    private suspend fun loadChartData(ticker: String): ChartData? {
         return try {
             val kiwoomConfig = apiConfigProvider.getKiwoomConfig()
             if (!kiwoomConfig.isValid()) return null
@@ -211,7 +248,7 @@ class ReportDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadFinancialSummary(): Pair<FinancialSummary?, StabilityRatios?> {
+    private suspend fun loadFinancialSummary(ticker: String): Pair<FinancialSummary?, StabilityRatios?> {
         return try {
             val kisConfig = apiConfigProvider.getKisConfig()
             if (!kisConfig.isValid()) return Pair(null, null)
@@ -234,7 +271,7 @@ class ReportDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadEtfHoldings(): List<StockInEtfRow> {
+    private suspend fun loadEtfHoldings(ticker: String): List<StockInEtfRow> {
         return try {
             val latestDate = etfRepository.getLatestDate() ?: return emptyList()
             etfRepository.getEtfsHoldingStock(ticker, latestDate)
@@ -253,8 +290,6 @@ fun ReportDetailScreen(
     viewModel: ReportDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
-    val financeColors = LocalFinanceColors.current
 
     Scaffold(
         topBar = {
@@ -268,29 +303,68 @@ fun ReportDetailScreen(
             )
         }
     ) { padding ->
-        state.error?.let { errorMessage ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    errorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-            return@Scaffold
-        }
-
-        LazyColumn(
+        ReportDetailContent(
+            state = state,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(padding)
+        )
+    }
+}
+
+/**
+ * 탐색 탭 2-Pane 우측 패널용 리포트 상세 — 자체 ViewModel을 갖고
+ * [ReportDetailViewModel.selectReport]으로 목록 선택을 따라간다.
+ */
+@Composable
+fun ReportDetailPane(
+    ticker: String,
+    writeDate: String,
+    modifier: Modifier = Modifier,
+    viewModel: ReportDetailViewModel = hiltViewModel()
+) {
+    LaunchedEffect(ticker, writeDate) {
+        viewModel.selectReport(ticker, writeDate)
+    }
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // 리포트 전환 시 이전 리포트의 스크롤 오프셋이 남지 않도록 key로 콘텐츠 재생성
+    key(ticker, writeDate) {
+        ReportDetailContent(
+            state = state,
+            modifier = modifier.fillMaxSize()
+        )
+    }
+}
+
+/** 리포트 상세 본문 — 전체 화면([ReportDetailScreen])과 2-Pane 패널([ReportDetailPane])이 공유 */
+@Composable
+fun ReportDetailContent(
+    state: ReportDetailUiState,
+    modifier: Modifier = Modifier
+) {
+    val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
+    val financeColors = LocalFinanceColors.current
+
+    if (state.error != null) {
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center
         ) {
+            Text(
+                state.error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
             // 리포트 헤더 + 가격 정보 (로컬 DB — 가장 먼저 도착)
             if (!state.headerLoaded) {
                 item { SectionLoadingCard("리포트 정보 로딩 중...") }
@@ -352,7 +426,6 @@ fun ReportDetailScreen(
 
             // 하단 여백
             item { Spacer(modifier = Modifier.height(16.dp)) }
-        }
     }
 }
 
