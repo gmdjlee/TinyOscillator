@@ -242,7 +242,10 @@ fun SectionHeader(
             text = title,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground
+            color = MaterialTheme.colorScheme.onBackground,
+            // 긴 제목이 Row 전체 폭을 차지하면 action 슬롯이 0dp로 압살된다 —
+            // weight(fill=false)로 제목이 남은 폭 안에서만 줄바꿈하도록 제한.
+            modifier = Modifier.weight(1f, fill = false)
         )
         action?.invoke()
     }

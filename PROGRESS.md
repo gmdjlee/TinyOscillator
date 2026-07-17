@@ -121,6 +121,35 @@ Room 무영향·실패 groupErrors; `AiContextRepositoryImplTest` getApproved �
 `feature.bearsignal` 패키지 전체 448건/0실패. `assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 재검증).
 남은 작업: P7-4(qa-verifier §7 v1.4 수용 검증 + 에뮬레이터 실기 — 실키 필요))
 
+PROGRESS: P7 — 완료 (P7-4 §4.7 수용 검증 + 에뮬레이터 실기, 2026-07-17. **qa-verifier §7 "콘텐츠
+갱신(v1.4)" 6개 세부 항목 + DISCLAIMER 회귀 1건 전부 PASS**(448건 강제 재실행/0실패): ①클레임 폐기
+단위테스트(`AiContextClaimValidationTest` 20/20 — URL 교차검증·source_date 부재·fact quote 부재·
+monitor/cases interpretation 폐기) ②승인 없이 표시 콘텐츠 불변(`fetchUpdates` Room 쓰기 0·upsert는
+`approve` 1곳·버튼 콜백 2곳 외 fetch 호출 없음·워커 참조 0) ③정적 fallback 무손실(골든 존속, 제거
+단언은 DISCLAIMER 2건뿐, `HISTORY_BODY = STATIC + CURRENT` 문자 단위 동일성) ④AI 배지·as_of·STALE·
+출처 각주·Gemini "출처 약검증"(`AiContextOverlay`/`AiContextUpdatePanel`) ⑤why·theory·1980s 동적 경로
+없음(SectionKey 7종 한정, `HISTORY_BODY_STATIC` 무조건 정적) ⑥스코어링 입력에 §4.7 미유입(Merge/
+Compute/Observe 참조 0, 표시 전용 격리). **에뮬레이터 실기(pixel_fold, Gemini 실키, 크래시 0)에서
+버그 2건 발견·수정**: ①공용 `SectionHeader`(DesignComponents.kt) Row에서 긴 제목 Text가 무가중치로
+전폭 점유 → action 슬롯 0dp 압살, §4.7 "정세 업데이트" 버튼 2곳 모두 미표시(기능 트리거 불가) →
+제목에 `weight(1f, fill=false)` 적용(공용 SectionHeader 사용처는 BearSignalScreen뿐 — grep 확인).
+②§4.7 그룹 조회 3건 전멸 `TimeoutError` — `LlmMarketDataSource`가 전역 30s OkHttpClient 공유,
+서버 측 웹 검색 + `AI_CONTEXT_MAX_TOKENS=4096` 생성이 단일 응답이라 30s 상시 초과(§4.5는 출력이
+작아 P6 실기 통과했던 것) → DI에서 `newBuilder().readTimeout(ApiConstants.LLM_WEB_SEARCH_TIMEOUT_SECONDS
+=120s)` 파생 클라이언트 주입(커넥션 풀 공유, 테스트는 자체 클라이언트 주입이라 무영향 —
+`LlmMarketDataSourceTest`의 150ms 단축 타임아웃 시뮬레이션 존속). 수정 후 bearsignal 448건 재확인
+그린. **실기 E2E 실증**: Room v37→v38 마이그레이션 무크래시(설치 전 기기 user_version=37 확인) →
+정적 fallback 렌더(승인 캐시 없음, 배지 없음) → "정세 업데이트" 탭 → Gemini 실호출 → 그룹④ 파싱
+실패는 그룹 오류로 격리 표시 + 그룹⑤⑥ 클레임 3건 미리보기(STALE 배지 정확 — 2021-04-05/2024-08-01
+클레임만 STALE, 2026-07-08은 미표시 + quote 인용 + 기준일·출처 링크 + Google 검색 제안 위젯 2개) →
+"전체 적용 (3)" → 유형1 카드 사례 오버레이("AI 갱신 · 2021-04-05 · Gemini"+출처 약검증+STALE+YTN
+각주, 미승인 체크리스트는 정적 유지) + 역사 카드(1980s 서사 정적 유지 + CURRENT 문단 2클레임 교체 +
+각주 2건) + 푸터 "지표 ↔ 리포트 매핑 (정적 기준선)" 면책 없음 → force-stop 재시작 → Room 복원
+렌더 + logcat LLM 호출 0건(자동 fetch 금지 실증). **잔여(사용자 몫)**: Claude 제공자 실기 —
+설정의 AI API Key가 단일 슬롯(제공자별 분리 아님)이라 Claude 실키 입력 + 제공자 전환 필요(현재
+기기는 Gemini 구성, 전환 시 Gemini 키 재입력 필요). Claude 경로 자체는 P7-2 단위테스트(디스패치·
+web_search_tool_result URL 추출·pause_turn 누적)로 커버 — P6 선례와 동일한 실키 잔여 처리)
+
 PROGRESS: 국가별 수익률 자동 커버리지 확장 — 완료 (2026-07-17, 커밋 `036c7cb` 푸시.
 ①**AUTO 6→17 확장**: `GlobalIndexRegistry`에 Yahoo chart API 실검증(호스트 curl, 지수별 476~511
 종가 — 12M 요건 253개 충족) 통과 티커 11개 추가 — 대만 `^TWII`·CAC40 `^FCHI`·호주 `^AXJO`·유로

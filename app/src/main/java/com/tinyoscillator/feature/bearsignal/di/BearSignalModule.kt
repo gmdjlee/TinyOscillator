@@ -4,6 +4,7 @@ import android.content.Context
 import com.tinyoscillator.core.api.BokEcosApiClient
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
+import com.tinyoscillator.core.config.ApiConstants
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalAiContextDao
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
@@ -46,6 +47,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 /** BearSignal 기능 Hilt 바인딩 모듈 (TASK_bear_signal_console.md §2). */
@@ -185,11 +187,20 @@ object BearSignalModule {
 
     // ── §4.5 Phase 4/6: 웹/LLM 수집 · 승인 흐름(v1.3부터 Claude+Gemini 이원화) ──────
 
-    /** [LlmMarketDataSource]의 `geminiBaseUrl`/`geminiRateLimitMs`는 프로덕션 기본값(생성자 기본 인자)을 그대로 쓴다. */
+    /**
+     * [LlmMarketDataSource]의 `geminiBaseUrl`/`geminiRateLimitMs`는 프로덕션 기본값(생성자 기본 인자)을
+     * 그대로 쓴다. 단 read 타임아웃은 전역 30초 대신 [ApiConstants.LLM_WEB_SEARCH_TIMEOUT_SECONDS]로
+     * 연장한 파생 클라이언트를 준다 — 서버 측 웹 검색 + 장문 생성(§4.7 maxTokens 4096)이 단일 응답에
+     * 담겨 30초를 상시 초과한다(커넥션 풀은 `newBuilder()`로 공유).
+     */
     @Provides
     @Singleton
     fun provideLlmMarketDataSource(httpClient: OkHttpClient): LlmMarketDataSource =
-        LlmMarketDataSource(httpClient = httpClient)
+        LlmMarketDataSource(
+            httpClient = httpClient.newBuilder()
+                .readTimeout(ApiConstants.LLM_WEB_SEARCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .build()
+        )
 
     @Provides
     @Singleton

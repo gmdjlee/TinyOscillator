@@ -71,8 +71,10 @@ import java.time.LocalDate
  * 사용자 표시 의무가 있어 [SuggestionGroupOutcome.searchWidgetHtml]로 전달한다(급변 재확인 호출의
  * widget은 무시하고 최초 호출 것만 사용).
  *
- * 네트워크: [httpClient]는 기존 앱 전역 30s 타임아웃 [OkHttpClient]를 재사용하고(§4.5 항목4),
- * 재시도는 1회 백오프([retryBackoffMs])만 수행한다. Gemini는 인스턴스 [Mutex]로 호출 간
+ * 네트워크: [httpClient]는 앱 전역 [OkHttpClient]에서 파생하되 read 타임아웃을
+ * [com.tinyoscillator.core.config.ApiConstants.LLM_WEB_SEARCH_TIMEOUT_SECONDS]로 연장해 주입받는다
+ * (DI 참조 — 서버 측 웹 검색 + §4.7 장문 생성이 전역 30초를 상시 초과). 재시도는 1회
+ * 백오프([retryBackoffMs])만 수행한다. Gemini는 인스턴스 [Mutex]로 호출 간
  * [geminiRateLimitMs] 간격을 둔다(AiApiClient의 기존 Gemini rate limit 관례 재사용).
  *
  * @param baseUrl 프로덕션 기본값은 Anthropic API — 테스트에서만 MockWebServer URL로 교체한다.

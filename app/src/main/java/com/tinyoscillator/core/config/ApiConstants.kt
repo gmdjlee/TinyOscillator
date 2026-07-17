@@ -71,4 +71,12 @@ object ApiConstants {
      * 15초로 낮추면 일부 페이지에서 타임아웃 발생 사례 확인됨.
      */
     const val EQUITY_SCRAPER_TIMEOUT_SECONDS = 20L
+
+    /**
+     * BearSignal LLM 웹 검색 호출(§4.5/§4.7): 서버 측 웹 검색 실행 + 수천 토큰 생성이 단일
+     * HTTP 응답으로 돌아오므로 전역 30초로는 §4.7 그룹 조회(maxTokens 4096)가 상시 타임아웃된다
+     * (2026-07-17 에뮬레이터 실기에서 Gemini 3그룹 전멸 확인). 사용자 명시 버튼 트리거 + 로딩
+     * UI가 있는 경로라 긴 대기가 허용된다.
+     */
+    const val LLM_WEB_SEARCH_TIMEOUT_SECONDS = 120L
 }
