@@ -1,15 +1,23 @@
 package com.tinyoscillator.presentation.portfolio
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -465,6 +473,39 @@ private fun SummaryCard(summary: PortfolioSummary) {
     }
 }
 
+/** rememberSaveable용 Set&lt;Long&gt; 저장기 — 프로세스 재생성 후에도 펼침 상태 복원 */
+private val LongSetSaver: Saver<Set<Long>, ArrayList<Long>> = Saver(
+    save = { ArrayList(it) },
+    restore = { it.toSet() }
+)
+
+// 핵심 5열 weight 구성 (합계 5.0) — 아이콘 열은 고정 32dp.
+// 360dp 화면 기준 유효폭 ≈280dp(1.0f≈56dp): 현재가는 "1,500,000"(9자≈60dp)가
+// 잘리지 않도록 1.15f, 수익금은 만/억 축약 표기(최장 "±9,999만"≈48dp) 전제로 1.0f 배분.
+private const val COL_WEIGHT_NAME = 1.55f
+private const val COL_WEIGHT_SIGNAL = 0.6f
+private const val COL_WEIGHT_PRICE = 1.15f
+private const val COL_WEIGHT_RETURN_PCT = 0.7f
+private const val COL_WEIGHT_PROFIT_AMOUNT = 1.0f
+private val EXPAND_ICON_WIDTH = 32.dp
+
+/**
+ * 수익금 축약 표기 — 5열 표의 좁은 셀에서 원 단위 전체 표기(최장 11자)가 말줄임으로
+ * 잘려 금액이 오독되는 것을 방지. 1만 미만 원 단위, 1억 미만 만 단위(반올림), 이상 억 단위.
+ * 원 단위 정밀값은 확장 상세 블록의 "수익금(원)" 항목에서 제공.
+ */
+private fun formatCompactAmount(v: Long): String {
+    val absV = kotlin.math.abs(v)
+    return when {
+        absV < 10_000L -> krwFormat.format(v)
+        else -> {
+            val man = Math.round(v / 10_000.0)
+            if (kotlin.math.abs(man) >= 10_000L) String.format(Locale.KOREA, "%.1f억", v / 100_000_000.0)
+            else "${krwFormat.format(man)}만"
+        }
+    }
+}
+
 @Composable
 private fun HoldingsTable(
     holdings: List<PortfolioHoldingItem>,
@@ -474,138 +515,110 @@ private fun HoldingsTable(
 ) {
     val gainColor = LocalFinanceColors.current.positive
     val lossColor = LocalFinanceColors.current.negative
-    val scrollState = rememberScrollState()
+    var expandedIds by rememberSaveable(stateSaver = LongSetSaver) { mutableStateOf(emptySet<Long>()) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .horizontalScroll(scrollState)
-                .padding(8.dp)
-        ) {
-            // Header
-            Row(modifier = Modifier.padding(vertical = 4.dp)) {
-                TableCell("종목명", 100.dp, fontWeight = FontWeight.Bold)
-                TableCell("신호", 52.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                TableCell("시장", 60.dp, fontWeight = FontWeight.Bold)
-                TableCell("업종", 80.dp, fontWeight = FontWeight.Bold)
-                TableCell("보유수", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("평균매입가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("현재가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("목표가", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("비중%", 60.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("초과", 40.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                TableCell("조절주식", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("조절금액", 90.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("수익률%", 70.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("수익금", 100.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                TableCell("실현손익", 100.dp, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+        Column(modifier = Modifier.padding(8.dp)) {
+            // Header — 핵심 5열 + 확장 아이콘 열
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                WeightedCell("종목명", COL_WEIGHT_NAME, fontWeight = FontWeight.Bold)
+                WeightedCell("신호", COL_WEIGHT_SIGNAL, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                WeightedCell("현재가", COL_WEIGHT_PRICE, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                WeightedCell("수익률%", COL_WEIGHT_RETURN_PCT, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                WeightedCell("수익금", COL_WEIGHT_PROFIT_AMOUNT, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                Spacer(modifier = Modifier.width(EXPAND_ICON_WIDTH))
             }
             HorizontalDivider()
 
-            // Rows — 행 탭 = 거래내역, 종목명 셀 탭 = 퀵 분석 (전 화면 공통 규칙)
+            // Rows — 행 탭 = 거래내역, 종목명 셀 탭 = 퀵 분석 (전 화면 공통 규칙), 아이콘 탭 = 상세 펼치기/접기
             holdings.forEach { holding ->
                 val plColor = when {
                     holding.profitLossAmount > 0 -> gainColor
                     holding.profitLossAmount < 0 -> lossColor
                     else -> MaterialTheme.colorScheme.onSurface
                 }
+                val isExpanded = holding.holdingId in expandedIds
 
-                Row(
-                    modifier = Modifier
-                        .clickable { onRowClick(holding) }
-                        .padding(vertical = 6.dp)
-                ) {
-                    Text(
-                        text = holding.stockName,
+                Column {
+                    Row(
                         modifier = Modifier
-                            .width(100.dp)
-                            .padding(horizontal = 4.dp)
-                            .clickable { onQuickAnalysisClick(holding) },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    val score = snapshotScores[holding.ticker]
-                    TableCell(
-                        score?.let { "${(it * 100).toInt()}%" } ?: "-",
-                        52.dp,
-                        textAlign = TextAlign.Center,
-                        color = score?.let {
-                            when {
-                                it >= 0.65 -> gainColor
-                                it <= 0.35 -> lossColor
-                                else -> null
+                            .fillMaxWidth()
+                            .clickable { onRowClick(holding) }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = holding.stockName,
+                            modifier = Modifier
+                                .weight(COL_WEIGHT_NAME)
+                                .clickable { onQuickAnalysisClick(holding) }
+                                .padding(horizontal = 2.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        val score = snapshotScores[holding.ticker]
+                        WeightedCell(
+                            score?.let { "${(it * 100).toInt()}%" } ?: "-",
+                            COL_WEIGHT_SIGNAL,
+                            textAlign = TextAlign.Center,
+                            color = score?.let {
+                                when {
+                                    it >= 0.65 -> gainColor
+                                    it <= 0.35 -> lossColor
+                                    else -> null
+                                }
+                            },
+                            fontWeight = score?.let {
+                                if (it >= 0.65 || it <= 0.35) FontWeight.Bold else null
                             }
-                        },
-                        fontWeight = score?.let {
-                            if (it >= 0.65 || it <= 0.35) FontWeight.Bold else null
+                        )
+                        WeightedCell(
+                            if (holding.currentPrice > 0) krwFormat.format(holding.currentPrice) else "-",
+                            COL_WEIGHT_PRICE,
+                            textAlign = TextAlign.End
+                        )
+                        WeightedCell(
+                            "${if (holding.profitLossPercent >= 0) "+" else ""}${String.format("%.1f", holding.profitLossPercent)}",
+                            COL_WEIGHT_RETURN_PCT,
+                            textAlign = TextAlign.End,
+                            color = plColor
+                        )
+                        WeightedCell(
+                            "${if (holding.profitLossAmount >= 0) "+" else ""}${formatCompactAmount(holding.profitLossAmount)}",
+                            COL_WEIGHT_PROFIT_AMOUNT,
+                            textAlign = TextAlign.End,
+                            color = plColor
+                        )
+                        IconButton(
+                            onClick = {
+                                expandedIds = if (isExpanded) {
+                                    expandedIds - holding.holdingId
+                                } else {
+                                    expandedIds + holding.holdingId
+                                }
+                            },
+                            modifier = Modifier.size(EXPAND_ICON_WIDTH)
+                        ) {
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = if (isExpanded) "접기" else "상세 펼치기",
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
-                    )
-                    TableCell(holding.market, 60.dp)
-                    TableCell(holding.sector, 80.dp, maxLines = 1)
-                    TableCell(krwFormat.format(holding.totalShares), 70.dp, textAlign = TextAlign.End)
-                    TableCell(krwFormat.format(holding.avgBuyPrice), 90.dp, textAlign = TextAlign.End)
-                    TableCell(
-                        if (holding.currentPrice > 0) krwFormat.format(holding.currentPrice) else "-",
-                        90.dp,
-                        textAlign = TextAlign.End
-                    )
-                    val targetReached = holding.targetPrice > 0 && holding.currentPrice >= holding.targetPrice
-                    TableCell(
-                        if (holding.targetPrice > 0) krwFormat.format(holding.targetPrice) else "-",
-                        90.dp,
-                        textAlign = TextAlign.End,
-                        color = if (targetReached) gainColor else null
-                    )
-                    TableCell(
-                        String.format("%.1f", holding.weightPercent),
-                        60.dp,
-                        textAlign = TextAlign.End,
-                        color = if (holding.isOverWeight) gainColor else null
-                    )
-                    TableCell(
-                        if (holding.isOverWeight) "!!" else "",
-                        40.dp,
-                        textAlign = TextAlign.Center,
-                        color = gainColor,
-                        fontWeight = if (holding.isOverWeight) FontWeight.Bold else null
-                    )
-                    TableCell(
-                        if (holding.rebalanceShares > 0) krwFormat.format(holding.rebalanceShares) else "-",
-                        70.dp,
-                        textAlign = TextAlign.End
-                    )
-                    TableCell(
-                        if (holding.rebalanceAmount > 0) krwFormat.format(holding.rebalanceAmount) else "-",
-                        90.dp,
-                        textAlign = TextAlign.End
-                    )
-                    TableCell(
-                        "${if (holding.profitLossPercent >= 0) "+" else ""}${String.format("%.1f", holding.profitLossPercent)}",
-                        70.dp,
-                        textAlign = TextAlign.End,
-                        color = plColor
-                    )
-                    TableCell(
-                        "${if (holding.profitLossAmount >= 0) "+" else ""}${krwFormat.format(holding.profitLossAmount)}",
-                        100.dp,
-                        textAlign = TextAlign.End,
-                        color = plColor
-                    )
-                    val rlColor = when {
-                        holding.realizedProfitLoss > 0 -> gainColor
-                        holding.realizedProfitLoss < 0 -> lossColor
-                        else -> MaterialTheme.colorScheme.onSurface
                     }
-                    TableCell(
-                        if (holding.realizedProfitLoss != 0L)
-                            "${if (holding.realizedProfitLoss >= 0) "+" else ""}${krwFormat.format(holding.realizedProfitLoss)}"
-                        else "-",
-                        100.dp,
-                        textAlign = TextAlign.End,
-                        color = rlColor
-                    )
+
+                    AnimatedVisibility(
+                        visible = isExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        HoldingDetailBlock(holding = holding, gainColor = gainColor, lossColor = lossColor)
+                    }
                 }
                 HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
             }
@@ -613,10 +626,113 @@ private fun HoldingsTable(
     }
 }
 
+/** 15열 표에서 핵심 5열로 이동한 나머지 항목 + 수익금 원 단위 정밀값 — 행별 인라인 확장 상세 블록 (2열 라벨-값 그리드) */
 @Composable
-private fun TableCell(
+private fun HoldingDetailBlock(
+    holding: PortfolioHoldingItem,
+    gainColor: Color,
+    lossColor: Color
+) {
+    val targetReached = holding.targetPrice > 0 && holding.currentPrice >= holding.targetPrice
+    val rlColor = when {
+        holding.realizedProfitLoss > 0 -> gainColor
+        holding.realizedProfitLoss < 0 -> lossColor
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    val plColor = when {
+        holding.profitLossAmount > 0 -> gainColor
+        holding.profitLossAmount < 0 -> lossColor
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+
+    val fields = listOf(
+        DetailField("시장", holding.market),
+        DetailField("업종", holding.sector),
+        DetailField("보유수", krwFormat.format(holding.totalShares)),
+        DetailField("평균매입가", krwFormat.format(holding.avgBuyPrice)),
+        DetailField(
+            "목표가",
+            if (holding.targetPrice > 0) krwFormat.format(holding.targetPrice) else "-",
+            color = if (targetReached) gainColor else null
+        ),
+        DetailField(
+            "비중%",
+            "${String.format("%.1f", holding.weightPercent)}%${if (holding.isOverWeight) " 초과" else ""}",
+            color = if (holding.isOverWeight) gainColor else null,
+            bold = holding.isOverWeight
+        ),
+        DetailField(
+            "조절주식",
+            if (holding.rebalanceShares > 0) krwFormat.format(holding.rebalanceShares) else "-"
+        ),
+        DetailField(
+            "조절금액",
+            if (holding.rebalanceAmount > 0) krwFormat.format(holding.rebalanceAmount) else "-"
+        ),
+        DetailField(
+            "실현손익",
+            if (holding.realizedProfitLoss != 0L)
+                "${if (holding.realizedProfitLoss >= 0) "+" else ""}${krwFormat.format(holding.realizedProfitLoss)}"
+            else "-",
+            color = if (holding.realizedProfitLoss != 0L) rlColor else null
+        ),
+        // 핵심 열의 수익금은 만/억 축약 표기 — 원 단위 정밀값은 여기서 제공
+        DetailField(
+            "수익금(원)",
+            "${if (holding.profitLossAmount >= 0) "+" else ""}${krwFormat.format(holding.profitLossAmount)}",
+            color = plColor
+        )
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .padding(horizontal = 8.dp, vertical = 8.dp)
+    ) {
+        fields.chunked(2).forEach { rowFields ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                rowFields.forEach { field ->
+                    DetailFieldCell(field, modifier = Modifier.weight(1f))
+                }
+                if (rowFields.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+private data class DetailField(
+    val label: String,
+    val value: String,
+    val color: Color? = null,
+    val bold: Boolean = false
+)
+
+@Composable
+private fun DetailFieldCell(field: DetailField, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.padding(horizontal = 4.dp, vertical = 3.dp)) {
+        Text(
+            text = field.label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = field.value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = if (field.bold) FontWeight.Bold else null,
+            color = field.color ?: MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun RowScope.WeightedCell(
     text: String,
-    width: androidx.compose.ui.unit.Dp,
+    weight: Float,
     fontWeight: FontWeight? = null,
     textAlign: TextAlign = TextAlign.Start,
     color: Color? = null,
@@ -624,7 +740,7 @@ private fun TableCell(
 ) {
     Text(
         text = text,
-        modifier = Modifier.width(width).padding(horizontal = 4.dp),
+        modifier = Modifier.weight(weight).padding(horizontal = 2.dp),
         style = MaterialTheme.typography.bodySmall,
         fontWeight = fontWeight,
         textAlign = textAlign,
