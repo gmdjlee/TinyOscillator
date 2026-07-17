@@ -25,11 +25,15 @@ import java.util.Locale
  * assistant 메시지로 append해 재요청해야 한다(추가 user 메시지 없이).
  * @param finalText 응답의 모든 `type=="text"` 블록을 순서대로 이어붙인 문자열. 시스템 프롬프트가
  * "최종 답은 JSON 객체만"을 지시하므로 이 문자열에서 JSON을 추출한다([extractJsonObject]).
+ * @param resultUrls §4.7 검증1 "URL 교차검증" 입력 — 이 응답에 동봉된 `web_search_tool_result`
+ * 블록에서 수집한 실제 검색결과 URL 목록(TASK_bear_signal_console.md §4.7 라인 352). §4.5 그룹①②③은
+ * 이 필드를 사용하지 않는다.
  * @param rawContent 원본 `content` 배열 — pause_turn 재개 시 그대로 재사용(가공하지 않음).
  */
 internal data class ParsedLlmResponse(
     val stopReason: String?,
     val finalText: String,
+    val resultUrls: List<String>,
     val rawContent: JsonArray
 )
 
@@ -46,7 +50,31 @@ internal fun parseLlmResponse(body: String, json: Json): ParsedLlmResponse {
             ""
         }
     }
-    return ParsedLlmResponse(stopReason, text, content)
+    return ParsedLlmResponse(stopReason, text, extractWebSearchResultUrls(content), content)
+}
+
+/**
+ * §4.7 검증1 "URL 교차검증" 입력 — `content` 배열에서 `type=="web_search_tool_result"` 블록을 찾아
+ * 그 안의 실제 검색결과 `url`들을 수집한다(환각/조작 URL 차단의 근거 데이터, [AiContextClaimValidation.isUrlVerified]).
+ *
+ * `web_search_tool_result`의 `content`는 정상 시 배열([{"type":"web_search_result","url":"…"}, …])이지만,
+ * 검색 실패 시 에러 객체([JsonObject], 예: `{"type":"web_search_tool_result_error", …}`)로 올 수 있어
+ * 배열이 아니면 조용히 건너뛴다(예외를 던지지 않음 — URL 목록이 비어 있을 뿐 파싱 실패가 아니다).
+ */
+internal fun extractWebSearchResultUrls(content: JsonArray): List<String> {
+    val urls = mutableListOf<String>()
+    content.forEach { block ->
+        val obj = block.jsonObject
+        if (obj["type"]?.jsonPrimitive?.contentOrNull == "web_search_tool_result") {
+            val resultContent = obj["content"]
+            if (resultContent is JsonArray) {
+                resultContent.forEach { item ->
+                    item.jsonObject["url"]?.jsonPrimitive?.contentOrNull?.let { urls += it }
+                }
+            }
+        }
+    }
+    return urls
 }
 
 /**
@@ -124,15 +152,18 @@ internal fun parseCreditDto(obj: JsonObject): CreditRaw = CreditRaw(
  * 이 문자열에서 JSON을 추출한다([extractJsonObject]).
  * @param searchWidgetHtml `groundingMetadata.searchEntryPoint.renderedContent` — Google 검색 제안
  * 위젯 HTML(ToS상 사용자 표시 의무). 없으면 null(예: candidates가 비어있거나 grounding 미사용).
+ * @param resultUrls §4.7 검증1 "URL 교차검증" 입력 — `groundingMetadata.groundingChunks[].web.uri`
+ * 목록(TASK_bear_signal_console.md §4.7 라인 352 "Gemini `groundingMetadata.groundingChunks`").
  */
 internal data class ParsedGeminiResponse(
     val finalText: String,
-    val searchWidgetHtml: String?
+    val searchWidgetHtml: String?,
+    val resultUrls: List<String>
 )
 
 /**
  * Gemini `generateContent` 응답 body를 파싱한다. `candidates`가 비어있으면 [ParsedGeminiResponse.finalText]는
- * 빈 문자열, [ParsedGeminiResponse.searchWidgetHtml]는 null이다.
+ * 빈 문자열, [ParsedGeminiResponse.searchWidgetHtml]는 null, [ParsedGeminiResponse.resultUrls]는 빈 리스트다.
  */
 internal fun parseGeminiLlmResponse(body: String, json: Json): ParsedGeminiResponse {
     val root = json.parseToJsonElement(body).jsonObject
@@ -143,12 +174,18 @@ internal fun parseGeminiLlmResponse(body: String, json: Json): ParsedGeminiRespo
         part.jsonObject["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
     }
 
-    val widgetHtml = firstCandidate
-        ?.get("groundingMetadata")?.jsonObject
+    val groundingMetadata = firstCandidate?.get("groundingMetadata")?.jsonObject
+
+    val widgetHtml = groundingMetadata
         ?.get("searchEntryPoint")?.jsonObject
         ?.get("renderedContent")?.jsonPrimitive?.contentOrNull
 
-    return ParsedGeminiResponse(finalText = text, searchWidgetHtml = widgetHtml)
+    val resultUrls = groundingMetadata
+        ?.get("groundingChunks")?.jsonArray
+        ?.mapNotNull { chunk -> chunk.jsonObject["web"]?.jsonObject?.get("uri")?.jsonPrimitive?.contentOrNull }
+        .orEmpty()
+
+    return ParsedGeminiResponse(finalText = text, searchWidgetHtml = widgetHtml, resultUrls = resultUrls)
 }
 
 /** `as_of` 문자열(YYYY-MM-DD)을 파싱한다. 없거나 파싱 실패면 오늘 날짜로 폴백(신선도는 낙관적으로 처리). */
@@ -161,5 +198,52 @@ internal fun parseDateOrToday(raw: String?): LocalDate {
     }
 }
 
+/**
+ * `source_date` 문자열(YYYY-MM-DD)을 파싱한다. §4.7 클레임의 `source_date`는 [parseDateOrToday]와
+ * 달리 부재 시 오늘로 낙관 폴백하면 안 된다 — `AiContextClaimValidation.validate`의
+ * `SOURCE_DATE_MISSING` 폐기 판정이 실제 null을 필요로 하므로, 없거나 파싱 실패면 그대로 null을
+ * 반환한다(TASK_bear_signal_console.md §4.7 검증2).
+ */
+internal fun parseDateOrNull(raw: String?): LocalDate? {
+    if (raw.isNullOrBlank()) return null
+    return try {
+        LocalDate.parse(raw)
+    } catch (e: DateTimeParseException) {
+        null
+    }
+}
+
 /** 표시·인코딩용 숫자 포맷 — Locale 고정(소수점 콤마 로케일 방지). */
 internal fun formatNumber(value: Double): String = String.format(Locale.US, "%.2f", value)
+
+/** §4.7 클레임 스키마(`claims[]` 항목 하나) 원시 파싱 결과 — 화이트리스트/enum 매핑은 [LlmMarketDataSource]가 담당. */
+internal data class AiContextClaimRaw(
+    val sectionKey: String?,
+    val text: String?,
+    val type: String?,
+    val sourceUrl: String?,
+    val sourceTitle: String?,
+    val sourceDate: String?,
+    val quote: String?
+)
+
+/**
+ * §4.7 프롬프트-JSON `claims[]` 배열을 원시 DTO 목록으로 파싱한다(관용 파싱 — [extractJsonObject]로
+ * 이미 추출된 최상위 객체를 입력받는다). `claims` 필드가 없거나 항목이 객체가 아니면 해당 항목만
+ * 건너뛴다(전체 파싱 실패로 취급하지 않음 — 그룹 폐기가 아니라 클레임 단위 처리 원칙과 일관).
+ */
+internal fun parseAiContextClaimsDto(obj: JsonObject): List<AiContextClaimRaw> {
+    val claims = obj["claims"]?.jsonArray ?: return emptyList()
+    return claims.mapNotNull { element ->
+        val c = element as? JsonObject ?: return@mapNotNull null
+        AiContextClaimRaw(
+            sectionKey = c["section_key"]?.jsonPrimitive?.contentOrNull,
+            text = c["text"]?.jsonPrimitive?.contentOrNull,
+            type = c["type"]?.jsonPrimitive?.contentOrNull,
+            sourceUrl = c["source_url"]?.jsonPrimitive?.contentOrNull,
+            sourceTitle = c["source_title"]?.jsonPrimitive?.contentOrNull,
+            sourceDate = c["source_date"]?.jsonPrimitive?.contentOrNull,
+            quote = c["quote"]?.jsonPrimitive?.contentOrNull
+        )
+    }
+}

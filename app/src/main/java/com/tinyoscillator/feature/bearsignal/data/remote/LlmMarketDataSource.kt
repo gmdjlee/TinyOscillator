@@ -4,7 +4,16 @@ import com.tinyoscillator.core.api.ApiError
 import com.tinyoscillator.core.config.ApiConstants
 import com.tinyoscillator.domain.model.AiApiKeyConfig
 import com.tinyoscillator.domain.model.AiProvider
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaimDraft
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaimRejection
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaimValidation
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaimValidationResult
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextFetchResult
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextGroupOutcome
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextSectionKey
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalInputs
+import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalStaticContent
+import com.tinyoscillator.feature.bearsignal.domain.model.ClaimType
 import com.tinyoscillator.feature.bearsignal.domain.model.Suggestion
 import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionField
 import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionFetchResult
@@ -113,6 +122,149 @@ class LlmMarketDataSource(
             credit = creditDeferred.await()
         )
     }
+
+    // ── §4.7 그룹④⑤⑥ 정세 업데이트(모니터·사례·역사 현재비교, Phase 7-2) ──────────
+
+    /**
+     * §4.7 그룹④monitor·⑤cases·⑥history_current를 병렬 조회한다(§4.5 [fetchSuggestions]와 동일한
+     * 부분 실패 격리 패턴). **저장하지 않는다** — 검증 통과 클레임은 [AiContextGroupOutcome.pending]에
+     * 담겨 승인 대기 상태로만 반환되고, Room 반영은
+     * [com.tinyoscillator.feature.bearsignal.data.repository.AiContextRepositoryImpl.approve]가
+     * 사용자 승인 후에만 수행한다(§4.7 "승인 없이는 표시 콘텐츠 불변").
+     *
+     * @param today STALE 판정·클레임 검증 기준일 — 테스트에서만 오버라이드, 프로덕션은 오늘 날짜.
+     */
+    suspend fun fetchAiContextUpdates(
+        config: AiApiKeyConfig,
+        today: LocalDate = LocalDate.now()
+    ): AiContextFetchResult = supervisorScope {
+        val monitorDeferred = async { fetchMonitorGroup(config, today) }
+        val casesDeferred = async { fetchCasesGroup(config, today) }
+        val historyDeferred = async { fetchHistoryCurrentGroup(config, today) }
+        AiContextFetchResult(
+            monitor = monitorDeferred.await(),
+            cases = casesDeferred.await(),
+            historyCurrent = historyDeferred.await()
+        )
+    }
+
+    // ── 그룹④ monitor(type0/1/2_monitor) ─────────────────────────────
+
+    internal suspend fun fetchMonitorGroup(
+        config: AiApiKeyConfig,
+        today: LocalDate = LocalDate.now()
+    ): AiContextGroupOutcome =
+        try {
+            fetchAiContextGroupOrThrow(config, MONITOR_SYSTEM_PROMPT, MONITOR_USER_PROMPT, GROUP_LABEL_MONITOR, today)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            aiContextGroupFailure(e, GROUP_LABEL_MONITOR, config)
+        }
+
+    // ── 그룹⑤ cases(type0/1/2_cases) ─────────────────────────────────
+
+    internal suspend fun fetchCasesGroup(
+        config: AiApiKeyConfig,
+        today: LocalDate = LocalDate.now()
+    ): AiContextGroupOutcome =
+        try {
+            fetchAiContextGroupOrThrow(config, CASES_SYSTEM_PROMPT, CASES_USER_PROMPT, GROUP_LABEL_CASES, today)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            aiContextGroupFailure(e, GROUP_LABEL_CASES, config)
+        }
+
+    // ── 그룹⑥ history_current ────────────────────────────────────────
+
+    internal suspend fun fetchHistoryCurrentGroup(
+        config: AiApiKeyConfig,
+        today: LocalDate = LocalDate.now()
+    ): AiContextGroupOutcome =
+        try {
+            fetchAiContextGroupOrThrow(
+                config,
+                HISTORY_CURRENT_SYSTEM_PROMPT,
+                HISTORY_CURRENT_USER_PROMPT,
+                GROUP_LABEL_HISTORY_CURRENT,
+                today
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            aiContextGroupFailure(e, GROUP_LABEL_HISTORY_CURRENT, config)
+        }
+
+    /**
+     * §4.7 그룹④⑤⑥ 공통 처리 — LLM 호출 → `claims[]` 파싱 → [AiContextSectionKey]/[ClaimType] 화이트
+     * 리스트 매핑(알 수 없는 값은 해당 클레임만 스킵, [toAiContextDraft]) → [AiContextClaimValidation]
+     * 클레임 단위 검증(폐기 사유별 집계, 그룹 폐기 아님). §4.7은 §4.5보다 클레임 수가 많을 수 있어
+     * (유형 3개 × 항목 다수) [AI_CONTEXT_MAX_TOKENS]로 응답 여유를 더 둔다.
+     */
+    private suspend fun fetchAiContextGroupOrThrow(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        userMessage: String,
+        label: String,
+        today: LocalDate
+    ): AiContextGroupOutcome {
+        val callResult = callLlmWithSearch(config, systemPrompt, userMessage, AI_CONTEXT_MAX_TOKENS)
+        val provider = providerLabel(config)
+        val obj = extractJsonObject(callResult.text, json)
+            ?: return AiContextGroupOutcome(
+                emptyList(),
+                emptyMap(),
+                "$label 응답 파싱 실패",
+                callResult.searchWidgetHtml,
+                provider
+            )
+
+        val drafts = parseAiContextClaimsDto(obj).mapNotNull(::toAiContextDraft)
+        val pending = mutableListOf<AiContextClaimValidationResult.Accepted>()
+        val rejectedCounts = mutableMapOf<AiContextClaimRejection, Int>()
+        drafts.forEach { draft ->
+            when (val result = AiContextClaimValidation.validate(draft, callResult.resultUrls, today)) {
+                is AiContextClaimValidationResult.Accepted -> pending += result
+                is AiContextClaimValidationResult.Rejected ->
+                    rejectedCounts[result.reason] = (rejectedCounts[result.reason] ?: 0) + 1
+            }
+        }
+        return AiContextGroupOutcome(pending, rejectedCounts, null, callResult.searchWidgetHtml, provider)
+    }
+
+    /**
+     * 원시 클레임 → [AiContextClaimDraft]. `section_key`/`type`이 화이트리스트 밖이면 null(호출측이
+     * 스킵 — TASK_bear_signal_console.md §4.7 "알 수 없는 section_key·type은 해당 클레임 스킵/폐기").
+     * `text`가 비어있는 클레임도 쓸모없는 항목이라 함께 스킵한다(검증 파이프라인의 정식 폐기 사유는
+     * 아니며, 파싱 단계의 방어적 필터링).
+     *
+     * `source_date`는 [parseDateOrToday]가 아니라 [parseDateOrNull]로 파싱한다 — §4.7 검증2
+     * "source_date 부재 → 폐기"가 실제 null을 요구하기 때문이다(§4.5의 낙관적 오늘 폴백과 다름).
+     */
+    private fun toAiContextDraft(raw: AiContextClaimRaw): AiContextClaimDraft? {
+        val sectionKey = raw.sectionKey?.let { AiContextSectionKey.fromKey(it) } ?: return null
+        val type = raw.type?.let { ClaimType.fromKey(it) } ?: return null
+        val text = raw.text?.takeIf { it.isNotBlank() } ?: return null
+        return AiContextClaimDraft(
+            sectionKey = sectionKey,
+            text = text,
+            type = type,
+            sourceUrl = raw.sourceUrl,
+            sourceTitle = raw.sourceTitle,
+            sourceDate = parseDateOrNull(raw.sourceDate),
+            quote = raw.quote
+        )
+    }
+
+    private fun aiContextGroupFailure(e: Exception, label: String, config: AiApiKeyConfig): AiContextGroupOutcome {
+        val message = (e as? ApiError)?.message ?: e.message ?: "알 수 없는 오류"
+        Timber.w(e, "%s §4.7 그룹 조회 실패", label)
+        return AiContextGroupOutcome(emptyList(), emptyMap(), "$label: $message", null, providerLabel(config))
+    }
+
+    /** [BearSignalAiContextEntity.provider][com.tinyoscillator.feature.bearsignal.data.local.BearSignalAiContextEntity.provider] 규약("claude"/"gemini")과 동일하게 소문자로 표기한다. */
+    private fun providerLabel(config: AiApiKeyConfig): String = config.provider.name.lowercase()
 
     // ── 그룹① rate/dir ────────────────────────────────────────────────
 
@@ -299,30 +451,44 @@ class LlmMarketDataSource(
 
     // ── LLM 호출 디스패치(§4.5 v1.3 제공자 이원화) ────────────────────────
 
-    /** 그룹별 단일 논리적 호출 결과 — [text]에서 JSON을 추출하고, Gemini 경로는 [searchWidgetHtml]을 함께 담는다. */
-    private data class LlmCallResult(val text: String, val searchWidgetHtml: String?)
+    /**
+     * 그룹별 단일 논리적 호출 결과 — [text]에서 JSON을 추출하고, Gemini 경로는 [searchWidgetHtml]을
+     * 함께 담는다. [resultUrls]는 §4.7 검증1 "URL 교차검증" 입력([AiContextClaimValidation.validate]) —
+     * §4.5 그룹①②③은 이 필드를 사용하지 않는다(빈 리스트로 흘러도 무해).
+     */
+    private data class LlmCallResult(val text: String, val resultUrls: List<String>, val searchWidgetHtml: String?)
 
     private suspend fun callLlmWithSearch(
         config: AiApiKeyConfig,
         systemPrompt: String,
-        userMessage: String
+        userMessage: String,
+        maxTokens: Int = MAX_TOKENS
     ): LlmCallResult = when (config.provider) {
-        AiProvider.CLAUDE -> LlmCallResult(callClaudeWithWebSearch(config, systemPrompt, userMessage), null)
-        AiProvider.GEMINI -> callGeminiWithGoogleSearch(config, systemPrompt, userMessage)
+        AiProvider.CLAUDE -> callClaudeWithWebSearch(config, systemPrompt, userMessage, maxTokens).let {
+            LlmCallResult(it.text, it.resultUrls, null)
+        }
+        AiProvider.GEMINI -> callGeminiWithGoogleSearch(config, systemPrompt, userMessage, maxTokens)
     }
 
     // ── Anthropic API 호출(web_search 서버 도구 + pause_turn 재개) ──────────
 
+    /** [callClaudeWithWebSearch] 결과 — [resultUrls]는 pause_turn 재개 전 구간을 포함한 전체 누적값(§4.7). */
+    private data class ClaudeCallResult(val text: String, val resultUrls: List<String>)
+
     /**
      * `web_search` 서버 도구를 사용하는 단일 논리적 호출 — `stop_reason == "pause_turn"`이면 받은
      * assistant `content`를 그대로 messages에 append해 재요청한다(추가 user 메시지 없이). 반복
-     * 한도는 [MAX_CONTINUATIONS]. 최종 텍스트(모든 `text` 블록 이어붙임)를 반환한다.
+     * 한도는 [MAX_CONTINUATIONS]. 최종 텍스트(모든 `text` 블록 이어붙임)와, 재개 과정에서 오간 모든
+     * 응답의 [ParsedLlmResponse.resultUrls]를 합집합으로 누적해 반환한다 — §4.7 검증1은 "같은
+     * 응답에 동봉된" URL을 요구하지만 pause_turn 재개는 논리적으로 하나의 호출이므로, 앞선 응답의
+     * `web_search_tool_result`에서만 나온 URL을 최종 클레임이 인용해도 검증을 통과해야 한다.
      */
     private suspend fun callClaudeWithWebSearch(
         config: AiApiKeyConfig,
         systemPrompt: String,
-        userMessage: String
-    ): String {
+        userMessage: String,
+        maxTokens: Int = MAX_TOKENS
+    ): ClaudeCallResult {
         var messages: JsonArray = buildJsonArray {
             add(buildJsonObject {
                 put("role", "user")
@@ -330,23 +496,30 @@ class LlmMarketDataSource(
             })
         }
         var continuations = 0
+        val accumulatedUrls = mutableListOf<String>()
         while (true) {
-            val request = buildClaudeRequest(config, systemPrompt, messages)
+            val request = buildClaudeRequest(config, systemPrompt, messages, maxTokens)
             val body = executeWithRetry(request, AiProvider.CLAUDE).getOrThrow()
             val parsed = parseLlmResponse(body, json)
+            accumulatedUrls += parsed.resultUrls
             if (parsed.stopReason == "pause_turn" && continuations < MAX_CONTINUATIONS) {
                 continuations++
                 messages = appendAssistantContent(messages, parsed.rawContent)
                 continue
             }
-            return parsed.finalText
+            return ClaudeCallResult(parsed.finalText, accumulatedUrls.distinct())
         }
     }
 
-    private fun buildClaudeRequest(config: AiApiKeyConfig, systemPrompt: String, messages: JsonArray): Request {
+    private fun buildClaudeRequest(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        messages: JsonArray,
+        maxTokens: Int = MAX_TOKENS
+    ): Request {
         val body = buildJsonObject {
             put("model", config.modelId)
-            put("max_tokens", MAX_TOKENS)
+            put("max_tokens", maxTokens)
             put("system", systemPrompt)
             put("messages", messages)
             put("tools", buildJsonArray {
@@ -385,16 +558,22 @@ class LlmMarketDataSource(
     private suspend fun callGeminiWithGoogleSearch(
         config: AiApiKeyConfig,
         systemPrompt: String,
-        userMessage: String
+        userMessage: String,
+        maxTokens: Int = MAX_TOKENS
     ): LlmCallResult {
         waitForGeminiRateLimit()
-        val request = buildGeminiRequest(config, systemPrompt, userMessage)
+        val request = buildGeminiRequest(config, systemPrompt, userMessage, maxTokens)
         val body = executeWithRetry(request, AiProvider.GEMINI).getOrThrow()
         val parsed = parseGeminiLlmResponse(body, json)
-        return LlmCallResult(parsed.finalText, parsed.searchWidgetHtml)
+        return LlmCallResult(parsed.finalText, parsed.resultUrls, parsed.searchWidgetHtml)
     }
 
-    private fun buildGeminiRequest(config: AiApiKeyConfig, systemPrompt: String, userMessage: String): Request {
+    private fun buildGeminiRequest(
+        config: AiApiKeyConfig,
+        systemPrompt: String,
+        userMessage: String,
+        maxTokens: Int = MAX_TOKENS
+    ): Request {
         // Gemini는 systemInstruction을 쓰지 않고 시스템 프롬프트를 user 텍스트 앞에 접합한다
         // (기존 AiApiClient Gemini 관례 재사용).
         val combinedText = "$systemPrompt\n\n$userMessage"
@@ -415,7 +594,7 @@ class LlmMarketDataSource(
             put("generationConfig", buildJsonObject {
                 // Gemini 2.5+ thinking 오버헤드 반영(AiApiClient GEMINI_THINKING_OVERHEAD 관례) —
                 // responseMimeType은 절대 넣지 않는다(google_search와 병용 불가, HTTP 400).
-                put("maxOutputTokens", GEMINI_MAX_OUTPUT_TOKENS)
+                put("maxOutputTokens", maxTokens + GEMINI_THINKING_OVERHEAD)
             })
         }.toString()
 
@@ -494,9 +673,14 @@ class LlmMarketDataSource(
 
         private const val MAX_TOKENS = 1024
 
+        /**
+         * §4.7 그룹④⑤⑥ 전용 응답 토큰 한도 — §4.5 그룹①②③(1~2개 스칼라 필드)보다 클레임 개수가
+         * 많을 수 있어(유형 3개 × 체크리스트/사례 항목 + quote 원문 인용) 여유를 더 둔다.
+         */
+        private const val AI_CONTEXT_MAX_TOKENS = 4096
+
         /** Gemini 2.5+ thinking 토큰이 maxOutputTokens에 포함되는 오버헤드(AiApiClient 관례 재사용). */
         private const val GEMINI_THINKING_OVERHEAD = 8192
-        private const val GEMINI_MAX_OUTPUT_TOKENS = MAX_TOKENS + GEMINI_THINKING_OVERHEAD
 
         /** 그룹당 web_search 최대 호출 횟수(도구 정의 `max_uses`). */
         private const val MAX_SEARCH_USES = 3
@@ -560,5 +744,101 @@ class LlmMarketDataSource(
 
         private const val CREDIT_USER_PROMPT =
             "KOFIA 신용거래융자 잔고(조원) 최신 주간 통계를 조사해줘."
+
+        // ── §4.7 그룹④⑤⑥ 프롬프트(정세 업데이트, Phase 7-2) ──────────────────
+
+        private const val GROUP_LABEL_MONITOR = "약세장 3유형 모니터링 체크리스트"
+        private const val GROUP_LABEL_CASES = "약세장 3유형 사례"
+        private const val GROUP_LABEL_HISTORY_CURRENT = "역사 검증 현재 비교"
+
+        /**
+         * §4.7 그룹④monitor 시스템 프롬프트 — [BearSignalStaticContent.TYPES]의 기존 체크리스트를
+         * 기준선으로 제시하고, `fact`만 요구한다(§4.7 "monitor·cases 클레임은 type=fact만 허용").
+         */
+        private val MONITOR_SYSTEM_PROMPT: String = buildString {
+            appendLine(
+                "너는 한국 주식시장 리스크 계기판을 위한 데이터 수집 보조원이다. 아래 약세장 3유형별 " +
+                    "모니터링 체크리스트가 최신 상황을 반영하는지 웹 검색으로 점검하고, 갱신·추가가 " +
+                    "필요한 사실적 근거를 조사해줘."
+            )
+            BearSignalStaticContent.TYPES.forEach { type ->
+                appendLine()
+                appendLine("[유형${type.index} ${type.title}] 기존 체크리스트:")
+                type.monitor.forEach { item -> appendLine("- $item") }
+            }
+            appendLine()
+            appendLine("조사 결과를 반드시 하나의 JSON 객체로만 답하라(다른 설명 텍스트는 절대 포함하지 마라).")
+            appendLine("각 클레임은 검증 가능한 사실(fact)만 담아라 — type은 항상 \"fact\"만 사용하라(해석·의견 금지).")
+            appendLine("quote에는 출처 페이지의 원문을 그대로 인용하라(요약 금지, 검증·증거 보존용).")
+            appendLine()
+            appendLine("JSON 스키마(claims 배열, 항목 0개 이상):")
+            appendLine(
+                "{\"claims\": [{\"section_key\": \"type0_monitor|type1_monitor|type2_monitor\", " +
+                    "\"text\": \"...\", \"type\": \"fact\", \"source_url\": \"...\", " +
+                    "\"source_title\": \"...\", \"source_date\": \"YYYY-MM-DD\", \"quote\": \"...\"}]}"
+            )
+        }
+
+        private const val MONITOR_USER_PROMPT = "약세장 3유형 모니터링 체크리스트를 최신 뉴스로 점검해줘."
+
+        /** §4.7 그룹⑤cases 시스템 프롬프트 — 기존 사례([BearSignalStaticContent.TYPES]`.cases`)를 기준선으로 최근 사례를 요청한다. */
+        private val CASES_SYSTEM_PROMPT: String = buildString {
+            appendLine(
+                "너는 한국 주식시장 리스크 계기판을 위한 데이터 수집 보조원이다. 아래 약세장 3유형별 " +
+                    "사례가 최근 상황을 반영하는지 웹 검색으로 점검하고, 추가하거나 갱신할 만한 " +
+                    "검증 가능한 최근 사례를 조사해줘."
+            )
+            BearSignalStaticContent.TYPES.forEach { type ->
+                appendLine()
+                appendLine("[유형${type.index} ${type.title}] 기존 사례: ${type.cases}")
+            }
+            appendLine()
+            appendLine("조사 결과를 반드시 하나의 JSON 객체로만 답하라(다른 설명 텍스트는 절대 포함하지 마라).")
+            appendLine("각 클레임은 검증 가능한 사실(fact)만 담아라 — type은 항상 \"fact\"만 사용하라(해석·의견 금지).")
+            appendLine("quote에는 출처 페이지의 원문을 그대로 인용하라(요약 금지, 검증·증거 보존용).")
+            appendLine()
+            appendLine("JSON 스키마(claims 배열, 항목 0개 이상):")
+            appendLine(
+                "{\"claims\": [{\"section_key\": \"type0_cases|type1_cases|type2_cases\", " +
+                    "\"text\": \"...\", \"type\": \"fact\", \"source_url\": \"...\", " +
+                    "\"source_title\": \"...\", \"source_date\": \"YYYY-MM-DD\", \"quote\": \"...\"}]}"
+            )
+        }
+
+        private const val CASES_USER_PROMPT = "약세장 3유형 사례를 최근 검증 가능한 사실로 업데이트해줘."
+
+        /**
+         * §4.7 그룹⑥history_current 시스템 프롬프트 — [BearSignalStaticContent.HISTORY_BODY_CURRENT]·
+         * [BearSignalStaticContent.HISTORY_METRICS]를 기준선으로 제시한다. `history_current`만
+         * `interpretation`을 허용하므로(§4.7 "history_current는 interpretation 허용") fact/interpretation
+         * 모두 요청 가능함을 명시한다.
+         */
+        private val HISTORY_CURRENT_SYSTEM_PROMPT: String = buildString {
+            appendLine(
+                "너는 한국 주식시장 리스크 계기판을 위한 데이터 수집 보조원이다. 아래는 1980년대 " +
+                    "일본 반도체 산업 붕괴와 현재 한국의 위치를 비교하는 문단과, 감시 대상 3대 " +
+                    "지표의 기존 기준선이다."
+            )
+            appendLine()
+            appendLine("기존 비교 문단: \"${BearSignalStaticContent.HISTORY_BODY_CURRENT}\"")
+            BearSignalStaticContent.HISTORY_METRICS.forEach { metric ->
+                appendLine("- [${metric.header}] ${metric.body}")
+            }
+            appendLine()
+            appendLine("웹 검색으로 이 비교 문단·3대 지표를 최신화할 사실적 근거 또는 해석을 조사해줘.")
+            appendLine("검증 가능한 사실(fact)에는 quote(출처 페이지 원문 인용)를 반드시 채워라. 사실이")
+            appendLine("아닌 해석·전망·예측은 type을 \"interpretation\"으로 표시하라(quote 생략 가능).")
+            appendLine()
+            appendLine("조사 결과를 반드시 하나의 JSON 객체로만 답하라(다른 설명 텍스트는 절대 포함하지 마라).")
+            appendLine("JSON 스키마(claims 배열, 항목 0개 이상):")
+            appendLine(
+                "{\"claims\": [{\"section_key\": \"history_current\", \"text\": \"...\", " +
+                    "\"type\": \"fact|interpretation\", \"source_url\": \"...\", " +
+                    "\"source_title\": \"...\", \"source_date\": \"YYYY-MM-DD\", \"quote\": \"...\"}]}"
+            )
+        }
+
+        private const val HISTORY_CURRENT_USER_PROMPT =
+            "일본 1980년대 반도체 붕괴와 현재 한국 위치를 비교하는 문단·3대 지표를 최신 뉴스로 업데이트해줘."
     }
 }

@@ -45,6 +45,47 @@ in-memory upsert/조회/삭제, `BearSignalStaticContentTest` +2건 무손실 �
 패키지 전체 414건/0실패. 스키마 `app/schemas/.../38.json` export 확인(`bear_signal_ai_context` DDL 마이그레이션과
 1:1 일치). `assembleDebug` 통과. 임계치/스코어링 미변경, 자동 fetch·워커 편입 없음(P7-2/7-3 몫), 2026-07-17)
 
+PROGRESS: P7-2 — 완료 (§4.7 LLM 수집 확장 + 클레임 파싱·검증 파이프라인 연결, 2026-07-17. **응답 파싱
+확장**: `ParsedLlmResponse`/`ParsedGeminiResponse`에 `resultUrls: List<String>` 신규(§4.7 검증1 "URL
+교차검증" 입력) — Claude `web_search_tool_result` 블록의 `content[].url` 수집(`content`가 배열이 아닌
+에러 객체면 방어적으로 건너뜀, `extractWebSearchResultUrls`), Gemini `groundingMetadata.groundingChunks[].web.uri`
+수집. 기존 §4.5 경로 동작 불변(필드 추가만). **`LlmMarketDataSource` 그룹④⑤⑥ 신규**: `fetchMonitorGroup`
+(type0/1/2_monitor 통합 1호출)·`fetchCasesGroup`(type0/1/2_cases 통합 1호출)·`fetchHistoryCurrentGroup`
+(history_current)를 `fetchAiContextUpdates`가 `supervisorScope`+`async` 병렬 조회(§4.5 `fetchSuggestions`와
+동일 부분 실패 격리 패턴). 프롬프트는 `BearSignalStaticContent.TYPES`/`HISTORY_BODY_CURRENT`/`HISTORY_METRICS`를
+기준선으로 동적 구성(monitor/cases는 `type=fact`만 요구, history_current는 `fact|interpretation` 허용) +
+§4.7 클레임 스키마 JSON 요구 + `AI_CONTEXT_MAX_TOKENS=4096`(§4.5 그룹보다 클레임 다수 예상, `maxTokens`를
+`callLlmWithSearch`→`callClaudeWithWebSearch`/`callGeminiWithGoogleSearch`→`buildClaudeRequest`/`buildGeminiRequest`
+전체에 파라미터로 threading, 기본값은 기존 `MAX_TOKENS=1024`라 §4.5 회귀 없음). `claims[]` 파싱
+(`parseAiContextClaimsDto`/`AiContextClaimRaw` 신규, `LlmResponseParsing.kt`) → `toAiContextDraft`가
+`AiContextSectionKey.fromKey`/`ClaimType.fromKey` 화이트리스트 매핑(알 수 없는 값·빈 text는 해당 클레임만
+스킵) → `AiContextClaimValidation.validate`(P7-1 순수함수 재사용, resultUrls 전달) → `AiContextGroupOutcome`
+(pending/rejectedCounts 사유별/error/searchWidgetHtml/provider) 신규 도메인 모델(`AiContextModels.kt`
+확장) + `AiContextFetchResult`(allPending/failedGroupMessages/searchWidgetsHtml). **pause_turn URL
+누적**: Claude 재개 루프가 여러 응답에 걸쳐 나올 수 있어 `callClaudeWithWebSearch`가 각 반복의
+`resultUrls`를 합집합 누적(`ClaudeCallResult`) — 앞선 응답의 검색결과만 인용한 최종 클레임도 검증
+통과하도록 함(§4.7 검증1은 "같은 응답에 동봉된"을 요구하지만 pause_turn 재개는 논리적으로 하나의
+호출). **도메인 연결 계층**: `AiContextRepository`/`AiContextRepositoryImpl` 신규(`fetchUpdates`는
+Room에 아무것도 쓰지 않음 — §4.7 "승인 없이는 표시 콘텐츠 불변", `approve`는 `section_key`별로 묶어
+upsert하고 `as_of`는 섹션 내 클레임 `source_date` 최댓값, `getApproved`는 저장된 전 섹션 역직렬화) +
+`AiContextClaimPayload`(`@Serializable`, LocalDate↔ISO 문자열, `SnapshotFieldMetaEntry` 관례 재사용) +
+`AiContextClaimMapper`(도메인 리스트 ↔ `content_json` 직렬화, 손상 JSON·알 수 없는 section_key/type·
+파싱 불가 source_date는 방어적으로 스킵) + `FetchAiContextUpdatesUseCase`/`ApproveAiContextClaimsUseCase`/
+`GetApprovedAiContextUseCase`(기존 usecase 관례) + `BearSignalModule` Hilt 바인딩 4건 추가(`DaoModule`은
+P7-1에서 이미 `provideBearSignalAiContextDao` 배선 완료 — 수정 불요). **불변 확인**: 자동 fetch·워커
+편입 없음(신규 그룹은 명시 usecase 경유만), §3 스코어링·`ComputeBearSignalUseCase`·`bear_thresholds.json`
+미접촉, `BearSignalStaticContent` 원문 무수정. JVM 테스트 신규 27건(`LlmResponseParsingTest` +5 —
+Claude web_search_tool_result URL 추출 정상/에러객체/블록없음, Gemini groundingChunks 추출 있음/없음;
+`LlmMarketDataSourceTest` +10 — 그룹④⑤⑥ 정상 수용·환각 URL 폐기·interpretation 폐기·quote 부재
+폐기·알 수 없는 section_key 스킵·STALE 플래그·Gemini 위젯 HTML 전달·Gemini groundingChunks 검증·
+pause_turn URL 누적·`fetchAiContextUpdates` 부분 실패 격리; `AiContextClaimMapperTest` 5건 신규 —
+직렬화·왕복·손상 JSON·알 수 없는 section_key·파싱 불가 source_date; `AiContextRepositoryImplTest` 7건
+신규 — 키 미설정 failure·위임+무저장 확인·예외 매핑·approve 섹션별 upsert·as_of 최신값·직렬화 왕복·
+getApproved 역직렬화/빈 맵) — `feature.bearsignal` 패키지 전체 441건/0실패(43개 테스트 클래스).
+`compileDebugKotlin`·`assembleDebug` 모두 BUILD SUCCESSFUL(Hilt 그래프 재검증 겸용). 남은 작업: P7-3
+(Compose "정세 업데이트" 버튼·승인 미리보기·AI 배지/출처 각주/STALE 오버레이·면책 제거) — 이번 Phase는
+Compose 파일 미수정)
+
 PROGRESS: 국가별 수익률 자동 커버리지 확장 — 완료 (2026-07-17, 커밋 `036c7cb` 푸시.
 ①**AUTO 6→17 확장**: `GlobalIndexRegistry`에 Yahoo chart API 실검증(호스트 curl, 지수별 476~511
 종가 — 12M 요건 253개 충족) 통과 티커 11개 추가 — 대만 `^TWII`·CAC40 `^FCHI`·호주 `^AXJO`·유로

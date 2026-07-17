@@ -5,6 +5,7 @@ import com.tinyoscillator.core.api.BokEcosApiClient
 import com.tinyoscillator.core.api.KrxApiClient
 import com.tinyoscillator.core.config.ApiConfigProvider
 import com.tinyoscillator.core.database.dao.MarketDepositDao
+import com.tinyoscillator.feature.bearsignal.data.local.BearSignalAiContextDao
 import com.tinyoscillator.feature.bearsignal.data.local.BearSignalDao
 import com.tinyoscillator.feature.bearsignal.data.local.BearSnapshotDao
 import com.tinyoscillator.feature.bearsignal.data.local.ThresholdsProvider
@@ -13,19 +14,24 @@ import com.tinyoscillator.feature.bearsignal.data.remote.FredApiClient
 import com.tinyoscillator.feature.bearsignal.data.remote.LlmMarketDataSource
 import com.tinyoscillator.feature.bearsignal.data.remote.StooqCsvClient
 import com.tinyoscillator.feature.bearsignal.data.remote.YahooChartApiClient
+import com.tinyoscillator.feature.bearsignal.data.repository.AiContextRepositoryImpl
 import com.tinyoscillator.feature.bearsignal.data.repository.BearSignalRepositoryImpl
 import com.tinyoscillator.feature.bearsignal.data.repository.SnapshotRepositoryImpl
 import com.tinyoscillator.feature.bearsignal.data.repository.SuggestionRepositoryImpl
 import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholds
+import com.tinyoscillator.feature.bearsignal.domain.repository.AiContextRepository
 import com.tinyoscillator.feature.bearsignal.domain.repository.BearSignalRepository
 import com.tinyoscillator.feature.bearsignal.domain.repository.SnapshotRepository
 import com.tinyoscillator.feature.bearsignal.domain.repository.SuggestionRepository
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ApplySuggestionUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.ApproveAiContextClaimsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.BuildBearSnapshotUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.DetectTransitionsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.EvaluateSnapshotFreshnessUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.FetchAiContextUpdatesUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.FetchSuggestionsUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.GetApprovedAiContextUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.MergeBearSignalInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ObserveBearSignalStateUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshAutoInputsUseCase
@@ -201,4 +207,29 @@ object BearSignalModule {
     @Singleton
     fun provideApplySuggestionUseCase(repository: BearSignalRepository): ApplySuggestionUseCase =
         ApplySuggestionUseCase(repository)
+
+    // ── §4.7 Phase 7-2: 정적 참조 콘텐츠 동적 갱신(정세 업데이트) ──────────────
+
+    @Provides
+    @Singleton
+    fun provideAiContextRepository(
+        llmMarketDataSource: LlmMarketDataSource,
+        apiConfigProvider: ApiConfigProvider,
+        bearSignalAiContextDao: BearSignalAiContextDao
+    ): AiContextRepository = AiContextRepositoryImpl(llmMarketDataSource, apiConfigProvider, bearSignalAiContextDao)
+
+    @Provides
+    @Singleton
+    fun provideFetchAiContextUpdatesUseCase(repository: AiContextRepository): FetchAiContextUpdatesUseCase =
+        FetchAiContextUpdatesUseCase(repository)
+
+    @Provides
+    @Singleton
+    fun provideApproveAiContextClaimsUseCase(repository: AiContextRepository): ApproveAiContextClaimsUseCase =
+        ApproveAiContextClaimsUseCase(repository)
+
+    @Provides
+    @Singleton
+    fun provideGetApprovedAiContextUseCase(repository: AiContextRepository): GetApprovedAiContextUseCase =
+        GetApprovedAiContextUseCase(repository)
 }

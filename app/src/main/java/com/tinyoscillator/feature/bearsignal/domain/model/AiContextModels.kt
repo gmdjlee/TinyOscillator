@@ -171,3 +171,48 @@ object AiContextClaimValidation {
         return AiContextClaimValidationResult.Accepted(claim, isStale(sourceDate, today, draft.sectionKey))
     }
 }
+
+/**
+ * §4.7 그룹(④monitor/⑤cases/⑥history_current) 단일 그룹 조회 결과 (Phase 7-2) —
+ * [com.tinyoscillator.feature.bearsignal.domain.model.SuggestionGroupOutcome](§4.5)과 동일한 부분
+ * 실패 격리 패턴을 재사용한다. 이 시점에는 아직 Room에 저장되지 않는다(§4.7 "승인 없이는 표시
+ * 콘텐츠 불변") — 저장은
+ * [com.tinyoscillator.feature.bearsignal.data.repository.AiContextRepositoryImpl.approve]가 사용자
+ * 승인 후에만 수행한다.
+ *
+ * @param pending 검증 통과 클레임(STALE 포함, [AiContextClaimValidationResult.Accepted]) — 사용자
+ * 승인 대기 목록. 이 함수 자체는 어떤 것도 승인하지 않는다.
+ * @param rejectedCounts 폐기 사유별 건수([AiContextClaimRejection]) — 그룹 폐기가 아니라 클레임 단위
+ * 폐기이므로 그룹 자체는 여전히 `error == null`일 수 있다(클레임이 전부 폐기돼도 호출 자체는 성공).
+ * @param error 그룹 호출 자체 실패 메시지(네트워크·응답 파싱 실패) — null이면 호출은 성공했다는 뜻
+ * (단, [pending]이 0건일 수 있다).
+ * @param searchWidgetHtml §4.5/§4.7 Gemini 경로 검색 제안 위젯 HTML(ToS 표시 의무, §4.5 v1.3 계승).
+ * @param provider 이 그룹 조회에 사용된 제공자("claude"|"gemini",
+ * [com.tinyoscillator.feature.bearsignal.data.local.BearSignalAiContextEntity.provider] 규약과 동일)
+ * — 승인 시 [com.tinyoscillator.feature.bearsignal.domain.repository.AiContextRepository.approve]에 전달돼 저장된다.
+ */
+data class AiContextGroupOutcome(
+    val pending: List<AiContextClaimValidationResult.Accepted>,
+    val rejectedCounts: Map<AiContextClaimRejection, Int>,
+    val error: String?,
+    val searchWidgetHtml: String?,
+    val provider: String?
+)
+
+/** [com.tinyoscillator.feature.bearsignal.data.remote.LlmMarketDataSource.fetchAiContextUpdates] 결과(§4.7 그룹④⑤⑥ 통합). */
+data class AiContextFetchResult(
+    val monitor: AiContextGroupOutcome,
+    val cases: AiContextGroupOutcome,
+    val historyCurrent: AiContextGroupOutcome
+) {
+    /** 3개 그룹의 승인 대기 클레임 전체(섹션 무관 평탄화) — 승인 미리보기(P7-3)가 그룹핑은 별도로 수행. */
+    val allPending: List<AiContextClaimValidationResult.Accepted>
+        get() = monitor.pending + cases.pending + historyCurrent.pending
+
+    val failedGroupMessages: List<String>
+        get() = listOfNotNull(monitor.error, cases.error, historyCurrent.error)
+
+    /** §4.5 v1.3 "Gemini 경로" 검색 제안 위젯 — 그룹별 HTML을 중복 제거해 모은다. */
+    val searchWidgetsHtml: List<String>
+        get() = listOfNotNull(monitor.searchWidgetHtml, cases.searchWidgetHtml, historyCurrent.searchWidgetHtml).distinct()
+}

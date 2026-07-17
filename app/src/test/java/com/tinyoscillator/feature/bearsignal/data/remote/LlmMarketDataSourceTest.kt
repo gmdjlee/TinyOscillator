@@ -2,6 +2,8 @@ package com.tinyoscillator.feature.bearsignal.data.remote
 
 import com.tinyoscillator.domain.model.AiApiKeyConfig
 import com.tinyoscillator.domain.model.AiProvider
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaimRejection
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextSectionKey
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalReportBaseline
 import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionField
 import kotlinx.coroutines.test.runTest
@@ -20,10 +22,12 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
 /**
@@ -539,5 +543,267 @@ class LlmMarketDataSourceTest {
 
         assertEquals(2, server.requestCount)
         assertTrue(outcome.suggestions.isEmpty())
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // §4.7 그룹④⑤⑥ 정세 업데이트(모니터·사례·역사 현재비교, Phase 7-2)
+    // ══════════════════════════════════════════════════════════════════
+
+    private val today = LocalDate.of(2026, 7, 17)
+
+    /** Claude `web_search_tool_result`(검색결과 URL 목록) + `claims` JSON text 블록을 담은 응답. */
+    private fun claudeResponseBodyWithSearch(
+        claimsJson: String,
+        urls: List<String>,
+        stopReason: String = "end_turn"
+    ): String = buildJsonObject {
+        put("id", "msg_1")
+        put("type", "message")
+        put("content", buildJsonArray {
+            add(buildJsonObject {
+                put("type", "web_search_tool_result")
+                put("tool_use_id", "srvtool_1")
+                put("content", buildJsonArray {
+                    urls.forEach { url ->
+                        add(buildJsonObject {
+                            put("type", "web_search_result")
+                            put("url", url)
+                            put("title", "결과")
+                        })
+                    }
+                })
+            })
+            add(buildJsonObject {
+                put("type", "text")
+                put("text", claimsJson)
+            })
+        })
+        put("stop_reason", stopReason)
+    }.toString()
+
+    /** Gemini `groundingChunks`(검색결과 URL 목록) + 선택적 검색 제안 위젯을 담은 응답. */
+    private fun geminiResponseBodyWithGrounding(
+        text: String,
+        urls: List<String>,
+        renderedContent: String? = null
+    ): String = buildJsonObject {
+        put("candidates", buildJsonArray {
+            add(buildJsonObject {
+                put("content", buildJsonObject {
+                    put("parts", buildJsonArray { add(buildJsonObject { put("text", text) }) })
+                })
+                put("groundingMetadata", buildJsonObject {
+                    put("groundingChunks", buildJsonArray {
+                        urls.forEach { url ->
+                            add(buildJsonObject { put("web", buildJsonObject { put("uri", url) }) })
+                        }
+                    })
+                    if (renderedContent != null) {
+                        put("searchEntryPoint", buildJsonObject { put("renderedContent", renderedContent) })
+                    }
+                })
+            })
+        })
+    }.toString()
+
+    // ── 그룹④ monitor — 정상 클레임 수용 ────────────────────────────────
+
+    @Test
+    fun `fetchMonitorGroup 정상 클레임은 검증 통과해 pending에 담긴다`() = runTest {
+        val claims = """{"claims":[{"section_key":"type0_monitor","text":"체크리스트 항목",
+            "type":"fact","source_url":"https://example.com/report","source_title":"제목",
+            "source_date":"2026-07-15","quote":"원문 인용"}]}"""
+        enqueue(claudeResponseBodyWithSearch(claims, listOf("https://example.com/report")))
+
+        val outcome = dataSource().fetchMonitorGroup(config, today)
+
+        assertNull(outcome.error)
+        assertEquals(1, outcome.pending.size)
+        assertEquals(AiContextSectionKey.TYPE0_MONITOR, outcome.pending.first().claim.sectionKey)
+        assertFalse(outcome.pending.first().stale)
+        assertTrue(outcome.rejectedCounts.isEmpty())
+        assertEquals("claude", outcome.provider)
+    }
+
+    // ── 그룹⑤ cases — 환각 URL 폐기 ─────────────────────────────────────
+
+    @Test
+    fun `fetchCasesGroup 환각 URL은 URL_NOT_VERIFIED로 폐기된다`() = runTest {
+        val claims = """{"claims":[{"section_key":"type1_cases","text":"사례 텍스트",
+            "type":"fact","source_url":"https://fake.example.com","source_title":"제목",
+            "source_date":"2026-07-10","quote":"원문"}]}"""
+        enqueue(claudeResponseBodyWithSearch(claims, listOf("https://real.example.com")))
+
+        val outcome = dataSource().fetchCasesGroup(config, today)
+
+        assertTrue(outcome.pending.isEmpty())
+        assertEquals(1, outcome.rejectedCounts[AiContextClaimRejection.URL_NOT_VERIFIED])
+    }
+
+    // ── 그룹④ monitor — interpretation 클레임 폐기(fact만 허용) ───────────────
+
+    @Test
+    fun `fetchMonitorGroup interpretation 클레임은 INTERPRETATION_NOT_ALLOWED로 폐기된다`() = runTest {
+        val claims = """{"claims":[{"section_key":"type2_monitor","text":"전망",
+            "type":"interpretation","source_url":"https://example.com/report","source_title":"제목",
+            "source_date":"2026-07-10"}]}"""
+        enqueue(claudeResponseBodyWithSearch(claims, listOf("https://example.com/report")))
+
+        val outcome = dataSource().fetchMonitorGroup(config, today)
+
+        assertTrue(outcome.pending.isEmpty())
+        assertEquals(1, outcome.rejectedCounts[AiContextClaimRejection.INTERPRETATION_NOT_ALLOWED])
+    }
+
+    // ── 그룹⑤ cases — fact quote 부재 폐기 ──────────────────────────────
+
+    @Test
+    fun `fetchCasesGroup fact 클레임 quote 부재는 FACT_QUOTE_MISSING으로 폐기된다`() = runTest {
+        val claims = """{"claims":[{"section_key":"type0_cases","text":"사례",
+            "type":"fact","source_url":"https://example.com/report","source_title":"제목",
+            "source_date":"2026-07-10"}]}"""
+        enqueue(claudeResponseBodyWithSearch(claims, listOf("https://example.com/report")))
+
+        val outcome = dataSource().fetchCasesGroup(config, today)
+
+        assertTrue(outcome.pending.isEmpty())
+        assertEquals(1, outcome.rejectedCounts[AiContextClaimRejection.FACT_QUOTE_MISSING])
+    }
+
+    // ── 그룹④ monitor — 알 수 없는 section_key 스킵 ─────────────────────────
+
+    @Test
+    fun `알 수 없는 section_key 클레임은 스킵되고 다른 클레임은 정상 처리된다`() = runTest {
+        val claims = """{"claims":[
+            {"section_key":"type9_unknown","text":"모름","type":"fact",
+             "source_url":"https://example.com/report","source_title":"제목",
+             "source_date":"2026-07-10","quote":"인용"},
+            {"section_key":"type0_monitor","text":"정상","type":"fact",
+             "source_url":"https://example.com/report","source_title":"제목",
+             "source_date":"2026-07-10","quote":"인용"}
+        ]}"""
+        enqueue(claudeResponseBodyWithSearch(claims, listOf("https://example.com/report")))
+
+        val outcome = dataSource().fetchMonitorGroup(config, today)
+
+        assertEquals(1, outcome.pending.size)
+        assertEquals(AiContextSectionKey.TYPE0_MONITOR, outcome.pending.first().claim.sectionKey)
+        assertTrue(outcome.rejectedCounts.isEmpty())
+    }
+
+    // ── 그룹⑥ history_current — STALE 플래그(폐기 아님) ─────────────────────
+
+    @Test
+    fun `fetchHistoryCurrentGroup 30일 초과 클레임은 STALE로 표시되되 폐기되지 않는다`() = runTest {
+        val claims = """{"claims":[{"section_key":"history_current","text":"현재 비교",
+            "type":"fact","source_url":"https://example.com/report","source_title":"제목",
+            "source_date":"2026-06-01","quote":"인용"}]}"""
+        enqueue(claudeResponseBodyWithSearch(claims, listOf("https://example.com/report")))
+
+        val outcome = dataSource().fetchHistoryCurrentGroup(config, today)
+
+        assertEquals(1, outcome.pending.size)
+        assertTrue(outcome.pending.first().stale)
+    }
+
+    // ── 그룹④ monitor — Gemini 경로 검색 제안 위젯 HTML 전달 ─────────────────
+
+    @Test
+    fun `Gemini fetchMonitorGroup은 검색 제안 위젯 HTML을 전달하고 provider는 gemini다`() = runTest {
+        val claims = """{"claims":[]}"""
+        enqueue(geminiResponseBodyWithGrounding(claims, urls = emptyList(), renderedContent = "<div>위젯</div>"))
+
+        val outcome = dataSource().fetchMonitorGroup(geminiConfig, today)
+
+        assertNull(outcome.error)
+        assertTrue(outcome.pending.isEmpty())
+        assertEquals("<div>위젯</div>", outcome.searchWidgetHtml)
+        assertEquals("gemini", outcome.provider)
+    }
+
+    @Test
+    fun `Gemini fetchCasesGroup 정상 클레임은 groundingChunks URL로 검증 통과한다`() = runTest {
+        val claims = """{"claims":[{"section_key":"type1_cases","text":"사례",
+            "type":"fact","source_url":"https://example.com/report","source_title":"제목",
+            "source_date":"2026-07-10","quote":"인용"}]}"""
+        enqueue(geminiResponseBodyWithGrounding(claims, urls = listOf("https://example.com/report")))
+
+        val outcome = dataSource().fetchCasesGroup(geminiConfig, today)
+
+        assertEquals(1, outcome.pending.size)
+        assertTrue(outcome.rejectedCounts.isEmpty())
+    }
+
+    // ── 그룹④ monitor — pause_turn 재개 시 URL 누적 ─────────────────────────
+
+    @Test
+    fun `fetchMonitorGroup pause_turn 재개 시 이전 응답의 검색결과 URL을 누적해 이후 클레임 검증에 사용한다`() = runTest {
+        val pauseBody = buildJsonObject {
+            put("id", "msg_1")
+            put("type", "message")
+            put("content", buildJsonArray {
+                add(buildJsonObject {
+                    put("type", "web_search_tool_result")
+                    put("tool_use_id", "srvtool_1")
+                    put("content", buildJsonArray {
+                        add(buildJsonObject {
+                            put("type", "web_search_result")
+                            put("url", "https://a.example.com")
+                        })
+                    })
+                })
+            })
+            put("stop_reason", "pause_turn")
+        }.toString()
+
+        // 최종 응답에는 web_search_tool_result 블록이 없다 — 누적이 없으면 URL 검증이 실패해야 한다.
+        val claims = """{"claims":[{"section_key":"type0_monitor","text":"항목",
+            "type":"fact","source_url":"https://a.example.com","source_title":"제목",
+            "source_date":"2026-07-10","quote":"인용"}]}"""
+        val finalBody = claudeResponseBody(claims)
+
+        enqueue(pauseBody)
+        enqueue(finalBody)
+
+        val outcome = dataSource().fetchMonitorGroup(config, today)
+
+        assertEquals(2, server.requestCount)
+        assertEquals(1, outcome.pending.size)
+        assertTrue(outcome.rejectedCounts.isEmpty())
+    }
+
+    // ── fetchAiContextUpdates() 오케스트레이션 — 부분 실패 격리 ────────────────
+
+    @Test
+    fun `fetchAiContextUpdates는 한 그룹이 실패해도 나머지 그룹은 정상 처리된다`() = runTest {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val body = request.body.readUtf8()
+                return when {
+                    "모니터링 체크리스트" in body -> MockResponse().setResponseCode(500)
+                    "사례" in body -> MockResponse().setBody(
+                        claudeResponseBodyWithSearch(
+                            """{"claims":[{"section_key":"type0_cases","text":"사례","type":"fact",
+                                "source_url":"https://example.com/report","source_title":"제목",
+                                "source_date":"2026-07-10","quote":"인용"}]}""",
+                            listOf("https://example.com/report")
+                        )
+                    )
+                    "1980년대 일본" in body -> MockResponse().setBody(
+                        claudeResponseBodyWithSearch("""{"claims":[]}""", emptyList())
+                    )
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
+
+        val result = dataSource().fetchAiContextUpdates(config, today)
+
+        assertTrue(result.monitor.error != null)
+        assertTrue(result.monitor.pending.isEmpty())
+        assertEquals(1, result.cases.pending.size)
+        assertNull(result.historyCurrent.error)
+        assertEquals(1, result.allPending.size)
+        assertEquals(1, result.failedGroupMessages.size)
     }
 }
