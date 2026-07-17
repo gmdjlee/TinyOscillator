@@ -8,6 +8,7 @@ import com.tinyoscillator.feature.bearsignal.data.remote.LlmMarketDataSource
 import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaim
 import com.tinyoscillator.feature.bearsignal.domain.model.AiContextFetchResult
 import com.tinyoscillator.feature.bearsignal.domain.model.AiContextSectionKey
+import com.tinyoscillator.feature.bearsignal.domain.model.ApprovedAiContext
 import com.tinyoscillator.feature.bearsignal.domain.repository.AiContextRepository
 import kotlinx.coroutines.CancellationException
 import java.time.LocalDate
@@ -52,10 +53,19 @@ class AiContextRepositoryImpl(
         }
     }
 
-    override suspend fun getApproved(): Map<AiContextSectionKey, List<AiContextClaim>> =
+    override suspend fun getApproved(): Map<AiContextSectionKey, ApprovedAiContext> =
         dao.getAll()
             .mapNotNull { entity ->
-                AiContextSectionKey.fromKey(entity.sectionKey)?.let { it to AiContextClaimMapper.toDomain(entity) }
+                val sectionKey = AiContextSectionKey.fromKey(entity.sectionKey) ?: return@mapNotNull null
+                // §4.7 "캐시 없으면 정적 fallback 그대로" — content_json 파싱이 전멸(0건)하면 승인
+                // 캐시가 아예 없는 것과 동일하게 취급해 맵에서 생략한다(렌더가 정적 fallback으로 대체).
+                val claims = AiContextClaimMapper.toDomain(entity).ifEmpty { return@mapNotNull null }
+                sectionKey to ApprovedAiContext(
+                    claims = claims,
+                    provider = entity.provider,
+                    asOf = entity.asOf,
+                    approvedAt = entity.approvedAt
+                )
             }
             .toMap()
 }

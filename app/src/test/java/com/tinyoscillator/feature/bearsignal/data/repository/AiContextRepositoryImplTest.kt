@@ -141,7 +141,7 @@ class AiContextRepositoryImplTest {
     // ── getApproved ──────────────────────────────────────────────────
 
     @Test
-    fun `getApproved는 entity를 도메인 클레임 목록으로 역직렬화한다`() = runTest {
+    fun `getApproved는 entity를 도메인 클레임 목록 + 제공자·기준일 메타로 역직렬화한다`() = runTest {
         val entity = AiContextClaimMapper.toEntity(
             sectionKey = AiContextSectionKey.HISTORY_CURRENT,
             claims = listOf(claim(sectionKey = AiContextSectionKey.HISTORY_CURRENT, text = "현재 비교")),
@@ -154,12 +154,32 @@ class AiContextRepositoryImplTest {
         val result = repository.getApproved()
 
         assertEquals(1, result.size)
-        assertEquals("현재 비교", result[AiContextSectionKey.HISTORY_CURRENT]?.first()?.text)
+        val approved = result[AiContextSectionKey.HISTORY_CURRENT]
+        assertEquals("현재 비교", approved?.claims?.first()?.text)
+        assertEquals("claude", approved?.provider)
+        assertEquals(today.toString(), approved?.asOf)
+        assertEquals(1L, approved?.approvedAt)
     }
 
     @Test
     fun `getApproved는 승인 캐시가 없으면 빈 맵을 반환한다`() = runTest {
         coEvery { dao.getAll() } returns emptyList()
+
+        val result = repository.getApproved()
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `getApproved는 content_json 파싱이 전멸(0건)한 섹션을 맵에서 생략한다`() = runTest {
+        val corrupted = BearSignalAiContextEntity(
+            sectionKey = AiContextSectionKey.TYPE0_MONITOR.key,
+            contentJson = "not-json",
+            asOf = today.toString(),
+            provider = "claude",
+            approvedAt = 1L
+        )
+        coEvery { dao.getAll() } returns listOf(corrupted)
 
         val result = repository.getApproved()
 

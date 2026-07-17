@@ -40,10 +40,9 @@ class BearSignalStaticContentTest {
     }
 
     @Test
-    fun `면책·지표매핑 문구가 비어있지 않다`() {
-        assertTrue(BearSignalStaticContent.DISCLAIMER.isNotBlank())
+    fun `지표매핑 문구가 비어있지 않다`() {
+        // v1.4 §4.7 "면책 정리" — 전역 DISCLAIMER 상수는 제거됐다(골든 무손실 대상에서 제외).
         assertTrue(BearSignalStaticContent.INDICATOR_MAPPING.isNotBlank())
-        assertTrue(BearSignalStaticContent.DISCLAIMER.contains("신영증권"))
     }
 
     @Test

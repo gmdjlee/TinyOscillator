@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tinyoscillator.core.network.NetworkUtils
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaimValidationResult
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextFetchResult
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextSectionKey
+import com.tinyoscillator.feature.bearsignal.domain.model.ApprovedAiContext
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.BearPhase
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalInputs
@@ -22,10 +26,13 @@ import com.tinyoscillator.feature.bearsignal.domain.model.Suggestion
 import com.tinyoscillator.feature.bearsignal.domain.model.Transition
 import com.tinyoscillator.feature.bearsignal.domain.repository.SnapshotRepository
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ApplySuggestionUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.ApproveAiContextClaimsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.BuildBearSnapshotUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.DetectTransitionsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.EvaluateSnapshotFreshnessUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.FetchAiContextUpdatesUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.FetchSuggestionsUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.GetApprovedAiContextUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ObserveBearSignalStateUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshAutoInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshExternalAutoInputsUseCase
@@ -108,6 +115,18 @@ private val DEFAULT_RESULT: BearSignalResult = BearSignalResult(
  * 실패한 그룹이 있어도 성공한 그룹의 [suggestions]는 그대로 노출된다(부분 실패 격리).
  * @param suggestionSearchWidgetsHtml §4.5 v1.3 "Gemini 경로" — Google 검색 제안 위젯 HTML 목록
  * (ToS상 사용자 표시 의무). Claude 제공자에서는 항상 비어있다. `SuggestionPanel`이 WebView로 노출한다.
+ * @param aiContextApproved §4.7 섹션별 승인 캐시(Room, 화면 진입 시 1회 로드 — 네트워크 아님) —
+ * [BearSignalTypesSection]/[com.tinyoscillator.feature.bearsignal.presentation.ui.BearSignalHistorySection]
+ * 오버레이 렌더 입력. 캐시 없는 섹션은 맵에서 생략되며 호출측이 정적 fallback으로 대체한다.
+ * @param aiContextPending §4.7 "정세 업데이트" 조회 승인 대기 클레임(그룹④⑤⑥ 평탄화) —
+ * [com.tinyoscillator.feature.bearsignal.presentation.BearSignalViewModel.fetchAiContextUpdates]가
+ * 사용자의 명시적 액션("정세 업데이트" 버튼)으로 호출됐을 때만 채워진다(자동 fetch 금지, §4.5 대원칙
+ * 계승). 승인 전에는 이 목록이 존재해도 [aiContextApproved]/Room에 어떤 영향도 없다.
+ * @param aiContextProvider 이번 조회에 사용된 제공자("claude"|"gemini") — [aiContextPending] 일괄/개별
+ * 승인 시 그대로 전달된다.
+ * @param aiContextLoading §4.7 조회 진행 중 여부(로딩 표시용).
+ * @param aiContextGroupErrors §4.7 그룹별(monitor/cases/history_current) 부분 실패 메시지.
+ * @param aiContextSearchWidgetsHtml §4.7 Gemini 경로 검색 제안 위젯 HTML(§4.5 v1.3 계승).
  */
 data class BearSignalUiState(
     val inputs: BearSignalInputs = DEFAULT_INPUTS,
@@ -130,16 +149,37 @@ data class BearSignalUiState(
     val suggestions: List<Suggestion> = emptyList(),
     val suggestionsLoading: Boolean = false,
     val suggestionGroupErrors: List<String> = emptyList(),
-    val suggestionSearchWidgetsHtml: List<String> = emptyList()
+    val suggestionSearchWidgetsHtml: List<String> = emptyList(),
+    val aiContextApproved: Map<AiContextSectionKey, ApprovedAiContext> = emptyMap(),
+    val aiContextPending: List<AiContextClaimValidationResult.Accepted> = emptyList(),
+    val aiContextProvider: String? = null,
+    val aiContextLoading: Boolean = false,
+    val aiContextGroupErrors: List<String> = emptyList(),
+    val aiContextSearchWidgetsHtml: List<String> = emptyList()
 )
 
 /**
- * §4.5 제안 관련 UI 부분 상태 — [BearSignalViewModel.uiState]의 `combine` 인자 개수를 4개로 유지하기
- * 위해(kotlinx.coroutines `combine`의 타입 지정 오버로드는 5개까지) 하나의 [MutableStateFlow]로
- * 묶는다(기존 [BearSignalViewModel.core] 패턴과 동일한 이유).
+ * §4.5 제안 관련 UI 부분 상태 — [BearSignalViewModel.uiState]의 `combine` 인자 개수를 아끼기 위해
+ * (kotlinx.coroutines `combine`의 타입 지정 오버로드는 5개까지 — P7-3에서 [AiContextUiState]가
+ * 추가되며 정확히 5개에 도달했다) 하나의 [MutableStateFlow]로 묶는다(기존 [BearSignalViewModel.core]
+ * 패턴과 동일한 이유).
  */
 private data class SuggestionUiState(
     val suggestions: List<Suggestion> = emptyList(),
+    val isLoading: Boolean = false,
+    val groupErrors: List<String> = emptyList(),
+    val searchWidgetsHtml: List<String> = emptyList()
+)
+
+/**
+ * §4.7 "정세 업데이트" UI 부분 상태 — [SuggestionUiState]와 동일한 이유로 하나의 [MutableStateFlow]로
+ * 묶는다. [approved]는 [suggestions]/[pending]과 달리 조회(fetch) 성패와 무관하게 화면 진입 시
+ * 1회 로드되며(Room 읽기, 네트워크 아님) 승인/무시 액션에 의해서만 갱신된다.
+ */
+private data class AiContextUiState(
+    val approved: Map<AiContextSectionKey, ApprovedAiContext> = emptyMap(),
+    val pending: List<AiContextClaimValidationResult.Accepted> = emptyList(),
+    val provider: String? = null,
     val isLoading: Boolean = false,
     val groupErrors: List<String> = emptyList(),
     val searchWidgetsHtml: List<String> = emptyList()
@@ -160,7 +200,10 @@ class BearSignalViewModel @Inject constructor(
     private val thresholds: BearThresholds,
     @ApplicationContext private val context: Context,
     private val fetchSuggestionsUseCase: FetchSuggestionsUseCase,
-    private val applySuggestionUseCase: ApplySuggestionUseCase
+    private val applySuggestionUseCase: ApplySuggestionUseCase,
+    private val fetchAiContextUpdatesUseCase: FetchAiContextUpdatesUseCase,
+    private val approveAiContextClaimsUseCase: ApproveAiContextClaimsUseCase,
+    private val getApprovedAiContextUseCase: GetApprovedAiContextUseCase
 ) : ViewModel() {
 
     private val periodIdx = MutableStateFlow(BearSignalReportBaseline.PERIOD_IDX)
@@ -173,6 +216,14 @@ class BearSignalViewModel @Inject constructor(
      * 때만 네트워크(설정된 AI 제공자 — Claude 또는 Gemini) 호출이 발생한다(비용 고려, §4.5 "UI/UX 지침").
      */
     private val suggestionState = MutableStateFlow(SuggestionUiState())
+
+    /**
+     * §4.7 "정세 업데이트" 상태 — [fetchAiContextUpdates]가 명시적으로 호출될 때만 [AiContextUiState.pending]이
+     * 채워진다(자동 fetch 금지, §4.5 대원칙 계승). [AiContextUiState.approved]는 [init]에서 1회
+     * Room 캐시를 로드해 채운다(네트워크 호출 아님 — 이미 승인·저장된 콘텐츠를 읽는 것뿐이라
+     * §4.7 대원칙과 무관).
+     */
+    private val aiContextState = MutableStateFlow(AiContextUiState())
 
     /**
      * §6.1 "state:latest 로드" 신선도 제안 — 세션 진입 시([init] 1회) 평가해 채운다. 이후로는
@@ -211,8 +262,8 @@ class BearSignalViewModel @Inject constructor(
     private val history: Flow<List<BearSnapshot>> = snapshotRepository.observeRange(historyFrom, historyTo)
 
     val uiState: StateFlow<BearSignalUiState> = combine(
-        core, history, updateSuggestion, suggestionState
-    ) { c, hist, suggestion, sugState ->
+        core, history, updateSuggestion, suggestionState, aiContextState
+    ) { c, hist, suggestion, sugState, aiState ->
         val state = c.state
         BearSignalUiState(
             inputs = state.inputs,
@@ -236,7 +287,13 @@ class BearSignalViewModel @Inject constructor(
             suggestions = sugState.suggestions,
             suggestionsLoading = sugState.isLoading,
             suggestionGroupErrors = sugState.groupErrors,
-            suggestionSearchWidgetsHtml = sugState.searchWidgetsHtml
+            suggestionSearchWidgetsHtml = sugState.searchWidgetsHtml,
+            aiContextApproved = aiState.approved,
+            aiContextPending = aiState.pending,
+            aiContextProvider = aiState.provider,
+            aiContextLoading = aiState.isLoading,
+            aiContextGroupErrors = aiState.groupErrors,
+            aiContextSearchWidgetsHtml = aiState.searchWidgetsHtml
         )
     }.stateIn(
         viewModelScope,
@@ -266,6 +323,13 @@ class BearSignalViewModel @Inject constructor(
             updateSuggestion.value = evaluateSnapshotFreshnessUseCase(snapshotRepository.latestOrNull())
             val initialState = observeBearSignalStateUseCase(periodIdx).first()
             saveSnapshot(initialState)
+        }
+
+        // §4.7 "정세 업데이트" 승인 캐시 로드 — Room 읽기일 뿐 네트워크 호출이 아니므로 화면 진입 시
+        // 1회 수행해도 §4.5/§4.7 "명시 버튼 트리거만 허용(자동 fetch 금지)" 대원칙과 무관하다.
+        // [fetchAiContextUpdates]는 이 init에서 절대 호출하지 않는다(대원칙 위반).
+        viewModelScope.launch {
+            aiContextState.value = aiContextState.value.copy(approved = getApprovedAiContextUseCase())
         }
     }
 
@@ -368,6 +432,81 @@ class BearSignalViewModel @Inject constructor(
         suggestionState.value = suggestionState.value.copy(
             suggestions = suggestionState.value.suggestions.filterNot { it == suggestion }
         )
+    }
+
+    // ── §4.7 "정세 업데이트"(정적 참조 콘텐츠 동적 갱신) ─────────────────────
+
+    /**
+     * §4.7 섹션 헤더 "정세 업데이트" 버튼 액션 — **명시적 사용자 액션에서만 호출**(비용이 드는 AI API
+     * 호출). init/화면 진입에서 자동 호출하지 않는다(§4.5 대원칙 계승). 조회 자체는 [aiContextState.approved]/Room에
+     * 어떤 영향도 주지 않는다 — [aiContextState.pending]만 채워지며, 실제 반영은
+     * [approveAiContextClaim]/[approveAllAiContextClaims]가 명시적으로 호출될 때만 일어난다.
+     */
+    fun fetchAiContextUpdates() {
+        if (aiContextState.value.isLoading) return
+        viewModelScope.launch {
+            aiContextState.value = aiContextState.value.copy(isLoading = true, groupErrors = emptyList())
+            val result = fetchAiContextUpdatesUseCase()
+            aiContextState.value = result.fold(
+                onSuccess = { fetchResult ->
+                    aiContextState.value.copy(
+                        pending = fetchResult.allPending,
+                        provider = firstProvider(fetchResult) ?: aiContextState.value.provider,
+                        isLoading = false,
+                        groupErrors = fetchResult.failedGroupMessages,
+                        searchWidgetsHtml = fetchResult.searchWidgetsHtml
+                    )
+                },
+                onFailure = { e ->
+                    aiContextState.value.copy(
+                        isLoading = false,
+                        groupErrors = listOf(e.message ?: "정세 업데이트 조회에 실패했습니다")
+                    )
+                }
+            )
+        }
+    }
+
+    /** 그룹④⑤⑥ 중 첫 non-null 제공자("claude"|"gemini") — 한 번의 조회는 항상 단일 제공자를 쓴다. */
+    private fun firstProvider(result: AiContextFetchResult): String? =
+        result.monitor.provider ?: result.cases.provider ?: result.historyCurrent.provider
+
+    /** 클레임 하나를 승인 — `bear_signal_ai_context`에 반영 후 대기 목록에서 제거하고 승인 캐시를 다시 로드한다. */
+    fun approveAiContextClaim(accepted: AiContextClaimValidationResult.Accepted) {
+        val provider = aiContextState.value.provider ?: return
+        viewModelScope.launch {
+            approveAiContextClaimsUseCase(listOf(accepted.claim), provider)
+            aiContextState.value = aiContextState.value.copy(
+                pending = aiContextState.value.pending.filterNot { it == accepted },
+                approved = getApprovedAiContextUseCase()
+            )
+        }
+    }
+
+    /** 현재 대기 중인 클레임 전체를 일괄 승인한다(§4.7 "개별/일괄 적용"). */
+    fun approveAllAiContextClaims() {
+        val toApply = aiContextState.value.pending
+        if (toApply.isEmpty()) return
+        val provider = aiContextState.value.provider ?: return
+        viewModelScope.launch {
+            approveAiContextClaimsUseCase(toApply.map { it.claim }, provider)
+            aiContextState.value = aiContextState.value.copy(
+                pending = emptyList(),
+                approved = getApprovedAiContextUseCase()
+            )
+        }
+    }
+
+    /** 클레임 하나를 무시 — Room에 아무 영향 없이 대기 목록에서만 제거한다. */
+    fun dismissAiContextClaim(accepted: AiContextClaimValidationResult.Accepted) {
+        aiContextState.value = aiContextState.value.copy(
+            pending = aiContextState.value.pending.filterNot { it == accepted }
+        )
+    }
+
+    /** 현재 대기 중인 클레임 전체를 무시 — Room에 아무 영향 없이 대기 목록만 비운다. */
+    fun dismissAllAiContextClaims() {
+        aiContextState.value = aiContextState.value.copy(pending = emptyList())
     }
 
     private suspend fun saveSnapshot(state: ObserveBearSignalStateUseCase.State) {

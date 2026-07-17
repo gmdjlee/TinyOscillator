@@ -214,17 +214,57 @@ fun BearSignalScreen(onBack: () -> Unit) {
                 }
 
                 item(key = "types_title") {
-                    SectionHeader(title = "유형 진단 — 주도주 하락세 판단, 약세장 3유형과 회복 가능성")
+                    SectionHeader(
+                        title = "유형 진단 — 주도주 하락세 판단, 약세장 3유형과 회복 가능성",
+                        action = {
+                            TextButton(
+                                onClick = viewModel::fetchAiContextUpdates,
+                                enabled = !uiState.aiContextLoading
+                            ) {
+                                Text(if (uiState.aiContextLoading) "조회 중…" else "정세 업데이트")
+                            }
+                        }
+                    )
+                }
+                // §4.7 "정세 업데이트" 승인 미리보기 — 대기 클레임/로딩/오류/검색 위젯 중 하나라도
+                // 있을 때만 렌더한다(패널이 항상 떠 있으면 §5.2 레이아웃이 불필요하게 길어짐).
+                val showAiContextPanel = uiState.aiContextPending.isNotEmpty() ||
+                    uiState.aiContextLoading ||
+                    uiState.aiContextGroupErrors.isNotEmpty() ||
+                    uiState.aiContextSearchWidgetsHtml.isNotEmpty()
+                if (showAiContextPanel) {
+                    item(key = "ai_context_panel") {
+                        AiContextUpdatePanel(
+                            pending = uiState.aiContextPending,
+                            provider = uiState.aiContextProvider,
+                            isLoading = uiState.aiContextLoading,
+                            groupErrors = uiState.aiContextGroupErrors,
+                            searchWidgetsHtml = uiState.aiContextSearchWidgetsHtml,
+                            onApprove = viewModel::approveAiContextClaim,
+                            onApproveAll = viewModel::approveAllAiContextClaims,
+                            onDismiss = viewModel::dismissAiContextClaim
+                        )
+                    }
                 }
                 item(key = "types") {
-                    BearSignalTypesSection(gate = uiState.result.gate)
+                    BearSignalTypesSection(gate = uiState.result.gate, approved = uiState.aiContextApproved)
                 }
 
                 item(key = "history_title") {
-                    SectionHeader(title = "역사 검증 — 최악의 조합, 3충격 동시 결합")
+                    SectionHeader(
+                        title = "역사 검증 — 최악의 조합, 3충격 동시 결합",
+                        action = {
+                            TextButton(
+                                onClick = viewModel::fetchAiContextUpdates,
+                                enabled = !uiState.aiContextLoading
+                            ) {
+                                Text(if (uiState.aiContextLoading) "조회 중…" else "정세 업데이트")
+                            }
+                        }
+                    )
                 }
                 item(key = "history") {
-                    BearSignalHistorySection()
+                    BearSignalHistorySection(approved = uiState.aiContextApproved)
                 }
 
                 item(key = "footer") {

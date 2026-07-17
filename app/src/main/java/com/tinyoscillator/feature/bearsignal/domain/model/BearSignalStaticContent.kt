@@ -99,14 +99,14 @@ object BearSignalStaticContent {
     /** 무손실 결합(기존 참조 호환) — [HISTORY_BODY_STATIC] + [HISTORY_BODY_CURRENT]와 문자 단위로 동일해야 한다. */
     const val HISTORY_BODY = HISTORY_BODY_STATIC + HISTORY_BODY_CURRENT
 
-    /** 부록 B #9 "지표↔리포트 매핑" — 프로토타입 푸터 문구 그대로 */
+    /**
+     * 부록 B #9 "지표↔리포트 매핑" — 프로토타입 푸터 문구 그대로.
+     *
+     * v1.4 §4.7 "면책 정리" — 이 도표 매핑은 **정적 기준선 전용** 표기로 존치한다(전역 면책
+     * 문구·[BearSignalFooterSection][com.tinyoscillator.feature.bearsignal.presentation.ui.BearSignalFooterSection]의
+     * `DISCLAIMER` 표시는 전면 제거됐다 — §5.2-7 개정).
+     */
     const val INDICATOR_MAPPING =
         "신호1 도표46~48 · 신호2 도표49~50 · 신호3 도표51~53 · 신호4(금리) 도표54~57 · " +
             "집중 증폭 도표44 · 약세장 3유형 도표26~35 · 역사 검증 도표58."
-
-    /** 면책 문구 — 프로토타입 푸터 그대로 */
-    const val DISCLAIMER =
-        "모든 임계치·사례·이론은 신영증권「주도주의 물리학」(2026.6.30) 원문에만 근거한다. " +
-            "국면 판정 규칙(가중·상태 기계)은 리포트 서술을 코드화한 것으로 투자 판단의 보조 도구이며, " +
-            "종목 선택·투자 시기의 최종 책임 근거로 사용될 수 없다."
 }

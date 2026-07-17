@@ -3,6 +3,7 @@ package com.tinyoscillator.feature.bearsignal.domain.repository
 import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaim
 import com.tinyoscillator.feature.bearsignal.domain.model.AiContextFetchResult
 import com.tinyoscillator.feature.bearsignal.domain.model.AiContextSectionKey
+import com.tinyoscillator.feature.bearsignal.domain.model.ApprovedAiContext
 import java.time.LocalDate
 
 /**
@@ -31,6 +32,10 @@ interface AiContextRepository {
      */
     suspend fun approve(claims: List<AiContextClaim>, provider: String, now: Long)
 
-    /** 저장된 섹션별 승인 클레임을 로드한다(P7-3 렌더 소비) — 승인 캐시가 없는 섹션은 결과 맵에서 생략된다. */
-    suspend fun getApproved(): Map<AiContextSectionKey, List<AiContextClaim>>
+    /**
+     * 저장된 섹션별 승인 클레임 + 렌더 메타(제공자·기준일)를 로드한다(P7-3 렌더 소비) — 승인 캐시가
+     * 없는 섹션 또는 클레임이 전부 파싱 불가(0건)인 섹션은 결과 맵에서 생략된다(호출측은 정적
+     * fallback으로 대체, §4.7 "캐시 없으면 정적 fallback 그대로").
+     */
+    suspend fun getApproved(): Map<AiContextSectionKey, ApprovedAiContext>
 }

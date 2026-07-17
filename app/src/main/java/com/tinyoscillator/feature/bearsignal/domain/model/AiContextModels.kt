@@ -26,15 +26,22 @@ private const val CASES_OR_HISTORY_MAX_AGE_DAYS = 30L
 enum class AiContextSectionKey(
     val key: String,
     val allowInterpretation: Boolean,
-    val maxAgeDays: Long
+    val maxAgeDays: Long,
+    /** P7-3 UI 그룹핑 라벨(승인 미리보기·오버레이 렌더 헤더) — [SuggestionField.labelKo] 관례 재사용. */
+    val labelKo: String
 ) {
-    TYPE0_MONITOR("type0_monitor", allowInterpretation = false, maxAgeDays = MONITOR_MAX_AGE_DAYS),
-    TYPE1_MONITOR("type1_monitor", allowInterpretation = false, maxAgeDays = MONITOR_MAX_AGE_DAYS),
-    TYPE2_MONITOR("type2_monitor", allowInterpretation = false, maxAgeDays = MONITOR_MAX_AGE_DAYS),
-    TYPE0_CASES("type0_cases", allowInterpretation = false, maxAgeDays = CASES_OR_HISTORY_MAX_AGE_DAYS),
-    TYPE1_CASES("type1_cases", allowInterpretation = false, maxAgeDays = CASES_OR_HISTORY_MAX_AGE_DAYS),
-    TYPE2_CASES("type2_cases", allowInterpretation = false, maxAgeDays = CASES_OR_HISTORY_MAX_AGE_DAYS),
-    HISTORY_CURRENT("history_current", allowInterpretation = true, maxAgeDays = CASES_OR_HISTORY_MAX_AGE_DAYS);
+    TYPE0_MONITOR("type0_monitor", allowInterpretation = false, maxAgeDays = MONITOR_MAX_AGE_DAYS, labelKo = "유형1 모니터링"),
+    TYPE1_MONITOR("type1_monitor", allowInterpretation = false, maxAgeDays = MONITOR_MAX_AGE_DAYS, labelKo = "유형2 모니터링"),
+    TYPE2_MONITOR("type2_monitor", allowInterpretation = false, maxAgeDays = MONITOR_MAX_AGE_DAYS, labelKo = "유형3 모니터링"),
+    TYPE0_CASES("type0_cases", allowInterpretation = false, maxAgeDays = CASES_OR_HISTORY_MAX_AGE_DAYS, labelKo = "유형1 사례"),
+    TYPE1_CASES("type1_cases", allowInterpretation = false, maxAgeDays = CASES_OR_HISTORY_MAX_AGE_DAYS, labelKo = "유형2 사례"),
+    TYPE2_CASES("type2_cases", allowInterpretation = false, maxAgeDays = CASES_OR_HISTORY_MAX_AGE_DAYS, labelKo = "유형3 사례"),
+    HISTORY_CURRENT(
+        "history_current",
+        allowInterpretation = true,
+        maxAgeDays = CASES_OR_HISTORY_MAX_AGE_DAYS,
+        labelKo = "역사 검증 · 현재 비교"
+    );
 
     companion object {
         /** 프롬프트-JSON `section_key` 문자열 → enum. 알 수 없는 키는 null(호출측에서 클레임 폐기 처리). */
@@ -216,3 +223,26 @@ data class AiContextFetchResult(
     val searchWidgetsHtml: List<String>
         get() = listOfNotNull(monitor.searchWidgetHtml, cases.searchWidgetHtml, historyCurrent.searchWidgetHtml).distinct()
 }
+
+/**
+ * §4.7 승인 캐시 조회(P7-3) 렌더 단위 — 섹션 하나의 승인 클레임 + 렌더 필수 메타
+ * (`BearSignalAiContextEntity`의 `provider`/`as_of`/`approved_at` 그대로).
+ *
+ * §4.7 "렌더" 절 "AI 배지 + as_of + STALE + 출처 각주"가 [AiContextClaim] 목록만으로는 표현할 수 없는
+ * `provider`(제공자 정책 — Gemini "출처 약검증" 배지 분기 근거)와 `asOf`(카드 표기용 문자열 그대로,
+ * `LocalDate` 재파싱 불필요)를 요구하므로 [AiContextRepository.getApproved]의 반환 타입을
+ * `List<AiContextClaim>`에서 이 타입으로 확장한다(P7-3).
+ *
+ * @param claims 이 섹션의 승인 클레임 전체(빈 목록이면 [AiContextRepository.getApproved]가 애초에
+ * 맵에서 해당 섹션을 생략한다 — 파싱 전멸 방어, P7-1 [AiContextClaimMapper.toDomain] KDoc 참조).
+ * @param provider 저장 시점 수집 제공자("claude" | "gemini").
+ * @param asOf 클레임 기준일 문자열("YYYY-MM-DD", 여러 클레임 중 최신값).
+ * @param approvedAt 사용자 승인 시각(epoch millis) — P7-3 렌더는 현재 미사용이나 향후 "n일 전 갱신"
+ * 표기 확장을 위해 그대로 보존한다.
+ */
+data class ApprovedAiContext(
+    val claims: List<AiContextClaim>,
+    val provider: String,
+    val asOf: String,
+    val approvedAt: Long
+)

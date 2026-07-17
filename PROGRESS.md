@@ -86,6 +86,41 @@ getApproved 역직렬화/빈 맵) — `feature.bearsignal` 패키지 전체 441�
 (Compose "정세 업데이트" 버튼·승인 미리보기·AI 배지/출처 각주/STALE 오버레이·면책 제거) — 이번 Phase는
 Compose 파일 미수정)
 
+PROGRESS: P7-3 — 완료 (§4.7 UI: "정세 업데이트" 버튼·승인 미리보기·AI 배지/출처 각주/STALE 오버레이·
+면책 제거, 2026-07-17. **getApproved 메타 확장**(P7-2 대비 유일한 도메인·데이터 변경): §4.7 렌더 규칙
+"출처·기준일(as_of)·제공자 표기"+Gemini "출처 약검증" 배지가 `List<AiContextClaim>`만으로는 표현 불가
+→ `ApprovedAiContext`(claims/provider/asOf/approvedAt) 신설, `AiContextRepository.getApproved()` 반환형
+확장(entity 메타 그대로 전달, `content_json` 파싱 전멸 섹션은 맵에서 생략 — 렌더가 정적 fallback 처리),
+`GetApprovedAiContextUseCase` 반환형 갱신. **ViewModel 배선**: `AiContextUiState`(approved/pending/provider/
+isLoading/groupErrors/searchWidgetsHtml) 단일 MutableStateFlow → `uiState` combine 5번째 인자 합성.
+init은 `getApprovedAiContextUseCase()` Room 읽기만 1회(네트워크 아님 — 자동 fetch 금지 대원칙과 무관,
+KDoc 명기), `fetchAiContextUpdates()`는 "정세 업데이트" 버튼 콜백에서만 호출(§4.5 `fetchSuggestions`
+패턴 미러, 조회는 Room 무저장) + `approveAiContextClaim`/`approveAllAiContextClaims`(승인 시에만 upsert
+→ pending 제거 + approved 재로드로 화면 즉시 반영) + `dismiss`/`dismissAll`(Room 무영향). provider는
+그룹④⑤⑥ 첫 non-null(단일 제공자 불변식). **UI 신규 3파일**: `AiContextUpdatePanel.kt`(승인 미리보기 —
+sectionKey.labelKo 그룹핑 헤더, 클레임별 text·quote 인용·기준일+출처링크(탭→브라우저)·STALE·"AI 견해"
+배지, 개별 Check/Close+전체 적용(N), groupErrors·로딩·Gemini 검색 위젯 — pending/로딩/에러/위젯 있을
+때만 렌더), `AiContextOverlay.kt`(`AiContextBadgeRow` "AI 갱신 · as_of · 제공자"+Gemini "출처 약검증"+
+STALE(렌더 시각 기준 `AiContextClaimValidation.isStale` 재계산), `AiContextSourceFootnotes` 출처 각주),
+`LlmSearchWidgets.kt`(SuggestionPanel private였던 `StaleBadge`/`SearchWidgetsSection`/`GoogleSearchWidget`
+공용 추출 + `LabelBadge` 골격·`WeakSourceBadge`·`InterpretationBadge`·`openUrlInBrowser` — ActivityNotFound
+토스트 흡수). **오버레이 렌더**: `BearSignalTypesSection`/`TypeCard` — `type{N}_monitor` 승인 시 정적
+체크리스트를 클레임 text로 대체(saveKey "bear_ai_…"로 정적 키와 분리)+배지·각주, `type{N}_cases` 승인
+시 "사례 ·" 라인 대체, 캐시 없으면 정적 그대로. `BearSignalHistorySection` — `HISTORY_BODY` 결합 사용
+제거 → `HISTORY_BODY_STATIC`(1980s 서사) 항상 정적 + `history_current` 승인 시 클레임 문단(interpretation
+"AI 견해" 배지 병기) else `HISTORY_BODY_CURRENT` 정적. `BearSignalScreen` — types/history 두 SectionHeader
+`action`에 "정세 업데이트" TextButton(동일 fetch — 그룹 통합 조회, 로딩 중 비활성), 유형 헤더 아래 패널
+item. `AiContextSectionKey`에 `labelKo` 추가(UI 그룹핑 라벨). **면책 제거**: `BearSignalStaticContent.DISCLAIMER`
+const 삭제, `BearSignalFooterSection` 면책 Text·Divider 제거 + 라벨 "지표 ↔ 리포트 매핑 (정적 기준선)"
+(INDICATOR_MAPPING 존치 — §4.7 "정적 기준선 전용"), `BearSignalStaticContentTest` DISCLAIMER 단언 2건
+제거(무손실 골든 단언 나머지 전부 존속), 잔존 참조 grep 0(KDoc 언급만). **불변 확인**: `fetchUpdates`
+호출 경로는 버튼 콜백 2곳뿐(grep 검증), §3 스코어링·`bear_thresholds.json`·`HISTORY_BODY_STATIC`/`why`/
+`theory` 무접촉, §4.5 기존 제안 흐름 무변경. JVM 테스트 +7(`BearSignalViewModelTest` — init 자동 fetch
+금지+approved 로드·fetch 성공 pending/provider/위젯 반영+무저장·approve 개별/일괄 승인+재로드·dismiss
+Room 무영향·실패 groupErrors; `AiContextRepositoryImplTest` getApproved 메타 단언 갱신) —
+`feature.bearsignal` 패키지 전체 448건/0실패. `assembleDebug` BUILD SUCCESSFUL(Hilt 그래프 재검증).
+남은 작업: P7-4(qa-verifier §7 v1.4 수용 검증 + 에뮬레이터 실기 — 실키 필요))
+
 PROGRESS: 국가별 수익률 자동 커버리지 확장 — 완료 (2026-07-17, 커밋 `036c7cb` 푸시.
 ①**AUTO 6→17 확장**: `GlobalIndexRegistry`에 Yahoo chart API 실검증(호스트 curl, 지수별 476~511
 종가 — 12M 요건 253개 충족) 통과 티커 11개 추가 — 대만 `^TWII`·CAC40 `^FCHI`·호주 `^AXJO`·유로

@@ -1,7 +1,7 @@
 package com.tinyoscillator.feature.bearsignal.domain.usecase
 
-import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaim
 import com.tinyoscillator.feature.bearsignal.domain.model.AiContextSectionKey
+import com.tinyoscillator.feature.bearsignal.domain.model.ApprovedAiContext
 import com.tinyoscillator.feature.bearsignal.domain.repository.AiContextRepository
 
 /**
@@ -11,5 +11,5 @@ import com.tinyoscillator.feature.bearsignal.domain.repository.AiContextReposito
  */
 class GetApprovedAiContextUseCase(private val repository: AiContextRepository) {
 
-    suspend operator fun invoke(): Map<AiContextSectionKey, List<AiContextClaim>> = repository.getApproved()
+    suspend operator fun invoke(): Map<AiContextSectionKey, ApprovedAiContext> = repository.getApproved()
 }

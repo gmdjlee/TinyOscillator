@@ -2,6 +2,12 @@ package com.tinyoscillator.feature.bearsignal.presentation
 
 import android.content.Context
 import com.tinyoscillator.core.network.NetworkUtils
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaim
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaimValidationResult
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextFetchResult
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextGroupOutcome
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextSectionKey
+import com.tinyoscillator.feature.bearsignal.domain.model.ApprovedAiContext
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.BearPhase
@@ -9,6 +15,7 @@ import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalReportBaseli
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSnapshot
 import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholds
 import com.tinyoscillator.feature.bearsignal.domain.model.BearThresholdsFixture
+import com.tinyoscillator.feature.bearsignal.domain.model.ClaimType
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualBearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.ManualFieldUpdate
@@ -19,11 +26,14 @@ import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionFetchResult
 import com.tinyoscillator.feature.bearsignal.domain.model.SuggestionGroupOutcome
 import com.tinyoscillator.feature.bearsignal.domain.repository.SnapshotRepository
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ApplySuggestionUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.ApproveAiContextClaimsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.BuildBearSnapshotUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ComputeBearSignalUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.DetectTransitionsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.EvaluateSnapshotFreshnessUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.FetchAiContextUpdatesUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.FetchSuggestionsUseCase
+import com.tinyoscillator.feature.bearsignal.domain.usecase.GetApprovedAiContextUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.ObserveBearSignalStateUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshAutoInputsUseCase
 import com.tinyoscillator.feature.bearsignal.domain.usecase.RefreshExternalAutoInputsUseCase
@@ -81,6 +91,9 @@ class BearSignalViewModelTest {
     private lateinit var context: Context
     private lateinit var fetchSuggestionsUseCase: FetchSuggestionsUseCase
     private lateinit var applySuggestionUseCase: ApplySuggestionUseCase
+    private lateinit var fetchAiContextUpdatesUseCase: FetchAiContextUpdatesUseCase
+    private lateinit var approveAiContextClaimsUseCase: ApproveAiContextClaimsUseCase
+    private lateinit var getApprovedAiContextUseCase: GetApprovedAiContextUseCase
 
     // §6.1 순수 함수 UseCase 3종 — 결정적이므로 mock 대신 실제 인스턴스를 사용한다(다른 도메인
     // 테스트가 이미 개별적으로 검증했으므로 여기서는 ViewModel의 배선만 확인하면 충분하다).
@@ -118,6 +131,12 @@ class BearSignalViewModelTest {
         context = mockk(relaxed = true)
         fetchSuggestionsUseCase = mockk()
         applySuggestionUseCase = mockk(relaxed = true)
+        fetchAiContextUpdatesUseCase = mockk()
+        approveAiContextClaimsUseCase = mockk(relaxed = true)
+        getApprovedAiContextUseCase = mockk()
+
+        // 기본값: 승인 캐시 없음(대부분의 테스트는 §4.7 오버레이 배선 자체를 검증 대상으로 삼지 않음).
+        coEvery { getApprovedAiContextUseCase() } returns emptyMap()
 
         // §6.1 스냅샷 이력 기본값 — 대부분의 테스트는 이력/신선도 배선 자체를 검증 대상으로 삼지
         // 않으므로 "이력 없음 · 제안 없음"을 기본으로 스텁하고, 필요한 테스트에서만 개별 재정의한다.
@@ -169,7 +188,10 @@ class BearSignalViewModelTest {
             thresholds,
             context,
             fetchSuggestionsUseCase,
-            applySuggestionUseCase
+            applySuggestionUseCase,
+            fetchAiContextUpdatesUseCase,
+            approveAiContextClaimsUseCase,
+            getApprovedAiContextUseCase
         )
     }
 
@@ -393,7 +415,10 @@ class BearSignalViewModelTest {
             thresholds,
             context,
             fetchSuggestionsUseCase,
-            applySuggestionUseCase
+            applySuggestionUseCase,
+            fetchAiContextUpdatesUseCase,
+            approveAiContextClaimsUseCase,
+            getApprovedAiContextUseCase
         )
         advanceUntilIdle()
 
@@ -760,5 +785,165 @@ class BearSignalViewModelTest {
 
         assertTrue(viewModel.uiState.value.suggestions.isEmpty())
         coVerify(exactly = 0) { applySuggestionUseCase(any(), any()) }
+    }
+
+    // ── §4.7 "정세 업데이트"(정적 참조 콘텐츠 동적 갱신, Phase 7-3) ──────────────
+
+    private fun fixtureAiContextClaim(
+        sectionKey: AiContextSectionKey = AiContextSectionKey.TYPE0_MONITOR,
+        text: String = "체크리스트 항목"
+    ) = AiContextClaim(
+        sectionKey = sectionKey,
+        text = text,
+        type = ClaimType.FACT,
+        sourceUrl = "https://example.com/report",
+        sourceTitle = "제목",
+        sourceDate = LocalDate.of(2026, 7, 17),
+        quote = "원문 인용"
+    )
+
+    private fun fixtureAccepted(
+        sectionKey: AiContextSectionKey = AiContextSectionKey.TYPE0_MONITOR,
+        text: String = "체크리스트 항목",
+        stale: Boolean = false
+    ) = AiContextClaimValidationResult.Accepted(fixtureAiContextClaim(sectionKey, text), stale)
+
+    private fun fixtureApproved(
+        text: String = "기존 승인 항목",
+        provider: String = "claude"
+    ) = ApprovedAiContext(
+        claims = listOf(fixtureAiContextClaim(text = text)),
+        provider = provider,
+        asOf = "2026-07-10",
+        approvedAt = 1L
+    )
+
+    @Test
+    fun `init 시점에는 fetchAiContextUpdatesUseCase가 호출되지 않고 승인 캐시만 로드된다`() = runTest {
+        val approved = mapOf(AiContextSectionKey.TYPE0_MONITOR to fixtureApproved())
+        coEvery { getApprovedAiContextUseCase() } returns approved
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(approved, viewModel.uiState.value.aiContextApproved)
+        assertTrue(viewModel.uiState.value.aiContextPending.isEmpty())
+        coVerify(exactly = 0) { fetchAiContextUpdatesUseCase() }
+    }
+
+    @Test
+    fun `fetchAiContextUpdates 성공 시 대기 클레임 제공자 위젯이 반영되고 Room에는 쓰지 않는다`() = runTest {
+        val accepted = fixtureAccepted()
+        coEvery { fetchAiContextUpdatesUseCase() } returns Result.success(
+            AiContextFetchResult(
+                monitor = AiContextGroupOutcome(listOf(accepted), emptyMap(), null, "<div>widget</div>", "gemini"),
+                cases = AiContextGroupOutcome(emptyList(), emptyMap(), null, null, "gemini"),
+                historyCurrent = AiContextGroupOutcome(emptyList(), emptyMap(), null, null, "gemini")
+            )
+        )
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchAiContextUpdates()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(accepted), state.aiContextPending)
+        assertEquals("gemini", state.aiContextProvider)
+        assertEquals(listOf("<div>widget</div>"), state.aiContextSearchWidgetsHtml)
+        assertTrue(!state.aiContextLoading)
+        coVerify(exactly = 0) { approveAiContextClaimsUseCase(any(), any(), any()) }
+    }
+
+    @Test
+    fun `fetchAiContextUpdates 실패 시 groupErrors에 안내 메시지가 노출된다`() = runTest {
+        coEvery { fetchAiContextUpdatesUseCase() } returns Result.failure(IllegalStateException("AI 키가 없습니다"))
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchAiContextUpdates()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.aiContextPending.isEmpty())
+        assertEquals(1, state.aiContextGroupErrors.size)
+        assertTrue(!state.aiContextLoading)
+    }
+
+    @Test
+    fun `approveAiContextClaim은 승인 유스케이스를 호출하고 대기 목록에서 제거 후 승인 캐시를 재로드한다`() = runTest {
+        val accepted = fixtureAccepted()
+        coEvery { fetchAiContextUpdatesUseCase() } returns Result.success(
+            AiContextFetchResult(
+                monitor = AiContextGroupOutcome(listOf(accepted), emptyMap(), null, null, "claude"),
+                cases = AiContextGroupOutcome(emptyList(), emptyMap(), null, null, "claude"),
+                historyCurrent = AiContextGroupOutcome(emptyList(), emptyMap(), null, null, "claude")
+            )
+        )
+        val reloaded = mapOf(AiContextSectionKey.TYPE0_MONITOR to fixtureApproved())
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchAiContextUpdates()
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.aiContextPending.size)
+
+        coEvery { getApprovedAiContextUseCase() } returns reloaded
+        viewModel.approveAiContextClaim(accepted)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { approveAiContextClaimsUseCase(listOf(accepted.claim), "claude", any()) }
+        assertTrue(viewModel.uiState.value.aiContextPending.isEmpty())
+        assertEquals(reloaded, viewModel.uiState.value.aiContextApproved)
+    }
+
+    @Test
+    fun `approveAllAiContextClaims은 대기 클레임 전체를 일괄 승인하고 목록을 비운다`() = runTest {
+        val a1 = fixtureAccepted(sectionKey = AiContextSectionKey.TYPE0_MONITOR, text = "항목1")
+        val a2 = fixtureAccepted(sectionKey = AiContextSectionKey.TYPE1_MONITOR, text = "항목2")
+        coEvery { fetchAiContextUpdatesUseCase() } returns Result.success(
+            AiContextFetchResult(
+                monitor = AiContextGroupOutcome(listOf(a1, a2), emptyMap(), null, null, "claude"),
+                cases = AiContextGroupOutcome(emptyList(), emptyMap(), null, null, "claude"),
+                historyCurrent = AiContextGroupOutcome(emptyList(), emptyMap(), null, null, "claude")
+            )
+        )
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchAiContextUpdates()
+        advanceUntilIdle()
+        assertEquals(2, viewModel.uiState.value.aiContextPending.size)
+
+        viewModel.approveAllAiContextClaims()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { approveAiContextClaimsUseCase(listOf(a1.claim, a2.claim), "claude", any()) }
+        assertTrue(viewModel.uiState.value.aiContextPending.isEmpty())
+    }
+
+    @Test
+    fun `dismissAiContextClaim은 승인 유스케이스를 호출하지 않고 대기 목록에서만 제거한다`() = runTest {
+        val accepted = fixtureAccepted()
+        coEvery { fetchAiContextUpdatesUseCase() } returns Result.success(
+            AiContextFetchResult(
+                monitor = AiContextGroupOutcome(listOf(accepted), emptyMap(), null, null, "claude"),
+                cases = AiContextGroupOutcome(emptyList(), emptyMap(), null, null, "claude"),
+                historyCurrent = AiContextGroupOutcome(emptyList(), emptyMap(), null, null, "claude")
+            )
+        )
+
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        viewModel.fetchAiContextUpdates()
+        advanceUntilIdle()
+        assertEquals(1, viewModel.uiState.value.aiContextPending.size)
+
+        viewModel.dismissAiContextClaim(accepted)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.aiContextPending.isEmpty())
+        coVerify(exactly = 0) { approveAiContextClaimsUseCase(any(), any(), any()) }
     }
 }
