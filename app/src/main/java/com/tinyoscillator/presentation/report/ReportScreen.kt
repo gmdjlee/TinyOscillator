@@ -38,12 +38,17 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** 탐색 탭에 임베드되는 리포트 콘텐츠 (TopAppBar 없음, 건수·필터초기화 인라인) */
+/**
+ * 탐색 탭에 임베드되는 리포트 콘텐츠 (TopAppBar 없음, 건수·필터초기화 인라인)
+ *
+ * @param compact true면 제목·작성기관 컬럼 생략 — 2-pane 왼쪽 리스트처럼 좁은 폭에서 사용
+ */
 @Composable
 fun ReportContent(
     onReportClick: (ConsensusReport) -> Unit = {},
     onOpenFullAnalysis: (String, String) -> Unit = { _, _ -> },
     onOpenProbabilityAnalysis: (String, String) -> Unit = { _, _ -> },
+    compact: Boolean = false,
     viewModel: ReportViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
@@ -126,7 +131,8 @@ fun ReportContent(
                     onFilterChanged = { viewModel.updateFilter(it) },
                     onReportClick = onReportClick,
                     onQuickAnalysisClick = { quickAnalysisStock = it.stockTicker to it.stockName },
-                    onPageSizeChanged = { viewModel.setPageSize(it) }
+                    onPageSizeChanged = { viewModel.setPageSize(it) },
+                    compact = compact
                 )
                 NeedDataCollectionContent()
             } else {
@@ -138,6 +144,7 @@ fun ReportContent(
                     onReportClick = onReportClick,
                     onQuickAnalysisClick = { quickAnalysisStock = it.stockTicker to it.stockName },
                     onPageSizeChanged = { viewModel.setPageSize(it) },
+                    compact = compact,
                     modifier = Modifier.weight(1f)
                 )
                 if (totalPages > 1) {
@@ -178,6 +185,7 @@ private fun ReportTable(
     onReportClick: (ConsensusReport) -> Unit = {},
     onQuickAnalysisClick: (ConsensusReport) -> Unit = {},
     onPageSizeChanged: (Int) -> Unit = {},
+    compact: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val numberFormat = remember { NumberFormat.getNumberInstance(Locale.KOREA) }
@@ -206,7 +214,9 @@ private fun ReportTable(
                 selectedValue = filter.stockName,
                 onClick = { showStockNameSearch = true }
             )
-            HeaderCell("제목", Modifier.weight(ColWeights.TITLE))
+            if (!compact) {
+                HeaderCell("제목", Modifier.weight(ColWeights.TITLE))
+            }
             FilterableHeaderCell(
                 label = "의견",
                 modifier = Modifier.weight(ColWeights.OPINION),
@@ -215,13 +225,15 @@ private fun ReportTable(
                 onSelected = { onFilterChanged(filter.copy(opinion = it)) }
             )
             HeaderCell("목표가", Modifier.weight(ColWeights.TARGET))
-            FilterableHeaderCell(
-                label = "작성기관",
-                modifier = Modifier.weight(ColWeights.INST),
-                selectedValue = filter.institution,
-                options = filterOptions.institutions,
-                onSelected = { onFilterChanged(filter.copy(institution = it)) }
-            )
+            if (!compact) {
+                FilterableHeaderCell(
+                    label = "작성기관",
+                    modifier = Modifier.weight(ColWeights.INST),
+                    selectedValue = filter.institution,
+                    options = filterOptions.institutions,
+                    onSelected = { onFilterChanged(filter.copy(institution = it)) }
+                )
+            }
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -266,14 +278,18 @@ private fun ReportTable(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            DataCell(report.title, Modifier.weight(ColWeights.TITLE), maxLines = 2)
+                            if (!compact) {
+                                DataCell(report.title, Modifier.weight(ColWeights.TITLE), maxLines = 2)
+                            }
                             DataCell(report.opinion, Modifier.weight(ColWeights.OPINION))
                             DataCell(
                                 text = if (report.targetPrice > 0) numberFormat.format(report.targetPrice) else "-",
                                 modifier = Modifier.weight(ColWeights.TARGET),
                                 textAlign = TextAlign.End
                             )
-                            DataCell(report.institution, Modifier.weight(ColWeights.INST))
+                            if (!compact) {
+                                DataCell(report.institution, Modifier.weight(ColWeights.INST))
+                            }
                         }
                     }
                 }

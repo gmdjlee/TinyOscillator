@@ -220,6 +220,8 @@ fun ExploreScreen(
                                     },
                                     onOpenFullAnalysis = onOpenFullAnalysis,
                                     onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
+                                    // 좁은 왼쪽 pane — 제목·작성기관 컬럼 생략
+                                    compact = true,
                                     modifier = Modifier.fillMaxSize()
                                 )
                             },
