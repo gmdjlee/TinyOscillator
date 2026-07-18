@@ -24,14 +24,11 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,6 +44,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.domain.model.ChatMessage
 import com.tinyoscillator.domain.model.ChatRole
+import com.tinyoscillator.presentation.common.CarvedTextField
+import com.tinyoscillator.presentation.common.FinanceCard
 
 /** 채팅 섹션: 데이터 요약(선택) + 메시지 목록 + 입력 필드 */
 @Composable
@@ -58,8 +57,7 @@ internal fun ChatSection(
     onClearChat: () -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
-    streamingText: String? = null,
-    tokenUsage: ChatTokenUsage? = null
+    streamingText: String? = null
 ) {
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -83,37 +81,34 @@ internal fun ChatSection(
         ) {
             if (!dataSummary.isNullOrBlank()) {
                 item {
-                    Card(
+                    FinanceCard(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                        )
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                        contentPadding = PaddingValues(12.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Analytics,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                                Text(
-                                    "수집된 데이터",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            }
-                            Spacer(Modifier.height(6.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Analytics,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
                             Text(
-                                dataSummary,
-                                style = MaterialTheme.typography.bodySmall,
+                                "수집된 데이터",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            dataSummary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     }
                 }
             }
@@ -177,18 +172,6 @@ internal fun ChatSection(
 
         HorizontalDivider()
 
-        if (tokenUsage != null && !tokenUsage.isEmpty) {
-            Text(
-                buildString {
-                    append("세션 토큰: 입력 ${formatTokens(tokenUsage.inputTokens)} · 출력 ${formatTokens(tokenUsage.outputTokens)}")
-                    if (tokenUsage.cacheReadTokens > 0) append(" · 캐시 ${formatTokens(tokenUsage.cacheReadTokens)}")
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-            )
-        }
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -209,13 +192,11 @@ internal fun ChatSection(
                 }
             }
 
-            OutlinedTextField(
+            CarvedTextField(
                 value = inputText,
                 onValueChange = { inputText = it },
-                placeholder = { Text(placeholder, style = MaterialTheme.typography.bodyMedium) },
+                placeholder = placeholder,
                 modifier = Modifier.weight(1f),
-                singleLine = false,
-                maxLines = 3,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = {
                     if (inputText.isNotBlank() && !chatLoading) {
@@ -223,7 +204,8 @@ internal fun ChatSection(
                         inputText = ""
                     }
                 }),
-                shape = RoundedCornerShape(24.dp)
+                singleLine = false,
+                maxLines = 3
             )
 
             IconButton(
@@ -263,15 +245,15 @@ private fun ChatBubble(message: ChatMessage) {
                 .widthIn(max = 300.dp)
                 .clip(
                     RoundedCornerShape(
-                        topStart = 16.dp,
-                        topEnd = 16.dp,
-                        bottomStart = if (isUser) 16.dp else 4.dp,
-                        bottomEnd = if (isUser) 4.dp else 16.dp
+                        topStart = 14.dp,
+                        topEnd = 14.dp,
+                        bottomStart = if (isUser) 14.dp else 4.dp,
+                        bottomEnd = if (isUser) 4.dp else 14.dp
                     )
                 )
                 .background(
                     if (isUser) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceContainerHigh
+                    else MaterialTheme.colorScheme.surfaceContainer
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {

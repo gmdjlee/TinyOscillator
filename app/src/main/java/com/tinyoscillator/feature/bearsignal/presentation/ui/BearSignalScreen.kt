@@ -151,7 +151,7 @@ fun BearSignalScreen(onBack: () -> Unit) {
                     }
                 }
                 item(key = "sparkline_title") {
-                    SectionHeader(title = "국면 추이 — 스코어 이력과 전이 로그")
+                    SectionHeader(title = "국면 추이", subtitle = "스코어 이력과 전이 로그")
                 }
                 item(key = "sparkline") {
                     BearSignalSparklineSection(
@@ -161,7 +161,7 @@ fun BearSignalScreen(onBack: () -> Unit) {
                 }
 
                 item(key = "leading_title") {
-                    SectionHeader(title = "온도계 · 선행 신호 3종 — 위험선호가 어디까지 식었나")
+                    SectionHeader(title = "선행 신호", subtitle = "위험선호가 어디까지 식었나 · 온도계 3종")
                 }
                 item(key = "leading_cards") {
                     BearSignalLeadingSignalsSection(
@@ -186,7 +186,7 @@ fun BearSignalScreen(onBack: () -> Unit) {
                 }
 
                 item(key = "gate_amp_title") {
-                    SectionHeader(title = "방아쇠 · 증폭기 — 금리(결정타)와 집중(증폭 계수)")
+                    SectionHeader(title = "방아쇠 · 증폭", subtitle = "금리(결정타)와 집중(증폭 계수)")
                 }
                 item(key = "gate_amp") {
                     BearSignalGateAmpSection(
@@ -198,7 +198,7 @@ fun BearSignalScreen(onBack: () -> Unit) {
                 }
 
                 item(key = "suggestion_panel_title") {
-                    SectionHeader(title = "AI 제안 — 웹/LLM 데이터 갱신(§4.5, 승인 필요)")
+                    SectionHeader(title = "AI 제안", subtitle = "웹/LLM 데이터 갱신 · 승인 필요(§4.5)")
                 }
                 item(key = "suggestion_panel") {
                     SuggestionPanel(
@@ -215,7 +215,8 @@ fun BearSignalScreen(onBack: () -> Unit) {
 
                 item(key = "types_title") {
                     SectionHeader(
-                        title = "유형 진단 — 주도주 하락세 판단, 약세장 3유형과 회복 가능성",
+                        title = "유형 진단",
+                        subtitle = "약세장 3유형과 회복 가능성 · 주도주 하락세 판단",
                         action = {
                             TextButton(
                                 onClick = viewModel::fetchAiContextUpdates,
@@ -252,7 +253,8 @@ fun BearSignalScreen(onBack: () -> Unit) {
 
                 item(key = "history_title") {
                     SectionHeader(
-                        title = "역사 검증 — 최악의 조합, 3충격 동시 결합",
+                        title = "역사 검증",
+                        subtitle = "최악의 조합 · 3충격 동시 결합",
                         action = {
                             TextButton(
                                 onClick = viewModel::fetchAiContextUpdates,

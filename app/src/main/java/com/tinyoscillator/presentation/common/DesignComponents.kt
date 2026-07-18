@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -65,6 +66,10 @@ fun FinanceCard(
     modifier: Modifier = Modifier,
     elevation: Dp = 0.dp,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    onClick: (() -> Unit)? = null,
+    borderColor: Color? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val borderBrush = Brush.linearGradient(
@@ -75,23 +80,50 @@ fun FinanceCard(
         )
     )
 
-    Card(
-        modifier = modifier
-            .drawBehind {
-                // 미묘한 그라디언트 보더
-                drawRoundRect(
-                    brush = borderBrush,
-                    cornerRadius = CornerRadius(20.dp.toPx(), 20.dp.toPx()),
-                    style = Stroke(width = 1.dp.toPx())
-                )
-            },
-        shape = AsymmetricCardShape,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
-    ) {
+    // borderColor 지정 시 활성/경고 강조용 단색 Stroke, 없으면 기존 미묘한 그라디언트 보더
+    val borderModifier = Modifier.drawBehind {
+        if (borderColor != null) {
+            drawRoundRect(
+                color = borderColor,
+                cornerRadius = CornerRadius(20.dp.toPx(), 20.dp.toPx()),
+                style = Stroke(width = 1.dp.toPx())
+            )
+        } else {
+            drawRoundRect(
+                brush = borderBrush,
+                cornerRadius = CornerRadius(20.dp.toPx(), 20.dp.toPx()),
+                style = Stroke(width = 1.dp.toPx())
+            )
+        }
+    }
+
+    val cardColors = CardDefaults.cardColors(containerColor = containerColor)
+    val cardElevation = CardDefaults.cardElevation(defaultElevation = elevation)
+    val innerContent: @Composable ColumnScope.() -> Unit = {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(contentPadding),
+            verticalArrangement = verticalArrangement,
             content = content
+        )
+    }
+
+    if (onClick != null) {
+        // 클릭 가능 오버로드 — 리플이 비대칭 shape에 클립된다
+        Card(
+            onClick = onClick,
+            modifier = modifier.then(borderModifier),
+            shape = AsymmetricCardShape,
+            colors = cardColors,
+            elevation = cardElevation,
+            content = innerContent
+        )
+    } else {
+        Card(
+            modifier = modifier.then(borderModifier),
+            shape = AsymmetricCardShape,
+            colors = cardColors,
+            elevation = cardElevation,
+            content = innerContent
         )
     }
 }
@@ -106,12 +138,13 @@ fun <T> PillTabRow(
     selectedTab: T,
     onTabSelected: (T) -> Unit,
     tabLabel: (T) -> String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(contentPadding)
             .clip(RoundedCornerShape(24.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .padding(4.dp),
@@ -165,12 +198,13 @@ fun <T> ScrollablePillTabRow(
     selectedTab: T,
     onTabSelected: (T) -> Unit,
     tabLabel: (T) -> String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(contentPadding)
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -229,6 +263,7 @@ fun <T> ScrollablePillTabRow(
 fun SectionHeader(
     title: String,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
     action: @Composable (() -> Unit)? = null
 ) {
     Row(
@@ -238,15 +273,25 @@ fun SectionHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground,
-            // 긴 제목이 Row 전체 폭을 차지하면 action 슬롯이 0dp로 압살된다 —
-            // weight(fill=false)로 제목이 남은 폭 안에서만 줄바꿈하도록 제한.
+        // 긴 제목/부제가 Row 전체 폭을 차지하면 action 슬롯이 0dp로 압살된다 —
+        // weight(fill=false)로 좌측 텍스트가 남은 폭 안에서만 줄바꿈하도록 제한.
+        Column(
             modifier = Modifier.weight(1f, fill = false)
-        )
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         action?.invoke()
     }
 }
@@ -308,21 +353,29 @@ fun GlassCard(
 fun CarvedTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
+    label: String? = null,
     modifier: Modifier = Modifier,
     leadingIcon: ImageVector? = null,
+    trailingIcon: @Composable (() -> Unit)? = null,
+    placeholder: String? = null,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    singleLine: Boolean = true
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    singleLine: Boolean = true,
+    maxLines: Int = 1
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
+        label = label?.let { { Text(it) } },
+        placeholder = placeholder?.let { { Text(it) } },
         leadingIcon = leadingIcon?.let { { Icon(it, contentDescription = null) } },
+        trailingIcon = trailingIcon,
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
         singleLine = singleLine,
+        maxLines = maxLines,
         shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,

@@ -5,7 +5,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -37,6 +36,9 @@ import com.tinyoscillator.presentation.chart.ext.resampleToWeekly
 import com.tinyoscillator.presentation.chart.ext.toDateLabels
 import com.tinyoscillator.presentation.chart.ext.toDateLabelsFromOhlcv
 import com.tinyoscillator.presentation.chart.ext.toOhlcvPoints
+import com.tinyoscillator.presentation.common.CarvedTextField
+import com.tinyoscillator.presentation.common.FinanceCard
+import com.tinyoscillator.presentation.common.PillTabRow
 import com.tinyoscillator.presentation.common.ScrollablePillTabRow
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
 import com.tinyoscillator.presentation.common.WindowType
@@ -161,33 +163,17 @@ fun OscillatorScreen(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // 검색 입력
-                    OutlinedTextField(
+                    // 검색 입력 — 공용 CarvedTextField 단일화
+                    CarvedTextField(
                         value = query,
                         onValueChange = {
                             query = it
                             viewModel.searchStock(it)
                             showHistory = false
                         },
-                        placeholder = { Text("종목명 또는 종목코드 검색") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = {
-                            if (searchResults.isNotEmpty()) {
-                                val first = searchResults.first()
-                                viewModel.analyze(first.ticker, first.name, selectedRange.analysisDays, selectedRange.displayDays)
-                                query = first.name
-                                viewModel.searchStock("")
-                            }
-                        }),
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Search,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
+                        label = null,
+                        placeholder = "종목명 또는 종목코드 검색",
+                        leadingIcon = Icons.Default.Search,
                         trailingIcon = {
                             if (analysisHistory.isNotEmpty()) {
                                 IconButton(onClick = { showHistory = !showHistory }) {
@@ -200,12 +186,15 @@ fun OscillatorScreen(
                                 }
                             }
                         },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f)
-                        ),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {
+                            if (searchResults.isNotEmpty()) {
+                                val first = searchResults.first()
+                                viewModel.analyze(first.ticker, first.name, selectedRange.analysisDays, selectedRange.displayDays)
+                                query = first.name
+                                viewModel.searchStock("")
+                            }
+                        }),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
@@ -479,20 +468,13 @@ private fun OscillatorTabContent(
             is OscillatorUiState.Success -> {
                 // 기간 선택
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OscillatorDateRange.entries.forEach { range ->
-                            FilterChip(
-                                selected = selectedRange == range,
-                                onClick = { onSelectRange(range) },
-                                label = { Text(range.label) }
-                            )
-                        }
-                    }
+                    ScrollablePillTabRow(
+                        tabs = OscillatorDateRange.entries.toList(),
+                        selectedTab = selectedRange,
+                        onTabSelected = onSelectRange,
+                        tabLabel = { it.label },
+                        contentPadding = PaddingValues(0.dp)
+                    )
                 }
                 // 실시간 데이터 상태 표시
                 item {
@@ -584,21 +566,16 @@ private fun OscillatorTabContent(
                                 .mapValues { (_, pats) -> pats.map { it.type.labelKo } }
                         }
                         Column {
-                            // 일봉/주봉 토글
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CandlePeriod.entries.forEach { period ->
-                                    FilterChip(
-                                        selected = selectedCandlePeriod == period,
-                                        onClick = { onSelectCandlePeriod(period) },
-                                        label = { Text(period.label) }
-                                    )
-                                }
-                            }
+                            // 일봉/주봉 토글 — 단일 선택 전환이므로 Pill 계열로 통일.
+                            // 독립 토글(다른 요소와 인라인 아님)이라 fillMaxWidth Pill 적합.
+                            // 기존 Row의 vertical 4dp 여백만 contentPadding으로 보존.
+                            PillTabRow(
+                                tabs = CandlePeriod.entries.toList(),
+                                selectedTab = selectedCandlePeriod,
+                                onTabSelected = onSelectCandlePeriod,
+                                tabLabel = { it.label },
+                                contentPadding = PaddingValues(vertical = 4.dp)
+                            )
                             KoreanCandleChartView(
                                 candles = candlePoints,
                                 dateLabels = dateLabels,
@@ -723,18 +700,13 @@ private fun HistoryItem(
         dateFormat.format(Date(history.lastAnalyzedAt))
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+    FinanceCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {

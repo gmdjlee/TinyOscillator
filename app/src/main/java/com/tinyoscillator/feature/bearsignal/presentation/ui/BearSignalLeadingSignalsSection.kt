@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,6 +23,7 @@ import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalResult
 import com.tinyoscillator.feature.bearsignal.domain.model.Depth
 import com.tinyoscillator.feature.bearsignal.domain.model.SignalLevel
+import com.tinyoscillator.presentation.common.FinanceCard
 
 /**
  * 섹션 2 · 선행 신호 3 카드 (TASK_bear_signal_console.md §5.2-2, 부록 B #1) — 신호1/2/3 게이지 + 레벨 칩 + 자동값/근거.
@@ -138,7 +138,7 @@ internal fun SignalCard(
     contentDescription: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(
+    FinanceCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(
@@ -147,22 +147,21 @@ internal fun SignalCard(
                 } else {
                     Modifier
                 }
-            )
+            ),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
-                LevelChip(level = level)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
-            SignalGauge(level = level, modifier = Modifier.fillMaxWidth())
-            content()
+            LevelChip(level = level)
         }
+        SignalGauge(level = level, modifier = Modifier.fillMaxWidth())
+        content()
     }
 }
 

@@ -35,8 +35,7 @@ internal fun MarketTabContent(
     onPrepareData: () -> Unit,
     onSendChat: (String) -> Unit,
     onClearChat: () -> Unit,
-    streamingText: String? = null,
-    tokenUsage: ChatTokenUsage? = null
+    streamingText: String? = null
 ) {
     Column(
         modifier = Modifier.fillMaxSize()
@@ -91,8 +90,7 @@ internal fun MarketTabContent(
                 onSendChat = onSendChat,
                 onClearChat = onClearChat,
                 placeholder = "시장 지표에 대해 질문하세요...",
-                streamingText = streamingText,
-                tokenUsage = tokenUsage
+                streamingText = streamingText
             )
         }
     }

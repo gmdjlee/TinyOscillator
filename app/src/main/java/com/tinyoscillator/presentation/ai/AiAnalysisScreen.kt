@@ -43,7 +43,6 @@ fun AiAnalysisScreen(
     val stockChatMessages by stockViewModel.stockChatMessages.collectAsStateWithLifecycle()
     val stockChatLoading by stockViewModel.stockChatLoading.collectAsStateWithLifecycle()
     val stockStreamingReply by stockViewModel.streamingReply.collectAsStateWithLifecycle()
-    val stockTokenUsage by stockViewModel.chatTokenUsage.collectAsStateWithLifecycle()
     val recentAnalyzed by stockViewModel.recentAnalyzed.collectAsStateWithLifecycle()
 
     val marketDataPrepared by marketViewModel.marketDataPrepared.collectAsStateWithLifecycle()
@@ -52,7 +51,6 @@ fun AiAnalysisScreen(
     val marketChatMessages by marketViewModel.marketChatMessages.collectAsStateWithLifecycle()
     val marketChatLoading by marketViewModel.marketChatLoading.collectAsStateWithLifecycle()
     val marketStreamingReply by marketViewModel.streamingReply.collectAsStateWithLifecycle()
-    val marketTokenUsage by marketViewModel.chatTokenUsage.collectAsStateWithLifecycle()
 
     val probabilityState by probabilityViewModel.probabilityState.collectAsStateWithLifecycle()
     val interpretationState by probabilityViewModel.interpretationState.collectAsStateWithLifecycle()
@@ -111,8 +109,7 @@ fun AiAnalysisScreen(
                         onPrepareData = { marketViewModel.prepareMarketData() },
                         onSendChat = { marketViewModel.sendMarketChat(it) },
                         onClearChat = { marketViewModel.clearMarketChat() },
-                        streamingText = marketStreamingReply,
-                        tokenUsage = marketTokenUsage
+                        streamingText = marketStreamingReply
                     )
                 }
 
@@ -136,7 +133,6 @@ fun AiAnalysisScreen(
                         onSendChat = { stockViewModel.sendStockChat(it) },
                         onClearChat = { stockViewModel.clearStockChat() },
                         streamingText = stockStreamingReply,
-                        tokenUsage = stockTokenUsage,
                         recentAnalyzed = recentAnalyzed,
                         onRecentSelect = { ticker, name ->
                             query = name

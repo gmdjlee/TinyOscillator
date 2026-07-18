@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalInputs
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalResult
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturns
+import com.tinyoscillator.presentation.common.FinanceCard
 import com.tinyoscillator.ui.theme.signColor
 
 private val PERIOD_LABELS = listOf("-12개월", "-6개월", "-3개월", "-1개월")
@@ -62,74 +62,75 @@ fun BearSignalCountryTableSection(
 ) {
     var editingMarket by remember { mutableStateOf<MarketReturns?>(null) }
 
-    Card(modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column {
-                Text("신호 1 상세 · 도표 48", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("국가별 주가 수익률 비교", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
+    FinanceCard(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Column {
+            Text("신호 1 상세 · 도표 48", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("국가별 주가 수익률 비교", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                PERIOD_LABELS.forEachIndexed { idx, label ->
-                    FilterChip(
-                        selected = inputs.periodIdx == idx,
-                        onClick = { onPeriodSelected(idx) },
-                        label = { Text(label) }
-                    )
-                }
-            }
-
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = (if (manyCountriesBreached) levelColor(2) else MaterialTheme.colorScheme.surfaceVariant).copy(alpha = 0.15f)
-            ) {
-                Text(
-                    "이탈 지수 수 ${result.ma.neg} / 20 (선택 기간: ${PERIOD_LABELS[inputs.periodIdx]})",
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (manyCountriesBreached) levelColor(2) else MaterialTheme.colorScheme.onSurfaceVariant
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            PERIOD_LABELS.forEachIndexed { idx, label ->
+                FilterChip(
+                    selected = inputs.periodIdx == idx,
+                    onClick = { onPeriodSelected(idx) },
+                    label = { Text(label) }
                 )
             }
+        }
 
-            HorizontalDivider()
-
-            Row(Modifier.fillMaxWidth()) {
-                Text("국가", modifier = Modifier.weight(1.3f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                PERIOD_LABELS.forEach { label ->
-                    Text(
-                        label,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            HorizontalDivider()
-
-            Column {
-                inputs.markets.forEach { market ->
-                    CountryRow(
-                        market = market,
-                        selectedPeriodIdx = inputs.periodIdx,
-                        manualRequired = market.name in manualRequiredNames,
-                        onClick = { editingMarket = market }
-                    )
-                }
-            }
-
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = (if (manyCountriesBreached) levelColor(2) else MaterialTheme.colorScheme.surfaceVariant).copy(alpha = 0.15f)
+        ) {
             Text(
-                "■ 플러스  ■ 마이너스(이탈)  선택된 기간이 신호1 판정에 반영됩니다. 행을 탭하면 값을 직접 수정할 수 있습니다.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "이탈 지수 수 ${result.ma.neg} / 20 (선택 기간: ${PERIOD_LABELS[inputs.periodIdx]})",
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (manyCountriesBreached) levelColor(2) else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
+        HorizontalDivider()
+
+        Row(Modifier.fillMaxWidth()) {
+            Text("국가", modifier = Modifier.weight(1.3f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            PERIOD_LABELS.forEach { label ->
+                Text(
+                    label,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        HorizontalDivider()
+
+        Column {
+            inputs.markets.forEach { market ->
+                CountryRow(
+                    market = market,
+                    selectedPeriodIdx = inputs.periodIdx,
+                    manualRequired = market.name in manualRequiredNames,
+                    onClick = { editingMarket = market }
+                )
+            }
+        }
+
+        Text(
+            "■ 플러스  ■ 마이너스(이탈)  선택된 기간이 신호1 판정에 반영됩니다. 행을 탭하면 값을 직접 수정할 수 있습니다.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 
     editingMarket?.let { market ->

@@ -54,7 +54,6 @@ internal fun StockTabContent(
     onSendChat: (String) -> Unit,
     onClearChat: () -> Unit,
     streamingText: String? = null,
-    tokenUsage: ChatTokenUsage? = null,
     recentAnalyzed: List<AnalysisSnapshotDao.SnapshotTickerInfo> = emptyList(),
     onRecentSelect: (String, String) -> Unit = { _, _ -> }
 ) {
@@ -175,8 +174,7 @@ internal fun StockTabContent(
                             onClearChat = onClearChat,
                             placeholder = "${selectedStock.name}에 대해 질문하세요...",
                             modifier = Modifier.weight(1f),
-                            streamingText = streamingText,
-                            tokenUsage = tokenUsage
+                            streamingText = streamingText
                         )
                     }
 

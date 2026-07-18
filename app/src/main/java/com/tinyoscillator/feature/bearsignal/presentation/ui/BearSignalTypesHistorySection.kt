@@ -1,6 +1,5 @@
 package com.tinyoscillator.feature.bearsignal.presentation.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,8 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +32,7 @@ import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalStaticConten
 import com.tinyoscillator.feature.bearsignal.domain.model.BearType
 import com.tinyoscillator.feature.bearsignal.domain.model.ClaimType
 import com.tinyoscillator.feature.bearsignal.domain.model.RecoveryOutlook
+import com.tinyoscillator.presentation.common.FinanceCard
 import com.tinyoscillator.ui.theme.LocalFinanceColors
 import java.time.LocalDate
 
@@ -85,87 +83,85 @@ private fun TypeCard(type: BearType, active: Boolean, approved: Map<AiContextSec
         RecoveryOutlook.PATIENCE -> accent
     }
 
-    Card(
+    FinanceCard(
         modifier = Modifier.fillMaxWidth(),
-        border = if (active) BorderStroke(1.dp, accent.copy(alpha = 0.6f)) else null,
-        colors = CardDefaults.cardColors()
+        borderColor = if (active) accent.copy(alpha = 0.6f) else null,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column {
-                    Text(
-                        "유형 ${type.index + 1}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (active) accent else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(type.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ) {
-                    Text(
-                        type.axis,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            if (active) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column {
                 Text(
-                    "● 현재 활성 방아쇠 (리포트 최유력)",
+                    "유형 ${type.index + 1}",
                     style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = accent
+                    color = if (active) accent else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Text(type.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
-            Text(type.why, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(type.recoveryLabel, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = recoveryColor)
-            Text("이론 · ${type.theory}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-            // §4.7 "사례" 오버레이 — type{N}_cases 승인 캐시가 있으면 클레임으로 대체, 없으면 정적.
-            val casesApproved = approved[casesSectionKeyFor(type.index)]
-            if (casesApproved != null) {
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ) {
                 Text(
-                    "사례 · " + casesApproved.claims.joinToString(" / ") { it.text },
+                    type.axis,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                val today = remember { LocalDate.now() }
-                val stale = casesApproved.claims.any {
-                    AiContextClaimValidation.isStale(it.sourceDate, today, casesSectionKeyFor(type.index))
-                }
-                AiContextBadgeRow(casesApproved, stale, modifier = Modifier.padding(top = 2.dp))
-                AiContextSourceFootnotes(casesApproved.claims)
-            } else {
-                Text("사례 · ${type.cases}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        }
+        if (active) {
             Text(
-                "모니터링 체크리스트",
+                "● 현재 활성 방아쇠 (리포트 최유력)",
                 style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Bold,
+                color = accent
+            )
+        }
+        Text(type.why, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(type.recoveryLabel, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = recoveryColor)
+        Text("이론 · ${type.theory}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        // §4.7 "사례" 오버레이 — type{N}_cases 승인 캐시가 있으면 클레임으로 대체, 없으면 정적.
+        val casesApproved = approved[casesSectionKeyFor(type.index)]
+        if (casesApproved != null) {
+            Text(
+                "사례 · " + casesApproved.claims.joinToString(" / ") { it.text },
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            val today = remember { LocalDate.now() }
+            val stale = casesApproved.claims.any {
+                AiContextClaimValidation.isStale(it.sourceDate, today, casesSectionKeyFor(type.index))
+            }
+            AiContextBadgeRow(casesApproved, stale, modifier = Modifier.padding(top = 2.dp))
+            AiContextSourceFootnotes(casesApproved.claims)
+        } else {
+            Text("사례 · ${type.cases}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
 
-            // §4.7 "모니터링" 오버레이 — type{N}_monitor 승인 캐시가 있으면 클레임 목록으로 대체.
-            val monitorApproved = approved[monitorSectionKeyFor(type.index)]
-            if (monitorApproved != null) {
-                val today = remember { LocalDate.now() }
-                val stale = monitorApproved.claims.any {
-                    AiContextClaimValidation.isStale(it.sourceDate, today, monitorSectionKeyFor(type.index))
-                }
-                AiContextBadgeRow(monitorApproved, stale, modifier = Modifier.padding(bottom = 2.dp))
-                monitorApproved.claims.forEachIndexed { idx, claim ->
-                    MonitorChecklistRow(text = claim.text, tint = recoveryColor, saveKey = "bear_ai_type${type.index}_monitor$idx")
-                }
-                AiContextSourceFootnotes(monitorApproved.claims)
-            } else {
-                type.monitor.forEachIndexed { idx, item ->
-                    MonitorChecklistRow(text = item, tint = recoveryColor, saveKey = "bear_type${type.index}_monitor$idx")
-                }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        Text(
+            "모니터링 체크리스트",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        // §4.7 "모니터링" 오버레이 — type{N}_monitor 승인 캐시가 있으면 클레임 목록으로 대체.
+        val monitorApproved = approved[monitorSectionKeyFor(type.index)]
+        if (monitorApproved != null) {
+            val today = remember { LocalDate.now() }
+            val stale = monitorApproved.claims.any {
+                AiContextClaimValidation.isStale(it.sourceDate, today, monitorSectionKeyFor(type.index))
+            }
+            AiContextBadgeRow(monitorApproved, stale, modifier = Modifier.padding(bottom = 2.dp))
+            monitorApproved.claims.forEachIndexed { idx, claim ->
+                MonitorChecklistRow(text = claim.text, tint = recoveryColor, saveKey = "bear_ai_type${type.index}_monitor$idx")
+            }
+            AiContextSourceFootnotes(monitorApproved.claims)
+        } else {
+            type.monitor.forEachIndexed { idx, item ->
+                MonitorChecklistRow(text = item, tint = recoveryColor, saveKey = "bear_type${type.index}_monitor$idx")
             }
         }
     }
@@ -203,62 +199,61 @@ fun BearSignalHistorySection(
     modifier: Modifier = Modifier,
     approved: Map<AiContextSectionKey, ApprovedAiContext> = emptyMap()
 ) {
-    Card(
+    FinanceCard(
         modifier = modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
+        borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(BearSignalStaticContent.HISTORY_TITLE, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            // §4.7 "동적 갱신 금지(정적 전용)" — 1980s 서사부는 항상 정적으로 렌더한다.
+        Text(BearSignalStaticContent.HISTORY_TITLE, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        // §4.7 "동적 갱신 금지(정적 전용)" — 1980s 서사부는 항상 정적으로 렌더한다.
+        Text(
+            BearSignalStaticContent.HISTORY_BODY_STATIC,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        // §4.7 "현재 비교" 문단 오버레이 — history_current 승인 캐시가 있으면 클레임으로 대체.
+        val historyApproved = approved[AiContextSectionKey.HISTORY_CURRENT]
+        if (historyApproved != null) {
+            val today = remember { LocalDate.now() }
+            val stale = historyApproved.claims.any {
+                AiContextClaimValidation.isStale(it.sourceDate, today, AiContextSectionKey.HISTORY_CURRENT)
+            }
+            AiContextBadgeRow(historyApproved, stale)
+            historyApproved.claims.forEach { claim ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (claim.type == ClaimType.INTERPRETATION) {
+                        InterpretationBadge()
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(claim.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            AiContextSourceFootnotes(historyApproved.claims)
+        } else {
             Text(
-                BearSignalStaticContent.HISTORY_BODY_STATIC,
+                BearSignalStaticContent.HISTORY_BODY_CURRENT,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
 
-            // §4.7 "현재 비교" 문단 오버레이 — history_current 승인 캐시가 있으면 클레임으로 대체.
-            val historyApproved = approved[AiContextSectionKey.HISTORY_CURRENT]
-            if (historyApproved != null) {
-                val today = remember { LocalDate.now() }
-                val stale = historyApproved.claims.any {
-                    AiContextClaimValidation.isStale(it.sourceDate, today, AiContextSectionKey.HISTORY_CURRENT)
-                }
-                AiContextBadgeRow(historyApproved, stale)
-                historyApproved.claims.forEach { claim ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (claim.type == ClaimType.INTERPRETATION) {
-                            InterpretationBadge()
-                            Spacer(Modifier.width(6.dp))
-                        }
-                        Text(claim.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                AiContextSourceFootnotes(historyApproved.claims)
-            } else {
-                Text(
-                    BearSignalStaticContent.HISTORY_BODY_CURRENT,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            BearSignalStaticContent.HISTORY_METRICS.forEach { metric ->
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(
-                            metric.header,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            metric.body,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
+        BearSignalStaticContent.HISTORY_METRICS.forEach { metric ->
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            ) {
+                Column(Modifier.padding(12.dp)) {
+                    Text(
+                        metric.header,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        metric.body,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
             }
         }

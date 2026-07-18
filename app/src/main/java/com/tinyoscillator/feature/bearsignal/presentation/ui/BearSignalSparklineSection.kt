@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +24,7 @@ import com.tinyoscillator.feature.bearsignal.domain.model.GateState
 import com.tinyoscillator.feature.bearsignal.domain.model.PhaseChange
 import com.tinyoscillator.feature.bearsignal.domain.model.Transition
 import com.tinyoscillator.feature.bearsignal.domain.model.leadPct
+import com.tinyoscillator.presentation.common.FinanceCard
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
@@ -44,48 +43,49 @@ fun BearSignalSparklineSection(
     transitions: List<Transition>,
     modifier: Modifier = Modifier
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            when {
-                history.isEmpty() -> Text(
-                    "저장된 이력이 없습니다 — 오늘 데이터가 곧 첫 기록이 됩니다.",
+    FinanceCard(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        when {
+            history.isEmpty() -> Text(
+                "저장된 이력이 없습니다 — 오늘 데이터가 곧 첫 기록이 됩니다.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            history.size == 1 -> {
+                val only = history.first()
+                Text(
+                    "이력 1건 — ${formatDay(only.day)} ${only.phase.name} " +
+                        "(선행 ${only.leadPct}점 · 방아쇠 ${GateState.entries[only.gate].label})",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                history.size == 1 -> {
-                    val only = history.first()
-                    Text(
-                        "이력 1건 — ${formatDay(only.day)} ${only.phase.name} " +
-                            "(선행 ${only.leadPct}점 · 방아쇠 ${GateState.entries[only.gate].label})",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                else -> {
-                    val latest = history.last()
-                    SparklineRow(
-                        label = "선행점수 (0~100)",
-                        latestText = "${latest.leadPct}점",
-                        color = MaterialTheme.colorScheme.primary,
-                        values = history.map { it.leadPct.toFloat() },
-                        maxValue = 100f,
-                        contentDescriptionPrefix = "선행점수 추이"
-                    )
-                    SparklineRow(
-                        label = "방아쇠 레벨 (0~3)",
-                        latestText = GateState.entries[latest.gate].label,
-                        color = levelColor(latest.gate),
-                        values = history.map { it.gate.toFloat() },
-                        maxValue = 3f,
-                        contentDescriptionPrefix = "방아쇠 레벨 추이"
-                    )
-                }
             }
 
-            TransitionLogRows(transitions)
+            else -> {
+                val latest = history.last()
+                SparklineRow(
+                    label = "선행점수 (0~100)",
+                    latestText = "${latest.leadPct}점",
+                    color = MaterialTheme.colorScheme.primary,
+                    values = history.map { it.leadPct.toFloat() },
+                    maxValue = 100f,
+                    contentDescriptionPrefix = "선행점수 추이"
+                )
+                SparklineRow(
+                    label = "방아쇠 레벨 (0~3)",
+                    latestText = GateState.entries[latest.gate].label,
+                    color = levelColor(latest.gate),
+                    values = history.map { it.gate.toFloat() },
+                    maxValue = 3f,
+                    contentDescriptionPrefix = "방아쇠 레벨 추이"
+                )
+            }
         }
+
+        TransitionLogRows(transitions)
     }
 }
 

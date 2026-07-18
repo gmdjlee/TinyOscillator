@@ -241,15 +241,6 @@ internal fun AiStructuredInterpretationCard(
                 }
             }
 
-            if (aiResult != null) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    tokenUsageLabel(aiResult),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.6f)
-                )
-            }
-
             Spacer(Modifier.height(4.dp))
             Text(
                 "분석 참고용 자료이며 투자 조언이 아닙니다.",
@@ -294,15 +285,6 @@ private fun significanceColor(significance: String): Color = when (significance)
     "높음" -> Color(0xFFEF5350)
     "보통" -> Color(0xFFFF9800)
     else -> Color(0xFF9E9E9E)
-}
-
-/** 토큰 사용량 라벨 — 캐시 히트/추정 비용 포함 */
-internal fun tokenUsageLabel(result: AiAnalysisResult): String = buildString {
-    append("토큰: 입력 ${formatTokens(result.inputTokens)} · 출력 ${formatTokens(result.outputTokens)}")
-    if (result.cacheReadTokens > 0) {
-        append(" · 캐시 ${formatTokens(result.cacheReadTokens)}")
-    }
-    estimateCostUsd(result)?.let { append(" · ${formatCostUsd(it)}") }
 }
 
 internal fun formatTokens(tokens: Int): String =

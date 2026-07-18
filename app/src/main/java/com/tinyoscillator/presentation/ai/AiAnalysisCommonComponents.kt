@@ -4,9 +4,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tinyoscillator.presentation.common.FinanceCard
 
 @Composable
 internal fun DataChip(label: String, available: Boolean) {
@@ -30,13 +31,15 @@ internal fun DataChip(label: String, available: Boolean) {
                 if (available) "$label ✓" else "$label ✗",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = if (available) FontWeight.Bold else FontWeight.Normal,
-                color = if (available) Color(0xFF1B5E20) else Color(0xFF9E9E9E)
+                color = if (available) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
         colors = SuggestionChipDefaults.suggestionChipColors(
-            containerColor = if (available) Color(0xFFE8F5E9) else Color(0xFFF5F5F5)
+            containerColor = if (available) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+            else MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        border = if (available) BorderStroke(1.dp, Color(0xFF66BB6A)) else null
+        border = if (available) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)) else null
     )
 }
 
@@ -49,11 +52,11 @@ internal fun ProbChip(label: String, probability: Double, color: Color) {
                 "$label ${pctFmt(probability)}",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = color
             )
         },
         colors = SuggestionChipDefaults.suggestionChipColors(
-            containerColor = color.copy(alpha = 0.3f)
+            containerColor = color.copy(alpha = 0.15f)
         ),
         border = BorderStroke(1.dp, color.copy(alpha = 0.7f))
     )
@@ -62,12 +65,14 @@ internal fun ProbChip(label: String, probability: Double, color: Color) {
 @Composable
 internal fun ProbExpandableCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    Card(modifier = Modifier.fillMaxWidth(), onClick = { expanded = !expanded }) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            AnimatedVisibility(visible = expanded) {
-                Column(modifier = Modifier.padding(top = 8.dp)) { content() }
-            }
+    FinanceCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { expanded = !expanded },
+        contentPadding = PaddingValues(12.dp)
+    ) {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        AnimatedVisibility(visible = expanded) {
+            Column(modifier = Modifier.padding(top = 8.dp)) { content() }
         }
     }
 }

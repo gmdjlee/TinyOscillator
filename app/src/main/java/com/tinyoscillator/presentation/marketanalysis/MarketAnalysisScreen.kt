@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Color
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -49,8 +48,10 @@ import com.tinyoscillator.feature.bearsignal.presentation.ui.BearSignalEntryCard
 import com.tinyoscillator.presentation.chart.ChartTheme
 import com.tinyoscillator.presentation.chart.rememberChartTheme
 import com.tinyoscillator.presentation.common.CollectionProgressBar
+import com.tinyoscillator.presentation.common.FinanceCard
 import com.tinyoscillator.presentation.common.GlassCard
 import com.tinyoscillator.presentation.common.HeatmapScreen
+import com.tinyoscillator.presentation.common.PillTabRow
 import com.tinyoscillator.presentation.common.ScrollablePillTabRow
 import com.tinyoscillator.presentation.common.ThemeToggleIcon
 import com.tinyoscillator.presentation.common.skeleton.MarketAnalysisSkeleton
@@ -201,48 +202,29 @@ private fun FearGreedTab(
         BearSignalEntryCard(onClick = onBearSignalClick)
 
         // 시장 선택
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text("시장 선택", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        FinanceCard(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("시장 선택", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = selectedMarket == "KOSPI",
-                        onClick = { viewModel.selectMarket("KOSPI") },
-                        label = { Text("코스피") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = selectedMarket == "KOSDAQ",
-                        onClick = { viewModel.selectMarket("KOSDAQ") },
-                        label = { Text("코스닥") },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+            PillTabRow(
+                tabs = listOf("KOSPI", "KOSDAQ"),
+                selectedTab = selectedMarket,
+                onTabSelected = { viewModel.selectMarket(it) },
+                tabLabel = { if (it == "KOSPI") "코스피" else "코스닥" },
+                contentPadding = PaddingValues(0.dp)
+            )
         }
 
         // 기간 선택
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FearGreedDateRange.entries.forEach { range ->
-                FilterChip(
-                    selected = selectedRange == range,
-                    onClick = { viewModel.selectDateRange(range) },
-                    label = { Text(range.label) }
-                )
-            }
-        }
+        ScrollablePillTabRow(
+            tabs = FearGreedDateRange.entries.toList(),
+            selectedTab = selectedRange,
+            onTabSelected = { viewModel.selectDateRange(it) },
+            tabLabel = { it.label },
+            contentPadding = PaddingValues(0.dp)
+        )
 
         // 상태 표시
         when (val currentState = state) {
@@ -284,96 +266,89 @@ private fun FearGreedSummaryCard(summary: FearGreedSummary) {
     }
     val score = (summary.currentValue * 100).toInt()
 
-    Card(
+    FinanceCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        // 헤더: 점수 + 상태 + 분위수
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 헤더: 점수 + 상태 + 분위수
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "$score",
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = statusColor
-                    )
-                    Text(
-                        text = summary.status,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = statusColor
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "상위 ${100 - summary.percentile}%",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "2년 기준 백분위 ${summary.percentile}%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = summary.date,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            Column {
+                Text(
+                    text = "$score",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = statusColor
+                )
+                Text(
+                    text = summary.status,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = statusColor
+                )
             }
 
-            // 분위수 게이지 바
-            LinearProgressIndicator(
-                progress = { summary.percentile / 100f },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-                color = statusColor,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "상위 ${100 - summary.percentile}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "2년 기준 백분위 ${summary.percentile}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = summary.date,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
-            // 게이지 라벨
+        // 분위수 게이지 바
+        LinearProgressIndicator(
+            progress = { summary.percentile / 100f },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp),
+            color = statusColor,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+
+        // 게이지 라벨
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("극단적 공포", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("극단적 탐욕", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        // 세부 지표
+        if (summary.subIndicators.isNotEmpty()) {
+            HorizontalDivider()
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Text("극단적 공포", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("극단적 탐욕", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            // 세부 지표
-            if (summary.subIndicators.isNotEmpty()) {
-                HorizontalDivider()
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    summary.subIndicators.forEach { indicator ->
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "${(indicator.value * 100).toInt()}",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = indicator.name,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                summary.subIndicators.forEach { indicator ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "${(indicator.value * 100).toInt()}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = indicator.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -397,46 +372,29 @@ private fun MarketDemarkTab(viewModel: MarketDemarkViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // 시장 선택
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text("시장 선택", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        FinanceCard(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("시장 선택", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = selectedMarket == "KOSPI",
-                        onClick = { viewModel.selectMarket("KOSPI") },
-                        label = { Text("코스피") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = selectedMarket == "KOSDAQ",
-                        onClick = { viewModel.selectMarket("KOSDAQ") },
-                        label = { Text("코스닥") },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+            PillTabRow(
+                tabs = listOf("KOSPI", "KOSDAQ"),
+                selectedTab = selectedMarket,
+                onTabSelected = { viewModel.selectMarket(it) },
+                tabLabel = { if (it == "KOSPI") "코스피" else "코스닥" },
+                contentPadding = PaddingValues(0.dp)
+            )
         }
 
         // 기간 선택 (일봉/주봉)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            DemarkPeriodType.entries.forEach { period ->
-                FilterChip(
-                    selected = selectedPeriod == period,
-                    onClick = { viewModel.selectPeriod(period) },
-                    label = { Text(period.label) }
-                )
-            }
-        }
+        PillTabRow(
+            tabs = DemarkPeriodType.entries.toList(),
+            selectedTab = selectedPeriod,
+            onTabSelected = { viewModel.selectPeriod(it) },
+            tabLabel = { it.label },
+            contentPadding = PaddingValues(0.dp)
+        )
 
         // 상태 표시
         when (val currentState = state) {
