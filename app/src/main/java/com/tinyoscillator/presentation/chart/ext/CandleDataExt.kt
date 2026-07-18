@@ -1,10 +1,11 @@
 package com.tinyoscillator.presentation.chart.ext
 
-import android.graphics.Color
 import android.graphics.Paint
+import androidx.core.graphics.ColorUtils
 import com.github.mikephil.charting.data.*
 import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.OhlcvPoint
+import com.tinyoscillator.presentation.chart.ChartTheme
 
 /** DailyTrading 리스트 → OhlcvPoint 리스트 (캔들 차트용) */
 fun List<DailyTrading>.toOhlcvPoints(): List<OhlcvPoint> =
@@ -29,14 +30,14 @@ fun List<DailyTrading>.toDateLabels(): Map<Int, String> =
     }.toMap()
 
 /** OhlcvPoint 리스트 → MPAndroidChart CandleData */
-fun List<OhlcvPoint>.toCandleData(): CandleData {
+fun List<OhlcvPoint>.toCandleData(theme: ChartTheme): CandleData {
     val entries = mapIndexed { i, c ->
         CandleEntry(i.toFloat(), c.high, c.low, c.open, c.close)
     }
     val set = CandleDataSet(entries, "").apply {
-        decreasingColor = Color.parseColor("#378ADD")   // 음봉 청색
-        increasingColor = Color.parseColor("#D85A30")   // 양봉 적색
-        shadowColor = Color.parseColor("#888780")
+        decreasingColor = theme.negative   // 음봉 청색
+        increasingColor = theme.positive   // 양봉 적색
+        shadowColor = theme.neutral        // 심지 무채색
         decreasingPaintStyle = Paint.Style.FILL
         increasingPaintStyle = Paint.Style.FILL
         setDrawValues(false)
@@ -45,15 +46,15 @@ fun List<OhlcvPoint>.toCandleData(): CandleData {
 }
 
 /** OhlcvPoint 리스트 → 거래량 BarData (양봉/음봉 색 구분) */
-fun List<OhlcvPoint>.toVolumeBarData(): BarData {
+fun List<OhlcvPoint>.toVolumeBarData(theme: ChartTheme): BarData {
     val entries = mapIndexed { i, c ->
         BarEntry(i.toFloat(), c.volume.toFloat())
     }
     val colors = map { c ->
         if (c.close >= c.open)
-            Color.parseColor("#55D85A30")   // 양봉 볼륨: 연한 적색
+            ColorUtils.setAlphaComponent(theme.positive, 0x55)   // 양봉 볼륨: 연한 적색
         else
-            Color.parseColor("#55378ADD")   // 음봉 볼륨: 연한 청색
+            ColorUtils.setAlphaComponent(theme.negative, 0x55)   // 음봉 볼륨: 연한 청색
     }
     val set = BarDataSet(entries, "").apply {
         this.colors = colors

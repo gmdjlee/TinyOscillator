@@ -28,7 +28,8 @@ data class ExtendedColors(
     val glow: Color,
     val shimmer: Color,
     val inkWash: Color,
-    val cream: Color
+    val cream: Color,
+    val warn: Color
 )
 
 val LocalExtendedColors = staticCompositionLocalOf {
@@ -36,7 +37,8 @@ val LocalExtendedColors = staticCompositionLocalOf {
         glow = JadeGlow,
         shimmer = BrassShimmer,
         inkWash = InkWash,
-        cream = HanjiCream
+        cream = HanjiCream,
+        warn = Warn
     )
 }
 
@@ -187,14 +189,16 @@ fun TinyOscillatorTheme(
             glow = JadeGlow,
             shimmer = BrassShimmer,
             inkWash = InkWash,
-            cream = Color(0xFF1C2030)  // dark elevated surface
+            cream = Color(0xFF1C2030),  // dark elevated surface
+            warn = WarnDark
         )
     } else {
         ExtendedColors(
             glow = Color(0xFF2AB880),   // subdued jade for light mode
             shimmer = Color(0xFFD4A830), // subdued gold for light mode
             inkWash = Color(0xFFF0EAE0), // warm wash for light mode
-            cream = HanjiCream
+            cream = HanjiCream,
+            warn = Warn
         )
     }
 

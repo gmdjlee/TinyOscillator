@@ -20,6 +20,8 @@ import com.tinyoscillator.domain.indicator.IndicatorCalculator
 import com.tinyoscillator.domain.model.OhlcvPoint
 import com.tinyoscillator.domain.model.PatternResult
 import com.tinyoscillator.domain.model.VolumeProfile
+import com.tinyoscillator.presentation.chart.ChartTheme
+import com.tinyoscillator.presentation.chart.rememberChartTheme
 import com.tinyoscillator.presentation.chart.bridge.ChartAxisBridge
 import com.tinyoscillator.presentation.chart.overlay.VolumeProfileOverlay
 import com.tinyoscillator.presentation.chart.renderer.PatternCombinedChart
@@ -57,6 +59,7 @@ fun KoreanCandleChartView(
     var volumeChart by remember { mutableStateOf<BarChart?>(null) }
     var syncManager by remember { mutableStateOf<ChartSyncManager?>(null) }
     val axisBridge = remember { ChartAxisBridge() }
+    val chartTheme: ChartTheme = rememberChartTheme()
 
     // Stable listener — avoids creating new OnChartValueSelectedListener on every update
     val currentCrosshairCb = rememberUpdatedState(onCrosshairIndex)
@@ -134,7 +137,7 @@ fun KoreanCandleChartView(
                 update = { chart ->
                     if (candles.isNotEmpty()) {
                         chart.data = CombinedData().apply {
-                            setData(candles.toCandleData())
+                            setData(candles.toCandleData(chartTheme))
                             val overlay = indicatorData?.toCandlePriceOverlay()
                             if (overlay != null && overlay.dataSetCount > 0) {
                                 setData(overlay)
@@ -181,7 +184,7 @@ fun KoreanCandleChartView(
             },
             update = { chart ->
                 if (candles.isNotEmpty()) {
-                    chart.data = candles.toVolumeBarData()
+                    chart.data = candles.toVolumeBarData(chartTheme)
                     chart.notifyDataSetChanged()
                     chart.invalidate()
                 }

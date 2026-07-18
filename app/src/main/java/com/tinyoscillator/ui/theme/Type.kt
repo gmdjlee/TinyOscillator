@@ -13,8 +13,9 @@ import com.tinyoscillator.R
 /**
  * Jade Terminal 타이포그래피 시스템:
  *
- * - Display/Headline/Title: **Syne** — 기하학적, 미래적, 독특한 리듬
- *   (Google Fonts downloadable, 번들 폰트 폴백)
+ * - Display/Headline/Title: **Gothic A1** — 한글 글리프를 완비한 기하학적 디스플레이
+ *   (이전 라틴 전용 디스플레이 서체는 한글 글리프가 없어 한글 제목이 폴백 렌더되던 문제를 해결)
+ *   (Google Fonts downloadable, 번들 Manrope 폴백)
  * - Body/Label: **DM Sans** — 따뜻한 기하학적, 고밀도 데이터 가독성
  *   (Google Fonts downloadable, 번들 폰트 폴백)
  *
@@ -28,19 +29,15 @@ private val fontProvider = GoogleFont.Provider(
     certificates = R.array.com_google_android_gms_fonts_certs
 )
 
-private val syneFont = GoogleFont("Syne")
+private val gothicA1 = GoogleFont("Gothic A1")
 private val dmSansFont = GoogleFont("DM Sans")
 
-// Syne: 기하학적 Display/Headline 폰트 (번들 Manrope 폴백)
-val SyneFamily = FontFamily(
-    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.Normal),
-    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.Medium),
-    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.SemiBold),
-    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.Bold),
-    Font(googleFont = syneFont, fontProvider = fontProvider, weight = FontWeight.ExtraBold),
-    // 번들 폴백
-    Font(R.font.manrope_regular, FontWeight.Normal),
-    Font(R.font.manrope_medium, FontWeight.Medium),
+// Gothic A1: 한글 완비 기하학적 Display/Headline 폰트 (번들 Manrope 폴백)
+val DisplayFamily = FontFamily(
+    Font(googleFont = gothicA1, fontProvider = fontProvider, weight = FontWeight.SemiBold),
+    Font(googleFont = gothicA1, fontProvider = fontProvider, weight = FontWeight.Bold),
+    Font(googleFont = gothicA1, fontProvider = fontProvider, weight = FontWeight.ExtraBold),
+    // 번들 폴백: Manrope (기존 리소스 유지)
     Font(R.font.manrope_semibold, FontWeight.SemiBold),
     Font(R.font.manrope_bold, FontWeight.Bold),
 )
@@ -58,66 +55,66 @@ val DmSansFamily = FontFamily(
 val AppTypography = Typography(
     // ── Display: 대형 숫자/헤드라인, 타이트한 자간 ──
     displayLarge = TextStyle(
-        fontFamily = SyneFamily,
-        fontWeight = FontWeight.Bold,
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.ExtraBold,
         fontSize = 52.sp,
         lineHeight = 58.sp,
         letterSpacing = (-1.5).sp   // 극도로 타이트
     ),
     displayMedium = TextStyle(
-        fontFamily = SyneFamily,
-        fontWeight = FontWeight.Bold,
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.ExtraBold,
         fontSize = 42.sp,
         lineHeight = 48.sp,
         letterSpacing = (-1.0).sp
     ),
     displaySmall = TextStyle(
-        fontFamily = SyneFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.ExtraBold,
         fontSize = 34.sp,
         lineHeight = 40.sp,
         letterSpacing = (-0.5).sp
     ),
     // ── Headline: 섹션 타이틀, 약간 타이트 ──
     headlineLarge = TextStyle(
-        fontFamily = SyneFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.Bold,
         fontSize = 30.sp,
         lineHeight = 38.sp,
         letterSpacing = (-0.3).sp
     ),
     headlineMedium = TextStyle(
-        fontFamily = SyneFamily,
-        fontWeight = FontWeight.Medium,
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.Bold,
         fontSize = 26.sp,
         lineHeight = 34.sp,
         letterSpacing = (-0.2).sp
     ),
     headlineSmall = TextStyle(
-        fontFamily = SyneFamily,
-        fontWeight = FontWeight.Medium,
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.Bold,
         fontSize = 22.sp,
         lineHeight = 30.sp,
         letterSpacing = (-0.1).sp
     ),
-    // ── Title: 카드/섹션 헤더, Syne의 캐릭터 살림 ──
+    // ── Title: 카드/섹션 헤더, Gothic A1의 캐릭터 살림 ──
     titleLarge = TextStyle(
-        fontFamily = SyneFamily,
+        fontFamily = DisplayFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 20.sp,
         lineHeight = 28.sp,
         letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
-        fontFamily = SyneFamily,
-        fontWeight = FontWeight.Medium,
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.1.sp
     ),
     titleSmall = TextStyle(
-        fontFamily = SyneFamily,
-        fontWeight = FontWeight.Medium,
+        fontFamily = DisplayFamily,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.15.sp

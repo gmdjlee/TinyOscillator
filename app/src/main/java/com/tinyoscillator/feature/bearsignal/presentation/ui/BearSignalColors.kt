@@ -8,12 +8,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.feature.bearsignal.domain.model.AutoIndicator
 import com.tinyoscillator.feature.bearsignal.domain.model.BearPhase
 import com.tinyoscillator.feature.bearsignal.domain.model.InputSource
+import com.tinyoscillator.ui.theme.LocalExtendedColors
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -27,11 +27,10 @@ import java.util.Locale
  */
 @Composable
 fun levelColor(level: Int): Color {
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     return when (level) {
         0 -> MaterialTheme.colorScheme.primary
         1 -> MaterialTheme.colorScheme.secondary
-        2 -> if (isDark) Color(0xFFE8823A) else Color(0xFFB25D1E)
+        2 -> LocalExtendedColors.current.warn
         else -> MaterialTheme.colorScheme.error
     }
 }

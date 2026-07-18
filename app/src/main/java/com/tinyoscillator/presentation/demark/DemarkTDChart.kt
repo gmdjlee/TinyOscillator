@@ -9,7 +9,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.mikephil.charting.charts.CombinedChart
@@ -26,6 +25,8 @@ import com.github.mikephil.charting.utils.MPPointF
 import com.github.mikephil.charting.utils.Utils
 import com.tinyoscillator.R
 import com.tinyoscillator.domain.model.DemarkTDChartData
+import com.tinyoscillator.presentation.chart.ChartTheme
+import com.tinyoscillator.presentation.chart.rememberChartTheme
 
 /**
  * DeMark TD Sequential 차트 Composable
@@ -42,8 +43,7 @@ fun DemarkTDChart(
     modifier: Modifier = Modifier
 ) {
     val lastBound = remember { arrayOfNulls<DemarkTDChartData>(1) }
-    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val chartTextColor = if (isDarkTheme) Color.WHITE else Color.DKGRAY
+    val theme = rememberChartTheme()
 
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -61,18 +61,17 @@ fun DemarkTDChart(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    setupDemarkChart(this, chartTextColor)
+                    setupDemarkChart(this, theme)
                 }
             },
             update = { chart ->
-                chart.xAxis.textColor = chartTextColor
-                chart.legend.textColor = chartTextColor
-                chart.axisLeft.textColor = chartTextColor
-                chart.axisRight.textColor = chartTextColor
-                val gridColor = if (isDarkTheme) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
-                chart.axisLeft.gridColor = gridColor
+                chart.xAxis.textColor = theme.axisText
+                chart.legend.textColor = theme.axisText
+                chart.axisLeft.textColor = theme.axisText
+                chart.axisRight.textColor = theme.axisText
+                chart.axisLeft.gridColor = theme.grid
                 if (chartData != lastBound[0]) {
-                    bindDemarkData(chart, chartData, isDarkTheme)
+                    bindDemarkData(chart, chartData, theme)
                     lastBound[0] = chartData
                 }
             },
@@ -84,8 +83,7 @@ fun DemarkTDChart(
     }
 }
 
-private fun setupDemarkChart(chart: CombinedChart, chartTextColor: Int) {
-    val isDark = chartTextColor == Color.WHITE
+private fun setupDemarkChart(chart: CombinedChart, theme: ChartTheme) {
     chart.apply {
         description.isEnabled = false
         setDrawGridBackground(false)
@@ -93,7 +91,7 @@ private fun setupDemarkChart(chart: CombinedChart, chartTextColor: Int) {
         isHighlightFullBarEnabled = false
         setDrawOrder(arrayOf(CombinedChart.DrawOrder.LINE))
 
-        val gColor = if (isDark) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
+        val gColor = theme.grid
         val dashLen = Utils.convertDpToPixel(4f)
         val dashGap = Utils.convertDpToPixel(4f)
         val labelCount = 6
@@ -105,13 +103,13 @@ private fun setupDemarkChart(chart: CombinedChart, chartTextColor: Int) {
             gridColor = gColor
             gridLineWidth = 0.5f
             enableGridDashedLine(dashLen, dashGap, 0f)
-            textColor = chartTextColor
+            textColor = theme.axisText
             setLabelCount(labelCount, true)
         }
 
         axisRight.apply {
             setDrawGridLines(false)
-            textColor = chartTextColor
+            textColor = theme.axisText
             setLabelCount(labelCount, true)
             valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String {
@@ -125,7 +123,7 @@ private fun setupDemarkChart(chart: CombinedChart, chartTextColor: Int) {
             position = XAxis.XAxisPosition.BOTTOM
             granularity = 1f
             setDrawGridLines(false)
-            textColor = chartTextColor
+            textColor = theme.axisText
         }
 
         legend.apply {
@@ -133,7 +131,7 @@ private fun setupDemarkChart(chart: CombinedChart, chartTextColor: Int) {
             verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
             horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
             setDrawInside(false)
-            textColor = chartTextColor
+            textColor = theme.axisText
         }
 
         setTouchEnabled(true)
@@ -143,7 +141,7 @@ private fun setupDemarkChart(chart: CombinedChart, chartTextColor: Int) {
     }
 }
 
-private fun bindDemarkData(chart: CombinedChart, chartData: DemarkTDChartData, isDarkTheme: Boolean = false) {
+private fun bindDemarkData(chart: CombinedChart, chartData: DemarkTDChartData, theme: ChartTheme) {
     val rows = chartData.rows
     if (rows.isEmpty()) return
 
@@ -159,13 +157,13 @@ private fun bindDemarkData(chart: CombinedChart, chartData: DemarkTDChartData, i
         Entry(i.toFloat(), row.marketCapTril.toFloat())
     }
     val mcapDataSet = LineDataSet(mcapEntries, "시가총액(조)").apply {
-        color = Color.parseColor("#1976D2")
+        color = theme.neutralLine
         lineWidth = 2f
         setDrawCircles(false)
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.LEFT
         isHighlightEnabled = true
-        highLightColor = Color.parseColor("#1976D2")
+        highLightColor = theme.neutralLine
     }
 
     // 좌측 Y축 범위
@@ -181,17 +179,17 @@ private fun bindDemarkData(chart: CombinedChart, chartData: DemarkTDChartData, i
         Entry(i.toFloat(), row.tdSellCount.toFloat())
     }
     val sellDataSet = LineDataSet(sellEntries, "TD Sell").apply {
-        color = Color.parseColor("#F44336")
+        color = theme.positive
         lineWidth = 1.5f
         setDrawCircles(true)
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.RIGHT
         isHighlightEnabled = true
-        highLightColor = Color.parseColor("#F44336")
+        highLightColor = theme.positive
         // 9+ 카운트 시 원 크기 확대
-        circleColors = rows.map { Color.parseColor("#F44336") }
+        circleColors = rows.map { theme.positive }
         circleRadius = 3f
-        setCircleHoleColor(if (isDarkTheme) Color.parseColor("#1C1B1F") else Color.WHITE)
+        setCircleHoleColor(theme.holeFill)
         circleHoleRadius = 1.5f
     }
 
@@ -200,16 +198,16 @@ private fun bindDemarkData(chart: CombinedChart, chartData: DemarkTDChartData, i
         Entry(i.toFloat(), -row.tdBuyCount.toFloat())
     }
     val buyDataSet = LineDataSet(buyEntries, "TD Buy").apply {
-        color = Color.parseColor("#2196F3")
+        color = theme.negative
         lineWidth = 1.5f
         setDrawCircles(true)
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.RIGHT
         isHighlightEnabled = true
-        highLightColor = Color.parseColor("#2196F3")
-        circleColors = rows.map { Color.parseColor("#2196F3") }
+        highLightColor = theme.negative
+        circleColors = rows.map { theme.negative }
         circleRadius = 3f
-        setCircleHoleColor(if (isDarkTheme) Color.parseColor("#1C1B1F") else Color.WHITE)
+        setCircleHoleColor(theme.holeFill)
         circleHoleRadius = 1.5f
     }
 
@@ -235,8 +233,8 @@ private fun bindDemarkData(chart: CombinedChart, chartData: DemarkTDChartData, i
             lineWidth = 0f
             setDrawCircles(true)
             circleRadius = 6f
-            circleColors = listOf(Color.parseColor("#F44336"))
-            setCircleHoleColor(Color.parseColor("#F44336"))
+            circleColors = listOf(theme.positive)
+            setCircleHoleColor(theme.positive)
             circleHoleRadius = 3f
             setDrawValues(false)
             axisDependency = YAxis.AxisDependency.RIGHT
@@ -251,8 +249,8 @@ private fun bindDemarkData(chart: CombinedChart, chartData: DemarkTDChartData, i
             lineWidth = 0f
             setDrawCircles(true)
             circleRadius = 6f
-            circleColors = listOf(Color.parseColor("#2196F3"))
-            setCircleHoleColor(Color.parseColor("#2196F3"))
+            circleColors = listOf(theme.negative)
+            setCircleHoleColor(theme.negative)
             circleHoleRadius = 3f
             setDrawValues(false)
             axisDependency = YAxis.AxisDependency.RIGHT

@@ -36,7 +36,7 @@ val DarkOnBackground = Color(0xFFE2DED5)
 val DarkSurface = Color(0xFF0B0E14)
 val DarkOnSurface = Color(0xFFE2DED5)
 val DarkSurfaceVariant = Color(0xFF2A3040)
-val DarkOnSurfaceVariant = Color(0xFFA8A4A0)
+val DarkOnSurfaceVariant = Color(0xFFB3AEA6)
 val DarkOutline = Color(0xFF3E4555)
 val DarkOutlineVariant = Color(0xFF252A35)
 
@@ -101,6 +101,9 @@ val Neutral = Color(0xFF8A8580)        // Stone gray
 val PositiveDark = Color(0xFFEF7B68)   // Warm cinnabar
 val NegativeDark = Color(0xFF68B0F0)   // Sky blue
 val NeutralDark = Color(0xFFA8A4A0)    // Muted stone
+
+val Warn = Color(0xFFB25D1E)           // 경고 오렌지 (라이트)
+val WarnDark = Color(0xFFE8823A)       // 경고 오렌지 (다크)
 
 // === Extended Palette (Charts, Badges, Accents) ===
 val JadeGlow = Color(0xFF3DD9A0)       // Bright jade for highlights
