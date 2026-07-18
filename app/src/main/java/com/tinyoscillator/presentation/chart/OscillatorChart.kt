@@ -1,7 +1,6 @@
 package com.tinyoscillator.presentation.chart
 
 import android.content.Context
-import android.graphics.Color
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.compose.foundation.layout.*
@@ -9,7 +8,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.github.mikephil.charting.charts.CombinedChart
@@ -40,8 +38,7 @@ fun OscillatorChart(
 ) {
     // Track last bound data to skip redundant bindData calls on recomposition
     val lastBound = remember { arrayOfNulls<ChartData>(1) }
-    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val chartTextColor = if (isDarkTheme) Color.WHITE else Color.DKGRAY
+    val theme = rememberChartTheme()
 
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -59,19 +56,18 @@ fun OscillatorChart(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    setupChart(this, chartTextColor)
+                    setupChart(this, theme)
                 }
             },
             update = { chart ->
-                chart.xAxis.textColor = chartTextColor
-                chart.legend.textColor = chartTextColor
-                chart.axisLeft.textColor = chartTextColor
-                chart.axisRight.textColor = chartTextColor
-                val gridColor = if (isDarkTheme) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
-                chart.axisLeft.gridColor = gridColor
-                chart.axisRight.gridColor = gridColor
+                chart.xAxis.textColor = theme.axisText
+                chart.legend.textColor = theme.axisText
+                chart.axisLeft.textColor = theme.axisText
+                chart.axisRight.textColor = theme.axisText
+                chart.axisLeft.gridColor = theme.grid
+                chart.axisRight.gridColor = theme.grid
                 if (chartData != lastBound[0]) {
-                    bindData(chart, chartData, isDarkTheme)
+                    bindData(chart, chartData, theme)
                     lastBound[0] = chartData
                 }
             },
@@ -83,8 +79,7 @@ fun OscillatorChart(
     }
 }
 
-private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
-    val isDark = chartTextColor == Color.WHITE
+private fun setupChart(chart: CombinedChart, theme: ChartTheme) {
     chart.apply {
         description.isEnabled = false
         setDrawGridBackground(false)
@@ -92,7 +87,7 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
         isHighlightFullBarEnabled = false
         setDrawOrder(arrayOf(CombinedChart.DrawOrder.LINE))
 
-        val gColor = if (isDark) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
+        val gColor = theme.grid
         val dashLen = Utils.convertDpToPixel(4f)
         val dashGap = Utils.convertDpToPixel(4f)
 
@@ -105,7 +100,7 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
             gridColor = gColor
             gridLineWidth = 0.5f
             enableGridDashedLine(dashLen, dashGap, 0f)
-            textColor = chartTextColor
+            textColor = theme.axisText
             setLabelCount(labelCount, true)
         }
 
@@ -114,7 +109,7 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
             gridColor = gColor
             gridLineWidth = 0.5f
             enableGridDashedLine(dashLen, dashGap, 0f)
-            textColor = chartTextColor
+            textColor = theme.axisText
             setLabelCount(labelCount, true)
             valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String {
@@ -127,7 +122,7 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
             position = XAxis.XAxisPosition.BOTTOM
             granularity = 1f
             setDrawGridLines(false)
-            textColor = chartTextColor
+            textColor = theme.axisText
         }
 
         legend.apply {
@@ -135,7 +130,7 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
             verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
             horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
             setDrawInside(false)
-            textColor = chartTextColor
+            textColor = theme.axisText
         }
 
         setTouchEnabled(true)
@@ -145,7 +140,7 @@ private fun setupChart(chart: CombinedChart, chartTextColor: Int) {
     }
 }
 
-private fun bindData(chart: CombinedChart, chartData: ChartData, isDarkTheme: Boolean = false) {
+private fun bindData(chart: CombinedChart, chartData: ChartData, theme: ChartTheme) {
     val rows = chartData.rows
 
     val labels = rows.map { row ->
@@ -160,13 +155,13 @@ private fun bindData(chart: CombinedChart, chartData: ChartData, isDarkTheme: Bo
         Entry(i.toFloat(), row.marketCapTril.toFloat())
     }
     val mcapDataSet = LineDataSet(mcapEntries, "${chartData.stockName} 시가총액(조)").apply {
-        color = Color.parseColor("#1976D2")
+        color = theme.neutralLine
         lineWidth = 2f
         setDrawCircles(false)
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.LEFT
         isHighlightEnabled = true
-        highLightColor = Color.parseColor("#1976D2")
+        highLightColor = theme.neutralLine
     }
 
     // 왼쪽 Y축 범위를 데이터에 맞게 fitting
@@ -183,20 +178,19 @@ private fun bindData(chart: CombinedChart, chartData: ChartData, isDarkTheme: Bo
         Entry(i.toFloat(), (row.oscillator * 100).toFloat())
     }
     val oscDataSet = LineDataSet(oscEntries, "수급오실레이터(%)").apply {
-        color = Color.parseColor("#388E3C")
+        color = theme.emphasisLine
         lineWidth = 1.5f
         setDrawCircles(true)
         circleRadius = 3f
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.RIGHT
         circleColors = rows.map { row ->
-            if (row.oscillator >= 0) Color.parseColor("#4CAF50")
-            else Color.parseColor("#F44336")
+            if (row.oscillator >= 0) theme.positive else theme.negative
         }
-        setCircleHoleColor(if (isDarkTheme) Color.parseColor("#1C1B1F") else Color.WHITE)
+        setCircleHoleColor(theme.holeFill)
         circleHoleRadius = 1.5f
         isHighlightEnabled = true
-        highLightColor = Color.parseColor("#388E3C")
+        highLightColor = theme.emphasisLine
     }
 
     chart.data = CombinedData().apply {

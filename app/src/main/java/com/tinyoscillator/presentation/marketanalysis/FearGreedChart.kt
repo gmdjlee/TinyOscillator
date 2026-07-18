@@ -1,14 +1,12 @@
 package com.tinyoscillator.presentation.marketanalysis
 
 import android.content.Context
-import android.graphics.Color
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -25,12 +23,14 @@ import com.github.mikephil.charting.utils.MPPointF
 import com.github.mikephil.charting.utils.Utils
 import com.tinyoscillator.R
 import com.tinyoscillator.domain.model.FearGreedChartData
+import com.tinyoscillator.presentation.chart.ChartTheme
+import com.tinyoscillator.presentation.chart.rememberChartTheme
 
 /**
  * Fear & Greed 차트 Composable
  *
- * - 왼쪽 Y축: 시장 지수 — 파란 선
- * - 오른쪽 Y축: F&G 오실레이터 (%) — 양수 초록, 음수 빨간 원
+ * - 왼쪽 Y축: 시장 지수 — neutralLine
+ * - 오른쪽 Y축: F&G 오실레이터 (%) — emphasisLine + 부호별 positive/negative 원
  * - X축: 날짜 (MM/dd)
  */
 @Composable
@@ -39,8 +39,7 @@ fun FearGreedChart(
     modifier: Modifier = Modifier
 ) {
     val lastBound = remember { arrayOfNulls<FearGreedChartData>(1) }
-    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val chartTextColor = if (isDarkTheme) Color.WHITE else Color.DKGRAY
+    val theme = rememberChartTheme()
 
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -58,19 +57,18 @@ fun FearGreedChart(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
-                        setupFearGreedChart(this, chartTextColor)
+                        setupFearGreedChart(this, theme)
                     }
                 },
                 update = { chart ->
-                    chart.xAxis.textColor = chartTextColor
-                    chart.legend.textColor = chartTextColor
-                    chart.axisLeft.textColor = chartTextColor
-                    chart.axisRight.textColor = chartTextColor
-                    val gridColor = if (isDarkTheme) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
-                    chart.axisLeft.gridColor = gridColor
-                    chart.axisRight.gridColor = gridColor
+                    chart.xAxis.textColor = theme.axisText
+                    chart.legend.textColor = theme.axisText
+                    chart.axisLeft.textColor = theme.axisText
+                    chart.axisRight.textColor = theme.axisText
+                    chart.axisLeft.gridColor = theme.grid
+                    chart.axisRight.gridColor = theme.grid
                     if (chartData != lastBound[0]) {
-                        bindFearGreedData(chart, chartData, isDarkTheme)
+                        bindFearGreedData(chart, chartData, theme)
                         lastBound[0] = chartData
                     }
                 },
@@ -82,8 +80,7 @@ fun FearGreedChart(
     }
 }
 
-private fun setupFearGreedChart(chart: CombinedChart, chartTextColor: Int) {
-    val isDark = chartTextColor == Color.WHITE
+private fun setupFearGreedChart(chart: CombinedChart, theme: ChartTheme) {
     chart.apply {
         description.isEnabled = false
         setDrawGridBackground(false)
@@ -91,7 +88,7 @@ private fun setupFearGreedChart(chart: CombinedChart, chartTextColor: Int) {
         isHighlightFullBarEnabled = false
         setDrawOrder(arrayOf(CombinedChart.DrawOrder.LINE))
 
-        val gColor = if (isDark) Color.parseColor("#444444") else Color.parseColor("#CCCCCC")
+        val gColor = theme.grid
         val dashLen = Utils.convertDpToPixel(4f)
         val dashGap = Utils.convertDpToPixel(4f)
 
@@ -105,7 +102,7 @@ private fun setupFearGreedChart(chart: CombinedChart, chartTextColor: Int) {
             gridColor = gColor
             gridLineWidth = 0.5f
             enableGridDashedLine(dashLen, dashGap, 0f)
-            textColor = chartTextColor
+            textColor = theme.axisText
             setLabelCount(labelCount, true)
             valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String {
@@ -120,7 +117,7 @@ private fun setupFearGreedChart(chart: CombinedChart, chartTextColor: Int) {
             gridColor = gColor
             gridLineWidth = 0.5f
             enableGridDashedLine(dashLen, dashGap, 0f)
-            textColor = chartTextColor
+            textColor = theme.axisText
             setLabelCount(labelCount, true)
             valueFormatter = object : ValueFormatter() {
                 override fun getFormattedValue(value: Float): String {
@@ -133,7 +130,7 @@ private fun setupFearGreedChart(chart: CombinedChart, chartTextColor: Int) {
             position = XAxis.XAxisPosition.BOTTOM
             granularity = 1f
             setDrawGridLines(false)
-            textColor = chartTextColor
+            textColor = theme.axisText
         }
 
         legend.apply {
@@ -141,7 +138,7 @@ private fun setupFearGreedChart(chart: CombinedChart, chartTextColor: Int) {
             verticalAlignment = Legend.LegendVerticalAlignment.BOTTOM
             horizontalAlignment = Legend.LegendHorizontalAlignment.LEFT
             setDrawInside(false)
-            textColor = chartTextColor
+            textColor = theme.axisText
         }
 
         setTouchEnabled(true)
@@ -154,7 +151,7 @@ private fun setupFearGreedChart(chart: CombinedChart, chartTextColor: Int) {
 private fun bindFearGreedData(
     chart: CombinedChart,
     chartData: FearGreedChartData,
-    isDarkTheme: Boolean = false
+    theme: ChartTheme
 ) {
     val rows = chartData.rows
 
@@ -175,13 +172,13 @@ private fun bindFearGreedData(
         Entry(i.toFloat(), row.indexValue.toFloat())
     }
     val indexDataSet = LineDataSet(indexEntries, "${chartData.market} 지수").apply {
-        color = Color.parseColor("#2196F3")
+        color = theme.neutralLine
         lineWidth = 2f
         setDrawCircles(false)
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.LEFT
         isHighlightEnabled = true
-        highLightColor = Color.parseColor("#2196F3")
+        highLightColor = theme.neutralLine
     }
 
     // 왼쪽 Y축 범위 fitting
@@ -198,20 +195,19 @@ private fun bindFearGreedData(
         Entry(i.toFloat(), (row.oscillator * 100).toFloat())
     }
     val oscDataSet = LineDataSet(oscEntries, "F&G 오실레이터(%)").apply {
-        color = Color.parseColor("#388E3C")
+        color = theme.emphasisLine
         lineWidth = 1.5f
         setDrawCircles(true)
         circleRadius = 3f
         setDrawValues(false)
         axisDependency = YAxis.AxisDependency.RIGHT
         circleColors = rows.map { row ->
-            if (row.oscillator >= 0) Color.parseColor("#4CAF50")
-            else Color.parseColor("#F44336")
+            if (row.oscillator >= 0) theme.positive else theme.negative
         }
-        setCircleHoleColor(if (isDarkTheme) Color.parseColor("#1C1B1F") else Color.WHITE)
+        setCircleHoleColor(theme.holeFill)
         circleHoleRadius = 1.5f
         isHighlightEnabled = true
-        highLightColor = Color.parseColor("#388E3C")
+        highLightColor = theme.emphasisLine
     }
 
     // 오른쪽 Y축 범위 fitting

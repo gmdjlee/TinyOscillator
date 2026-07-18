@@ -12,7 +12,7 @@ import com.tinyoscillator.ui.theme.NeutralDark
 /** MPAndroidChart용 ARGB Int 팔레트. Compose 테마 토큰에서 파생 — hex 재하드코딩 금지. */
 data class ChartTheme(
     val neutralLine: Int,   // secondary — 방향성 없는 지수/평균선
-    val emphasisLine: Int,  // primary — 오실레이터 등 주 시리즈(후속 차트용, 이번엔 미사용이어도 정의)
+    val emphasisLine: Int,  // primary — 오실레이터 등 주 시리즈
     val positive: Int,      // finance.positive — 상승/과매수/TD Sell (한국식 적)
     val negative: Int,      // finance.negative — 하락/TD Buy (한국식 청)
     val grid: Int,          // surfaceVariant — 격자선
