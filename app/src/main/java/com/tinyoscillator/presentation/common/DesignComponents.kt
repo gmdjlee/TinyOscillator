@@ -1,8 +1,13 @@
 package com.tinyoscillator.presentation.common
 
 import android.os.Build
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +25,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -31,6 +37,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -293,6 +300,86 @@ fun SectionHeader(
             }
         }
         action?.invoke()
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Accordion Card — 14dp 균일 라운드 + 접기/펼치기 (T9 BearSignal 폰 아코디언 · T11 설정 재사용)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * 접이식 섹션 카드 — 헤더(제목·부제·셰브런)를 탭하면 본문이 펼쳐진다.
+ *
+ * FinanceCard의 비대칭 코너와 달리 14dp 균일 라운드(시안 확정)를 쓴다 — 목록형으로 여러 개가
+ * 세로로 쌓일 때 비대칭 코너가 리듬을 깨기 때문. 폰(COMPACT)에서 세부 섹션을 접어 스크롤 길이를
+ * 줄이는 용도이며, 후속 T11 설정 화면에서도 재사용할 수 있도록 BearSignal 전용 상태를 참조하지
+ * 않는다(순수 표시 컴포넌트 — [expanded]/[onToggle]은 호출측이 소유).
+ */
+@Composable
+fun AccordionCard(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(220),
+        label = "accordionChevron"
+    )
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle)
+                    .padding(horizontal = 16.dp, vertical = 15.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (subtitle != null) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "접기" else "펼치기",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.rotate(chevronRotation)
+                )
+            }
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(tween(240)) + fadeIn(tween(240)),
+                exit = shrinkVertically(tween(240)) + fadeOut(tween(180))
+            ) {
+                Column(
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                ) {
+                    HorizontalDivider()
+                    Spacer(Modifier.height(12.dp))
+                    content()
+                }
+            }
+        }
     }
 }
 

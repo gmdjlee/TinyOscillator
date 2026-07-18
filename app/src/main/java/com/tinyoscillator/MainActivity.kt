@@ -170,7 +170,10 @@ fun AppNavigation() {
             )
         }
         composable("bear_signal") {
-            BearSignalScreen(onBack = { navController.popBackStack() })
+            BearSignalScreen(
+                onBack = { navController.popBackStack() },
+                windowType = windowType
+            )
         }
         composable("settings") {
             SettingsScreen(

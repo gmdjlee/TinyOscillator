@@ -37,7 +37,6 @@ import com.tinyoscillator.core.worker.FearGreedUpdateWorker
 import com.tinyoscillator.core.worker.MarketDepositUpdateWorker
 import com.tinyoscillator.core.worker.MarketOscillatorUpdateWorker
 import com.tinyoscillator.domain.model.DemarkPeriodType
-import com.tinyoscillator.domain.model.FearGreedSummary
 import com.tinyoscillator.domain.model.MarketDemarkChartData
 import com.tinyoscillator.domain.model.MarketDemarkRow
 import com.tinyoscillator.core.ui.composable.DefaultErrorContent
@@ -190,12 +189,14 @@ private fun FearGreedTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 오늘의 시장 요약 (기존 수집 데이터 재사용)
-        MarketSummaryCard(
-            fearGreedSummary = summary,
+        // Fear&Greed 히어로 — 오늘의 공포·탐욕 점수를 대형 숫자로 최상단 배치
+        FearGreedHeroCard(summary = summary)
+
+        // 보조 지표 스트립 — 오실레이터·예탁금·상위테마를 compact 타일로 강등
+        MarketMetricStrip(
             latestOscillator = oscillatorData.firstOrNull(),
             depositChange = depositData.depositChanges.lastOrNull(),
-            topThemes = themes.sortedByDescending { it.fluRate }.take(3)
+            topTheme = themes.maxByOrNull { it.fluRate }
         )
 
         // 시장 국면·리스크 진입점 (TASK.md §5.1 권장안 — 하단바 혼잡 회피)
@@ -232,9 +233,6 @@ private fun FearGreedTab(
                 MarketAnalysisSkeleton()
             }
             is FearGreedState.Success -> {
-                // 분위수 요약 카드
-                summary?.let { FearGreedSummaryCard(it) }
-
                 FearGreedChart(
                     chartData = currentState.chartData,
                     modifier = Modifier.fillMaxWidth()
@@ -248,109 +246,6 @@ private fun FearGreedTab(
             }
             is FearGreedState.Idle -> {
                 NeedDataCollectionContent()
-            }
-        }
-    }
-}
-
-// ===== Fear & Greed 분위수 요약 카드 =====
-
-@Composable
-private fun FearGreedSummaryCard(summary: FearGreedSummary) {
-    val statusColor = when {
-        summary.currentValue >= 0.8 -> MaterialTheme.colorScheme.error
-        summary.currentValue >= 0.6 -> MaterialTheme.colorScheme.tertiary
-        summary.currentValue >= 0.4 -> MaterialTheme.colorScheme.outline
-        summary.currentValue >= 0.2 -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.primary
-    }
-    val score = (summary.currentValue * 100).toInt()
-
-    FinanceCard(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // 헤더: 점수 + 상태 + 분위수
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "$score",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Bold,
-                    color = statusColor
-                )
-                Text(
-                    text = summary.status,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = statusColor
-                )
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "상위 ${100 - summary.percentile}%",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "2년 기준 백분위 ${summary.percentile}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = summary.date,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        // 분위수 게이지 바
-        LinearProgressIndicator(
-            progress = { summary.percentile / 100f },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp),
-            color = statusColor,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-        )
-
-        // 게이지 라벨
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("극단적 공포", style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("극단적 탐욕", style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        // 세부 지표
-        if (summary.subIndicators.isNotEmpty()) {
-            HorizontalDivider()
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                summary.subIndicators.forEach { indicator ->
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "${(indicator.value * 100).toInt()}",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = indicator.name,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
             }
         }
     }

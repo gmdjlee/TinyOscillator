@@ -6,14 +6,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
@@ -30,6 +28,8 @@ import com.tinyoscillator.domain.model.PortfolioHoldingItem
 import com.tinyoscillator.domain.model.PortfolioSummary
 import com.tinyoscillator.domain.model.PortfolioUiState
 import com.tinyoscillator.domain.model.TransactionItem
+import com.tinyoscillator.presentation.common.CategoryBadge
+import com.tinyoscillator.presentation.common.FinanceCard
 import com.tinyoscillator.presentation.quickanalysis.StockQuickAnalysisSheet
 import com.tinyoscillator.ui.theme.LocalFinanceColors
 import java.text.NumberFormat
@@ -140,10 +140,10 @@ fun PortfolioContent(
                         }
                     }
 
-                    // Holdings Table
+                    // Holdings Card List
                     if (state.holdings.isNotEmpty()) {
                         item {
-                            HoldingsTable(
+                            HoldingsCardList(
                                 holdings = state.holdings,
                                 snapshotScores = snapshotScores,
                                 onRowClick = { holding ->
@@ -314,162 +314,152 @@ private fun SummaryCard(summary: PortfolioSummary) {
     // 손익 부호 색상 — 한국식(상승=적, 하락=청), 다크 모드 변형은 LocalFinanceColors가 제공
     val gainColor = LocalFinanceColors.current.positive
     val lossColor = LocalFinanceColors.current.negative
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+    FinanceCard(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "포트폴리오 요약",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "포트폴리오 요약",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-            if (summary.totalAssets > summary.totalEvaluation) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            "총 자산",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                        )
-                        Text(
-                            "${krwFormat.format(summary.totalAssets)}원",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            "주식비중",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                        )
-                        val stockRatio = if (summary.totalAssets > 0)
-                            summary.totalEvaluation.toDouble() / summary.totalAssets * 100.0 else 0.0
-                        Text(
-                            "${String.format("%.1f", stockRatio)}%",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
+        if (summary.totalAssets > summary.totalEvaluation) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
                     Text(
-                        "총평가금액",
+                        "총 자산",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "${krwFormat.format(summary.totalEvaluation)}원",
+                        "${krwFormat.format(summary.totalAssets)}원",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        "총투자금액",
+                        "주식비중",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    val stockRatio = if (summary.totalAssets > 0)
+                        summary.totalEvaluation.toDouble() / summary.totalAssets * 100.0 else 0.0
                     Text(
-                        "${krwFormat.format(summary.totalInvested)}원",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        "${String.format("%.1f", stockRatio)}%",
+                        style = MaterialTheme.typography.titleMedium
                     )
                 }
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                val plColor = when {
-                    summary.totalProfitLoss > 0 -> gainColor
-                    summary.totalProfitLoss < 0 -> lossColor
-                    else -> MaterialTheme.colorScheme.onPrimaryContainer
-                }
-                Column {
-                    Text(
-                        "총수익률",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    )
-                    Text(
-                        "${if (summary.totalProfitLossPercent >= 0) "+" else ""}${String.format("%.2f", summary.totalProfitLossPercent)}%",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = plColor
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        "총수익금",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    )
-                    Text(
-                        "${if (summary.totalProfitLoss >= 0) "+" else ""}${krwFormat.format(summary.totalProfitLoss)}원",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = plColor
-                    )
-                }
-            }
-
-            if (summary.totalRealizedProfitLoss != 0L) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
-                Spacer(modifier = Modifier.height(8.dp))
-                val rlColor = when {
-                    summary.totalRealizedProfitLoss > 0 -> gainColor
-                    summary.totalRealizedProfitLoss < 0 -> lossColor
-                    else -> MaterialTheme.colorScheme.onPrimaryContainer
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        "실현손익",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    )
-                    Text(
-                        "${if (summary.totalRealizedProfitLoss >= 0) "+" else ""}${krwFormat.format(summary.totalRealizedProfitLoss)}원",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = rlColor
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "보유종목 ${summary.holdingsCount}개",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
-            )
         }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    "총평가금액",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                // 카드의 시각 앵커 — titleLarge Bold로 승격
+                Text(
+                    "${krwFormat.format(summary.totalEvaluation)}원",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "총투자금액",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "${krwFormat.format(summary.totalInvested)}원",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            val plColor = when {
+                summary.totalProfitLoss > 0 -> gainColor
+                summary.totalProfitLoss < 0 -> lossColor
+                else -> MaterialTheme.colorScheme.onSurface
+            }
+            Column {
+                Text(
+                    "총수익률",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "${if (summary.totalProfitLossPercent >= 0) "+" else ""}${String.format("%.2f", summary.totalProfitLossPercent)}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = plColor
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "총수익금",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "${if (summary.totalProfitLoss >= 0) "+" else ""}${krwFormat.format(summary.totalProfitLoss)}원",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = plColor
+                )
+            }
+        }
+
+        if (summary.totalRealizedProfitLoss != 0L) {
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(8.dp))
+            val rlColor = when {
+                summary.totalRealizedProfitLoss > 0 -> gainColor
+                summary.totalRealizedProfitLoss < 0 -> lossColor
+                else -> MaterialTheme.colorScheme.onSurface
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "실현손익",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "${if (summary.totalRealizedProfitLoss >= 0) "+" else ""}${krwFormat.format(summary.totalRealizedProfitLoss)}원",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = rlColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            "보유종목 ${summary.holdingsCount}개",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -479,18 +469,8 @@ private val LongSetSaver: Saver<Set<Long>, ArrayList<Long>> = Saver(
     restore = { it.toSet() }
 )
 
-// 핵심 5열 weight 구성 (합계 5.0) — 아이콘 열은 고정 32dp.
-// 360dp 화면 기준 유효폭 ≈280dp(1.0f≈56dp): 현재가는 "1,500,000"(9자≈60dp)가
-// 잘리지 않도록 1.15f, 수익금은 만/억 축약 표기(최장 "±9,999만"≈48dp) 전제로 1.0f 배분.
-private const val COL_WEIGHT_NAME = 1.55f
-private const val COL_WEIGHT_SIGNAL = 0.6f
-private const val COL_WEIGHT_PRICE = 1.15f
-private const val COL_WEIGHT_RETURN_PCT = 0.7f
-private const val COL_WEIGHT_PROFIT_AMOUNT = 1.0f
-private val EXPAND_ICON_WIDTH = 32.dp
-
 /**
- * 수익금 축약 표기 — 5열 표의 좁은 셀에서 원 단위 전체 표기(최장 11자)가 말줄임으로
+ * 수익금 축약 표기 — 카드 2행 우측의 좁은 폭에서 원 단위 전체 표기(최장 11자)가 말줄임으로
  * 잘려 금액이 오독되는 것을 방지. 1만 미만 원 단위, 1억 미만 만 단위(반올림), 이상 억 단위.
  * 원 단위 정밀값은 확장 상세 블록의 "수익금(원)" 항목에서 제공.
  */
@@ -506,8 +486,12 @@ private fun formatCompactAmount(v: Long): String {
     }
 }
 
+/**
+ * 보유종목 카드 리스트 — 표(5열) 대신 종목별 FinanceCard로 나열.
+ * 펼침 상태는 프로세스 재생성에도 복원되도록 rememberSaveable로 이 계층에서 관리.
+ */
 @Composable
-private fun HoldingsTable(
+private fun HoldingsCardList(
     holdings: List<PortfolioHoldingItem>,
     snapshotScores: Map<String, Double>,
     onRowClick: (PortfolioHoldingItem) -> Unit,
@@ -517,118 +501,163 @@ private fun HoldingsTable(
     val lossColor = LocalFinanceColors.current.negative
     var expandedIds by rememberSaveable(stateSaver = LongSetSaver) { mutableStateOf(emptySet<Long>()) }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(8.dp)) {
-            // Header — 핵심 5열 + 확장 아이콘 열
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                WeightedCell("종목명", COL_WEIGHT_NAME, fontWeight = FontWeight.Bold)
-                WeightedCell("신호", COL_WEIGHT_SIGNAL, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                WeightedCell("현재가", COL_WEIGHT_PRICE, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                WeightedCell("수익%", COL_WEIGHT_RETURN_PCT, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                WeightedCell("수익금", COL_WEIGHT_PROFIT_AMOUNT, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                Spacer(modifier = Modifier.width(EXPAND_ICON_WIDTH))
-            }
-            HorizontalDivider()
-
-            // Rows — 행 탭 = 거래내역, 종목명 셀 탭 = 퀵 분석 (전 화면 공통 규칙), 아이콘 탭 = 상세 펼치기/접기
-            holdings.forEach { holding ->
-                val plColor = when {
-                    holding.profitLossAmount > 0 -> gainColor
-                    holding.profitLossAmount < 0 -> lossColor
-                    else -> MaterialTheme.colorScheme.onSurface
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        holdings.forEach { holding ->
+            HoldingCard(
+                holding = holding,
+                score = snapshotScores[holding.ticker],
+                isExpanded = holding.holdingId in expandedIds,
+                gainColor = gainColor,
+                lossColor = lossColor,
+                onRowClick = onRowClick,
+                onQuickAnalysisClick = onQuickAnalysisClick,
+                onToggleExpand = {
+                    expandedIds = if (holding.holdingId in expandedIds) {
+                        expandedIds - holding.holdingId
+                    } else {
+                        expandedIds + holding.holdingId
+                    }
                 }
-                val isExpanded = holding.holdingId in expandedIds
+            )
+        }
+    }
+}
 
-                Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onRowClick(holding) }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = holding.stockName,
-                            modifier = Modifier
-                                .weight(COL_WEIGHT_NAME)
-                                .clickable { onQuickAnalysisClick(holding) }
-                                .padding(horizontal = 2.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        val score = snapshotScores[holding.ticker]
-                        WeightedCell(
-                            score?.let { "${(it * 100).toInt()}%" } ?: "-",
-                            COL_WEIGHT_SIGNAL,
-                            textAlign = TextAlign.Center,
-                            color = score?.let {
-                                when {
-                                    it >= 0.65 -> gainColor
-                                    it <= 0.35 -> lossColor
-                                    else -> null
-                                }
-                            },
-                            fontWeight = score?.let {
-                                if (it >= 0.65 || it <= 0.35) FontWeight.Bold else null
-                            }
-                        )
-                        WeightedCell(
-                            if (holding.currentPrice > 0) krwFormat.format(holding.currentPrice) else "-",
-                            COL_WEIGHT_PRICE,
-                            textAlign = TextAlign.End
-                        )
-                        WeightedCell(
-                            // |수익률|≥100%는 소수점을 버려 0.7f 셀 폭(≈39dp)에서 말줄임 방지
-                            "${if (holding.profitLossPercent >= 0) "+" else ""}${
-                                if (kotlin.math.abs(holding.profitLossPercent) >= 100.0) {
-                                    String.format(Locale.KOREA, "%.0f", holding.profitLossPercent)
-                                } else {
-                                    String.format(Locale.KOREA, "%.1f", holding.profitLossPercent)
-                                }
-                            }",
-                            COL_WEIGHT_RETURN_PCT,
-                            textAlign = TextAlign.End,
-                            color = plColor
-                        )
-                        WeightedCell(
-                            "${if (holding.profitLossAmount >= 0) "+" else ""}${formatCompactAmount(holding.profitLossAmount)}",
-                            COL_WEIGHT_PROFIT_AMOUNT,
-                            textAlign = TextAlign.End,
-                            color = plColor
-                        )
-                        IconButton(
-                            onClick = {
-                                expandedIds = if (isExpanded) {
-                                    expandedIds - holding.holdingId
-                                } else {
-                                    expandedIds + holding.holdingId
-                                }
-                            },
-                            modifier = Modifier.size(EXPAND_ICON_WIDTH)
-                        ) {
-                            Icon(
-                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = if (isExpanded) "접기" else "상세 펼치기",
-                                modifier = Modifier.size(20.dp)
-                            )
+/**
+ * 종목 카드 — 카드 탭=거래내역(주 액션), 오버플로(⋯)=거래내역/퀵 분석/상세 토글.
+ * 1행: 종목명 + 신호 배지 + 오버플로 / 2행: 현재가 · 수익률·수익금 / 확장: 상세 블록.
+ */
+@Composable
+private fun HoldingCard(
+    holding: PortfolioHoldingItem,
+    score: Double?,
+    isExpanded: Boolean,
+    gainColor: Color,
+    lossColor: Color,
+    onRowClick: (PortfolioHoldingItem) -> Unit,
+    onQuickAnalysisClick: (PortfolioHoldingItem) -> Unit,
+    onToggleExpand: () -> Unit
+) {
+    val plColor = when {
+        holding.profitLossAmount > 0 -> gainColor
+        holding.profitLossAmount < 0 -> lossColor
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    var menuOpen by remember { mutableStateOf(false) }
+
+    FinanceCard(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(14.dp),
+        onClick = { onRowClick(holding) }
+    ) {
+        // 1행: 종목명 + 신호 배지 + 오버플로 메뉴
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = holding.stockName,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (score != null) {
+                val badgeColor = when {
+                    score >= 0.65 -> gainColor
+                    score <= 0.35 -> lossColor
+                    else -> MaterialTheme.colorScheme.outline
+                }
+                CategoryBadge(
+                    text = "신호 ${(score * 100).toInt()}%",
+                    color = badgeColor
+                )
+            }
+            Box {
+                IconButton(
+                    onClick = { menuOpen = true },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "종목 메뉴",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("거래내역") },
+                        onClick = {
+                            menuOpen = false
+                            onRowClick(holding)
                         }
-                    }
-
-                    AnimatedVisibility(
-                        visible = isExpanded,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
-                    ) {
-                        HoldingDetailBlock(holding = holding, gainColor = gainColor, lossColor = lossColor)
-                    }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("퀵 분석") },
+                        onClick = {
+                            menuOpen = false
+                            onQuickAnalysisClick(holding)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (isExpanded) "상세 접기" else "상세 보기") },
+                        onClick = {
+                            menuOpen = false
+                            onToggleExpand()
+                        }
+                    )
                 }
-                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
             }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // 2행: 현재가 (좌) · 수익률·수익금 (우)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Column {
+                Text(
+                    "현재가",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (holding.currentPrice > 0) "${krwFormat.format(holding.currentPrice)}원" else "-",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    // |수익률|≥100%는 소수점을 버려 표기
+                    "${if (holding.profitLossPercent >= 0) "+" else ""}${
+                        if (kotlin.math.abs(holding.profitLossPercent) >= 100.0) {
+                            String.format(Locale.KOREA, "%.0f", holding.profitLossPercent)
+                        } else {
+                            String.format(Locale.KOREA, "%.1f", holding.profitLossPercent)
+                        }
+                    }%",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = plColor
+                )
+                Text(
+                    "${if (holding.profitLossAmount >= 0) "+" else ""}${formatCompactAmount(holding.profitLossAmount)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = plColor
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            HoldingDetailBlock(holding = holding, gainColor = gainColor, lossColor = lossColor)
         }
     }
 }
@@ -736,23 +765,3 @@ private fun DetailFieldCell(field: DetailField, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-private fun RowScope.WeightedCell(
-    text: String,
-    weight: Float,
-    fontWeight: FontWeight? = null,
-    textAlign: TextAlign = TextAlign.Start,
-    color: Color? = null,
-    maxLines: Int = 1
-) {
-    Text(
-        text = text,
-        modifier = Modifier.weight(weight).padding(horizontal = 2.dp),
-        style = MaterialTheme.typography.bodySmall,
-        fontWeight = fontWeight,
-        textAlign = textAlign,
-        color = color ?: MaterialTheme.colorScheme.onSurface,
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis
-    )
-}

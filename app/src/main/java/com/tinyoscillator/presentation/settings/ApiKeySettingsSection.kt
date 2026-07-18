@@ -7,8 +7,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.tinyoscillator.core.api.AiApiClient
 import com.tinyoscillator.core.api.InvestmentMode
 import com.tinyoscillator.core.api.KisApiClient
@@ -19,6 +21,7 @@ import com.tinyoscillator.domain.model.AiModelInfo
 import com.tinyoscillator.domain.model.AiProvider
 import com.tinyoscillator.feature.bearsignal.domain.model.GlobalIndexSource
 import com.tinyoscillator.presentation.common.CarvedTextField
+import com.tinyoscillator.presentation.common.CategoryBadge
 import com.tinyoscillator.presentation.common.GlassCard
 import kotlinx.coroutines.launch
 
@@ -52,9 +55,13 @@ internal fun ApiTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ── 필수 그룹 — 주가·ETF 수집에 필요한 핵심 자격증명 ──
+        ApiGroupLabel("필수 — 주가·ETF 수집")
+
         // === Kiwoom API ===
         ApiKeyValidationCard(
             title = "Kiwoom API",
+            filled = kiwoomAppKey.isNotBlank() && kiwoomSecretKey.isNotBlank(),
             appKeyValue = kiwoomAppKey,
             onAppKeyChange = onKiwoomAppKeyChange,
             appKeyLabel = "App Key",
@@ -69,27 +76,17 @@ internal fun ApiTab(
             }
         )
 
-        // === KIS API ===
-        ApiKeyValidationCard(
-            title = "KIS API (한국투자증권)",
-            appKeyValue = kisAppKey,
-            onAppKeyChange = onKisAppKeyChange,
-            appKeyLabel = "App Key",
-            secretValue = kisAppSecret,
-            onSecretChange = onKisAppSecretChange,
-            secretLabel = "App Secret",
-            mode = kisMode,
-            onModeChange = onKisModeChange,
-            onValidate = { appKey, secret, mode ->
-                val config = KisApiKeyConfig(appKey, secret, mode)
-                KisApiClient().validateCredentials(config)
-            }
-        )
-
         // === KRX API ===
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("KRX 데이터 (ETF분석용)", style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.secondary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("KRX 데이터 (ETF분석용)", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary)
+                FilledBadge(krxId.isNotBlank() && krxPassword.isNotBlank())
+            }
             Spacer(Modifier.height(12.dp))
             CarvedTextField(
                 value = krxId,
@@ -105,8 +102,30 @@ internal fun ApiTab(
             )
         }
 
+        // ── 선택·고급 그룹 — 미설정 시 해당 분석만 비활성화 ──
+        ApiGroupLabel("선택 · 고급")
+
+        // === KIS API ===
+        ApiKeyValidationCard(
+            title = "KIS API (한국투자증권)",
+            filled = kisAppKey.isNotBlank() && kisAppSecret.isNotBlank(),
+            appKeyValue = kisAppKey,
+            onAppKeyChange = onKisAppKeyChange,
+            appKeyLabel = "App Key",
+            secretValue = kisAppSecret,
+            onSecretChange = onKisAppSecretChange,
+            secretLabel = "App Secret",
+            mode = kisMode,
+            onModeChange = onKisModeChange,
+            onValidate = { appKey, secret, mode ->
+                val config = KisApiKeyConfig(appKey, secret, mode)
+                KisApiClient().validateCredentials(config)
+            }
+        )
+
         // === AI API ===
         AiApiSection(
+            filled = aiApiKey.isNotBlank(),
             aiApiKey = aiApiKey,
             onAiApiKeyChange = onAiApiKeyChange,
             aiProvider = aiProvider,
@@ -117,8 +136,15 @@ internal fun ApiTab(
 
         // === DART OpenAPI ===
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("DART OpenAPI (공시 분석)", style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.secondary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("DART OpenAPI (공시 분석)", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary)
+                FilledBadge(dartApiKey.isNotBlank())
+            }
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = dartApiKey,
@@ -143,8 +169,15 @@ internal fun ApiTab(
 
         // === BOK ECOS API ===
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("BOK ECOS (매크로 지표)", style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.secondary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("BOK ECOS (매크로 지표)", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary)
+                FilledBadge(ecosApiKey.isNotBlank())
+            }
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = ecosApiKey,
@@ -169,8 +202,15 @@ internal fun ApiTab(
 
         // === 관세청 무역통계 Open API (BearSignal 「주도주 붕괴 판단 계기판」) ===
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("관세청 무역통계 (수출 비중)", style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.secondary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("관세청 무역통계 (수출 비중)", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary)
+                FilledBadge(customsTradeApiKey.isNotBlank())
+            }
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = customsTradeApiKey,
@@ -195,8 +235,15 @@ internal fun ApiTab(
 
         // === FRED API (BearSignal 「주도주 붕괴 판단 계기판」) ===
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("FRED (미 연준 기준금리)", style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.secondary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("FRED (미 연준 기준금리)", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary)
+                FilledBadge(fredApiKey.isNotBlank())
+            }
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = fredApiKey,
@@ -240,6 +287,23 @@ internal fun ApiTab(
         Spacer(modifier = Modifier.height(32.dp))
     }
 }
+
+/** 그룹 라벨 — 필수/선택 구분 헤더 (온보딩 필수·선택 구분과 정합) */
+@Composable
+private fun ApiGroupLabel(text: String) = Text(
+    text = text,
+    style = MaterialTheme.typography.labelMedium,
+    fontWeight = FontWeight.SemiBold,
+    letterSpacing = 1.sp,
+    color = MaterialTheme.colorScheme.onSurfaceVariant
+)
+
+/** 입력 상태 배지 — 자격증명 입력 여부를 카드 헤더 우측에 표시 */
+@Composable
+private fun FilledBadge(filled: Boolean) = CategoryBadge(
+    text = if (filled) "입력됨" else "미입력",
+    color = if (filled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+)
 
 /** 해외지수·IPO ETF 시세 소스 선택 — 인증키 불필요, 선택 소스 실패 시 나머지 소스로 자동 폴백 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -298,6 +362,7 @@ private fun BearSignalIndexSourceSection(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AiApiSection(
+    filled: Boolean,
     aiApiKey: String,
     onAiApiKeyChange: (String) -> Unit,
     aiProvider: AiProvider,
@@ -318,8 +383,15 @@ private fun AiApiSection(
     }
 
     GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Text("AI 분석 (Claude / Gemini)", style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.secondary)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("AI 분석 (Claude / Gemini)", style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.secondary)
+            FilledBadge(filled)
+        }
         Spacer(Modifier.height(12.dp))
 
         // 1) Provider 선택
@@ -480,6 +552,7 @@ private fun AiApiSection(
 @Composable
 private fun ApiKeyValidationCard(
     title: String,
+    filled: Boolean,
     appKeyValue: String, onAppKeyChange: (String) -> Unit, appKeyLabel: String,
     secretValue: String, onSecretChange: (String) -> Unit, secretLabel: String,
     mode: InvestmentMode, onModeChange: (InvestmentMode) -> Unit,
@@ -489,8 +562,15 @@ private fun ApiKeyValidationCard(
     var validateState by remember { mutableStateOf<FetchState>(FetchState.Idle) }
 
     GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Text(title, style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.secondary)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.secondary)
+            FilledBadge(filled)
+        }
         Spacer(Modifier.height(12.dp))
         CarvedTextField(
             value = appKeyValue,

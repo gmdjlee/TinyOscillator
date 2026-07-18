@@ -946,4 +946,65 @@ class BearSignalViewModelTest {
         assertTrue(viewModel.uiState.value.aiContextPending.isEmpty())
         coVerify(exactly = 0) { approveAiContextClaimsUseCase(any(), any(), any()) }
     }
+
+    // ── T9(Jade Terminal P3) UI 전용 파생 상태(아코디언/2-pane 선택) ──────────────
+    // 스코어링/데이터 UseCase와 무관한 순수 표시 상태 — 어떤 UseCase도 호출하지 않음을 함께 확인한다.
+
+    @Test
+    fun `초기 UI 파생 상태는 전부 접힘이고 선택 섹션은 TREND다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.expandedSections.value.isEmpty())
+        assertEquals(BearSignalSectionKey.TREND, viewModel.selectedSection.value)
+    }
+
+    @Test
+    fun `toggleSection은 펼침·접힘을 왕복 토글한다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.toggleSection(BearSignalSectionKey.GATE)
+        assertTrue(BearSignalSectionKey.GATE in viewModel.expandedSections.value)
+
+        // 다른 섹션을 펼쳐도 기존 펼침은 유지된다(집합 누적)
+        viewModel.toggleSection(BearSignalSectionKey.HISTORY)
+        assertEquals(
+            setOf(BearSignalSectionKey.GATE, BearSignalSectionKey.HISTORY),
+            viewModel.expandedSections.value
+        )
+
+        // 다시 토글하면 해당 섹션만 접힌다
+        viewModel.toggleSection(BearSignalSectionKey.GATE)
+        assertEquals(setOf(BearSignalSectionKey.HISTORY), viewModel.expandedSections.value)
+    }
+
+    @Test
+    fun `selectSection은 2-pane 상세 선택 섹션을 갱신한다`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.selectSection(BearSignalSectionKey.COUNTRY)
+        assertEquals(BearSignalSectionKey.COUNTRY, viewModel.selectedSection.value)
+
+        viewModel.selectSection(BearSignalSectionKey.AI_SUGGEST)
+        assertEquals(BearSignalSectionKey.AI_SUGGEST, viewModel.selectedSection.value)
+    }
+
+    @Test
+    fun `UI 파생 상태 변경은 어떤 데이터·스코어링 UseCase도 호출하지 않는다`() = runTest {
+        val viewModel = createViewModel()
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+
+        viewModel.toggleSection(BearSignalSectionKey.LEADING)
+        viewModel.selectSection(BearSignalSectionKey.GATE)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { refreshAutoInputsUseCase() }
+        coVerify(exactly = 0) { refreshExternalAutoInputsUseCase() }
+        coVerify(exactly = 0) { refreshMarketReturnsUseCase() }
+        coVerify(exactly = 0) { fetchSuggestionsUseCase(any()) }
+        coVerify(exactly = 0) { fetchAiContextUpdatesUseCase() }
+    }
 }

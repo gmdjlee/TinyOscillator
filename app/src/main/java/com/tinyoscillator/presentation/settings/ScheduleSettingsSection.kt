@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -20,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.tinyoscillator.core.database.entity.WorkerLogEntity
 import com.tinyoscillator.core.worker.STATUS_ERROR
 import com.tinyoscillator.domain.model.ThemeExchange
+import com.tinyoscillator.presentation.common.AccordionCard
 import com.tinyoscillator.presentation.common.GlassCard
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -27,7 +30,6 @@ import java.util.Locale
 
 @Composable
 internal fun ScheduleSection(
-    title: String,
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     hour: Int,
@@ -46,8 +48,7 @@ internal fun ScheduleSection(
     onCollectionSave: () -> Unit = {},
     onResetData: (() -> Unit)? = null
 ) {
-    Text(title, style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
+    // 제목은 아코디언 헤더가 담당 — 본문은 수집 기간부터 시작한다.
     if (collectionDays != null) {
         CollectionPeriodRow(
             daysBack = collectionDays,
@@ -250,6 +251,19 @@ private fun requestIgnoreBatteryOptimization(context: Context) {
     context.startActivity(intent)
 }
 
+/**
+ * 아코디언 헤더 부제 — 스케줄(매일 HH:mm / 자동 꺼짐)과 마지막 실행 결과(✓/✗ MM/dd HH:mm)를
+ * 한 줄로 요약해, 펼치지 않아도 각 데이터소스 상태를 스캔할 수 있게 한다.
+ */
+private fun scheduleSummary(enabled: Boolean, hour: Int, minute: Int, lastLog: WorkerLogEntity?): String {
+    val sched = if (enabled) "매일 %02d:%02d".format(hour, minute) else "자동 꺼짐"
+    val last = lastLog?.let {
+        val d = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(Date(it.executedAt))
+        if (it.status == STATUS_ERROR) " · ✗ $d" else " · ✓ $d"
+    } ?: ""
+    return sched + last
+}
+
 /** 데이터소스별 수집 기간·스케줄·수동 실행·초기화를 하나의 카드로 관리하는 통합 탭 (구 수집설정 + Schedule) */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -351,6 +365,13 @@ internal fun DataManagementTab(
     saveMessage: String?,
     onSave: () -> Unit
 ) {
+    // 펼침 상태(로컬) — 기본 전부 접힘. 화면 회전에도 유지되도록 rememberSaveable + listSaver.
+    var expandedSources by rememberSaveable(
+        stateSaver = listSaver<Set<String>, String>(save = { it.toList() }, restore = { it.toSet() })
+    ) { mutableStateOf(emptySet<String>()) }
+    val toggle: (String) -> Unit = { key ->
+        expandedSources = if (key in expandedSources) expandedSources - key else expandedSources + key
+    }
 
     Column(
         modifier = Modifier
@@ -361,9 +382,13 @@ internal fun DataManagementTab(
     ) {
         BatteryOptimizationCard()
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
+        AccordionCard(
+            title = "Fear & Greed",
+            subtitle = scheduleSummary(fgScheduleEnabled, fgScheduleHour, fgScheduleMinute, lastFearGreedLog),
+            expanded = "feargreed" in expandedSources,
+            onToggle = { toggle("feargreed") }
+        ) {
             ScheduleSection(
-                title = "Fear & Greed",
                 enabled = fgScheduleEnabled,
                 onEnabledChange = onFgScheduleEnabledChange,
                 hour = fgScheduleHour,
@@ -382,9 +407,13 @@ internal fun DataManagementTab(
             )
         }
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
+        AccordionCard(
+            title = "ETF",
+            subtitle = scheduleSummary(etfScheduleEnabled, scheduleHour, scheduleMinute, lastEtfLog),
+            expanded = "etf" in expandedSources,
+            onToggle = { toggle("etf") }
+        ) {
             ScheduleSection(
-                title = "ETF",
                 enabled = etfScheduleEnabled,
                 onEnabledChange = onEtfScheduleEnabledChange,
                 hour = scheduleHour,
@@ -404,9 +433,13 @@ internal fun DataManagementTab(
             )
         }
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
+        AccordionCard(
+            title = "과매수/과매도",
+            subtitle = scheduleSummary(oscScheduleEnabled, oscScheduleHour, oscScheduleMinute, lastOscLog),
+            expanded = "oscillator" in expandedSources,
+            onToggle = { toggle("oscillator") }
+        ) {
             ScheduleSection(
-                title = "과매수/과매도",
                 enabled = oscScheduleEnabled,
                 onEnabledChange = onOscScheduleEnabledChange,
                 hour = oscScheduleHour,
@@ -425,9 +458,13 @@ internal fun DataManagementTab(
             )
         }
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
+        AccordionCard(
+            title = "자금 동향",
+            subtitle = scheduleSummary(depositScheduleEnabled, depositScheduleHour, depositScheduleMinute, lastDepositLog),
+            expanded = "deposit" in expandedSources,
+            onToggle = { toggle("deposit") }
+        ) {
             ScheduleSection(
-                title = "자금 동향",
                 enabled = depositScheduleEnabled,
                 onEnabledChange = onDepositScheduleEnabledChange,
                 hour = depositScheduleHour,
@@ -446,9 +483,13 @@ internal fun DataManagementTab(
             )
         }
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
+        AccordionCard(
+            title = "장 마감 데이터 교체",
+            subtitle = scheduleSummary(marketCloseRefreshEnabled, marketCloseRefreshHour, marketCloseRefreshMinute, lastMarketCloseLog),
+            expanded = "market_close" in expandedSources,
+            onToggle = { toggle("market_close") }
+        ) {
             ScheduleSection(
-                title = "장 마감 데이터 교체",
                 enabled = marketCloseRefreshEnabled,
                 onEnabledChange = onMarketCloseRefreshEnabledChange,
                 hour = marketCloseRefreshHour,
@@ -470,9 +511,13 @@ internal fun DataManagementTab(
             )
         }
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
+        AccordionCard(
+            title = "리포트",
+            subtitle = scheduleSummary(consensusScheduleEnabled, consensusScheduleHour, consensusScheduleMinute, lastConsensusLog),
+            expanded = "consensus" in expandedSources,
+            onToggle = { toggle("consensus") }
+        ) {
             ScheduleSection(
-                title = "리포트",
                 enabled = consensusScheduleEnabled,
                 onEnabledChange = onConsensusScheduleEnabledChange,
                 hour = consensusScheduleHour,
@@ -491,9 +536,13 @@ internal fun DataManagementTab(
             )
         }
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
+        AccordionCard(
+            title = "테마 자동 업데이트",
+            subtitle = scheduleSummary(themeScheduleEnabled, themeScheduleHour, themeScheduleMinute, lastThemeLog),
+            expanded = "theme" in expandedSources,
+            onToggle = { toggle("theme") }
+        ) {
             ScheduleSection(
-                title = "테마 자동 업데이트",
                 enabled = themeScheduleEnabled,
                 onEnabledChange = onThemeScheduleEnabledChange,
                 hour = themeScheduleHour,
@@ -531,9 +580,16 @@ internal fun DataManagementTab(
             )
         }
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Text("데이터 무결성 검사", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
+        val integritySummary = lastIntegrityLog?.let {
+            val d = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(Date(it.executedAt))
+            if (it.status == STATUS_ERROR) "✗ $d" else "✓ $d"
+        } ?: "수동 실행 · 데이터 정합 검사"
+        AccordionCard(
+            title = "데이터 무결성 검사",
+            subtitle = integritySummary,
+            expanded = "integrity" in expandedSources,
+            onToggle = { toggle("integrity") }
+        ) {
             Text(
                 "Fear & Greed, ETF, 과매수/과매도, 자금 동향 데이터를 최신 데이터와 비교하여 불일치 항목을 수정합니다.",
                 style = MaterialTheme.typography.bodySmall,

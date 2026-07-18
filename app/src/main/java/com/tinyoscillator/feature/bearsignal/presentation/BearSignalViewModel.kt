@@ -45,9 +45,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
@@ -210,6 +212,35 @@ class BearSignalViewModel @Inject constructor(
     private val isRefreshing = MutableStateFlow(false)
     private val errorMessage = MutableStateFlow<String?>(null)
     private val isOffline = MutableStateFlow(false)
+
+    // ── T9(Jade Terminal P3) UI 전용 파생 상태 — 스코어링 무접촉 ──────────────────
+    // 순수 표시 계층 상태다. 데이터/스코어링 UseCase를 전혀 호출하지 않으며, [uiState]의
+    // combine(5-flow) 구조에도 넣지 않는다(combine 타입 오버로드 한계·churn 방지). 화면이
+    // 별도 구독한다.
+
+    /**
+     * 폰(COMPACT) 아코디언에서 펼쳐진 세부 섹션 집합 — 기본값 `emptySet()`(전부 접힘)으로 스크롤
+     * 길이를 최소화한다. 태블릿 2-pane에서는 사용되지 않는다.
+     */
+    private val _expandedSections = MutableStateFlow<Set<BearSignalSectionKey>>(emptySet())
+    val expandedSections: StateFlow<Set<BearSignalSectionKey>> = _expandedSections.asStateFlow()
+
+    /** 아코디언 섹션 하나를 접기/펼치기 토글한다. */
+    fun toggleSection(key: BearSignalSectionKey) {
+        _expandedSections.update { if (key in it) it - key else it + key }
+    }
+
+    /**
+     * 태블릿/폴더블(MEDIUM·EXPANDED) 2-pane에서 우측 상세 페인에 표시할 섹션 — 기본값 [BearSignalSectionKey.TREND].
+     * 폰(COMPACT)에서는 사용되지 않는다.
+     */
+    private val _selectedSection = MutableStateFlow(BearSignalSectionKey.TREND)
+    val selectedSection: StateFlow<BearSignalSectionKey> = _selectedSection.asStateFlow()
+
+    /** 2-pane 마스터 목록에서 섹션 하나를 선택한다(우측 상세 전환). */
+    fun selectSection(key: BearSignalSectionKey) {
+        _selectedSection.value = key
+    }
 
     /**
      * §4.5 제안 상태 — **init에서 채우지 않는다**. 사용자가 [fetchSuggestions]를 명시적으로 호출할
