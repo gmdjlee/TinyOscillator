@@ -167,6 +167,46 @@ class ProbabilityInterpreterTest {
         assertTrue(text.contains("활성화된 패턴이 없어"))
     }
 
+    @Test
+    fun `interpretPattern - 높은 평균 최대낙폭에서 하방 리스크 경고 표시`() {
+        // 실제 엔진의 avgMdd20d는 낙폭 크기로 항상 ≥0. 기존 조건 `< -0.05`는 도달 불가였음.
+        val pa = PatternAnalysis(
+            allPatterns = emptyList(),
+            activePatterns = listOf(
+                PatternMatch(
+                    patternName = "riskyPattern", patternDescription = "위험패턴",
+                    isActive = true, occurrences = emptyList(),
+                    winRate5d = 0.5, winRate10d = 0.5, winRate20d = 0.55,
+                    avgReturn5d = 0.01, avgReturn10d = 0.01, avgReturn20d = 0.01,
+                    avgMdd20d = 0.08, totalOccurrences = 30    // 8% 낙폭 (양의 크기)
+                )
+            ),
+            totalHistoricalDays = 365
+        )
+        val text = interpreter.interpretPattern(pa)
+        assertTrue("하방 리스크 경고 표시(이전엔 도달 불가)", text.contains("하방 리스크 존재"))
+        assertTrue("낙폭을 음수 부호로 표기", text.contains("-8.0%"))
+    }
+
+    @Test
+    fun `interpretPattern - 낮은 평균 최대낙폭에서는 경고 없음`() {
+        val pa = PatternAnalysis(
+            allPatterns = emptyList(),
+            activePatterns = listOf(
+                PatternMatch(
+                    patternName = "safePattern", patternDescription = "안전패턴",
+                    isActive = true, occurrences = emptyList(),
+                    winRate5d = 0.5, winRate10d = 0.5, winRate20d = 0.55,
+                    avgReturn5d = 0.01, avgReturn10d = 0.01, avgReturn20d = 0.01,
+                    avgMdd20d = 0.02, totalOccurrences = 30    // 2% < 5% 임계
+                )
+            ),
+            totalHistoricalDays = 365
+        )
+        val text = interpreter.interpretPattern(pa)
+        assertFalse("낮은 낙폭엔 경고 없음", text.contains("하방 리스크"))
+    }
+
     // --- interpretSignalScoring ---
 
     @Test

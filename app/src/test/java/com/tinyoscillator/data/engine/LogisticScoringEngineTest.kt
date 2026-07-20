@@ -2,6 +2,7 @@ package com.tinyoscillator.data.engine
 
 import android.content.SharedPreferences
 import com.tinyoscillator.domain.model.DailyTrading
+import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.OscillatorRow
 import com.tinyoscillator.domain.repository.FundamentalSnapshot
 import io.mockk.every
@@ -73,7 +74,7 @@ class LogisticScoringEngineTest {
         val prices = generatePrices(100)
         val oscillators = generateOscillators(100)
 
-        val result = engine.analyze(prices, oscillators, null)
+        val result = engine.analyze(prices, oscillators, null, emptyList(), "TEST")
 
         assertTrue("probability >= 0", result.probability >= 0.0)
         assertTrue("probability <= 1", result.probability <= 1.0)
@@ -84,7 +85,7 @@ class LogisticScoringEngineTest {
         val prices = generatePrices(100)
         val oscillators = generateOscillators(100)
 
-        val result = engine.analyze(prices, oscillators, null)
+        val result = engine.analyze(prices, oscillators, null, emptyList(), "TEST")
 
         assertTrue("score >= 0", result.score0to100 >= 0)
         assertTrue("score <= 100", result.score0to100 <= 100)
@@ -95,7 +96,7 @@ class LogisticScoringEngineTest {
         val prices = generatePrices(100)
         val oscillators = generateOscillators(100)
 
-        val result = engine.analyze(prices, oscillators, null)
+        val result = engine.analyze(prices, oscillators, null, emptyList(), "TEST")
 
         for (name in LogisticScoringEngine.FEATURE_NAMES) {
             assertTrue("weights에 $name 포함", result.weights.containsKey(name))
@@ -108,10 +109,53 @@ class LogisticScoringEngineTest {
         val prices = generatePrices(100)
         val oscillators = generateOscillators(100)
 
-        engine.trainWeights(prices, oscillators, null)
+        engine.trainWeights(prices, oscillators, null, emptyList(), "TEST")
 
-        verify { editor.putBoolean("logistic_trained", true) }
+        verify { editor.putBoolean("logistic_trained_TEST", true) }
         verify { editor.apply() }
+    }
+
+    // ─── P4 회귀 테스트 ───
+
+    @Test
+    fun `종목별 가중치 분리 - 한 종목 학습이 다른 종목으로 전이되지 않는다`() = runTest {
+        val prices = generatePrices(100)
+        val oscillators = generateOscillators(100)
+
+        // 종목 A 분석 → A만 학습됨
+        engine.analyze(prices, oscillators, null, emptyList(), "AAAAAA")
+        assertTrue("A는 학습됨", storedValues["logistic_trained_AAAAAA"] == true)
+        // B는 A 학습과 무관하게 여전히 미학습 (전역 플래그였다면 true로 오염됐을 것)
+        assertNull("B는 아직 미학습", storedValues["logistic_trained_BBBBBB"])
+
+        // 종목 B 분석 → 자체 학습 트리거
+        engine.analyze(prices, oscillators, null, emptyList(), "BBBBBB")
+        verify { editor.putBoolean("logistic_trained_BBBBBB", true) }
+    }
+
+    @Test
+    fun `학습 시 DeMark setup 피처가 gradient에 반영된다 - 죽은 피처 방지`() = runTest {
+        val prices = generatePrices(120)
+        val oscillators = generateOscillators(120)
+        // DeMark buy setup을 20일 후 상승 여부와 상관되게 구성 → 피처가 살아있으면 가중치 학습됨
+        val demarkRows = prices.mapIndexed { i, p ->
+            val future = prices.getOrNull(i + 20)?.closePrice ?: p.closePrice
+            DemarkTDRow(
+                date = p.date,
+                closePrice = p.closePrice,
+                marketCapTril = 50.0,
+                tdSellCount = 0,
+                tdBuyCount = if (future > p.closePrice) 9 else 0
+            )
+        }
+
+        engine.trainWeights(prices, oscillators, null, demarkRows, "DEMARK")
+
+        val demarkIdx = LogisticScoringEngine.FEATURE_NAMES.indexOf("demark_buy_setup")
+        val w = storedValues["logistic_weight_DEMARK_$demarkIdx"] as? Float
+        assertNotNull("demark 가중치 키가 저장되어야 함", w)
+        // 버그(학습 시 setup=0 고정) 시 gradient가 항상 0 → weight 정확히 0f. 수정 후엔 0이 아니어야 함.
+        assertNotEquals("demark 피처가 학습되어야 함 (0이면 죽은 피처)", 0f, w!!)
     }
 
     @Test
@@ -119,7 +163,7 @@ class LogisticScoringEngineTest {
         val prices = generatePrices(100)
         val oscillators = generateOscillators(100)
 
-        val result = engine.analyze(prices, oscillators, null)
+        val result = engine.analyze(prices, oscillators, null, emptyList(), "TEST")
 
         for ((name, value) in result.featureValues) {
             assertTrue("$name >= 0", value >= 0.0)

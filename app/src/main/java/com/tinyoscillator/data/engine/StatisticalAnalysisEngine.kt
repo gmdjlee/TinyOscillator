@@ -154,7 +154,7 @@ class StatisticalAnalysisEngine @Inject constructor(
             timedExecution("Logistic", timings, failedEngines, progress) {
                 val lastDemark = demarkRows.lastOrNull()
                 logisticScoringEngine.analyze(
-                    prices, oscillators, fundamentals,
+                    prices, oscillators, fundamentals, demarkRows, stockCode,
                     demarkBuySetup = lastDemark?.tdBuyCount ?: 0
                 )
             }

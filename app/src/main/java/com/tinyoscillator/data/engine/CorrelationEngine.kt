@@ -86,8 +86,11 @@ class CorrelationEngine @Inject constructor() {
         addCorrelation(correlations, "수급오실레이터", "MACD히스토그램", supplyMacd, macdHistogram)
 
         // 2. 수급 오실레이터 ↔ 거래량 변화율
-        if (volumeChanges.size == supplyMacd.size) {
-            addCorrelation(correlations, "수급오실레이터", "거래량변화율", supplyMacd, volumeChanges)
+        // volumeChanges는 zipWithNext로 n-1개(인덱스 1..n-1에 정렬) → supplyMacd 첫 요소를 제외해
+        // 길이·날짜를 맞춘다. (기존 `size == size` 가드는 n-1 vs n으로 절대 참이 되지 못해 미계산되던 결함)
+        val supplyMacdForVolume = supplyMacd.drop(1)
+        if (volumeChanges.isNotEmpty() && volumeChanges.size == supplyMacdForVolume.size) {
+            addCorrelation(correlations, "수급오실레이터", "거래량변화율", supplyMacdForVolume, volumeChanges)
         }
 
         // 3. MACD ↔ EMA spread

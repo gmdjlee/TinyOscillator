@@ -71,57 +71,50 @@ class SectorCorrelationNetwork @Inject constructor(
             return unavailable(stockCode, "섹터 피어 부족 (${sectorPeers.size}개 < $MIN_PEERS)", sector)
         }
 
-        // 3. 대상 종목 일간 수익률
-        val targetCloses = prices.filter { it.closePrice > 0 }
+        // 3. 대상 종목 일간 종가 (날짜→종가 맵)
+        val targetCloseByDate = prices.filter { it.closePrice > 0 }
             .takeLast(window + 1)
-        if (targetCloses.size < MIN_COMMON_DAYS + 1) {
+            .associate { it.date to it.closePrice.toDouble() }
+        if (targetCloseByDate.size < MIN_COMMON_DAYS + 1) {
             return unavailable(stockCode, "대상 종목 가격 데이터 부족", sector)
         }
 
-        val targetDates = targetCloses.map { it.date }.toSet()
-        val targetReturns = computeReturns(targetCloses.map { it.closePrice.toDouble() })
-
-        // 4. 피어 종목 수익률 수집 (캐시된 데이터 사용)
-        val startDate = targetCloses.first().date
-        val endDate = targetCloses.last().date
-        val peerReturnsMap = mutableMapOf<String, DoubleArray>()
+        // 4. 피어 종목 종가 수집 (캐시된 데이터 사용, 날짜→종가 맵)
+        val startDate = targetCloseByDate.keys.min()
+        val endDate = targetCloseByDate.keys.max()
+        val peerCloseByDate = mutableMapOf<String, Map<String, Double>>()
 
         for (peer in sectorPeers) {
             val cached = analysisCacheDao.getByTickerDateRange(peer, startDate, endDate)
             if (cached.size < MIN_COMMON_DAYS) continue
-
-            // 공통 날짜로 정렬
-            val peerCloses = cached.filter { it.closePrice > 0 && it.date in targetDates }
-                .sortedBy { it.date }
-                .map { it.closePrice.toDouble() }
-
-            if (peerCloses.size >= MIN_COMMON_DAYS) {
-                peerReturnsMap[peer] = computeReturns(peerCloses)
+            val closeByDate = cached.filter { it.closePrice > 0 }
+                .associate { it.date to it.closePrice.toDouble() }
+            if (closeByDate.size >= MIN_COMMON_DAYS) {
+                peerCloseByDate[peer] = closeByDate
             }
         }
 
-        if (peerReturnsMap.size < MIN_PEERS) {
-            return unavailable(stockCode, "캐시된 피어 데이터 부족 (${peerReturnsMap.size}개)", sector)
+        if (peerCloseByDate.size < MIN_PEERS) {
+            return unavailable(stockCode, "캐시된 피어 데이터 부족 (${peerCloseByDate.size}개)", sector)
         }
 
-        Timber.d("섹터 상관 분석: %s 섹터 %s, 피어 %d개, 윈도우 %d일",
-            stockCode, sector, peerReturnsMap.size, window)
-
-        // 5. 수익률 행렬 구성 (대상 종목 + 피어)
-        // 모든 종목의 수익률 길이를 최소 공통 길이로 맞춤
-        val allTickers = listOf(stockCode) + peerReturnsMap.keys.toList()
-        val allReturns = mutableListOf(targetReturns)
-        allReturns.addAll(peerReturnsMap.values)
-
-        val minLen = allReturns.minOf { it.size }
-        if (minLen < MIN_COMMON_DAYS) {
-            return unavailable(stockCode, "공통 거래일 부족 ($minLen)", sector)
+        // 5. 공통 거래일 교집합 — 휴장/결측으로 종목마다 거래일이 달라도 같은 날짜끼리만 상관 계산.
+        // (기존: 날짜 무시하고 꼬리 minLen개를 truncate 정렬 → 갭이 있으면 서로 다른 날짜의 수익률을 상관)
+        val commonDates = targetCloseByDate.keys.toMutableSet()
+        peerCloseByDate.values.forEach { commonDates.retainAll(it.keys) }
+        val sortedDates = commonDates.sorted()
+        if (sortedDates.size < MIN_COMMON_DAYS + 1) {
+            return unavailable(stockCode, "공통 거래일 부족 (${sortedDates.size})", sector)
         }
 
-        // 마지막 minLen일만 사용
-        val returnsMatrix = Array(allTickers.size) { i ->
-            val r = allReturns[i]
-            r.copyOfRange(r.size - minLen, r.size)
+        Timber.d("섹터 상관 분석: %s 섹터 %s, 피어 %d개, 공통거래일 %d일",
+            stockCode, sector, peerCloseByDate.size, sortedDates.size)
+
+        // 공통 날짜로 정렬된 종가 → 수익률 행렬 (모든 행이 동일 날짜·동일 길이)
+        val allTickers = listOf(stockCode) + peerCloseByDate.keys.toList()
+        val returnsMatrix = Array(allTickers.size) { idx ->
+            val closeByDate = if (idx == 0) targetCloseByDate else peerCloseByDate.getValue(allTickers[idx])
+            computeReturns(sortedDates.map { closeByDate.getValue(it) })
         }
 
         // 6. Ledoit-Wolf 축소 상관 행렬
@@ -180,7 +173,7 @@ class SectorCorrelationNetwork @Inject constructor(
             nNeighbors = neighbors.size,
             signalScore = signalScore,
             sectorName = sector,
-            nPeers = peerReturnsMap.size,
+            nPeers = peerCloseByDate.size,
             shrinkageIntensity = shrinkage,
             avgAbsCorr = avgAbsCorr,
             corrRank = corrRank

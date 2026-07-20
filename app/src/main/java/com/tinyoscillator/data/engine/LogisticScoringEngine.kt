@@ -2,6 +2,7 @@ package com.tinyoscillator.data.engine
 
 import android.content.SharedPreferences
 import com.tinyoscillator.domain.model.DailyTrading
+import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.LogisticResult
 import com.tinyoscillator.domain.model.OscillatorRow
 import com.tinyoscillator.domain.repository.FundamentalSnapshot
@@ -53,24 +54,29 @@ class LogisticScoringEngine @Inject constructor(
     /**
      * 예측 실행 — 저장된 가중치로 추론
      * 가중치가 없으면 학습 후 예측
+     *
+     * 가중치는 **종목별**로 분리 저장한다(prefs 키에 stockCode 포함) — 최초 분석한
+     * 한 종목의 가중치가 다른 종목·재시작 후에도 재사용되던 결함(전역 단일 모델) 제거.
      */
     suspend fun analyze(
         prices: List<DailyTrading>,
         oscillators: List<OscillatorRow>,
         fundamentals: List<FundamentalSnapshot>?,
+        demarkRows: List<DemarkTDRow>,
+        stockCode: String,
         demarkBuySetup: Int = 0
     ): LogisticResult {
         val oscByDate = oscillators.associateBy { it.date }
         val fundByDate = fundamentals?.associateBy { it.date } ?: emptyMap()
 
-        // 학습이 안 되어 있으면 먼저 학습
-        if (!prefs.getBoolean(PREFS_TRAINED, false)) {
-            trainWeights(prices, oscillators, fundamentals)
+        // 학습이 안 되어 있으면 먼저 학습 (종목별)
+        if (!prefs.getBoolean(trainedKey(stockCode), false)) {
+            trainWeights(prices, oscillators, fundamentals, demarkRows, stockCode)
         }
 
-        // 저장된 가중치 로드
-        val weights = loadWeights()
-        val bias = prefs.getFloat(PREFS_BIAS, 0f).toDouble()
+        // 저장된 가중치 로드 (종목별)
+        val weights = loadWeights(stockCode)
+        val bias = prefs.getFloat(biasKey(stockCode), 0f).toDouble()
 
         // 현재 시점 피처 추출
         val currentDate = prices.last().date
@@ -104,12 +110,17 @@ class LogisticScoringEngine @Inject constructor(
     suspend fun trainWeights(
         prices: List<DailyTrading>,
         oscillators: List<OscillatorRow>,
-        fundamentals: List<FundamentalSnapshot>?
+        fundamentals: List<FundamentalSnapshot>?,
+        demarkRows: List<DemarkTDRow>,
+        stockCode: String
     ) {
         if (prices.size < LOOK_AHEAD_DAYS + NORMALIZATION_WINDOW) return
 
         val oscByDate = oscillators.associateBy { it.date }
         val fundByDate = fundamentals?.associateBy { it.date } ?: emptyMap()
+        // 학습 행별 historical DeMark setup 공급 — 추론은 실값을 쓰는데 학습만 0 고정이면
+        // demark_buy_setup 피처의 gradient가 항상 0이라 가중치가 학습되지 않는 죽은 피처가 된다.
+        val demarkByDate = demarkRows.associateBy { it.date }
 
         // 날짜→인덱스 맵 (이미 날짜순 정렬된 리스트에서 인덱스 기반 윈도우용)
         val oscDateIndex = mutableMapOf<String, Int>()
@@ -125,8 +136,9 @@ class LogisticScoringEngine @Inject constructor(
             val date = prices[i].date
             val osc = oscByDate[date] ?: continue
             val fund = fundByDate[date]
+            val setup = demarkByDate[date]?.tdBuyCount ?: 0
 
-            val rawFeatures = extractRawFeatures(osc, fund, 0)
+            val rawFeatures = extractRawFeatures(osc, fund, setup)
             val oscIdx = oscDateIndex[date] ?: continue
             val oscStart = max(0, oscIdx - NORMALIZATION_WINDOW + 1)
             val recentOsc = oscillators.subList(oscStart, oscIdx + 1)
@@ -199,8 +211,8 @@ class LogisticScoringEngine @Inject constructor(
             prevLoss = avgLoss
         }
 
-        // 가중치 저장
-        saveWeights(weights.toList(), bias)
+        // 가중치 저장 (종목별)
+        saveWeights(weights.toList(), bias, stockCode)
     }
 
     fun sigmoid(z: Double): Double = 1.0 / (1.0 + exp(-z.coerceIn(-500.0, 500.0)))
@@ -258,19 +270,24 @@ class LogisticScoringEngine @Inject constructor(
         return sum
     }
 
-    private fun saveWeights(weights: List<Double>, bias: Double) {
+    // 종목별 prefs 키 — 전역 단일 모델(첫 종목 가중치 재사용) 결함 방지
+    private fun weightKey(stockCode: String, i: Int) = "$PREFS_PREFIX${stockCode}_$i"
+    private fun biasKey(stockCode: String) = "${PREFS_BIAS}_$stockCode"
+    private fun trainedKey(stockCode: String) = "${PREFS_TRAINED}_$stockCode"
+
+    private fun saveWeights(weights: List<Double>, bias: Double, stockCode: String) {
         val editor = prefs.edit()
         weights.forEachIndexed { i, w ->
-            editor.putFloat("$PREFS_PREFIX$i", w.toFloat())
+            editor.putFloat(weightKey(stockCode, i), w.toFloat())
         }
-        editor.putFloat(PREFS_BIAS, bias.toFloat())
-        editor.putBoolean(PREFS_TRAINED, true)
+        editor.putFloat(biasKey(stockCode), bias.toFloat())
+        editor.putBoolean(trainedKey(stockCode), true)
         editor.apply()
     }
 
-    private fun loadWeights(): List<Double> {
+    private fun loadWeights(stockCode: String): List<Double> {
         return FEATURE_NAMES.indices.map { i ->
-            prefs.getFloat("$PREFS_PREFIX$i", 0f).toDouble()
+            prefs.getFloat(weightKey(stockCode, i), 0f).toDouble()
         }
     }
 

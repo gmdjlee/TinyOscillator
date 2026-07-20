@@ -213,8 +213,10 @@ class ProbabilityInterpreter @Inject constructor() {
             sb.appendLine("  과거 ${p.totalOccurrences}회 발생, 20일 승률 ${pct(p.winRate20d)} ($reliability)")
             sb.appendLine("  평균 수익률: 5일 ${pctSigned(p.avgReturn5d)}, 10일 ${pctSigned(p.avgReturn10d)}, 20일 ${pctSigned(p.avgReturn20d)}")
 
-            if (p.avgMdd20d < -0.05) {
-                sb.appendLine("  주의: 평균 최대낙폭 ${pctSigned(p.avgMdd20d)}로 하방 리스크 존재")
+            // avgMdd20d는 낙폭의 크기(항상 ≥0)로 저장됨 → `< -0.05`는 도달 불가였던 죽은 조건.
+            // 5% 초과 낙폭에서 경고, 표기는 하방을 나타내도록 음수 부호로 출력.
+            if (p.avgMdd20d > 0.05) {
+                sb.appendLine("  주의: 평균 최대낙폭 ${pctSigned(-p.avgMdd20d)}로 하방 리스크 존재")
             }
             sb.appendLine()
         }

@@ -3,6 +3,8 @@ package com.tinyoscillator.data.engine
 import com.tinyoscillator.domain.model.DailyTrading
 import com.tinyoscillator.domain.model.DemarkTDRow
 import com.tinyoscillator.domain.model.OscillatorRow
+import com.tinyoscillator.domain.model.PatternAnalysis
+import com.tinyoscillator.domain.model.PatternMatch
 import com.tinyoscillator.domain.repository.FundamentalSnapshot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -105,6 +107,30 @@ class SignalScoringEngineTest {
         assertTrue("MACD 포함", names.contains("MACD"))
         assertTrue("수급오실레이터 포함", names.contains("수급오실레이터"))
         assertTrue("EMA배열 포함", names.contains("EMA배열"))
+    }
+
+    @Test
+    fun `무발생 패턴은 DEFAULT_WEIGHT를 사용한다 - 조용한 비활성화 방지`() = runTest {
+        val oscillators = generateBullishOscillators(30)
+        val demarks = generateDemarks(30)
+        val prices = generatePrices(30)
+        // MACD 패턴이 이력 0회 → winRate20d=0.0로 저장됨 (map 값이 0.0, null 아님)
+        val zeroOccPattern = PatternMatch(
+            patternName = "MACD_GOLDEN_CROSS_WITH_SUPPLY_BUY",
+            patternDescription = "테스트", isActive = false, occurrences = emptyList(),
+            winRate5d = 0.0, winRate10d = 0.0, winRate20d = 0.0,
+            avgReturn5d = 0.0, avgReturn10d = 0.0, avgReturn20d = 0.0,
+            avgMdd20d = 0.0, totalOccurrences = 0
+        )
+        val pa = PatternAnalysis(listOf(zeroOccPattern), emptyList(), 200)
+
+        val result = engine.analyze(oscillators, demarks, prices, null, pa)
+
+        val macd = result.contributions.find { it.name == "MACD" }
+        assertNotNull("MACD 신호 존재", macd)
+        // 버그: 무발생 패턴 winRate 0.0 → `?: DEFAULT_WEIGHT` 미발화 → weight 0.0 (신호 조용히 비활성).
+        // 수정: totalOccurrences==0 → DEFAULT_WEIGHT(0.5).
+        assertEquals("무발생 패턴 → DEFAULT_WEIGHT", 0.5, macd!!.weight, 1e-9)
     }
 
     // ─── 헬퍼 ───

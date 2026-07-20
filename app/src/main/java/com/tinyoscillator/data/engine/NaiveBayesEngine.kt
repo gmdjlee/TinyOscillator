@@ -250,10 +250,10 @@ class NaiveBayesEngine @Inject constructor() {
         // PBR 상태
         val fund = fundByDate[date]
         features["PBR"] = when {
-            fund != null && fund.pbr < 1.0 -> PbrState.UNDERVALUED.name
+            fund != null && fund.pbr > 0.0 && fund.pbr < 1.0 -> PbrState.UNDERVALUED.name
             fund != null && fund.pbr in 1.0..2.0 -> PbrState.FAIR.name
             fund != null && fund.pbr > 2.0 -> PbrState.OVERVALUED.name
-            else -> PbrState.FAIR.name // 데이터 없으면 기본값
+            else -> PbrState.FAIR.name // 데이터 없음(PBR≤0 포함) → 기본값 FAIR (BayesianUpdate와 일관)
         }
 
         // ETF 자금흐름 상태

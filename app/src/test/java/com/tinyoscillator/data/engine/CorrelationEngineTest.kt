@@ -224,6 +224,34 @@ class CorrelationEngineTest {
         assertNull("ETF 데이터 없으면 ETF 상관 없음", etfCorrelation)
     }
 
+    // ─── P4-3 회귀: 수급오실레이터 ↔ 거래량변화율 상관 ───
+
+    @Test
+    fun `수급오실레이터-거래량변화율 상관이 계산된다 - 이전엔 크기 불일치로 스킵됨`() = runTest {
+        // supplyRatio를 변동시켜 거래량 변화율이 의미있게 생성되도록 구성
+        val oscillators = (0 until 60).map { i ->
+            val osc = ((i % 10) - 5) * 0.0001
+            OscillatorRow(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                marketCap = 50000000000L, marketCapTril = 50.0,
+                foreign5d = 1000000L, inst5d = -500000L,
+                supplyRatio = 0.001 + (i % 5) * 0.0002,  // 변동 → 거래량 변화율 non-degenerate
+                ema12 = 0.001 + osc, ema26 = 0.001, macd = osc,
+                signal = osc * 0.5, oscillator = osc * 0.5
+            )
+        }
+        val demarks = generateDemarks(60)
+        val prices = generatePrices(60)
+
+        val result = engine.analyze(oscillators, demarks, prices)
+
+        // volumeChanges(n-1) vs supplyMacd(n) 크기 불일치로 항상 스킵되던 상관이 이제 계산됨
+        val volCorr = result.correlations.find { it.indicator2 == "거래량변화율" }
+        assertNotNull("거래량변화율 상관이 존재해야 함", volCorr)
+        assertFalse("r이 NaN이 아니어야 함", volCorr!!.pearsonR.isNaN())
+        assertTrue("r 범위 [-1,1]", volCorr.pearsonR in -1.0..1.0)
+    }
+
     // ─── 헬퍼 ───
 
     private fun generateSectorEtfReturns(days: Int): List<SectorEtfReturn> =

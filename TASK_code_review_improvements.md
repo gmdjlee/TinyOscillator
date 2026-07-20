@@ -176,7 +176,15 @@
   - 3-6 `BearSignalRepositoryImpl` 2경로: login→use→close를 `krxApiClient.sessionMutex.withLock`로 감싸 공유 싱글턴 동시 close 방지. **잔여**: EtfUpdate/FundamentalHistory 등 미이관 호출처와의 교차 세션 경합은 sessionMutex 미사용이라 잔존(그쪽은 장기 세션 재사용 패턴이라 일괄 이관은 별도 리팩터) — @Volatile로 가시성만 보장
   - 3-7 `refreshExternalAutoInputs`: 전체 엔티티 RMW → 수집 성공한 B등급 키만 per-key upsert(`Mapper.externalEntities`). collectX 실패 시 null 반환. 수집 중 도착한 §4.5 승인값·워커 기록 보존, MANUAL 불패 불변
   - 3-8 `AiApiClient.fetchGeminiModels`: API 키 URL 쿼리 → `x-goog-api-key` 헤더(타 Gemini 호출과 통일, 유출 경로 제거)
-- [ ] P4 — 엔진 통계 경로 8건 (착수 전 사용자 재확인)
+- [x] P4 — 엔진 통계 경로 8건 (2026-07-20 완료 — 사용자 재확인 후 all 8 + 4-1 종목별 가중치 승인. 타깃 테스트 107/107 그린: Logistic 13·Correlation 13·OrderFlow 15·Bayesian 13·NaiveBayes 12·SignalScoring 15·Interpreter 18·SectorCorr 8 + 오케스트레이터 통합 그린. 신규 회귀 9건. 커밋 대기)
+  - 4-1 `LogisticScoringEngine`: prefs 키를 **종목별**(`logistic_weight_<ticker>_i`·`_bias_<ticker>`·`_trained_<ticker>`)로 분리 — 첫 분석 종목 가중치가 전 종목·재시작 후 재사용되던 전역 단일 모델 제거. `analyze`/`trainWeights`에 `stockCode` 파라미터 추가
+  - 4-2 `LogisticScoringEngine.trainWeights`: 학습 행별 `demarkByDate[date].tdBuyCount` 공급(기존 0 고정) — demark_buy_setup 피처 gradient 살아남. `demarkRows` 파라미터 추가, 호출처 `StatisticalAnalysisEngine:156` 배선
+  - 4-3 `CorrelationEngine`: `supplyMacd.drop(1)`로 volumeChanges(n-1)와 길이·날짜 정렬 — `size==size`(n-1 vs n) 절대 거짓으로 스킵되던 수급↔거래량 상관 계산 복원
+  - 4-4 `OrderFlowEngine`: `calcMeanReversionSignal`/`ofiToSignal`의 과거 z-score 분포를 `calcOfi` **동일 공식**(전체 분모, retail/inst 포함)의 롤링 시리즈로 재구축 — 외국인-only 분포와의 통계량 불일치 편향 제거. 두 함수에 `inst`/`retail` 인자 추가
+  - 4-5 `BayesianUpdateEngine`(2곳)+`NaiveBayesEngine`(sibling): PBR≤0(결측)을 `FAIR`로 처리 — BayesianUpdate는 결측→OVERVALUED 하방 왜곡, NaiveBayes는 `pbr<1.0`이 0까지 포함해 결측→UNDERVALUED로 **정반대** 분류(엔진 불일치)였음. 양쪽 FAIR로 일관화
+  - 4-6 `SectorCorrelationNetwork`: 꼬리 truncate 정렬(minLen) → **공통 거래일 교집합** 후 수익률 계산 — 휴장 갭 시 서로 다른 날짜끼리 상관되던 결함 제거. 날짜→종가 맵 기반 재작성, `nPeers` 소스 갱신
+  - 4-7 `ProbabilityInterpreter`: MDD 경고 조건 `< -0.05`(항상 ≥0이라 도달 불가) → `> 0.05`, 표기 `pctSigned(-avgMdd20d)`로 하방 부호 처리
+  - 4-8 `SignalScoringEngine`: patternWinRates 맵 구성 시 `totalOccurrences==0`이면 `DEFAULT_WEIGHT` — 무발생 패턴 winRate 0.0이 `?: DEFAULT_WEIGHT`를 우회해 가중치 0(신호 조용히 비활성)되던 결함 제거
 - [ ] P5 — 성능 6건
 - [ ] P6 — 사용성·접근성 8건
 - [ ] P7 — 죽은 코드·빌드·문서 정리

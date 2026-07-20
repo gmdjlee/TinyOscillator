@@ -58,9 +58,14 @@ class SignalScoringEngine @Inject constructor() {
         val currentFund = fundamentals?.lastOrNull()
         val volumeRatio = calcCurrentVolumeRatio(prices)
 
-        // 패턴 승률에서 가중치 추출
+        // 패턴 승률에서 가중치 추출.
+        // 발생 이력이 0인 패턴은 winRate20d=0.0으로 저장돼 있어 `?: DEFAULT_WEIGHT`(null 대체)가
+        // 발화하지 못하고 가중치 0.0 → 신호가 조용히 비활성화됐다. 무발생 패턴은 DEFAULT_WEIGHT로 대체.
+        // (승률이 실제 0.0인 다발생 패턴은 그대로 0 가중치 유지 — totalOccurrences로 구분)
         val patternWinRates = patternAnalysis?.allPatterns
-            ?.associate { it.patternName to it.winRate20d } ?: emptyMap()
+            ?.associate {
+                it.patternName to if (it.totalOccurrences == 0) DEFAULT_WEIGHT else it.winRate20d
+            } ?: emptyMap()
 
         // 각 신호 평가
         val signals = mutableListOf<SignalEntry>()

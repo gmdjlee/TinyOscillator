@@ -249,6 +249,63 @@ class SectorCorrelationNetworkTest {
             shrinkageFew > shrinkageMany)
     }
 
+    // ─── P4-6 회귀: 공통 날짜 정렬 (휴장 갭에서 다른 날짜 상관 방지) ───
+
+    @Test
+    fun `피어 날짜 갭이 있어도 공통 날짜로 정렬해 계산한다 - tail-truncate date-mixing 제거`() = runTest {
+        val rng = Random(2024)
+        val nPeers = 6
+        val nDays = 70
+        val gapIdx = 35
+        val dates = (0 until nDays).map { String.format("2025%04d", 1000 + it) }
+        val commonFactor = DoubleArray(nDays) { rng.nextGaussian() * 0.02 }
+        val peerTickers = (1..nPeers).map { String.format("%06d", 7000 + it) }
+
+        // 두 실행이 동일 가격 데이터를 쓰도록 먼저 생성 (rng 소비 고정)
+        val targetPrices = generateCorrelatedPrices(commonFactor, nDays, 50000, rng, beta = 0.9)
+        val peerPricesMap = peerTickers.associateWith {
+            generateCorrelatedPrices(commonFactor, nDays, 40000, rng, beta = 0.9)
+        }
+
+        coEvery { stockMasterDao.getSector("005930") } returns "반도체"
+        coEvery { stockMasterDao.getTickersBySector("반도체", any()) } returns peerTickers
+
+        fun peerEntities(ticker: String, prices: List<Int>, omit: Int?): List<AnalysisCacheEntity> =
+            prices.mapIndexed { i, p ->
+                AnalysisCacheEntity(ticker, dates[i], 1_000_000_000_000L, 0L, 0L, p)
+            }.filterIndexed { i, _ -> i != omit }
+
+        fun targetDaily(omit: Int?): List<DailyTrading> =
+            targetPrices.mapIndexed { i, p ->
+                DailyTrading(dates[i], 400_000_000_000_000L, 0L, 0L, p)
+            }.filterIndexed { i, _ -> i != omit }
+
+        // Run A: 피어 1개만 중간 날짜(gapIdx) 결측 — 나머지는 전부 보유
+        peerTickers.forEachIndexed { idx, peer ->
+            val omit = if (idx == 0) gapIdx else null
+            coEvery { analysisCacheDao.getByTickerDateRange(peer, any(), any()) } returns
+                peerEntities(peer, peerPricesMap.getValue(peer), omit)
+        }
+        // window >= nDays 로 takeLast 경계 효과 제거 → 교집합이 정확히 (전체 - gap)
+        val resultGap = engine.analyze(targetDaily(null), "005930", window = 200)
+
+        // Run B(reference): 모든 종목이 같은 날짜(gapIdx) 결측 = 공통 날짜 정렬의 정답
+        peerTickers.forEach { peer ->
+            coEvery { analysisCacheDao.getByTickerDateRange(peer, any(), any()) } returns
+                peerEntities(peer, peerPricesMap.getValue(peer), gapIdx)
+        }
+        val resultRef = engine.analyze(targetDaily(gapIdx), "005930", window = 200)
+
+        assertNull("Run A 분석 가능", resultGap.unavailableReason)
+        assertNull("Run B 분석 가능", resultRef.unavailableReason)
+        // 공통 날짜 교집합으로 gap 피어도 동일 날짜만 사용 → reference와 완전히 동일 결과.
+        // 버그(꼬리 truncate)에서는 gap 피어가 한 칸 밀려 다른 날짜와 상관 → 결과가 달라짐.
+        assertEquals("공통 날짜 정렬: signalScore 동일",
+            resultRef.signalScore, resultGap.signalScore, 1e-9)
+        assertEquals("공통 날짜 정렬: meanNeighborCorr 동일",
+            resultRef.meanNeighborCorr, resultGap.meanNeighborCorr, 1e-9)
+    }
+
     // ─── 유틸리티 ───
 
     private fun generateCorrelatedPrices(

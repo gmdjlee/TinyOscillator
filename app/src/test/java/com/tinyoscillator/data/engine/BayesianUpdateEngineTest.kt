@@ -139,6 +139,23 @@ class BayesianUpdateEngineTest {
         assertTrue("PBR 갱신이 있어야 함", pbrUpdates.isNotEmpty())
     }
 
+    @Test
+    fun `결측 PBR은 OVERVALUED가 아닌 FAIR로 처리된다`() = runTest {
+        val prices = generatePrices(100)
+        val oscillators = generateOscillators(100)
+        val demarks = generateDemarks(100)
+        val missingPbr = fundamentalsWithPbr(100, 0.0)   // 결측 (PBR≤0)
+        val fairPbr = fundamentalsWithPbr(100, 1.5)       // FAIR 구간
+
+        val rMissing = engine.analyze(prices, oscillators, demarks, missingPbr)
+        val rFair = engine.analyze(prices, oscillators, demarks, fairPbr)
+
+        // 결측 PBR이 FAIR와 동일 posterior여야 함.
+        // 버그 시 결측→OVERVALUED로 분류되어 posterior가 하방 왜곡되며 FAIR과 달라진다.
+        assertEquals("결측 PBR = FAIR 처리 (하방 왜곡 없음)",
+            rFair.finalPosterior, rMissing.finalPosterior, 1e-9)
+    }
+
     // ─── ETF_FLOW 신호 테스트 ───
 
     @Test
@@ -231,6 +248,15 @@ class BayesianUpdateEngineTest {
             FundamentalSnapshot(
                 date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
                 close = 50000L, per = 10.0, pbr = 0.8,
+                eps = 5000L, bps = 62500L, dividendYield = 2.0
+            )
+        }
+
+    private fun fundamentalsWithPbr(days: Int, pbr: Double): List<FundamentalSnapshot> =
+        (0 until days).map { i ->
+            FundamentalSnapshot(
+                date = String.format("2025%02d%02d", (i / 28) + 1, (i % 28) + 1),
+                close = 50000L, per = 10.0, pbr = pbr,
                 eps = 5000L, bps = 62500L, dividendYield = 2.0
             )
         }

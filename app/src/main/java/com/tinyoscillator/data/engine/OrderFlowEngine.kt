@@ -70,10 +70,10 @@ class OrderFlowEngine @Inject constructor() {
         val trendAlignment = calcTrendAlignment(foreignFlows, closePrices)
 
         // 5. 평균회귀 신호 (극단적 흐름 탐지)
-        val meanReversion = calcMeanReversionSignal(ofi20d, foreignFlows)
+        val meanReversion = calcMeanReversionSignal(ofi20d, foreignFlows, instFlows, retailFlows)
 
         // 6. OFI를 시그모이드로 0~1 신호 변환
-        val signalScore = ofiToSignal(ofi20d, foreignFlows)
+        val signalScore = ofiToSignal(ofi20d, foreignFlows, instFlows, retailFlows)
 
         // 7. 방향 및 강도 판정
         val flowDirection = detectFlowDirection(ofi5d, ofi20d, fbp)
@@ -186,20 +186,41 @@ class OrderFlowEngine @Inject constructor() {
     }
 
     /**
+     * calcOfi와 **동일한** 일별 OFI 시계열.
+     * = (foreign - retail) / (|foreign| + |inst| + |retail| + ε)
+     *
+     * z-score의 기준 분포는 비교 대상(currentOfi = calcOfi 결과)과 같은 통계량으로 구성해야 한다.
+     * 과거 시계열을 외국인-only 공식으로 만들던 기존 코드는 평균·표준편차가 서로 다른 통계에서
+     * 나와 z-score가 편향됐다. 아래 헬퍼로 currentOfi와 동일 공식·동일 윈도우 통계를 재구축한다.
+     */
+    private fun calcOfiDailySeries(
+        foreign: List<Double>, inst: List<Double>, retail: List<Double>
+    ): List<Double> = foreign.indices.map { i ->
+        val denom = abs(foreign[i]) + abs(inst[i]) + abs(retail[i]) + EPSILON
+        (foreign[i] - retail[i]) / denom
+    }
+
+    /**
+     * currentOfi(=calcOfi(window))와 동일 통계량의 과거 분포 — 일별 OFI의 롤링 window 평균.
+     * 마지막 원소는 currentOfi 자체와 일치한다.
+     */
+    private fun rollingOfiSeries(daily: List<Double>, window: Int): List<Double> {
+        if (daily.size < window) return emptyList()
+        return (window..daily.size).map { end -> daily.subList(end - window, end).average() }
+    }
+
+    /**
      * 평균회귀 신호 — OFI가 극단치일 때 반대 방향 조정 신호
      * Z-score 기반, 극단치(|z| > 2) → 높은 평균회귀 점수
      */
-    private fun calcMeanReversionSignal(currentOfi: Double, foreign: List<Double>): Double {
+    private fun calcMeanReversionSignal(
+        currentOfi: Double, foreign: List<Double>, inst: List<Double>, retail: List<Double>
+    ): Double {
         val n = foreign.size
         if (n < Z_WINDOW) return 0.0
 
-        // OFI 시계열 생성
-        val ofiSeries = (Z_WINDOW until n).map { i ->
-            val slice = foreign.subList(i - OFI_WINDOW_LONG, i)
-            val absSlice = slice.sumOf { abs(it) }
-            if (absSlice > EPSILON) slice.sum() / absSlice else 0.0
-        }
-
+        val daily = calcOfiDailySeries(foreign, inst, retail)
+        val ofiSeries = rollingOfiSeries(daily, OFI_WINDOW_LONG)
         if (ofiSeries.size < 10) return 0.0
 
         val mean = ofiSeries.average()
@@ -214,17 +235,14 @@ class OrderFlowEngine @Inject constructor() {
     /**
      * OFI → 시그널 점수 변환 (Z-score + sigmoid)
      */
-    private fun ofiToSignal(currentOfi: Double, foreign: List<Double>): Double {
+    private fun ofiToSignal(
+        currentOfi: Double, foreign: List<Double>, inst: List<Double>, retail: List<Double>
+    ): Double {
         val n = foreign.size
         if (n < Z_WINDOW) return 0.5
 
-        // 간단한 Z-score 기반 시그모이드
-        val ofiSeries = (OFI_WINDOW_LONG until n).map { i ->
-            val slice = foreign.subList(i - OFI_WINDOW_LONG, i)
-            val absSlice = slice.sumOf { abs(it) }
-            if (absSlice > EPSILON) slice.sum() / absSlice else 0.0
-        }
-
+        val daily = calcOfiDailySeries(foreign, inst, retail)
+        val ofiSeries = rollingOfiSeries(daily, OFI_WINDOW_LONG)
         if (ofiSeries.size < 10) return 0.5
 
         val mean = ofiSeries.average()

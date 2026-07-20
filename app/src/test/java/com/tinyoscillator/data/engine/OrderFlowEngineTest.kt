@@ -177,6 +177,24 @@ class OrderFlowEngineTest {
     }
 
     @Test
+    fun `signalScore z-score는 전체 OFI 공식 분포로 계산된다 - 외국인 단독 분포 편향 제거`() = runTest {
+        // 외국인 상수(+), 기관은 음→양 추세 → 전체 OFI 공식으로 만든 과거 분포는 상승 추세를 가짐.
+        // 버그(외국인-only 분포)에서는 상수 시리즈 → std 0 → signalScore가 정확히 0.5로 고정됐다.
+        val days = 80
+        val prices = makePrices(days,
+            foreignGen = { 1_000_000_000L },                       // 상수 매수
+            instGen = { (-3_000_000_000L + it * 75_000_000L) },    // -30억 → +약 30억 선형 증가
+            closeGen = { 50000 + it * 10 }
+        )
+        val result = engine.analyze(prices)
+
+        assertNotEquals("과거 분포가 상수가 아니어야 함(외국인-only 버그면 0.5 고정)",
+            0.5, result.signalScore, 1e-6)
+        assertTrue("최근 OFI가 과거 평균보다 높음 → signalScore > 0.5: ${result.signalScore}",
+            result.signalScore > 0.5)
+    }
+
+    @Test
     fun `analysisDetails contains expected keys`() = runTest {
         val prices = makePrices(60)
         val result = engine.analyze(prices)

@@ -93,3 +93,29 @@
 - 3-3/3-4 에러 응답 leak(MockWebServer): `OkHttpExtensionsTest` +1 — 500 응답 3회를 `await().use`로 소비 후 `connectionPool.connectionCount()==1`(재사용=body close 증거) → **9/9**.
 - 3-7 수집 중 승인 생존: `BearSignalRepositoryImplTest` +2 — FRED 실패 시 upsert에 `GATE_RATE` 미포함(승인값 보존)·A등급 키 미포함 단언, 전무 시 upsert 0회 → **45/45**.
 - 회귀 그린: Krx 8·Kis 26·Kiwoom 21·Dart(parse/disclosureUrl)·Fred·Stooq·Yahoo parse 전부 통과.
+
+---
+
+## 코드리뷰 개선 P4 — 엔진 "조용히 틀린" 통계 경로 8건 (2026-07-20)
+
+명세 `TASK_code_review_improvements.md` §Phase 4. **산출 숫자 변경** — 사용자 재확인 후 all 8 + 4-1 종목별 가중치 방식 승인. 다른 Phase와 커밋 분리(§0 제약).
+
+### 변경 전후 (엔진 단위 동작 — 회귀 테스트가 concrete 값으로 인코딩)
+
+| # | 위치 | 변경 전 (버그) | 변경 후 |
+|---|---|---|---|
+| 4-1 | `LogisticScoringEngine` | prefs 전역 단일 키(`logistic_trained`) → 첫 분석 종목 가중치가 **전 종목·재시작 후 재사용** | 종목별 키(`logistic_trained_<ticker>` 등) → 종목마다 자체 학습 |
+| 4-2 | `LogisticScoringEngine.trainWeights` | 학습 시 `demarkBuySetup=0` 고정 → demark 피처 gradient 항상 0(죽은 피처, weight 정확히 0f) | 행별 `tdBuyCount` 공급 → weight≠0(학습됨) |
+| 4-3 | `CorrelationEngine` | `volumeChanges.size(n-1)==supplyMacd.size(n)` 절대 거짓 → 수급↔거래량 상관 **미출력** | `supplyMacd.drop(1)` 정렬 → 상관 행 출력 |
+| 4-4 | `OrderFlowEngine` | z-score 과거 분포 = 외국인-only(`Σf/Σ\|f\|`), currentOfi = 전체 공식 → 통계량 불일치 편향 | 과거 분포도 `calcOfi` 동일 공식 롤링 → z 일관. (외국인 상수+기관 추세 시 버그면 signalScore=0.5 고정, 수정 후 >0.5) |
+| 4-5 | `BayesianUpdateEngine`·`NaiveBayesEngine` | 결측 PBR(≤0): Bayesian→OVERVALUED, NaiveBayes→UNDERVALUED (**정반대**, 엔진 불일치) | 양쪽 FAIR — 결측 PBR posterior가 FAIR값과 동일 |
+| 4-6 | `SectorCorrelationNetwork` | 꼬리 minLen truncate → 휴장 갭 시 다른 날짜끼리 상관 | 공통 거래일 교집합 후 계산 — gap 피어도 reference와 동일 corr |
+| 4-7 | `ProbabilityInterpreter` | MDD 경고 `avgMdd20d < -0.05`(값 항상 ≥0 → 도달 불가) | `> 0.05` + `pctSigned(-avgMdd20d)` 하방 부호 (8% 낙폭 → "-8.0%" 경고 표시) |
+| 4-8 | `SignalScoringEngine` | 무발생 패턴 winRate 0.0 → `?: DEFAULT_WEIGHT` 우회 → weight 0(신호 조용히 비활성) | `totalOccurrences==0` → DEFAULT_WEIGHT(0.5) |
+
+### 수용 기준 (충족)
+
+- 항목별 전용 회귀 테스트 9건 신규(버그 재현 → 수정 후 기대값):
+  - Logistic +2(종목 분리 격리·demark 피처 gradient≠0), Correlation +1(거래량변화율 행 존재), OrderFlow +1(signalScore≠0.5·>0.5), Bayesian +1(결측 PBR=FAIR posterior 동일), Interpreter +2(고낙폭 경고+음부호/저낙폭 무경고), SignalScoring +1(무발생→DEFAULT_WEIGHT), SectorCorr +1(gap 피어 공통날짜 정렬 = reference 동일).
+- 타깃 스위트 **107/107 그린**: Logistic 13·Correlation 13·OrderFlow 15·Bayesian 13·NaiveBayes 12·SignalScoring 15·Interpreter 18·SectorCorr 8 + `StatisticalAnalysisEngineTest`(오케스트레이터 통합) 그린.
+- 시그니처 변경(Logistic `analyze`/`trainWeights` +stockCode/demarkRows) 호출처: `StatisticalAnalysisEngine:156` 1곳 + 테스트 — 전수 배선 확인.

@@ -205,8 +205,9 @@ class BayesianUpdateEngine @Inject constructor() {
 
         fundamentals?.lastOrNull()?.let { f ->
             val pbrState = when {
-                f.pbr > 0 && f.pbr < 1.0 -> "UNDERVALUED"
-                f.pbr in 1.0..2.0 -> "FAIR"
+                f.pbr <= 0.0 -> "FAIR"          // 결측(PBR≤0) — OVERVALUED 오분류에 의한 posterior 하방 왜곡 방지, NaiveBayes와 동일 처리
+                f.pbr < 1.0 -> "UNDERVALUED"
+                f.pbr <= 2.0 -> "FAIR"
                 else -> "OVERVALUED"
             }
             signals.add("PBR" to pbrState)
@@ -253,8 +254,9 @@ class BayesianUpdateEngine @Inject constructor() {
 
         fundByDate[date]?.let { f ->
             val pbrState = when {
-                f.pbr > 0 && f.pbr < 1.0 -> "UNDERVALUED"
-                f.pbr in 1.0..2.0 -> "FAIR"
+                f.pbr <= 0.0 -> "FAIR"          // 결측(PBR≤0) — OVERVALUED 오분류에 의한 posterior 하방 왜곡 방지, NaiveBayes와 동일 처리
+                f.pbr < 1.0 -> "UNDERVALUED"
+                f.pbr <= 2.0 -> "FAIR"
                 else -> "OVERVALUED"
             }
             signals.add("PBR" to pbrState)
