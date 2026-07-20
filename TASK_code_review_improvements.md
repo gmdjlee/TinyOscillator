@@ -166,7 +166,7 @@
 
 - [x] P1a — 치명: 데이터/백엔드 4건 (2026-07-20 완료 — 타깃 테스트 32/32 그린: Dart 6·DatabaseModuleRecovery 1·Engine 14·AiContext 11. 신규 테스트 `DartApiClientDisclosureUrlTest`·`DatabaseModuleRecoveryTest`)
 - [x] P1b — 치명: UI 4건 (2026-07-20 완료 — MarketDepositViewModelTest 12/12 그린. 수용 기준 ⑤~⑧ 실기 QA 잔여)
-- [ ] P2 — flex 백포트
+- [x] P2 — flex 백포트 (2026-07-20 완료 — 4곳 flex 오버로드 제거: scheduleDailyWorker(24h,15m→24h)·scheduleRegimeUpdate·scheduleMacroUpdate·scheduleMetaLearnerRefit(7d,1h→7d). grep flex 오버로드 0건, CalculateWeeklyInitialDelayMillisTest 그린 + compileDebugKotlin 성공)
 - [ ] P3 — 인프라 정확성·동시성 8건
 - [ ] P4 — 엔진 통계 경로 8건 (착수 전 사용자 재확인)
 - [ ] P5 — 성능 6건

@@ -76,10 +76,9 @@ object WorkManagerHelper {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<W>(
-            24, TimeUnit.HOURS,
-            15, TimeUnit.MINUTES  // flex interval: 설정 시각 전후 15분 이내 실행
-        )
+        // flex interval 미사용: flex가 있으면 첫 실행이 `initialDelay + (interval − flex)`로 밀려
+        // 신규 설치·재스케줄 시 첫 일간 실행이 최대 하루 늦어진다([scheduleWeeklyWorker] KDoc 참조).
+        val request = PeriodicWorkRequestBuilder<W>(24, TimeUnit.HOURS)
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
@@ -275,10 +274,8 @@ object WorkManagerHelper {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<RegimeUpdateWorker>(
-            7, TimeUnit.DAYS,
-            1, TimeUnit.HOURS  // flex interval: 설정 시각 전후 1시간 이내 실행
-        )
+        // flex interval 미사용([scheduleWeeklyWorker] KDoc 참조 — 첫 실행이 한 주기 가까이 밀리는 문제).
+        val request = PeriodicWorkRequestBuilder<RegimeUpdateWorker>(7, TimeUnit.DAYS)
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
@@ -335,10 +332,8 @@ object WorkManagerHelper {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<MacroUpdateWorker>(
-            7, TimeUnit.DAYS,
-            1, TimeUnit.HOURS
-        )
+        // flex interval 미사용([scheduleWeeklyWorker] KDoc 참조 — 첫 실행이 한 주기 가까이 밀리는 문제).
+        val request = PeriodicWorkRequestBuilder<MacroUpdateWorker>(7, TimeUnit.DAYS)
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
@@ -384,10 +379,8 @@ object WorkManagerHelper {
             .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<MetaLearnerRefitWorker>(
-            7, TimeUnit.DAYS,
-            1, TimeUnit.HOURS
-        )
+        // flex interval 미사용([scheduleWeeklyWorker] KDoc 참조 — 첫 실행이 한 주기 가까이 밀리는 문제).
+        val request = PeriodicWorkRequestBuilder<MetaLearnerRefitWorker>(7, TimeUnit.DAYS)
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
