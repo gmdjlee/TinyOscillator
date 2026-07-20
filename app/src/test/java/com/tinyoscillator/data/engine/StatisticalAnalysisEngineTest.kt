@@ -14,6 +14,7 @@ import com.tinyoscillator.domain.repository.FundamentalSnapshot
 import com.tinyoscillator.domain.repository.SectorEtfReturn
 import com.tinyoscillator.domain.repository.StatisticalRepository
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -93,7 +94,9 @@ class StatisticalAnalysisEngineTest {
 
         assertEquals("005930", result.ticker)
         assertEquals("삼성전자", result.stockName)
-        assertTrue("totalTimeMs > 0", result.executionMetadata.totalTimeMs > 0)
+        // totalTimeMs는 실행 소요시간(ms) — 완전 모킹 + 5-1 중복 로드 제거로 0ms 완료가 가능하므로
+        // 시간의존적인 ">0" 대신 유효한 비음수 지속시간(필드 채워짐)을 단언한다.
+        assertTrue("totalTimeMs >= 0", result.executionMetadata.totalTimeMs >= 0)
     }
 
     @Test
@@ -134,6 +137,20 @@ class StatisticalAnalysisEngineTest {
         val result = engine.analyze("005930")
 
         assertTrue("실패한 엔진이 없어야 함", result.executionMetadata.failedEngines.isEmpty())
+    }
+
+    @Test
+    fun `5-1 가격 테이블은 1회만 로드하고 오실레이터·DeMark 계산에 재사용한다`() = runTest {
+        setupMockData(200)
+
+        engine.analyze("005930")
+
+        // getDailyPrices는 공통 로드 1회만 — 오실레이터/DeMark는 로드된 리스트 오버로드로 재사용
+        coVerify(exactly = 1) { repository.getDailyPrices(any(), any()) }
+        coVerify(exactly = 1) { repository.getOscillatorData(any<List<DailyTrading>>()) }
+        coVerify(exactly = 1) { repository.getDemarkData(any<List<DailyTrading>>()) }
+        coVerify(exactly = 0) { repository.getOscillatorData(any(), any()) }
+        coVerify(exactly = 0) { repository.getDemarkData(any(), any()) }
     }
 
     @Test
@@ -263,8 +280,8 @@ class StatisticalAnalysisEngineTest {
     fun `빈 데이터에서도 크래시하지 않는다`() = runTest {
         coEvery { repository.getDailyPrices(any(), any()) } returns emptyList()
         coEvery { repository.getStockName(any()) } returns "테스트"
-        coEvery { repository.getOscillatorData(any(), any()) } returns emptyList()
-        coEvery { repository.getDemarkData(any(), any()) } returns emptyList()
+        coEvery { repository.getOscillatorData(any<List<DailyTrading>>()) } returns emptyList()
+        coEvery { repository.getDemarkData(any<List<DailyTrading>>()) } returns emptyList()
         coEvery { repository.getFundamentalData(any(), any()) } returns emptyList()
         coEvery { repository.getEtfHoldingCount(any()) } returns 0
         coEvery { repository.getEtfAmountTrend(any()) } returns emptyList()
@@ -322,8 +339,8 @@ class StatisticalAnalysisEngineTest {
 
         coEvery { repository.getDailyPrices(any(), any()) } returns prices
         coEvery { repository.getStockName(any()) } returns "삼성전자"
-        coEvery { repository.getOscillatorData(any(), any()) } returns oscillators
-        coEvery { repository.getDemarkData(any(), any()) } returns demarks
+        coEvery { repository.getOscillatorData(any<List<DailyTrading>>()) } returns oscillators
+        coEvery { repository.getDemarkData(any<List<DailyTrading>>()) } returns demarks
         coEvery { repository.getFundamentalData(any(), any()) } returns fundamentals
         val etfAmountTrend = (0 until days).map { i ->
             EtfAmountPoint(

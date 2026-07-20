@@ -185,7 +185,14 @@
   - 4-6 `SectorCorrelationNetwork`: 꼬리 truncate 정렬(minLen) → **공통 거래일 교집합** 후 수익률 계산 — 휴장 갭 시 서로 다른 날짜끼리 상관되던 결함 제거. 날짜→종가 맵 기반 재작성, `nPeers` 소스 갱신
   - 4-7 `ProbabilityInterpreter`: MDD 경고 조건 `< -0.05`(항상 ≥0이라 도달 불가) → `> 0.05`, 표기 `pctSigned(-avgMdd20d)`로 하방 부호 처리
   - 4-8 `SignalScoringEngine`: patternWinRates 맵 구성 시 `totalOccurrences==0`이면 `DEFAULT_WEIGHT` — 무발생 패턴 winRate 0.0이 `?: DEFAULT_WEIGHT`를 우회해 가중치 0(신호 조용히 비활성)되던 결함 제거
-- [ ] P5 — 성능 6건
+- [x] P5 — 성능 6건 (2026-07-20 완료 — 타깃 테스트 131/131 그린: StatisticalRepositoryImpl 24·StatisticalAnalysisEngine 15·FeatureStore 14·SignalCalibrator 15·StackingEnsemble 17·BearSignalViewModel 46. compileDebugKotlin·compileDebugUnitTestKotlin 성공. 커밋 대기)
+  - 5-1 `StatisticalRepository`: `getOscillatorData(prices)`/`getDemarkData(prices)` **로드된 리스트 오버로드** 추가 → 오케스트레이터가 365행 가격 테이블을 3회→**1회** 로드(엔진에서 `getDailyPrices` 1회 후 두 오버로드에 전달). 신규 회귀 3건(DAO 재조회 0 단언 + 엔진 로드 1회 단언)
+  - 5-2 `BearSignalViewModel.refresh`: **신선도 게이트**(`REFRESH_FRESHNESS_WINDOW_MS=1h`) — 최근 자동 수집(핵심 일간 up3/down3/up4/down4/kospi2 max updatedAt)이 창 이내면 풀 파이프라인(KRX 로그인 2회+관세청 XML+지수 20종) skip. `launchRefresh(force)` 분리 — 신선도 제안 "수락"은 force로 우회. §3 임계치 무접촉. 회귀 3건(창 이내 skip/창 밖 실행/force 우회)
+  - 5-3 `OscillatorScreen`: `ParkSignalDetector.detect`(≤1년 캔들) composition 중 메인스레드 실행 → **`produceState`+`withContext(Dispatchers.Default)`**로 오프메인(키=일별데이터·봉단위 변경 시에만 재계산). ※ 리뷰 방침 "ViewModel에서 Default"은 VM `stateIn`+`flowOn(Default)`/파이어앤포겟 `launch(Default)`가 기존 시간의존 VM 테스트의 `advanceUntilIdle`를 무한 대기시켜 부적합 — 성능 의도(오프메인) 동일 충족하는 Compose 관용 패턴으로 대체
+  - 5-4 `FeatureStore.getOrCompute`: **per-key `Mutex`**(`ConcurrentHashMap<String,Mutex>`) + fast-path 캐시 조회 + 락 내 double-check — 동일 종목 동시 분석 시 11-엔진 compute 중복 실행 방지. 회귀 1건(동시 5호출 compute 1회)
+  - 5-5 `DataIntegrityCheckWorker.checkFearGreedIntegrity`: market-agnostic `updateFearGreed`를 시장별 2회(+5s delay)→**1회** 호출 + 하드코딩 0 대신 **실제 diff**(전후 count) 반환. 미사용 `loadFearGreedCollectionPeriod` import 제거
+  - 5-6 `SignalCalibrator`/`StackingEnsemble` 동기화: 워커 write ↔ 분석 read 가시성. Calibrator → `@Volatile ConcurrentHashMap` + `loadState` 새 맵 원자 스왑(clear() 빈맵 노출 창 제거). Ensemble → 계수·절편·메타를 불변 `FittedModel` 홀더로 묶어 `@Volatile` 참조 원자 스왑(찢어진 읽기 방지)
+  - ⚠ 미검증(P5 무관): `OscillatorViewModelTest`/`EdgeCase`/`ConfigMutex`는 `analyze()`→`startAutoRefresh` 무한 `delay(60s)` 루프가 **장중(KST 09:00–15:30)에 실행 시** `advanceUntilIdle`를 무한 대기 → **기존 시간의존 결함**(baseline stash 재현으로 확인). P5 VM diff는 미사용 `CandleChartUi` data class +15줄뿐이라 analyze 경로 무변경. 장 마감 후 재실행 필요(또는 별건으로 `TradingHours` 주입 리팩터)
 - [ ] P6 — 사용성·접근성 8건
 - [ ] P7 — 죽은 코드·빌드·문서 정리
 - [ ] P8 — 테스트 공백 보강

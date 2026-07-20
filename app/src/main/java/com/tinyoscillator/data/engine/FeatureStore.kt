@@ -9,10 +9,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,6 +36,13 @@ class FeatureStore @Inject constructor(
     private val hitCounter = AtomicLong(0)
     private val missCounter = AtomicLong(0)
     private val statsUpdate = MutableStateFlow(0L)
+
+    /**
+     * 키별 계산 직렬화 락 — 동일 종목이 동시에 분석될 때 캐시 미스가 겹쳐 compute(11-엔진)가
+     * 중복 실행되는 것을 막는다. 선행 코루틴이 계산·캐싱을 끝내면 후행은 double-check 캐시 히트로
+     * 즉시 반환한다. (모바일 세션 규모에서 키 수는 소수라 맵 성장은 무시 가능.)
+     */
+    private val keyLocks = ConcurrentHashMap<String, Mutex>()
 
     /** 실시간 캐시 통계 */
     val cacheStats: Flow<CacheStats> = combine(
@@ -61,37 +71,53 @@ class FeatureStore @Inject constructor(
         compute: suspend () -> T
     ): T = withContext(Dispatchers.IO) {
         val keyStr = key.asString()
-        val now = System.currentTimeMillis()
 
-        // 캐시 조회
+        // 1. 락 없이 캐시 조회 (fast-path — 대부분의 호출은 여기서 반환)
+        loadFresh(keyStr, serializer)?.let { return@withContext it }
+
+        // 2. 동일 키 동시 계산 방지 — per-key Mutex로 중복 compute(11-엔진) 차단
+        val lock = keyLocks.getOrPut(keyStr) { Mutex() }
+        lock.withLock {
+            // 3. double-check — 대기 중 선행 코루틴이 이미 계산·캐싱했을 수 있다
+            loadFresh(keyStr, serializer)?.let { return@withLock it }
+
+            // 캐시 미스 — 계산 실행
+            missCounter.incrementAndGet()
+            Timber.d("FeatureStore MISS: %s", keyStr)
+
+            val result = compute()
+            val serialized = json.encodeToString(serializer, result)
+
+            dao.upsert(
+                FeatureCacheEntity(
+                    key = keyStr,
+                    ticker = key.ticker,
+                    featureName = key.featureName,
+                    value = serialized,
+                    computedAt = System.currentTimeMillis(),
+                    ttlMs = ttl.ms
+                )
+            )
+
+            statsUpdate.value = System.currentTimeMillis()
+            result
+        }
+    }
+
+    /**
+     * TTL 유효한 캐시 항목을 조회해 역직렬화하여 반환, 미스/만료 시 null.
+     * 히트 시 통계 카운터를 증가시킨다.
+     */
+    private suspend fun <T> loadFresh(keyStr: String, serializer: KSerializer<T>): T? {
+        val now = System.currentTimeMillis()
         val cached = dao.get(keyStr)
         if (cached != null && (cached.computedAt + cached.ttlMs) > now) {
             hitCounter.incrementAndGet()
             statsUpdate.value = now
             Timber.d("FeatureStore HIT: %s", keyStr)
-            return@withContext json.decodeFromString(serializer, cached.value)
+            return json.decodeFromString(serializer, cached.value)
         }
-
-        // 캐시 미스 — 계산 실행
-        missCounter.incrementAndGet()
-        Timber.d("FeatureStore MISS: %s", keyStr)
-
-        val result = compute()
-        val serialized = json.encodeToString(serializer, result)
-
-        dao.upsert(
-            FeatureCacheEntity(
-                key = keyStr,
-                ticker = key.ticker,
-                featureName = key.featureName,
-                value = serialized,
-                computedAt = System.currentTimeMillis(),
-                ttlMs = ttl.ms
-            )
-        )
-
-        statsUpdate.value = System.currentTimeMillis()
-        result
+        return null
     }
 
     /**

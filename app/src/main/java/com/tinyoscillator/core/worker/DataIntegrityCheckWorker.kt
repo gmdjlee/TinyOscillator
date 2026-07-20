@@ -18,7 +18,6 @@ import com.tinyoscillator.domain.model.EtfDataProgress
 import com.tinyoscillator.presentation.settings.loadEtfCollectionPeriod
 import com.tinyoscillator.presentation.settings.loadEtfKeywordFilter
 import com.tinyoscillator.presentation.settings.loadKrxCredentials
-import com.tinyoscillator.presentation.settings.loadFearGreedCollectionPeriod
 import com.tinyoscillator.presentation.settings.loadMarketDepositCollectionPeriod
 import com.tinyoscillator.presentation.settings.loadMarketOscillatorCollectionPeriod
 import dagger.assisted.Assisted
@@ -372,23 +371,26 @@ class DataIntegrityCheckWorker @AssistedInject constructor(
 
     private suspend fun checkFearGreedIntegrity(krxId: String, krxPassword: String): Pair<String, Int>? {
         return try {
-            val period = loadFearGreedCollectionPeriod(applicationContext)
-
-            for (market in listOf("KOSPI", "KOSDAQ")) {
-                val existingCount = fearGreedDao.getCountByMarket(market)
-                if (existingCount == 0) continue
-
-                // 최신 데이터로 업데이트
-                val result = fearGreedRepository.updateFearGreed(krxId, krxPassword)
-                if (result.isFailure) {
-                    Timber.w("Fear & Greed $market 무결성 검사 실패: ${result.exceptionOrNull()?.message}")
-                }
-
-                if (market == "KOSPI") delay(KRX_RATE_LIMIT_MS)
+            // updateFearGreed는 시장 무관(KOSPI+KOSDAQ을 한 번에 수집)이므로 시장별로 반복 호출하면
+            // 동일 작업을 2회 중복 실행한다. 존재하는 시장이 하나라도 있으면 1회만 호출하고,
+            // 하드코딩 0 대신 실제 보충 건수(전후 diff)를 반환한다.
+            val kospiBefore = fearGreedDao.getCountByMarket("KOSPI")
+            val kosdaqBefore = fearGreedDao.getCountByMarket("KOSDAQ")
+            if (kospiBefore == 0 && kosdaqBefore == 0) {
+                return Pair("Fear & Greed: 데이터 없음 (검사 생략)", 0)
             }
 
-            val totalCount = fearGreedDao.getCountByMarket("KOSPI") + fearGreedDao.getCountByMarket("KOSDAQ")
-            Pair("Fear & Greed: 정상 (${totalCount}건)", 0)
+            val result = fearGreedRepository.updateFearGreed(krxId, krxPassword)
+            if (result.isFailure) {
+                Timber.w("Fear & Greed 무결성 검사 실패: ${result.exceptionOrNull()?.message}")
+            }
+
+            val totalBefore = kospiBefore + kosdaqBefore
+            val totalAfter = fearGreedDao.getCountByMarket("KOSPI") + fearGreedDao.getCountByMarket("KOSDAQ")
+            val added = (totalAfter - totalBefore).coerceAtLeast(0)
+            val message = if (added > 0) "Fear & Greed: ${added}건 보충 (${totalAfter}건)"
+                          else "Fear & Greed: 정상 (${totalAfter}건)"
+            Pair(message, added)
         } catch (e: Exception) {
             Timber.e(e, "Fear & Greed 무결성 검사 오류")
             Pair("Fear & Greed: 오류 (${e.message})", 0)

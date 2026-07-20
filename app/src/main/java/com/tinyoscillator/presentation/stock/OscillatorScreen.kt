@@ -51,12 +51,15 @@ import com.tinyoscillator.presentation.financial.FinancialInfoContent
 import com.tinyoscillator.presentation.financial.NaverStockWebScreen
 import com.tinyoscillator.presentation.fundamental.FundamentalHistoryContent
 import com.tinyoscillator.presentation.investopinion.InvestOpinionContent
+import com.tinyoscillator.presentation.viewmodel.CandleChartUi
 import com.tinyoscillator.presentation.viewmodel.CandlePeriod
 import com.tinyoscillator.presentation.viewmodel.OscillatorDateRange
 import com.tinyoscillator.presentation.viewmodel.OscillatorUiState
 import com.tinyoscillator.presentation.viewmodel.OscillatorViewModel
 import com.tinyoscillator.presentation.viewmodel.StockMasterStatus
 import com.tinyoscillator.ui.theme.LocalThemeModeState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -543,52 +546,56 @@ private fun OscillatorTabContent(
                 // 2. 캔들 차트 + 3. 패턴 요약 카드
                 if (state.dailyData.isNotEmpty()) {
                     item {
-                        val dailyPoints = remember(state.dailyData) {
-                            state.dailyData.toOhlcvPoints()
-                        }
-                        val candlePoints = remember(dailyPoints, selectedCandlePeriod) {
-                            when (selectedCandlePeriod) {
-                                CandlePeriod.DAILY -> dailyPoints
-                                CandlePeriod.WEEKLY -> dailyPoints.resampleToWeekly()
+                        // 5-3: 리샘플링·패턴 감지(최대 1년 캔들)를 composition 중 메인스레드에서 돌리지 않고
+                        // produceState 코루틴의 Dispatchers.Default에서 계산한다. 키(일별 데이터·봉 단위)가
+                        // 바뀔 때만 재계산하며, 계산 완료 전에는 null이라 캔들 섹션을 잠시 미표시한다.
+                        val candle by produceState<CandleChartUi?>(
+                            initialValue = null,
+                            state.dailyData,
+                            selectedCandlePeriod
+                        ) {
+                            value = withContext(Dispatchers.Default) {
+                                val dailyPoints = state.dailyData.toOhlcvPoints()
+                                val candlePoints = when (selectedCandlePeriod) {
+                                    CandlePeriod.DAILY -> dailyPoints
+                                    CandlePeriod.WEEKLY -> dailyPoints.resampleToWeekly()
+                                }
+                                val labels = when (selectedCandlePeriod) {
+                                    CandlePeriod.DAILY -> state.dailyData.toDateLabels()
+                                    CandlePeriod.WEEKLY -> candlePoints.toDateLabelsFromOhlcv()
+                                }
+                                val patterns = ParkSignalDetector.detect(candlePoints)
+                                val markers = patterns.groupBy { it.index }
+                                    .mapValues { (_, pats) -> pats.map { it.type.labelKo } }
+                                CandleChartUi(candlePoints, labels, patterns, markers)
                             }
                         }
-                        val dateLabels = remember(candlePoints, selectedCandlePeriod) {
-                            when (selectedCandlePeriod) {
-                                CandlePeriod.DAILY -> state.dailyData.toDateLabels()
-                                CandlePeriod.WEEKLY -> candlePoints.toDateLabelsFromOhlcv()
+                        candle?.let { c ->
+                            Column {
+                                // 일봉/주봉 토글 — 단일 선택 전환이므로 Pill 계열로 통일.
+                                // 독립 토글(다른 요소와 인라인 아님)이라 fillMaxWidth Pill 적합.
+                                // 기존 Row의 vertical 4dp 여백만 contentPadding으로 보존.
+                                PillTabRow(
+                                    tabs = CandlePeriod.entries.toList(),
+                                    selectedTab = selectedCandlePeriod,
+                                    onTabSelected = onSelectCandlePeriod,
+                                    tabLabel = { it.label },
+                                    contentPadding = PaddingValues(vertical = 4.dp)
+                                )
+                                KoreanCandleChartView(
+                                    candles = c.candles,
+                                    dateLabels = c.dateLabels,
+                                    detectedPatterns = c.patterns,
+                                    patternMarkers = c.patternMarkers,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(360.dp),
+                                )
+                                PatternSummaryCard(
+                                    patterns = c.patterns,
+                                    dateLabels = c.dateLabels,
+                                )
                             }
-                        }
-                        val patterns = remember(candlePoints) {
-                            ParkSignalDetector.detect(candlePoints)
-                        }
-                        val patternMarkers = remember(patterns) {
-                            patterns.groupBy { it.index }
-                                .mapValues { (_, pats) -> pats.map { it.type.labelKo } }
-                        }
-                        Column {
-                            // 일봉/주봉 토글 — 단일 선택 전환이므로 Pill 계열로 통일.
-                            // 독립 토글(다른 요소와 인라인 아님)이라 fillMaxWidth Pill 적합.
-                            // 기존 Row의 vertical 4dp 여백만 contentPadding으로 보존.
-                            PillTabRow(
-                                tabs = CandlePeriod.entries.toList(),
-                                selectedTab = selectedCandlePeriod,
-                                onTabSelected = onSelectCandlePeriod,
-                                tabLabel = { it.label },
-                                contentPadding = PaddingValues(vertical = 4.dp)
-                            )
-                            KoreanCandleChartView(
-                                candles = candlePoints,
-                                dateLabels = dateLabels,
-                                detectedPatterns = patterns,
-                                patternMarkers = patternMarkers,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(360.dp),
-                            )
-                            PatternSummaryCard(
-                                patterns = patterns,
-                                dateLabels = dateLabels,
-                            )
                         }
                     }
                 }

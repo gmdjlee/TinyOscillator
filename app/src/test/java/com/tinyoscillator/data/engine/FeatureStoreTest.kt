@@ -6,6 +6,10 @@ import com.tinyoscillator.domain.model.CacheStats
 import com.tinyoscillator.domain.model.FeatureKey
 import com.tinyoscillator.domain.model.FeatureTtl
 import io.mockk.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -150,6 +154,34 @@ class FeatureStoreTest {
 
         assertEquals(0, secondComputeCount)
         assertEquals("FIRST", result2.label)
+    }
+
+    @Test
+    fun `5-4 동일 키 동시 호출 시 compute는 1회만 실행된다`() = runTest {
+        val key = FeatureKey("005930", "StatisticalResult", LocalDate.of(2026, 4, 2))
+        var cached: FeatureCacheEntity? = null
+        coEvery { dao.get(key.asString()) } answers { cached }
+        coEvery { dao.upsert(any()) } answers {
+            cached = firstArg()
+            Unit
+        }
+
+        val computeCount = java.util.concurrent.atomic.AtomicInteger(0)
+        val compute: suspend () -> TestResult = {
+            computeCount.incrementAndGet()
+            delay(50) // compute(11-엔진) 지연 모사 — 동시 진입 창 확보
+            TestResult(0.7, "UP")
+        }
+
+        val results = (1..5).map {
+            async(Dispatchers.Default) {
+                featureStore.getOrCompute(key, FeatureTtl.Daily, TestResult.serializer(), compute)
+            }
+        }.awaitAll()
+
+        // per-key Mutex + double-check로 5개 동시 호출이 있어도 compute는 1회만
+        assertEquals(1, computeCount.get())
+        assertTrue("모든 호출이 동일 결과", results.all { it.label == "UP" })
     }
 
     @Test

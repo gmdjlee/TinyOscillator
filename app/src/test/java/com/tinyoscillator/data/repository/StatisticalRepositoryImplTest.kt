@@ -91,7 +91,37 @@ class StatisticalRepositoryImplTest {
         assertEquals(2, result.size)
     }
 
+    @Test
+    fun `getOscillatorData(prices) - DAO 재조회 없이 UseCase만 호출 (5-1 중복 로드 회피)`() = runTest {
+        val prices = (1..10).map { i ->
+            com.tinyoscillator.domain.model.DailyTrading("202501%02d".format(i), 50000000000L, 1000L, -500L, 50000)
+        }
+        val expected = listOf(
+            OscillatorRow("20250101", 50000000000L, 50.0, 1000L, -500L, 0.001, 0.001, 0.001, 0.0, 0.0, 0.0)
+        )
+        coEvery { calcOscillatorUseCase.execute(prices) } returns expected
+
+        val result = repository.getOscillatorData(prices)
+
+        assertEquals(1, result.size)
+        coVerify(exactly = 0) { analysisCacheDao.getRecentByTicker(any(), any()) }
+    }
+
     // ─── getDemarkData ───
+
+    @Test
+    fun `getDemarkData(prices) - DAO 재조회 없이 UseCase만 호출 (5-1 중복 로드 회피)`() = runTest {
+        val prices = (1..10).map { i ->
+            com.tinyoscillator.domain.model.DailyTrading("202501%02d".format(i), 50000000000L, 1000L, -500L, 50000)
+        }
+        val expected = listOf(DemarkTDRow("20250101", 50100, 50.0, 3, 0))
+        coEvery { calcDemarkTDUseCase.execute(prices, DemarkPeriodType.DAILY) } returns expected
+
+        val result = repository.getDemarkData(prices)
+
+        assertEquals(1, result.size)
+        coVerify(exactly = 0) { analysisCacheDao.getRecentByTicker(any(), any()) }
+    }
 
     @Test
     fun `getDemarkData - 5개 미만 가격 시 emptyList`() = runTest {

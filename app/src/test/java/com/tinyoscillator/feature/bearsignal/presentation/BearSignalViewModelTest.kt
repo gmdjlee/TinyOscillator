@@ -308,6 +308,63 @@ class BearSignalViewModelTest {
         coVerify(exactly = 1) { refreshMarketReturnsUseCase() }
     }
 
+    private fun freshAutoAt(updatedAt: Long) = AutoBearSignalInputs(
+        up3 = AutoIndicator(14, InputSource.AUTO, updatedAt),
+        down3 = AutoIndicator(12, InputSource.AUTO, updatedAt),
+        up4 = AutoIndicator(3, InputSource.AUTO, updatedAt),
+        down4 = AutoIndicator(2, InputSource.AUTO, updatedAt),
+        kospi2 = AutoIndicator(56.0, InputSource.AUTO, updatedAt)
+    )
+
+    @Test
+    fun `5-2 최근 자동 수집이 신선도 창 이내면 refresh는 파이프라인을 건너뛴다`() = runTest {
+        coEvery { refreshAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshExternalAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshMarketReturnsUseCase() } returns Result.success(mockk(relaxed = true))
+
+        val viewModel = createViewModel(baselineState.copy(auto = freshAutoAt(System.currentTimeMillis())))
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { refreshAutoInputsUseCase() }
+        coVerify(exactly = 0) { refreshExternalAutoInputsUseCase() }
+        coVerify(exactly = 0) { refreshMarketReturnsUseCase() }
+        assertTrue(!viewModel.uiState.value.isRefreshing)
+    }
+
+    @Test
+    fun `5-2 자동 수집이 신선도 창 밖이면 refresh는 파이프라인을 실행한다`() = runTest {
+        coEvery { refreshAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshExternalAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshMarketReturnsUseCase() } returns Result.success(mockk(relaxed = true))
+
+        val stale = System.currentTimeMillis() - 2 * 60 * 60 * 1000L // 2시간 전(창 1h 밖)
+        val viewModel = createViewModel(baselineState.copy(auto = freshAutoAt(stale)))
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { refreshAutoInputsUseCase() }
+    }
+
+    @Test
+    fun `5-2 신선도 제안 수락은 신선도 창을 무시하고 강제 실행한다`() = runTest {
+        coEvery { refreshAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshExternalAutoInputsUseCase() } returns Result.success(mockk(relaxed = true))
+        coEvery { refreshMarketReturnsUseCase() } returns Result.success(mockk(relaxed = true))
+
+        val viewModel = createViewModel(baselineState.copy(auto = freshAutoAt(System.currentTimeMillis())))
+        collectEagerly(viewModel)
+        advanceUntilIdle()
+        viewModel.acceptUpdateSuggestion()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { refreshAutoInputsUseCase() }
+    }
+
     // ── 오프라인 폴백(§5.4) ────────────────────────────────
 
     @Test

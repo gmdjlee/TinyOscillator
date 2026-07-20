@@ -52,8 +52,10 @@ class StatisticalRepositoryImpl @Inject constructor(
         return stockMasterDao.getStockName(ticker)
     }
 
-    override suspend fun getOscillatorData(ticker: String, limit: Int): List<OscillatorRow> {
-        val prices = getDailyPrices(ticker, limit)
+    override suspend fun getOscillatorData(ticker: String, limit: Int): List<OscillatorRow> =
+        getOscillatorData(getDailyPrices(ticker, limit))
+
+    override suspend fun getOscillatorData(prices: List<DailyTrading>): List<OscillatorRow> {
         if (prices.isEmpty()) return emptyList()
         return try {
             calcOscillatorUseCase.execute(prices)
@@ -62,8 +64,10 @@ class StatisticalRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getDemarkData(ticker: String, limit: Int): List<DemarkTDRow> {
-        val prices = getDailyPrices(ticker, limit)
+    override suspend fun getDemarkData(ticker: String, limit: Int): List<DemarkTDRow> =
+        getDemarkData(getDailyPrices(ticker, limit))
+
+    override suspend fun getDemarkData(prices: List<DailyTrading>): List<DemarkTDRow> {
         if (prices.size < 5) return emptyList()
         return try {
             calcDemarkTDUseCase.execute(prices, DemarkPeriodType.DAILY)

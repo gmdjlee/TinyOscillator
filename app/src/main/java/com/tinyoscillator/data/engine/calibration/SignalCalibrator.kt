@@ -3,6 +3,7 @@ package com.tinyoscillator.data.engine.calibration
 import com.tinyoscillator.domain.model.CalibratorState
 import com.tinyoscillator.domain.model.ReliabilityBin
 import timber.log.Timber
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -20,7 +21,15 @@ import kotlin.math.min
 @Singleton
 class SignalCalibrator @Inject constructor() {
 
-    private val calibrators = mutableMapOf<String, FittedCalibrator>()
+    /**
+     * 알고리즘별 학습된 보정기 — 워커(fit/loadState 쓰기)와 분석 코루틴(transform 읽기)이
+     * 서로 다른 스레드에서 접근하므로 스레드-세이프하게 관리한다.
+     * - 개별 갱신([fit])은 [ConcurrentHashMap] 원자적 put
+     * - 전체 교체([loadState])는 새 맵을 만들어 @Volatile 참조를 통째로 스왑(읽기 측이 clear()로
+     *   빈 맵을 보는 창 제거)
+     */
+    @Volatile
+    private var calibrators: MutableMap<String, FittedCalibrator> = ConcurrentHashMap()
 
     /** 지원 알고리즘 목록 */
     companion object {
@@ -81,7 +90,7 @@ class SignalCalibrator @Inject constructor() {
      * 저장된 상태에서 보정기를 복원한다.
      */
     fun loadState(states: List<CalibratorState>) {
-        calibrators.clear()
+        val rebuilt = ConcurrentHashMap<String, FittedCalibrator>()
         for (state in states) {
             val calibrator = when (state.method) {
                 "isotonic" -> {
@@ -96,9 +105,10 @@ class SignalCalibrator @Inject constructor() {
                 }
                 else -> continue
             }
-            calibrators[state.algoName] = calibrator
+            rebuilt[state.algoName] = calibrator
         }
-        Timber.d("보정기 상태 복원: %d개 알고리즘", calibrators.size)
+        calibrators = rebuilt // 원자적 스왑 — 부분 구성 맵/빈 맵 노출 방지
+        Timber.d("보정기 상태 복원: %d개 알고리즘", rebuilt.size)
     }
 
     /**

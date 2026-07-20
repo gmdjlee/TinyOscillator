@@ -21,8 +21,14 @@ interface StatisticalRepository {
     /** 오실레이터 데이터 (MACD, EMA, 수급비율 등) — CalcOscillatorUseCase로 계산 */
     suspend fun getOscillatorData(ticker: String, limit: Int = 365): List<OscillatorRow>
 
+    /** 이미 로드된 일별 가격으로 오실레이터 계산 (동일 가격 테이블 중복 DB 로드 회피) */
+    suspend fun getOscillatorData(prices: List<DailyTrading>): List<OscillatorRow>
+
     /** DeMark TD 데이터 — CalcDemarkTDUseCase로 계산 */
     suspend fun getDemarkData(ticker: String, limit: Int = 365): List<DemarkTDRow>
+
+    /** 이미 로드된 일별 가격으로 DeMark TD 계산 (동일 가격 테이블 중복 DB 로드 회피) */
+    suspend fun getDemarkData(prices: List<DailyTrading>): List<DemarkTDRow>
 
     /** 펀더멘털 데이터 (PBR, PER, 배당수익률 등) — 최근 N일 */
     suspend fun getFundamentalData(ticker: String, limit: Int = 365): List<FundamentalSnapshot>

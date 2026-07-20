@@ -460,6 +460,21 @@ sealed class OscillatorUiState {
     data class Error(val message: String) : OscillatorUiState()
 }
 
+/**
+ * 박병창 캔들 차트 파생 데이터 (5-3) — 패턴 감지를 메인스레드 밖에서 계산해 노출.
+ *
+ * @property candles 리샘플링 완료된 OHLCV(일봉 그대로 또는 주봉)
+ * @property dateLabels 캔들 인덱스 → 날짜 라벨
+ * @property patterns 감지된 박병창 신호
+ * @property patternMarkers 캔들 인덱스 → 신호 라벨(한글) 목록
+ */
+data class CandleChartUi(
+    val candles: List<OhlcvPoint>,
+    val dateLabels: Map<Int, String>,
+    val patterns: List<PatternResult>,
+    val patternMarkers: Map<Int, List<String>>
+)
+
 /** 종목 마스터 DB 상태 */
 sealed class StockMasterStatus {
     data object Unknown : StockMasterStatus()

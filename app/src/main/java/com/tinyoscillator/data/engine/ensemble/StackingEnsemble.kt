@@ -28,13 +28,22 @@ open class StackingEnsemble(
         private const val TOL = 1e-6
     }
 
-    /** 학습된 메타 학습기 계수 */
-    private var coefficients: DoubleArray? = null
-    private var intercept: Double = 0.0
-    private var fittedAt: Long = 0
-    private var nSamples: Int = 0
+    /**
+     * 학습된 메타 학습기 상태 — 계수·절편·학습 메타를 하나의 불변 홀더로 묶어 @Volatile 참조로
+     * 원자적 스왑한다. 워커(fit/loadState 쓰기)와 분석 코루틴(predictProba 읽기)이 다른 스레드에서
+     * 접근할 때 계수만 갱신되고 절편은 이전 값인 "찢어진 읽기"를 방지한다.
+     */
+    private class FittedModel(
+        val coefficients: DoubleArray,
+        val intercept: Double,
+        val fittedAt: Long,
+        val nSamples: Int
+    )
 
-    val isFitted: Boolean get() = coefficients != null
+    @Volatile
+    private var model: FittedModel? = null
+
+    val isFitted: Boolean get() = model != null
 
     // ─── OOF (Out-of-Fold) 예측 수집 ───
 
@@ -91,10 +100,12 @@ open class StackingEnsemble(
 
         // 전체 데이터로 최종 메타 학습기 학습
         val (coef, b) = fitLogistic(signals, labels)
-        coefficients = coef
-        intercept = b
-        fittedAt = System.currentTimeMillis()
-        nSamples = n
+        model = FittedModel(
+            coefficients = coef,
+            intercept = b,
+            fittedAt = System.currentTimeMillis(),
+            nSamples = n
+        )
 
         Timber.i("━━━ StackingEnsemble 학습 완료: n=%d, algos=%d ━━━", n, baseModelNames.size)
         logFeatureImportance()
@@ -107,16 +118,16 @@ open class StackingEnsemble(
      * @return 확률 [0, 1]
      */
     fun predictProba(currentSignals: Map<String, Double>): Double {
-        val coef = coefficients ?: throw IllegalStateException("메타 학습기가 학습되지 않음")
+        val m = model ?: throw IllegalStateException("메타 학습기가 학습되지 않음")
         val x = baseModelNames.map { currentSignals[it] ?: 0.5 }.toDoubleArray()
-        return sigmoid(dotProduct(coef, x) + intercept)
+        return sigmoid(dotProduct(m.coefficients, x) + m.intercept)
     }
 
     /**
      * 정규화된 |coefficient| 기반 특성 중요도.
      */
     fun featureImportance(): Map<String, Float> {
-        val coef = coefficients ?: return emptyMap()
+        val coef = model?.coefficients ?: return emptyMap()
         val absSum = coef.sumOf { abs(it) }.let { if (it == 0.0) 1.0 else it }
         return baseModelNames.mapIndexed { i, name ->
             name to (abs(coef[i]) / absSum).toFloat()
@@ -125,38 +136,43 @@ open class StackingEnsemble(
 
     /** 상태 저장 (JSON 직렬화용) */
     fun saveState(): MetaLearnerState {
-        val coef = coefficients
+        val m = model
+        val coef = m?.coefficients
         return MetaLearnerState(
             coefficients = if (coef != null) {
                 baseModelNames.mapIndexed { i, name -> name to coef[i] }.toMap()
             } else emptyMap(),
-            intercept = intercept,
+            intercept = m?.intercept ?: 0.0,
             algoNames = baseModelNames.toList(),
-            fittedAt = fittedAt,
-            nSamples = nSamples
+            fittedAt = m?.fittedAt ?: 0L,
+            nSamples = m?.nSamples ?: 0
         )
     }
 
     /** 상태 복원 */
     fun loadState(state: MetaLearnerState) {
         if (state.coefficients.isEmpty()) {
-            coefficients = null
+            model = null
             return
         }
-        coefficients = baseModelNames.map { state.coefficients[it] ?: 0.0 }.toDoubleArray()
-        intercept = state.intercept
-        fittedAt = state.fittedAt
-        nSamples = state.nSamples
-        Timber.d("StackingEnsemble 상태 복원: n=%d, fitted=%d", nSamples, fittedAt)
+        model = FittedModel(
+            coefficients = baseModelNames.map { state.coefficients[it] ?: 0.0 }.toDoubleArray(),
+            intercept = state.intercept,
+            fittedAt = state.fittedAt,
+            nSamples = state.nSamples
+        )
+        Timber.d("StackingEnsemble 상태 복원: n=%d, fitted=%d", state.nSamples, state.fittedAt)
     }
 
     /** UI용 상태 요약 */
     fun getStatus(): MetaLearnerStatus {
+        val m = model
         val importance = featureImportance()
         val top = importance.maxByOrNull { it.value }
+        val fittedAt = m?.fittedAt ?: 0L
         return MetaLearnerStatus(
-            isFitted = isFitted,
-            nTrainingSamples = nSamples,
+            isFitted = m != null,
+            nTrainingSamples = m?.nSamples ?: 0,
             lastFitDate = if (fittedAt > 0) {
                 java.time.Instant.ofEpochMilli(fittedAt)
                     .atZone(java.time.ZoneId.of("Asia/Seoul"))

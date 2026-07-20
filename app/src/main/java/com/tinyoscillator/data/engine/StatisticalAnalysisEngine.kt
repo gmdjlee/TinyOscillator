@@ -131,11 +131,11 @@ class StatisticalAnalysisEngine @Inject constructor(
 
         Timber.d("━━━ 통계 분석 시작: $stockCode ━━━")
 
-        // 공통 데이터 로드
+        // 공통 데이터 로드 — 동일 365행 가격 테이블은 1회만 로드하고 오실레이터/DeMark 계산에 재사용
         val stockName = repository.getStockName(stockCode) ?: stockCode
         val prices = repository.getDailyPrices(stockCode)
-        val oscillators = repository.getOscillatorData(stockCode)
-        val demarkRows = repository.getDemarkData(stockCode)
+        val oscillators = repository.getOscillatorData(prices)
+        val demarkRows = repository.getDemarkData(prices)
         val fundamentals = try { repository.getFundamentalData(stockCode) } catch (e: Exception) { null }
         val sectorEtfReturns = try { repository.getSectorEtfReturns(stockCode) } catch (e: Exception) { null }
         val etfAmountTrend = try { repository.getEtfAmountTrend(stockCode) } catch (e: Exception) { null }

@@ -60,6 +60,14 @@ private val DEFAULT_INPUTS: BearSignalInputs = BearSignalReportBaseline.toInputs
 private const val SPARKLINE_WINDOW_DAYS = 90L
 
 /**
+ * §5.4 당겨새로고침 신선도 창(ms) — 최근 자동 수집이 이 창 이내면 [BearSignalViewModel.refresh]는
+ * 전체 파이프라인(KRX 로그인 2회 + 관세청 XML 3×2.2MB + 해외지수 20종, ~30-60s) 재실행을 건너뛴다.
+ * §3 스코어링 임계치와 무관한 순수 UI 성능 파라미터다. 1시간을 택해 back-to-back 당김에 의한 중복
+ * 수집을 막되 시간 단위 갱신은 허용한다. 신선도 제안 "수락"([acceptUpdateSuggestion], force)은 우회한다.
+ */
+private const val REFRESH_FRESHNESS_WINDOW_MS = 60 * 60 * 1000L
+
+/**
  * `stateIn`(WhileSubscribed) 콜드스타트 초기값 — Room 4-Flow 최초 방출 전(구독 시작 전)에만
  * 노출되고, [BearSignalUiState.isLoading]이 true인 이 구간은 화면이 스켈레톤으로 대체 렌더한다
  * (§5.4 shimmer, Phase 5). §3.0 임계치 외부화(retrofit) 이후
@@ -375,24 +383,59 @@ class BearSignalViewModel @Inject constructor(
      * 않았더라도 항상 유효한 스코어링 결과"다 — "refresh 성공 시"를 "개별 지표 전부 성공"이 아니라
      * "갱신 시도가 실제로 완료됐다(오프라인으로 건너뛰지 않았다)"는 의미로 해석했다.
      */
-    fun refresh() {
+    fun refresh() = launchRefresh(force = false)
+
+    /**
+     * 5-2 성능 게이트를 포함한 실제 갱신 구현.
+     *
+     * @param force `true`면 신선도 창을 무시하고 항상 파이프라인을 실행한다(신선도 제안 "수락" 경로).
+     *              `false`(사용자 당겨새로고침)면 최근 자동 수집이 [REFRESH_FRESHNESS_WINDOW_MS]
+     *              이내일 때 네트워크 호출을 건너뛴다.
+     */
+    private fun launchRefresh(force: Boolean) {
         if (isRefreshing.value) return
         viewModelScope.launch {
             isRefreshing.value = true
-            if (!NetworkUtils.isNetworkAvailable(context)) {
-                isOffline.value = true
+            try {
+                if (!NetworkUtils.isNetworkAvailable(context)) {
+                    isOffline.value = true
+                    return@launch
+                }
+                isOffline.value = false
+
+                // 5-2: 신선도 게이트 — 최근 자동 수집이 창 이내면 전체 파이프라인 재실행을 skip.
+                if (!force) {
+                    val collectedAt = autoInputsCollectedAt(observeBearSignalStateUseCase(periodIdx).first())
+                    if (collectedAt != null &&
+                        System.currentTimeMillis() - collectedAt < REFRESH_FRESHNESS_WINDOW_MS
+                    ) {
+                        return@launch
+                    }
+                }
+
+                val failed = mutableListOf<String>()
+                refreshAutoInputsUseCase().onFailure { failed += "자동 지표" }
+                refreshExternalAutoInputsUseCase().onFailure { failed += "외부 지표" }
+                refreshMarketReturnsUseCase().onFailure { failed += "해외 지수" }
+                errorMessage.value = if (failed.isEmpty()) null else "일부 갱신 실패: ${failed.joinToString()}"
+                saveSnapshot(observeBearSignalStateUseCase(periodIdx).first())
+            } finally {
                 isRefreshing.value = false
-                return@launch
             }
-            isOffline.value = false
-            val failed = mutableListOf<String>()
-            refreshAutoInputsUseCase().onFailure { failed += "자동 지표" }
-            refreshExternalAutoInputsUseCase().onFailure { failed += "외부 지표" }
-            refreshMarketReturnsUseCase().onFailure { failed += "해외 지수" }
-            errorMessage.value = if (failed.isEmpty()) null else "일부 갱신 실패: ${failed.joinToString()}"
-            saveSnapshot(observeBearSignalStateUseCase(periodIdx).first())
-            isRefreshing.value = false
         }
+    }
+
+    /**
+     * 5-2 신선도 게이트 기준 시각 — 마지막 자동 수집(핵심 일간 지표 up3/down3/up4/down4/kospi2)의
+     * 최신 `updatedAt`(epoch ms). 이 5개는 [RefreshAutoInputsUseCase]가 매 수집마다 함께 채우므로
+     * 실제 마지막 네트워크 수집 시각을 대표한다. 자동 지표가 없으면 null(게이트 미적용 → 항상 수집).
+     */
+    private fun autoInputsCollectedAt(state: ObserveBearSignalStateUseCase.State): Long? {
+        val auto = state.auto ?: return null
+        return maxOf(
+            auto.up3.updatedAt, auto.down3.updatedAt, auto.up4.updatedAt,
+            auto.down4.updatedAt, auto.kospi2.updatedAt
+        )
     }
 
     /**
@@ -402,7 +445,8 @@ class BearSignalViewModel @Inject constructor(
      */
     fun acceptUpdateSuggestion() {
         updateSuggestion.value = null
-        refresh()
+        // 신선도 제안 "수락"은 명시적 갱신 의사이므로 신선도 창을 우회한다(force).
+        launchRefresh(force = true)
     }
 
     /**
