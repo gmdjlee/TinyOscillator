@@ -167,7 +167,15 @@
 - [x] P1a — 치명: 데이터/백엔드 4건 (2026-07-20 완료 — 타깃 테스트 32/32 그린: Dart 6·DatabaseModuleRecovery 1·Engine 14·AiContext 11. 신규 테스트 `DartApiClientDisclosureUrlTest`·`DatabaseModuleRecoveryTest`)
 - [x] P1b — 치명: UI 4건 (2026-07-20 완료 — MarketDepositViewModelTest 12/12 그린. 수용 기준 ⑤~⑧ 실기 QA 잔여)
 - [x] P2 — flex 백포트 (2026-07-20 완료 — 4곳 flex 오버로드 제거: scheduleDailyWorker(24h,15m→24h)·scheduleRegimeUpdate·scheduleMacroUpdate·scheduleMetaLearnerRefit(7d,1h→7d). grep flex 오버로드 0건, CalculateWeeklyInitialDelayMillisTest 그린 + compileDebugKotlin 성공)
-- [ ] P3 — 인프라 정확성·동시성 8건
+- [x] P3 — 인프라 정확성·동시성 8건 (2026-07-20 완료 — 타깃 테스트 그린: ApiErrorClassification 23·OkHttpExtensions 9·BearSignalRepositoryImpl 45·Krx 8·Kis 26·Kiwoom 21 + Dart/Fred/Stooq/Yahoo parse 그린. 신규 테스트: mapException IOException 분기 7건, 커넥션풀 누수 회귀 1건, per-key upsert 승인값 보존 2건)
+  - 3-1 `ApiModels.mapException`: 일반 IOException(Connect/SSL/EOF)→`NetworkError`(재시도·CB 적용). UnknownHost/SocketTimeout/Serialization 선분류 유지
+  - 3-2 KIS/Kiwoom `getToken`: 재시도 지연을 `tokenMutex` **밖**으로, 락 내부는 캐시 double-check + 단일 발급 시도만 — 동시 호출자가 재시도 사다리(KIS ~2min) 전체 블록되지 않음. `fetchToken` 인라인·제거
+  - 3-3 Response 미close 6클라이언트(DART 2·Bok·Yahoo·Stooq·Fred): `execute().use { }`로 조기 return 경로 body close
+  - 3-4 `OkHttpExtensions.await`: `resume(response) { response.close() }` — 취소 경합 시 Response close 보장
+  - 3-5 `KrxApiClient`: 4필드 `@Volatile` + client-level `sessionMutex` 추가(login-use-close 직렬화용)
+  - 3-6 `BearSignalRepositoryImpl` 2경로: login→use→close를 `krxApiClient.sessionMutex.withLock`로 감싸 공유 싱글턴 동시 close 방지. **잔여**: EtfUpdate/FundamentalHistory 등 미이관 호출처와의 교차 세션 경합은 sessionMutex 미사용이라 잔존(그쪽은 장기 세션 재사용 패턴이라 일괄 이관은 별도 리팩터) — @Volatile로 가시성만 보장
+  - 3-7 `refreshExternalAutoInputs`: 전체 엔티티 RMW → 수집 성공한 B등급 키만 per-key upsert(`Mapper.externalEntities`). collectX 실패 시 null 반환. 수집 중 도착한 §4.5 승인값·워커 기록 보존, MANUAL 불패 불변
+  - 3-8 `AiApiClient.fetchGeminiModels`: API 키 URL 쿼리 → `x-goog-api-key` 헤더(타 Gemini 호출과 통일, 유출 경로 제거)
 - [ ] P4 — 엔진 통계 경로 8건 (착수 전 사용자 재확인)
 - [ ] P5 — 성능 6건
 - [ ] P6 — 사용성·접근성 8건

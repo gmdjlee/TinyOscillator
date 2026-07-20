@@ -54,20 +54,22 @@ class DartApiClient(
         val url = "$baseUrl/corpCode.xml?crtfc_key=$apiKey"
         val request = Request.Builder().url(url).build()
 
-        val response = httpClient.newCall(request).execute()
-        if (!response.isSuccessful) {
-            Timber.e("DART corpCode 다운로드 실패: HTTP ${response.code}")
-            return@withContext emptyList()
+        // execute().use — 조기 return 경로에서도 body를 닫아 커넥션 풀 누수 방지(Phase 3-3)
+        httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                Timber.e("DART corpCode 다운로드 실패: HTTP ${response.code}")
+                return@withContext emptyList()
+            }
+
+            val zipBytes = response.body?.bytes() ?: return@withContext emptyList()
+            val xmlContent = unzipFirstEntry(zipBytes) ?: return@withContext emptyList()
+
+            val entries = parseCorpCodeXml(xmlContent)
+            // 상장 종목만 (stock_code가 6자리 숫자인 경우)
+            val listed = entries.filter { it.stockCode.matches(Regex("^\\d{6}$")) }
+            Timber.d("DART corpCode 다운로드 완료: 전체 %d건, 상장 %d건", entries.size, listed.size)
+            listed
         }
-
-        val zipBytes = response.body?.bytes() ?: return@withContext emptyList()
-        val xmlContent = unzipFirstEntry(zipBytes) ?: return@withContext emptyList()
-
-        val entries = parseCorpCodeXml(xmlContent)
-        // 상장 종목만 (stock_code가 6자리 숫자인 경우)
-        val listed = entries.filter { it.stockCode.matches(Regex("^\\d{6}$")) }
-        Timber.d("DART corpCode 다운로드 완료: 전체 %d건, 상장 %d건", entries.size, listed.size)
-        listed
     }
 
     /**
@@ -119,14 +121,14 @@ class DartApiClient(
 
     private fun fetchDisclosurePage(url: String, corpCode: String): List<DartDisclosure> {
         val request = Request.Builder().url(url).build()
-        val response = httpClient.newCall(request).execute()
-
+        // execute().use — 조기 return 경로에서도 body를 닫아 커넥션 풀 누수 방지(Phase 3-3)
+        return httpClient.newCall(request).execute().use { response ->
         if (!response.isSuccessful) {
             Timber.w("DART API HTTP ${response.code}")
-            return emptyList()
+            return@use emptyList()
         }
 
-        val body = response.body?.string() ?: return emptyList()
+        val body = response.body?.string() ?: return@use emptyList()
         val jsonObj = json.parseToJsonElement(body).jsonObject
 
         val status = jsonObj["status"]?.jsonPrimitive?.content
@@ -136,11 +138,11 @@ class DartApiClient(
                 Timber.w("DART API 응답 오류: status=%s, message=%s",
                     status, jsonObj["message"]?.jsonPrimitive?.content)
             }
-            return emptyList()
+            return@use emptyList()
         }
 
-        val list = jsonObj["list"]?.jsonArray ?: return emptyList()
-        return list.mapNotNull { element ->
+        val list = jsonObj["list"]?.jsonArray ?: return@use emptyList()
+        list.mapNotNull { element ->
             try {
                 val obj = element.jsonObject
                 val reportNm = obj["report_nm"]?.jsonPrimitive?.content ?: return@mapNotNull null
@@ -156,6 +158,7 @@ class DartApiClient(
                 Timber.w(e, "DART 공시 파싱 실패")
                 null
             }
+        }
         }
     }
 

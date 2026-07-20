@@ -62,13 +62,15 @@ class FredApiClient(
         val request = Request.Builder().url(url).build()
 
         try {
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Timber.e("FRED API HTTP 오류: %d (%s)", response.code, seriesId)
-                return@withContext null
+            // execute().use — 조기 return 경로에서도 body를 닫아 커넥션 풀 누수 방지(Phase 3-3)
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Timber.e("FRED API HTTP 오류: %d (%s)", response.code, seriesId)
+                    return@withContext null
+                }
+                val body = response.body?.string() ?: return@withContext null
+                parseLatestValid(body)
             }
-            val body = response.body?.string() ?: return@withContext null
-            parseLatestValid(body)
         } catch (e: Exception) {
             Timber.e(e, "FRED API 호출 실패 (%s)", seriesId)
             null

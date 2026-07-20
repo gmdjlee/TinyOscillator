@@ -47,13 +47,15 @@ class StooqCsvClient(
         val request = Request.Builder().url(url).build()
 
         try {
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Timber.e("Stooq CSV HTTP 오류: %d (%s)", response.code, ticker)
-                return@withContext emptyList()
+            // execute().use — 조기 return 경로에서도 body를 닫아 커넥션 풀 누수 방지(Phase 3-3)
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Timber.e("Stooq CSV HTTP 오류: %d (%s)", response.code, ticker)
+                    return@withContext emptyList()
+                }
+                val body = response.body?.string() ?: return@withContext emptyList()
+                parseCsv(body)
             }
-            val body = response.body?.string() ?: return@withContext emptyList()
-            parseCsv(body)
         } catch (e: Exception) {
             Timber.e(e, "Stooq CSV 호출 실패 (%s)", ticker)
             emptyList()

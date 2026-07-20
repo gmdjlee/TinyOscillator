@@ -103,7 +103,9 @@ class AiApiClient(
 
     private suspend fun fetchGeminiModels(apiKey: String): Result<List<AiModelInfo>> {
         val request = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey")
+            // API 키는 URL 쿼리 대신 헤더로 전달 — 예외/로그 URL 유출 방지 및 타 Gemini 호출과 통일(Phase 3-8)
+            .url("https://generativelanguage.googleapis.com/v1beta/models")
+            .addHeader("x-goog-api-key", apiKey)
             .get()
             .build()
 

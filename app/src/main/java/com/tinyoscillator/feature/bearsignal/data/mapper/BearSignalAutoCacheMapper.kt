@@ -60,6 +60,30 @@ object BearSignalAutoCacheMapper {
     }
 
     /**
+     * Phase 2 [B]등급 외부 지표 중 **실제 수집 성공한 키만** upsert용 엔티티로 변환(Phase 3-7).
+     *
+     * null(수집 실패·API 키 미설정) 지표는 제외한다 — 전체 엔티티 read-modify-write 대신 개별 upsert로,
+     * 수집 중 도착한 §4.5 승인값·워커 기록을 stale 값으로 되덮지 않도록 한다. A등급 필수 키
+     * (S2_UP3~DOWN4, AMP_KOSPI2)와 credit/lossRatio/bigDeal은 이 경로가 다루지 않는다.
+     * MANUAL 오버라이드는 별도 테이블이라 영향 없다.
+     */
+    fun externalEntities(
+        semi: AutoIndicator<Double>?,
+        buffer: AutoIndicator<Boolean>?,
+        rate: AutoIndicator<Double>?,
+        dir: AutoIndicator<String>?,
+        etf: AutoIndicator<String>?
+    ): List<BearSignalAutoCacheEntity> {
+        val entities = mutableListOf<BearSignalAutoCacheEntity>()
+        semi?.let { entities.add(doubleEntity(BearIndicatorKey.AMP_SEMI, it)) }
+        buffer?.let { entities.add(boolEntity(BearIndicatorKey.AMP_BUFFER, it)) }
+        rate?.let { entities.add(doubleEntity(BearIndicatorKey.GATE_RATE, it)) }
+        dir?.let { entities.add(dirEntity(it)) }
+        etf?.let { entities.add(etfEntity(it)) }
+        return entities
+    }
+
+    /**
      * Room 캐시 → 도메인 모델. Phase 1 필수 5개 키(S2_UP3~DOWN4, AMP_KOSPI2) 중 하나라도 없으면
      * 미수집 상태로 간주해 null 반환(구버전 캐시 호환 — Phase 2 5개 키는 선택적).
      */

@@ -86,14 +86,16 @@ class BokEcosApiClient(
             .build()
 
         try {
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Timber.e("ECOS API HTTP 오류: %d (%s)", response.code, indicatorKey)
-                return@withContext emptyList()
-            }
+            // execute().use — 조기 return 경로에서도 body를 닫아 커넥션 풀 누수 방지(Phase 3-3)
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Timber.e("ECOS API HTTP 오류: %d (%s)", response.code, indicatorKey)
+                    return@withContext emptyList()
+                }
 
-            val body = response.body?.string() ?: return@withContext emptyList()
-            parseResponse(body, indicatorKey)
+                val body = response.body?.string() ?: return@withContext emptyList()
+                parseResponse(body, indicatorKey)
+            }
         } catch (e: Exception) {
             Timber.e(e, "ECOS API 호출 실패 (%s)", indicatorKey)
             emptyList()

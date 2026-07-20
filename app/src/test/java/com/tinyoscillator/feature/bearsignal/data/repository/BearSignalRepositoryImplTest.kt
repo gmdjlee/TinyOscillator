@@ -488,6 +488,63 @@ class BearSignalRepositoryImplTest {
         coVerify(exactly = 1) { stooqCsvClient.fetchDailyCloses("ipo.us") }
     }
 
+    // ── Phase 3-7: 수집 성공한 B등급 키만 개별 upsert(승인값·워커 기록 보존) ──
+
+    @Test
+    fun `refreshExternalAutoInputs 수집 실패한 키는 upsert에서 제외돼 승인값을 덮지 않는다`() = runTest {
+        // base에 §4.5로 승인된 rate=4.00이 이미 존재. 이번엔 FRED만 실패 → rate는 upsert 대상에서 빠져야
+        // 수집 도중 도착한 승인값이 stale base 값으로 되덮이지 않는다(Phase 3-7).
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputsWithExternal())
+        coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns "customs-key"
+        coEvery { customsTradeApiClient.fetchItemTrade(any(), any(), any()) } coAnswers {
+            customsFixtureItems(secondArg())
+        }
+        coEvery { apiConfigProvider.getFredApiKey() } returns "fred-key"
+        coEvery { fredApiClient.fetchLatestObservation(any()) } throws RuntimeException("network error")
+        coEvery { apiConfigProvider.getEcosApiKey() } returns "ecos-key"
+        coEvery { bokEcosApiClient.fetchSeries(any(), "base_rate", any(), any()) } returns listOf(
+            EcosDataPoint("202604", 3.25),
+            EcosDataPoint("202605", 3.50)
+        )
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } returns listOf(
+            IndexDailyBar("2026-06-01", 40.0),
+            IndexDailyBar("2026-06-30", 41.0)
+        )
+        val captured = mutableListOf<List<BearSignalAutoCacheEntity>>()
+        coEvery { dao.upsertAll(capture(captured)) } returns Unit
+
+        val result = repository.refreshExternalAutoInputs()
+
+        assertTrue(result.isSuccess)
+        val upsertedKeys = captured.flatten().map { it.indicatorKey }
+        // 수집 실패한 rate는 upsert에서 제외 → 기존 승인값 보존
+        assertFalse(upsertedKeys.contains(BearIndicatorKey.GATE_RATE.key))
+        // 수집 성공한 키만 저장
+        assertTrue(upsertedKeys.contains(BearIndicatorKey.AMP_SEMI.key))
+        assertTrue(upsertedKeys.contains(BearIndicatorKey.GATE_DIR.key))
+        // A등급 필수 키는 이 경로가 건드리지 않는다(read-modify-write 제거)
+        assertFalse(upsertedKeys.contains(BearIndicatorKey.S2_UP3.key))
+        assertFalse(upsertedKeys.contains(BearIndicatorKey.AMP_KOSPI2.key))
+        // 결과 스냅샷의 rate는 기존 캐시값 유지
+        assertEquals(4.00, result.getOrNull()!!.rate!!.value, 1e-9)
+    }
+
+    @Test
+    fun `refreshExternalAutoInputs 수집 전무면 upsert하지 않아 캐시를 보존한다`() = runTest {
+        coEvery { dao.getAutoCache() } returns BearSignalAutoCacheMapper.toEntities(cachedInputsWithExternal())
+        coEvery { apiConfigProvider.getCustomsTradeApiKey() } returns null
+        coEvery { apiConfigProvider.getFredApiKey() } returns null
+        coEvery { apiConfigProvider.getEcosApiKey() } returns null
+        coEvery { yahooChartApiClient.fetchDailyCloses(any()) } throws RuntimeException("net")
+        coEvery { stooqCsvClient.fetchDailyCloses(any()) } throws RuntimeException("net")
+
+        val result = repository.refreshExternalAutoInputs()
+
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 0) { dao.upsertAll(any()) }
+        assertEquals(4.00, result.getOrNull()!!.rate!!.value, 1e-9)
+    }
+
     @Test
     fun `refreshExternalAutoInputs Phase1 기본 캐시가 없으면 failure`() = runTest {
         coEvery { dao.getAutoCache() } returns emptyList()

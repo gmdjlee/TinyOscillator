@@ -218,21 +218,23 @@ class KiwoomApiClient(
         }
     }
 
-    private suspend fun getToken(config: KiwoomApiKeyConfig): Result<TokenInfo> = tokenMutex.withLock {
+    /**
+     * 토큰 조회 — 캐시 우선, 없으면 발급. 재시도 지연(429 시 최대 ~14s×N)은 [tokenMutex] **밖에서**
+     * 수행하고, 락 내부에서는 캐시 double-check 후 **단일** 발급 시도만 한다(Phase 3-2). 이렇게 하면
+     * 동시 호출자가 한 코루틴의 재시도 사다리 전체 동안 블록되지 않는다.
+     */
+    private suspend fun getToken(config: KiwoomApiKeyConfig): Result<TokenInfo> {
         val cacheKey = "${config.getBaseUrl()}:${config.appKey.hashCode()}"
-        val cached = tokenCache[cacheKey]
-        if (cached != null && !cached.isExpired()) {
-            return@withLock Result.success(cached)
-        }
-        return@withLock fetchToken(config).also { result ->
-            result.onSuccess { tokenCache[cacheKey] = it }
-        }
-    }
-
-    private suspend fun fetchToken(config: KiwoomApiKeyConfig): Result<TokenInfo> {
         var lastError: Exception? = null
         for (attempt in 0..2) {
-            val result = fetchTokenOnce(config)
+            val result = tokenMutex.withLock {
+                val cached = tokenCache[cacheKey]
+                if (cached != null && !cached.isExpired()) {
+                    Result.success(cached)
+                } else {
+                    fetchTokenOnce(config).also { r -> r.onSuccess { tokenCache[cacheKey] = it } }
+                }
+            }
             if (result.isSuccess) return result
             lastError = result.exceptionOrNull() as? Exception
             val isRateLimit = lastError is ApiError.ApiCallError &&

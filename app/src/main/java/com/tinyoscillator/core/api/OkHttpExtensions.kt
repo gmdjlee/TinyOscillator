@@ -20,7 +20,9 @@ suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation 
     }
     enqueue(object : Callback {
         override fun onResponse(call: Call, response: Response) {
-            continuation.resume(response)
+            // 취소 경합(resume과 cancel 동시) 시 Response가 소비되지 않고 누수될 수 있어
+            // onCancellation 핸들러로 close를 보장한다(Phase 3-4).
+            continuation.resume(response) { response.close() }
         }
 
         override fun onFailure(call: Call, e: IOException) {

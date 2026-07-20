@@ -11,7 +11,7 @@
 | P1a — 치명: 데이터/백엔드 4건 | **완료** (2026-07-20, `cfc0f39`) | 하단 「Phase 1 상세」 |
 | P1b — 치명: UI 4건 | **완료** (2026-07-20, `cfc0f39`) | 실기 QA(수용 ⑤~⑧) 잔여 |
 | P2 — WorkManager flex 백포트 | **완료** (2026-07-20) | 하단 「Phase 2 상세」 |
-| P3 — 인프라 정확성·동시성 8건 | 미착수 | |
+| P3 — 인프라 정확성·동시성 8건 | **완료** (2026-07-20) | 하단 「Phase 3 상세」 |
 | P4 — 엔진 통계 경로 8건 | 미착수 | **착수 전 사용자 재확인**(산출 숫자 변경) |
 | P5 — 성능 6건 | 미착수 | |
 | P6 — 사용성·접근성 8건 | 미착수 | |
@@ -67,3 +67,29 @@
 
 - main 소스 `PeriodicWorkRequestBuilder` flex(4-arg) 오버로드 grep **0건**.
 - `CalculateWeeklyInitialDelayMillisTest` 그린(순수함수 — flex와 무관하나 WorkManagerHelper 기존 테스트 회귀 확인) + `compileDebugKotlin` 성공.
+
+## Phase 3 상세 — 인프라 정확성·동시성 8건 (2026-07-20)
+
+리뷰 MED 8건. BearSignal 스코어링 SSOT·임계치 무변경(데이터/네트워크 계층만). `compileDebugKotlin` 성공.
+
+| # | 위치 | 변경 |
+|---|---|---|
+| 3-1 | `core/api/ApiModels.kt` `mapException` | 일반 IOException(Connect/SSL/EOF 등)→`NetworkError` 분기 추가 → 재시도·서킷브레이커 적용. UnknownHost/SocketTimeout/Serialization은 위에서 선분류 유지, ApiCallError(0) 폴백은 비-IO 예외만 |
+| 3-2 | `core/api/KisApiClient.kt`·`KiwoomApiClient.kt` `getToken` | 재시도 지연(KIS 61~64s×N, Kiwoom 11~14s×N)을 `tokenMutex` **밖**으로 이동. 락 내부는 캐시 double-check + 단일 `fetchTokenOnce`만. 동시 호출자가 한 코루틴의 재시도 사다리(KIS 최악 ~2min) 전체를 블록하던 문제 해소. `fetchToken` 인라인·삭제 |
+| 3-3 | DART(2)·Bok·Yahoo·Stooq·Fred | `execute().use { }`로 감싸 `!isSuccessful` 조기 return 경로에서도 body close(커넥션 풀 누수 방지). `CustomsTradeApiClient` 관례 준수 |
+| 3-4 | `core/api/OkHttpExtensions.kt` `await` | `continuation.resume(response) { response.close() }` — 취소 경합 시 Response close 보장(coroutines 1.7.3 1-arg onCancellation) |
+| 3-5 | `core/api/KrxApiClient.kt` | 4클라이언트 필드 `@Volatile`(mutex 밖 read/close의 happens-before) + client-level `sessionMutex`(공개 val, login-use-close 직렬화용) 추가 |
+| 3-6 | `feature/bearsignal/.../BearSignalRepositoryImpl.kt` (`refreshAutoInputs`·`refreshMarketReturns`) | login→use→close 시퀀스를 `krxApiClient.sessionMutex.withLock`로 감싸 공유 싱글턴 동시 close 방지(inline withLock — 기존 `return@withContext`/폴백 흐름 무변경) |
+| 3-7 | `BearSignalRepositoryImpl.refreshExternalAutoInputs` + `BearSignalAutoCacheMapper` | 전체 엔티티 read-modify-write → 수집 성공한 B등급 키만 per-key upsert(`externalEntities` 헬퍼). collectX(customs/rate/dir/etf)는 실패·키 미설정 시 `null` 반환(기존 캐시 유지). 수집 창(30~60s) 중 도착한 §4.5 승인값·워커 기록을 stale base로 되덮지 않음. A등급·credit·MANUAL 불변 |
+| 3-8 | `core/api/AiApiClient.kt` `fetchGeminiModels` | API 키 URL 쿼리(`?key=`) → `x-goog-api-key` 헤더 — 타 Gemini 호출과 통일, 예외/로그 URL 유출 경로 제거 |
+
+### 잔여(범위 밖 명시)
+
+- **3-6 교차 세션**: `sessionMutex`는 이를 사용하는 호출처(현재 BearSignal 2경로)만 상호 배타. `EtfRepository`/`FundamentalHistoryViewModel`/`FearGreedRepository`/`MarketIndicatorRepository`/`RegimeUpdateWorker` 등 미이관 호출처는 login-use-close를 분리 호출(일부는 장기 세션 재사용 패턴)하므로 여전히 교차 close 경합 가능. 전면 해소는 세션 소유권 리팩터(참조카운트/세션 API 일괄 이관)로 별건 — 명세 3-6 스코프(BearSignal 2경로)는 충족. `@Volatile`(3-5)로 가시성만 보장.
+
+### 수용 기준 (충족)
+
+- 3-1 IOException→NetworkError 매핑: `ApiErrorClassificationTest` +7(Connect/SSL/EOF→Network+retriable, UnknownHost/SocketTimeout/Serialization 선분류, 비-IO→ApiCallError0) → **23/23**.
+- 3-3/3-4 에러 응답 leak(MockWebServer): `OkHttpExtensionsTest` +1 — 500 응답 3회를 `await().use`로 소비 후 `connectionPool.connectionCount()==1`(재사용=body close 증거) → **9/9**.
+- 3-7 수집 중 승인 생존: `BearSignalRepositoryImplTest` +2 — FRED 실패 시 upsert에 `GATE_RATE` 미포함(승인값 보존)·A등급 키 미포함 단언, 전무 시 upsert 0회 → **45/45**.
+- 회귀 그린: Krx 8·Kis 26·Kiwoom 21·Dart(parse/disclosureUrl)·Fred·Stooq·Yahoo parse 전부 통과.

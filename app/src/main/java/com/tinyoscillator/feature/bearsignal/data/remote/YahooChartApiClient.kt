@@ -71,13 +71,15 @@ class YahooChartApiClient(
             .build()
 
         try {
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Timber.e("Yahoo chart HTTP 오류: %d (%s)", response.code, ticker)
-                return@withContext emptyList()
+            // execute().use — 조기 return 경로에서도 body를 닫아 커넥션 풀 누수 방지(Phase 3-3)
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Timber.e("Yahoo chart HTTP 오류: %d (%s)", response.code, ticker)
+                    return@withContext emptyList()
+                }
+                val body = response.body?.string() ?: return@withContext emptyList()
+                parseChart(body)
             }
-            val body = response.body?.string() ?: return@withContext emptyList()
-            parseChart(body)
         } catch (e: Exception) {
             Timber.e(e, "Yahoo chart 호출 실패 (%s)", ticker)
             emptyList()

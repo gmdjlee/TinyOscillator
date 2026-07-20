@@ -15,11 +15,24 @@ import timber.log.Timber
 
 class KrxApiClient {
 
-    private var krxClient: KrxClient? = null
-    private var krxEtf: KrxEtf? = null
-    private var krxIndex: KrxIndex? = null
-    private var krxStock: KrxStock? = null
+    // @Volatile — [getKrxIndex]/[getKrxStock] read와 [close]/[closeInternal] write가 [mutex] 밖에서
+    // 일어나므로 happens-before 보장을 위해 필수(Phase 3-5).
+    @Volatile private var krxClient: KrxClient? = null
+    @Volatile private var krxEtf: KrxEtf? = null
+    @Volatile private var krxIndex: KrxIndex? = null
+    @Volatile private var krxStock: KrxStock? = null
     private val mutex = Mutex()
+
+    /**
+     * login→작업→close 한 세션 전체를 직렬화하기 위한 client-level mutex (Phase 3-6).
+     *
+     * 이 클라이언트는 `@Singleton`이라 여러 리포지토리·워커가 공유한다. 한 호출자가 `login →
+     * getKrxIndex/getKrxStock 사용 → close()` 하는 도중, 다른 호출자의 `close()`가 세션을
+     * 무효화(사용 중 close)할 수 있다. 호출처는 login-use-close 시퀀스를 `sessionMutex.withLock { }`로
+     * 감싸 서로 배타 실행해야 한다. 개별 호출 직렬화용 [mutex]와 분리한다 — 세션 블록이 sessionMutex를
+     * 든 채 내부에서 [login]이 [mutex]를 다시 획득해도 교착되지 않도록.
+     */
+    val sessionMutex = Mutex()
 
     suspend fun login(id: String, pw: String): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {

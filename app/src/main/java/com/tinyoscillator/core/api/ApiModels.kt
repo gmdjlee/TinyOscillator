@@ -55,6 +55,9 @@ sealed class ApiError(override val message: String) : Exception(message) {
             is java.net.SocketTimeoutException -> TimeoutError("요청 시간이 초과되었습니다")
             is kotlinx.serialization.SerializationException -> ParseError("응답 파싱 오류: ${e.message}")
             is ApiError -> e
+            // ConnectException/SSLException/EOFException 등 일반 IOException은 네트워크 오류로 분류해야
+            // 재시도·서킷브레이커가 적용된다(Phase 3-1). UnknownHost/SocketTimeout은 위에서 선분류.
+            is java.io.IOException -> NetworkError("네트워크 오류: ${e.message ?: "연결 실패"}")
             else -> ApiCallError(0, e.message ?: "알 수 없는 오류")
         }
 

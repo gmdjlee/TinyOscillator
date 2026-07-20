@@ -140,4 +140,58 @@ class ApiErrorClassificationTest {
         assertFalse(ApiError.isAuthError(error))
         assertFalse(ApiError.isRetriableError(error))
     }
+
+    // =============================================
+    // mapException — 일반 IOException은 NetworkError로 분류(Phase 3-1)
+    // 재시도·서킷브레이커가 적용되도록 ApiCallError(0)로 떨어지지 않아야 한다.
+    // =============================================
+
+    @Test
+    fun `mapException - ConnectException은 NetworkError로 분류된다`() {
+        val mapped = ApiError.mapException(java.net.ConnectException("Connection refused"))
+        assertTrue(mapped is ApiError.NetworkError)
+        assertTrue(ApiError.isRetriableError(mapped))
+    }
+
+    @Test
+    fun `mapException - SSLException은 NetworkError로 분류된다`() {
+        val mapped = ApiError.mapException(javax.net.ssl.SSLException("handshake failed"))
+        assertTrue(mapped is ApiError.NetworkError)
+        assertTrue(ApiError.isRetriableError(mapped))
+    }
+
+    @Test
+    fun `mapException - EOFException은 NetworkError로 분류된다`() {
+        val mapped = ApiError.mapException(java.io.EOFException("unexpected end of stream"))
+        assertTrue(mapped is ApiError.NetworkError)
+        assertTrue(ApiError.isRetriableError(mapped))
+    }
+
+    @Test
+    fun `mapException - UnknownHostException은 여전히 NetworkError로 우선 분류된다`() {
+        val mapped = ApiError.mapException(java.net.UnknownHostException("no host"))
+        assertTrue(mapped is ApiError.NetworkError)
+    }
+
+    @Test
+    fun `mapException - SocketTimeoutException은 IOException보다 먼저 TimeoutError로 분류된다`() {
+        // SocketTimeoutException도 IOException 하위지만 위 분기에서 먼저 TimeoutError로 잡혀야 한다.
+        val mapped = ApiError.mapException(java.net.SocketTimeoutException("timeout"))
+        assertTrue(mapped is ApiError.TimeoutError)
+    }
+
+    @Test
+    fun `mapException - SerializationException은 IOException 분기보다 먼저 ParseError로 분류된다`() {
+        val mapped = ApiError.mapException(
+            kotlinx.serialization.SerializationException("bad json")
+        )
+        assertTrue(mapped is ApiError.ParseError)
+    }
+
+    @Test
+    fun `mapException - IOException이 아닌 일반 예외는 ApiCallError(0)으로 분류된다`() {
+        val mapped = ApiError.mapException(IllegalStateException("boom"))
+        assertTrue(mapped is ApiError.ApiCallError)
+        assertEquals(0, (mapped as ApiError.ApiCallError).code)
+    }
 }
