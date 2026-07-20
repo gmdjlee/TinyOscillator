@@ -229,6 +229,37 @@ class StatisticalAnalysisEngineTest {
     }
 
     @Test
+    fun `반복 실행마다 timings에 11개 엔진 전부 손실 없이 수집된다`() = runTest {
+        setupMockData(200)
+
+        // P1a-3: timings/failedEngines를 11개 병렬 코루틴이 동시 변경 —
+        // ConcurrentHashMap/synchronizedList 전환 후에도 매회 완전 수집되는지 반복 검증한다.
+        repeat(3) { iteration ->
+            engine.clearAnalysisCache("005930")
+            val result = engine.analyze("005930")
+
+            val timings = result.executionMetadata.engineTimings
+            assertEquals(
+                "iteration=$iteration: timings 크기가 11개 엔진과 일치해야 함",
+                StatisticalAnalysisEngine.PROGRESS_TOTAL_ENGINES,
+                timings.size
+            )
+
+            val expectedEngineNames = listOf(
+                "NaiveBayes", "Logistic", "HMM", "PatternScan", "Correlation",
+                "BayesianUpdate", "OrderFlow", "DartEvent", "Korea5Factor",
+                "SectorCorrelation", "SignalScoring"
+            )
+            expectedEngineNames.forEach { name ->
+                assertTrue(
+                    "iteration=$iteration: timings에 $name 키가 있어야 함",
+                    timings.containsKey(name)
+                )
+            }
+        }
+    }
+
+    @Test
     fun `빈 데이터에서도 크래시하지 않는다`() = runTest {
         coEvery { repository.getDailyPrices(any(), any()) } returns emptyList()
         coEvery { repository.getStockName(any()) } returns "테스트"

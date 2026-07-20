@@ -32,12 +32,16 @@ object DatabaseModule {
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
         return try {
-            buildDatabase(context)
+            buildDatabase(context).also {
+                // Room build()는 lazy — 마이그레이션은 첫 쿼리 시점에 실행된다.
+                // 여기서 DB를 즉시 열어(eager) 마이그레이션 실패를 catch 경로로 유도한다.
+                it.openHelper.writableDatabase
+            }
         } catch (e: Exception) {
             Timber.e(e, "Database 빌더 생성 실패 → 포트폴리오 백업 후 재생성 시도")
             backupPortfolioData(context)
             context.deleteDatabase("tiny_oscillator.db")
-            buildDatabase(context)
+            buildDatabase(context).also { it.openHelper.writableDatabase }
         }
     }
 

@@ -1,6 +1,5 @@
 package com.tinyoscillator.presentation.market
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,7 +24,9 @@ import com.tinyoscillator.domain.model.MarketDepositChartData
 import com.tinyoscillator.domain.model.MarketDepositState
 import com.tinyoscillator.core.ui.composable.DefaultErrorContent
 import com.tinyoscillator.core.ui.composable.EmptyStateContent
+import com.tinyoscillator.presentation.chart.rememberChartTheme
 import com.tinyoscillator.presentation.financial.FinancialMarkerView
+import com.tinyoscillator.ui.theme.signColor
 
 @Composable
 fun MarketDepositTab(
@@ -83,7 +84,7 @@ fun MarketDepositTab(
                 is MarketDepositState.Error -> {
                     DefaultErrorContent(
                         message = currentState.message,
-                        onRetry = { viewModel.clearMessage() }
+                        onRetry = { viewModel.refreshData() }
                     )
                 }
                 is MarketDepositState.Idle -> {
@@ -156,7 +157,7 @@ private fun DepositSummarySection(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        val depositChangeColor = if (depositChange > 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+        val depositChangeColor = signColor(depositChange)
         Surface(
             shape = RoundedCornerShape(50),
             color = depositChangeColor.copy(alpha = 0.1f)
@@ -178,7 +179,7 @@ private fun DepositSummarySection(
                 String.format("%.0f억원", creditAmount),
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
             )
-            val creditChangeColor = if (creditChange > 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+            val creditChangeColor = signColor(creditChange)
             Text(
                 String.format("(%+.0f)", creditChange),
                 style = MaterialTheme.typography.bodyMedium,
@@ -233,11 +234,11 @@ private fun StatBox(label: String, value: String, unit: String, modifier: Modifi
 
 @Composable
 private fun ChartSection(data: MarketDepositChartData) {
-    val isDark = isSystemInDarkTheme()
+    val chartTheme = rememberChartTheme()
     val depositColor = Color(0xFF2196F3) // Blue
     val creditColor = Color(0xFFFF9800) // Orange
-    val textColorValue = if (isDark) Color.White.toArgb() else Color.Black.toArgb()
-    val gridColor = if (isDark) Color(0xFF444444).toArgb() else Color(0xFFE0E0E0).toArgb()
+    val textColorValue = chartTheme.axisText
+    val gridColor = chartTheme.grid
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -313,6 +314,8 @@ private fun ChartSection(data: MarketDepositChartData) {
 
                     chart.xAxis.apply {
                         setLabelCount(optimalLabelCount, false)
+                        setTextColor(textColorValue)
+                        setGridColor(gridColor)
                         valueFormatter = object : ValueFormatter() {
                             override fun getFormattedValue(value: Float): String {
                                 val index = value.toInt()
@@ -362,6 +365,8 @@ private fun ChartSection(data: MarketDepositChartData) {
                         chart.context, data.dates
                     ) { value -> String.format("%.0f억원", value) }
                     chart.isHighlightPerTapEnabled = true
+
+                    chart.legend.setTextColor(textColorValue)
 
                     chart.invalidate()
                 },

@@ -131,7 +131,7 @@ class MarketDepositViewModelTest {
     // ==========================================================
 
     @Test
-    fun `refreshData 호출 후에도 상태가 유지된다`() = runTest {
+    fun `refreshData 호출 시 재로드되어 Success 상태가 유지된다`() = runTest {
         every { repository.getDepositsByDateRange(any(), any()) } returns flowOf(sampleDeposits)
 
         viewModel = createViewModel()
@@ -139,12 +139,60 @@ class MarketDepositViewModelTest {
 
         assertTrue(viewModel.state.value is MarketDepositState.Success)
 
-        // refreshData는 같은 값을 설정하므로 StateFlow는 재emit하지 않음
+        // refreshData는 refreshTrigger를 증가시켜 재로드를 강제한다(동일 데이터 → Success 유지)
         viewModel.refreshData()
         advanceUntilIdle()
 
         val state = viewModel.state.value
         assertTrue("Expected Success after refresh but got $state", state is MarketDepositState.Success)
+    }
+
+    @Test
+    fun `Error 상태에서 refreshData 호출 시 재로드되어 Success로 전환된다`() = runTest {
+        every { repository.getDepositsByDateRange(any(), any()) } returns flowOf(emptyList())
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value is MarketDepositState.Error)
+
+        // 재시도 시점에 데이터가 채워진 상태로 repository 응답이 바뀐 경우를 재현
+        every { repository.getDepositsByDateRange(any(), any()) } returns flowOf(sampleDeposits)
+
+        viewModel.refreshData()
+        advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertTrue("Expected Success after retry but got $state", state is MarketDepositState.Success)
+        assertEquals(2, viewModel.depositData.value.dates.size)
+    }
+
+    @Test
+    fun `Error 상태에서 refreshData 호출 직후 Loading 상태로 전환된다`() = runTest {
+        every { repository.getDepositsByDateRange(any(), any()) } returns flowOf(emptyList())
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value is MarketDepositState.Error)
+
+        viewModel.refreshData()
+
+        val state = viewModel.state.value
+        assertTrue("Expected Loading immediately after refreshData but got $state", state is MarketDepositState.Loading)
+    }
+
+    @Test
+    fun `Error 상태에서 refreshData 호출 시 repository가 재호출된다`() = runTest {
+        every { repository.getDepositsByDateRange(any(), any()) } returns flowOf(emptyList())
+
+        viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.refreshData()
+        advanceUntilIdle()
+
+        verify(exactly = 2) { repository.getDepositsByDateRange(any(), any()) }
     }
 
     // ==========================================================

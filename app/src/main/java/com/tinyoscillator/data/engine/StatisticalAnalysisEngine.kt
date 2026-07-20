@@ -29,6 +29,8 @@ import kotlinx.coroutines.coroutineScope
 import timber.log.Timber
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -122,8 +124,10 @@ class StatisticalAnalysisEngine @Inject constructor(
         progress: ((String) -> Unit)? = null
     ): StatisticalResult = coroutineScope {
         val totalStart = System.currentTimeMillis()
-        val timings = mutableMapOf<String, Long>()
-        val failedEngines = mutableListOf<String>()
+        // 11개 엔진이 각자의 코루틴에서 timedExecution을 통해 동시에 기록한다 —
+        // 일반 HashMap/ArrayList는 동시 쓰기 시 손실/손상될 수 있어 스레드-세이프 컬렉션을 사용한다.
+        val timings: MutableMap<String, Long> = ConcurrentHashMap()
+        val failedEngines: MutableList<String> = Collections.synchronizedList(mutableListOf())
 
         Timber.d("━━━ 통계 분석 시작: $stockCode ━━━")
 

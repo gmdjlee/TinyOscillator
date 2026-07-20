@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -32,6 +33,9 @@ class MarketDepositViewModel @Inject constructor(
     private val _lastUpdatedAt = MutableStateFlow<Long?>(null)
     val lastUpdatedAt: StateFlow<Long?> = _lastUpdatedAt.asStateFlow()
 
+    // 재시도/새로고침 트리거 — selectedRange가 동일해도 재로드를 강제하기 위한 카운터
+    private val _refreshTrigger = MutableStateFlow(0)
+
     init {
         observeDateRangeChanges()
         loadLastUpdatedTime()
@@ -45,9 +49,10 @@ class MarketDepositViewModel @Inject constructor(
 
     private fun observeDateRangeChanges() {
         viewModelScope.launch {
-            _selectedRange.collectLatest { range ->
-                loadDataByRange(range)
-            }
+            combine(_selectedRange, _refreshTrigger) { range, _ -> range }
+                .collectLatest { range ->
+                    loadDataByRange(range)
+                }
         }
     }
 
@@ -85,8 +90,10 @@ class MarketDepositViewModel @Inject constructor(
     }
 
     fun refreshData() {
-        val currentRange = _selectedRange.value
-        _selectedRange.value = currentRange
+        if (_state.value is MarketDepositState.Error) {
+            _state.value = MarketDepositState.Loading("다시 시도 중")
+        }
+        _refreshTrigger.value += 1
     }
 
     fun clearMessage() {

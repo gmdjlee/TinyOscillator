@@ -136,6 +136,8 @@ fun KoreanCandleChartView(
                 },
                 update = { chart ->
                     if (candles.isNotEmpty()) {
+                        // 일봉↔주봉 전환·종목 변경 시 X축 날짜 라벨이 stale 하지 않도록 재할당
+                        chart.xAxis.valueFormatter = IndexDateFormatter(dateLabels)
                         chart.data = CombinedData().apply {
                             setData(candles.toCandleData(chartTheme))
                             val overlay = indicatorData?.toCandlePriceOverlay()

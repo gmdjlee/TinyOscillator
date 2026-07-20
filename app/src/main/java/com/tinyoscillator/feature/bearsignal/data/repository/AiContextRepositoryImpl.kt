@@ -45,11 +45,25 @@ class AiContextRepositoryImpl(
         }
     }
 
+    /**
+     * §4.7 개별 클레임 ✓ 승인 — PK가 섹션 단위 REPLACE(upsert)이므로 전달된 클레임만 저장하면
+     * 같은 섹션에서 클레임을 하나씩 승인할 때 마지막 1건만 생존한다(TASK_code_review_improvements.md
+     * P1a-4). 따라서 upsert 전에 기존 승인분을 read → 신규 클레임과 병합 → 다시 upsert한다.
+     *
+     * 병합 규칙: 같은 [AiContextClaim.text]는 신규 클레임이 기존(과거 승인)을 대체한다
+     * (`distinctBy` 첫 항목 유지 — `sectionClaims + existing` 순서로 신규를 앞에 둠) — 같은 클레임을
+     * 재승인해도 결과가 1건으로 수렴하는 멱등성을 보장한다. asOf는 병합된 전체 클레임의
+     * source_date 최댓값(§4.7 "여러 클레임이 섞여 있으면 최신값을 저장"). fetch는 여전히 어떤 Room
+     * 쓰기도 하지 않는다 — 이 read는 approve 내부 병합 전용이며 §4.7 "fetch 무저장" 불변을 깨지 않는다.
+     */
     override suspend fun approve(claims: List<AiContextClaim>, provider: String, now: Long) {
         claims.groupBy { it.sectionKey }.forEach { (sectionKey, sectionClaims) ->
-            // §4.7 "여러 클레임이 섞여 있으면 최신값을 저장" — 섹션 내 클레임들의 source_date 최댓값.
-            val asOf = sectionClaims.maxOf { it.sourceDate }
-            dao.upsert(AiContextClaimMapper.toEntity(sectionKey, sectionClaims, provider, asOf, now))
+            val existing = dao.getBySectionKey(sectionKey.key)
+                ?.let { AiContextClaimMapper.toDomain(it) }
+                .orEmpty()
+            val merged = (sectionClaims + existing).distinctBy { it.text }
+            val asOf = merged.maxOf { it.sourceDate }
+            dao.upsert(AiContextClaimMapper.toEntity(sectionKey, merged, provider, asOf, now))
         }
     }
 

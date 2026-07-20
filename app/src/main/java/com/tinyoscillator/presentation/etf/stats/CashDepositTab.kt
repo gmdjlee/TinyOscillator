@@ -1,7 +1,6 @@
 package com.tinyoscillator.presentation.etf.stats
 
 import android.graphics.Color as AndroidColor
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
@@ -19,6 +18,7 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.tinyoscillator.domain.model.CashDepositRow
+import com.tinyoscillator.presentation.chart.rememberChartTheme
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -39,7 +39,7 @@ fun CashDepositTab(
     }
 
     val numberFormat = NumberFormat.getNumberInstance(Locale.KOREA)
-    val isDarkTheme = isSystemInDarkTheme()
+    val chartTheme = rememberChartTheme()
     val latest = data.last()
     val previous = data.getOrNull(data.size - 2)
     val changeAmount = if (previous != null) latest.totalAmount - previous.totalAmount else 0L
@@ -96,7 +96,7 @@ fun CashDepositTab(
                                 setTouchEnabled(true)
                                 setScaleEnabled(false)
 
-                                val textColor = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.DKGRAY
+                                val textColor = chartTheme.axisText
 
                                 xAxis.apply {
                                     position = XAxis.XAxisPosition.BOTTOM
@@ -109,7 +109,7 @@ fun CashDepositTab(
                                 axisLeft.apply {
                                     this.textColor = textColor
                                     setDrawGridLines(true)
-                                    gridColor = if (isDarkTheme) AndroidColor.GRAY else AndroidColor.LTGRAY
+                                    gridColor = chartTheme.grid
                                 }
                                 axisRight.isEnabled = false
 

@@ -102,6 +102,7 @@ class AiContextRepositoryImplTest {
     @Test
     fun `approve는 section_key별로 묶어 upsert하고 직렬화 왕복이 성립한다`() = runTest {
         val entitySlot = slot<BearSignalAiContextEntity>()
+        coEvery { dao.getBySectionKey(any()) } returns null
         coEvery { dao.upsert(capture(entitySlot)) } returns Unit
 
         val claims = listOf(
@@ -117,6 +118,7 @@ class AiContextRepositoryImplTest {
     @Test
     fun `approve는 한 섹션의 여러 클레임을 하나의 content_json 배열로 직렬화하고 as_of는 최신 source_date를 쓴다`() = runTest {
         val entitySlot = slot<BearSignalAiContextEntity>()
+        coEvery { dao.getBySectionKey(any()) } returns null
         coEvery { dao.upsert(capture(entitySlot)) } returns Unit
 
         val claims = listOf(
@@ -136,6 +138,64 @@ class AiContextRepositoryImplTest {
         val roundTrip = AiContextClaimMapper.toDomain(entity)
         assertEquals(2, roundTrip.size)
         assertEquals(setOf("오래된 항목", "최신 항목"), roundTrip.map { it.text }.toSet())
+    }
+
+    /** section_key → 마지막 upsert 결과를 저장하는 stateful dao 스텁 — 개별 승인 병합을 재현한다. */
+    private fun stubStatefulDao(): MutableMap<String, BearSignalAiContextEntity> {
+        val store = mutableMapOf<String, BearSignalAiContextEntity>()
+        coEvery { dao.getBySectionKey(any()) } answers { store[firstArg()] }
+        coEvery { dao.upsert(any()) } answers {
+            val entity = firstArg<BearSignalAiContextEntity>()
+            store[entity.sectionKey] = entity
+        }
+        return store
+    }
+
+    @Test
+    fun `같은 섹션 클레임 3건을 1건씩 순차 승인하면 3건 모두 잔존한다`() = runTest {
+        val store = stubStatefulDao()
+
+        repository.approve(listOf(claim(text = "항목1")), provider = "claude", now = 1L)
+        repository.approve(listOf(claim(text = "항목2")), provider = "claude", now = 2L)
+        repository.approve(listOf(claim(text = "항목3")), provider = "claude", now = 3L)
+
+        val entity = store.getValue(AiContextSectionKey.TYPE0_MONITOR.key)
+        val texts = AiContextClaimMapper.toDomain(entity).map { it.text }.toSet()
+        assertEquals(setOf("항목1", "항목2", "항목3"), texts)
+    }
+
+    @Test
+    fun `같은 text 클레임을 두 번 승인하면 1건만 존재한다(멱등)`() = runTest {
+        val store = stubStatefulDao()
+
+        repository.approve(listOf(claim(text = "중복 항목")), provider = "claude", now = 1L)
+        repository.approve(listOf(claim(text = "중복 항목")), provider = "claude", now = 2L)
+
+        val entity = store.getValue(AiContextSectionKey.TYPE0_MONITOR.key)
+        val claims = AiContextClaimMapper.toDomain(entity)
+        assertEquals(1, claims.size)
+        assertEquals("중복 항목", claims.first().text)
+    }
+
+    @Test
+    fun `기존 승인의 asOf가 더 최신이면 과거 sourceDate 클레임을 추가해도 asOf는 병합 전체 최댓값을 유지한다`() = runTest {
+        val store = stubStatefulDao()
+
+        repository.approve(
+            listOf(claim(text = "최신 항목", sourceDate = LocalDate.of(2026, 7, 17))),
+            provider = "claude",
+            now = 1L
+        )
+        repository.approve(
+            listOf(claim(text = "과거 항목", sourceDate = LocalDate.of(2026, 7, 1))),
+            provider = "claude",
+            now = 2L
+        )
+
+        val entity = store.getValue(AiContextSectionKey.TYPE0_MONITOR.key)
+        assertEquals("2026-07-17", entity.asOf)
+        val texts = AiContextClaimMapper.toDomain(entity).map { it.text }.toSet()
+        assertEquals(setOf("최신 항목", "과거 항목"), texts)
     }
 
     // ── getApproved ──────────────────────────────────────────────────

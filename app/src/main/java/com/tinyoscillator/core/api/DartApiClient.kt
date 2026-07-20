@@ -31,11 +31,12 @@ import java.util.zip.ZipInputStream
  */
 class DartApiClient(
     private val httpClient: OkHttpClient,
-    private val json: Json = Json { ignoreUnknownKeys = true }
+    private val json: Json = Json { ignoreUnknownKeys = true },
+    private val baseUrl: String = DEFAULT_BASE_URL
 ) {
 
     companion object {
-        private const val BASE_URL = "https://opendart.fss.or.kr/api"
+        private const val DEFAULT_BASE_URL = "https://opendart.fss.or.kr/api"
         private const val LIST_CLOSE_LEN = "</list>".length
     }
 
@@ -50,7 +51,7 @@ class DartApiClient(
     suspend fun downloadCorpCodeMaster(apiKey: String): List<CorpCodeEntry> = withContext(Dispatchers.IO) {
         throttle()
 
-        val url = "$BASE_URL/corpCode.xml?crtfc_key=$apiKey"
+        val url = "$baseUrl/corpCode.xml?crtfc_key=$apiKey"
         val request = Request.Builder().url(url).build()
 
         val response = httpClient.newCall(request).execute()
@@ -87,25 +88,18 @@ class DartApiClient(
         val beginDate = java.time.LocalDate.now().minusDays(daysBack.toLong())
             .format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
 
-        val url = "$BASE_URL/list.json" +
-                "?crtfc_key=$apiKey" +
-                "&corp_code=$corpCode" +
-                "&bgn_de=$beginDate" +
-                "&end_de=$endDate" +
-                "&pblntf_detail_ty=A001" +  // 정기공시
-                "&page_count=100"
-
         val disclosures = mutableListOf<DartDisclosure>()
 
         // 정기공시 (A), 주요사항보고 (B), 외부감사 (C)
         val detailTypes = listOf("A001", "B001", "C001")
         for (detailType in detailTypes) {
             throttle()
-            val typeUrl = "$BASE_URL/list.json" +
+            val typeUrl = "$baseUrl/list.json" +
                     "?crtfc_key=$apiKey" +
                     "&corp_code=$corpCode" +
                     "&bgn_de=$beginDate" +
                     "&end_de=$endDate" +
+                    "&pblntf_detail_ty=$detailType" +
                     "&page_count=100"
 
             try {
