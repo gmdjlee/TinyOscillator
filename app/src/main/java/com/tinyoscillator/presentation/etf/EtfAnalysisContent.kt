@@ -112,9 +112,10 @@ fun EtfAnalysisContent(
     }
 }
 
+/** ETF 카드 항목 — ETF 목록 탭과 키워드 상세 pane([KeywordDetailPane])이 공유. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun EtfListItem(
+fun EtfListItem(
     etf: EtfEntity,
     includeKeywords: List<String>,
     onClick: () -> Unit
