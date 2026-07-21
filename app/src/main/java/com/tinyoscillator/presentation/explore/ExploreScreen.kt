@@ -1,5 +1,6 @@
 package com.tinyoscillator.presentation.explore
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +22,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tinyoscillator.core.worker.EtfUpdateWorker
 import com.tinyoscillator.domain.model.ConsensusReport
 import com.tinyoscillator.presentation.common.CollectionProgressBar
@@ -31,6 +34,9 @@ import com.tinyoscillator.presentation.common.WindowType
 import com.tinyoscillator.presentation.etf.EtfAnalysisContent
 import com.tinyoscillator.presentation.etf.EtfDetailContent
 import com.tinyoscillator.presentation.etf.EtfStatsContent
+import com.tinyoscillator.presentation.keyword.KeywordDetailPane
+import com.tinyoscillator.presentation.keyword.KeywordListContent
+import com.tinyoscillator.presentation.keyword.KeywordViewModel
 import com.tinyoscillator.presentation.report.ReportContent
 import com.tinyoscillator.presentation.report.ReportDetailPane
 import com.tinyoscillator.presentation.theme.ThemeDetailPane
@@ -40,6 +46,7 @@ import com.tinyoscillator.ui.theme.LocalThemeModeState
 private enum class ExploreTab(val label: String) {
     ETF_LIST("ETF"),
     ETF_STATS("통계"),
+    KEYWORD("키워드"),
     THEME("테마"),
     REPORT("리포트")
 }
@@ -63,6 +70,8 @@ fun ExploreScreen(
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(ExploreTab.ETF_LIST) }
     var selectedEtfTicker by rememberSaveable { mutableStateOf<String?>(null) }
+    // 선택된 키워드 (COMPACT=목록↔상세 토글 / 2-Pane=우측 상세 대상). nullable String → 기본 saver 복원.
+    var selectedKeyword by rememberSaveable { mutableStateOf<String?>(null) }
     // 코드/이름 단일 state — 분리 시 중간 recomposition에서 짝이 어긋날 수 있음
     var selectedTheme by rememberSaveable(
         stateSaver = listSaver<Pair<String, String>?, String>(
@@ -162,6 +171,58 @@ fun ExploreScreen(
                         onOpenProbabilityAnalysis = onOpenProbabilityAnalysis,
                         modifier = Modifier.fillMaxSize()
                     )
+                }
+                ExploreTab.KEYWORD -> {
+                    val keywordViewModel: KeywordViewModel = hiltViewModel()
+                    val keywordGroups by keywordViewModel.groups.collectAsStateWithLifecycle()
+                    val keywordIncludeKeywords by keywordViewModel.includeKeywords
+                        .collectAsStateWithLifecycle()
+                    val selectedGroup = keywordGroups.find { it.keyword == selectedKeyword }
+                    if (isTwoPane) {
+                        TwoPaneLayout(
+                            windowType = windowType,
+                            listPane = {
+                                KeywordListContent(
+                                    viewModel = keywordViewModel,
+                                    onKeywordClick = { selectedKeyword = it },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            },
+                            detailPane = {
+                                // 결정 A(b): 멤버 ETF 탭은 전체화면 ETF 상세로 push(기존 네비 재사용).
+                                KeywordDetailPane(
+                                    group = selectedGroup,
+                                    includeKeywords = keywordIncludeKeywords,
+                                    onEtfClick = onEtfDetailClick,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            },
+                            singlePane = {
+                                KeywordListContent(
+                                    viewModel = keywordViewModel,
+                                    onKeywordClick = { selectedKeyword = it },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        )
+                    } else {
+                        // 결정 B(a): COMPACT은 로컬 state로 목록↔상세 교체(nav 그래프 미변경).
+                        if (selectedGroup != null) {
+                            BackHandler { selectedKeyword = null }
+                            KeywordDetailPane(
+                                group = selectedGroup,
+                                includeKeywords = keywordIncludeKeywords,
+                                onEtfClick = onEtfDetailClick,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            KeywordListContent(
+                                viewModel = keywordViewModel,
+                                onKeywordClick = { selectedKeyword = it },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
                 }
                 ExploreTab.THEME -> {
                     if (isTwoPane) {
