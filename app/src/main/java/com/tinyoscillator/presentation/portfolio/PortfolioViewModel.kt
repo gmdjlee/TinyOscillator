@@ -113,6 +113,15 @@ class PortfolioViewModel @Inject constructor(
         }
     }
 
+    /** Error 상태 재시도 — portfolioId 미확보(최초 로딩 단계 실패) 시 처음부터, 확보됐으면 loadPortfolio만 재실행 */
+    fun retry() {
+        if (_portfolioId.value != null) {
+            loadPortfolio()
+        } else {
+            loadDefaultPortfolio()
+        }
+    }
+
     fun loadPortfolio() {
         val id = _portfolioId.value ?: return
         val maxWeight = _portfolio.value?.maxWeightPercent ?: 30

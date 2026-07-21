@@ -42,12 +42,19 @@ import com.tinyoscillator.feature.bearsignal.domain.model.ClaimType
  *
  * [pending]은 [AiContextClaimValidationResult.Accepted.claim.sectionKey]별로 그룹핑해 헤더를 붙인다
  * (유형별 모니터링/사례/역사 비교가 한 번의 조회로 섞여 들어오기 때문).
+ *
+ * **상태 분기(Phase 6-3)**: fetch 전([hasFetched]=false, [isLoading]=false) → "눌러서 조회" 안내,
+ * fetch 중([isLoading]=true) → 진행 표시줄, fetch 후 결과 있음([pending]/[searchWidgetsHtml] 비어있지
+ * 않음) → 목록/위젯 렌더, fetch 후 결과 0건([hasFetched]=true·[pending]/[groupErrors] 모두 비어있음)
+ * → "새 업데이트 없음" 명시 안내. 무엇을 눌렀는지와 무관하게 fetch 자체가 상태를 바꾸지 않는다는
+ * 원칙(§4.7)은 그대로다 — 이 분기는 순수 표시 상태([hasFetched])만 참조한다.
  */
 @Composable
 fun AiContextUpdatePanel(
     pending: List<AiContextClaimValidationResult.Accepted>,
     provider: String?,
     isLoading: Boolean,
+    hasFetched: Boolean,
     groupErrors: List<String>,
     searchWidgetsHtml: List<String>,
     onApprove: (AiContextClaimValidationResult.Accepted) -> Unit,
@@ -89,7 +96,11 @@ fun AiContextUpdatePanel(
 
             if (!isLoading && pending.isEmpty() && groupErrors.isEmpty()) {
                 Text(
-                    "\"정세 업데이트\"를 눌러 유형별 모니터링·사례·역사 비교 문단의 최신 웹 검색 결과를 조회하세요.",
+                    text = if (hasFetched) {
+                        "새 업데이트 없음 — 유형별 모니터링·사례·역사 비교 문단이 최신 상태입니다."
+                    } else {
+                        "\"정세 업데이트\"를 눌러 유형별 모니터링·사례·역사 비교 문단의 최신 웹 검색 결과를 조회하세요."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)

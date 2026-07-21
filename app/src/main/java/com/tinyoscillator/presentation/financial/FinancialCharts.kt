@@ -33,6 +33,9 @@ import com.tinyoscillator.R
 import com.tinyoscillator.domain.model.FinancialSummary
 import com.tinyoscillator.domain.model.formatNumber
 import com.tinyoscillator.domain.model.formatPercent
+import com.tinyoscillator.ui.theme.LocalExtendedColors
+import com.tinyoscillator.ui.theme.LocalFinanceColors
+import com.tinyoscillator.ui.theme.signColor
 
 // ========== Financial Marker View ==========
 
@@ -374,11 +377,7 @@ private fun SummaryRowWithGrowth(
             modifier = Modifier.weight(1f)
         )
         if (growthRate != null && growthRate != 0.0) {
-            val growthColor = when {
-                growthRate > 0 -> Color(0xFFF44336)
-                growthRate < 0 -> Color(0xFF2196F3)
-                else -> Color.Unspecified
-            }
+            val growthColor = signColor(growthRate)
             val prefix = if (growthRate > 0) "+" else ""
             Text(
                 text = "$prefix${formatPercent(growthRate)}",
@@ -779,24 +778,35 @@ private fun setupLineChartXAxis(chart: LineChart, labels: List<String>, chartTex
 
 // ========== Evaluation Functions ==========
 
-private val colorGreen = Color(0xFF4CAF50)
-private val colorOrange = Color(0xFFFF9800)
-private val colorRed = Color(0xFFF44336)
-
-private fun evaluateDebtRatio(value: Double): Pair<String, Color> = when {
-    value < 100.0 -> "양호" to colorGreen
-    value < 200.0 -> "보통" to colorOrange
-    else -> "주의" to colorRed
+@Composable
+private fun evaluateDebtRatio(value: Double): Pair<String, Color> {
+    val finance = LocalFinanceColors.current
+    val warn = LocalExtendedColors.current.warn
+    return when {
+        value < 100.0 -> "양호" to finance.positive
+        value < 200.0 -> "보통" to finance.neutral
+        else -> "주의" to warn
+    }
 }
 
-private fun evaluateCurrentRatio(value: Double): Pair<String, Color> = when {
-    value >= 200.0 -> "양호" to colorGreen
-    value >= 100.0 -> "보통" to colorOrange
-    else -> "주의" to colorRed
+@Composable
+private fun evaluateCurrentRatio(value: Double): Pair<String, Color> {
+    val finance = LocalFinanceColors.current
+    val warn = LocalExtendedColors.current.warn
+    return when {
+        value >= 200.0 -> "양호" to finance.positive
+        value >= 100.0 -> "보통" to finance.neutral
+        else -> "주의" to warn
+    }
 }
 
-private fun evaluateBorrowingDependency(value: Double): Pair<String, Color> = when {
-    value < 30.0 -> "양호" to colorGreen
-    value < 50.0 -> "보통" to colorOrange
-    else -> "주의" to colorRed
+@Composable
+private fun evaluateBorrowingDependency(value: Double): Pair<String, Color> {
+    val finance = LocalFinanceColors.current
+    val warn = LocalExtendedColors.current.warn
+    return when {
+        value < 30.0 -> "양호" to finance.positive
+        value < 50.0 -> "보통" to finance.neutral
+        else -> "주의" to warn
+    }
 }

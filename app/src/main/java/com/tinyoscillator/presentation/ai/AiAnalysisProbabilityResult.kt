@@ -42,6 +42,7 @@ import com.tinyoscillator.domain.model.DartEventType
 import com.tinyoscillator.domain.model.PositionRecommendation
 import com.tinyoscillator.domain.model.SizeReasonCode
 import com.tinyoscillator.domain.model.StatisticalResult
+import com.tinyoscillator.ui.theme.LocalExtendedColors
 import com.tinyoscillator.ui.theme.LocalFinanceColors
 
 @Composable
@@ -51,6 +52,8 @@ internal fun ProbabilityResultContent(
 ) {
     val engineInterpretations = (interpretationState as? InterpretationState.Success)
         ?.engineInterpretations ?: emptyMap()
+    val financeColors = LocalFinanceColors.current
+    val warnColor = LocalExtendedColors.current.warn
 
     // 종합 요약 카드
     Card(modifier = Modifier.fillMaxWidth(),
@@ -97,11 +100,11 @@ internal fun ProbabilityResultContent(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val regimeColor = when (regime.regimeName) {
-                        "BULL_LOW_VOL" -> Color(0xFF4CAF50)
-                        "BEAR_HIGH_VOL" -> Color(0xFFFF9800)
-                        "SIDEWAYS" -> Color(0xFF9E9E9E)
-                        "CRISIS" -> Color(0xFFF44336)
-                        else -> Color(0xFF9E9E9E)
+                        "BULL_LOW_VOL" -> financeColors.positive
+                        "BEAR_HIGH_VOL" -> financeColors.negative
+                        "SIDEWAYS" -> financeColors.neutral
+                        "CRISIS" -> MaterialTheme.colorScheme.error
+                        else -> financeColors.neutral
                     }
                     SuggestionChip(
                         onClick = {},
@@ -110,7 +113,7 @@ internal fun ProbabilityResultContent(
                                 "${regime.regimeDescription} (${String.format("%.0f", regime.confidence * 100)}%)",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         },
                         colors = SuggestionChipDefaults.suggestionChipColors(
@@ -128,10 +131,10 @@ internal fun ProbabilityResultContent(
             result.macroSignalResult?.let { macro ->
                 if (macro.unavailableReason == null) {
                     val macroColor = when (macro.macroEnv) {
-                        "EASING" -> Color(0xFF4CAF50)
-                        "TIGHTENING" -> Color(0xFFF44336)
-                        "STAGFLATION" -> Color(0xFFFF9800)
-                        else -> Color(0xFF9E9E9E)
+                        "EASING" -> financeColors.positive
+                        "TIGHTENING" -> financeColors.negative
+                        "STAGFLATION" -> warnColor
+                        else -> financeColors.neutral
                     }
                     val macroLabel = when (macro.macroEnv) {
                         "EASING" -> "완화"
@@ -147,7 +150,7 @@ internal fun ProbabilityResultContent(
                                 "매크로: $macroLabel",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         },
                         colors = SuggestionChipDefaults.suggestionChipColors(
@@ -191,9 +194,9 @@ internal fun ProbabilityResultContent(
             // Bayes 확률 요약 (한국 주식 관례: 상승=빨강, 하락=파랑, 횡보=회색)
             result.bayesResult?.let { bayes ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ProbChip("상승", bayes.upProbability, Color(0xFFEF5350))
-                    ProbChip("하락", bayes.downProbability, Color(0xFF42A5F5))
-                    ProbChip("횡보", bayes.sidewaysProbability, Color(0xFF9E9E9E))
+                    ProbChip("상승", bayes.upProbability, financeColors.positive)
+                    ProbChip("하락", bayes.downProbability, financeColors.negative)
+                    ProbChip("횡보", bayes.sidewaysProbability, financeColors.neutral)
                 }
             }
 
@@ -502,6 +505,7 @@ internal fun PositionGuideCard(
     conflictMultiplier: Float = 1f,
 ) {
     val financeColors = LocalFinanceColors.current
+    val warnColor = LocalExtendedColors.current.warn
     val pr = positionRecommendation
     val isConflictReduced = conflictMultiplier < 1f
 
@@ -532,8 +536,8 @@ internal fun PositionGuideCard(
         pr.sizeReasonCode == SizeReasonCode.NO_EDGE ->
             MaterialTheme.colorScheme.onSurfaceVariant
         recPct >= 0.15 -> financeColors.positive
-        recPct >= 0.08 -> Color(0xFFFF9800)
-        recPct > 0.0 -> Color(0xFF2196F3)
+        recPct >= 0.08 -> MaterialTheme.colorScheme.primary
+        recPct > 0.0 -> MaterialTheme.colorScheme.tertiary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -575,7 +579,8 @@ internal fun PositionGuideCard(
                             style = MaterialTheme.typography.labelSmall
                         ) },
                         colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = Color(0xFFFCEBEB)
+                            containerColor = warnColor.copy(alpha = 0.20f),
+                            labelColor = MaterialTheme.colorScheme.onSurface
                         ),
                         border = null
                     )
@@ -593,6 +598,7 @@ internal fun PositionGuideCard(
 
             Spacer(Modifier.height(8.dp))
 
+            val trackColor = MaterialTheme.colorScheme.surfaceVariant
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -602,7 +608,7 @@ internal fun PositionGuideCard(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     drawRoundRect(
-                        color = Color.Gray.copy(alpha = 0.2f),
+                        color = trackColor,
                         cornerRadius = CornerRadius(6f)
                     )
                     if (barFraction > 0f) {

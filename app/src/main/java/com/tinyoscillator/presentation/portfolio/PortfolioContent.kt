@@ -96,11 +96,20 @@ fun PortfolioContent(
                             containerColor = MaterialTheme.colorScheme.errorContainer
                         )
                     ) {
-                        Text(
-                            text = state.message,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(16.dp)
-                        )
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = state.message,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(onClick = { viewModel.retry() }) {
+                                Text("다시 시도")
+                            }
+                        }
                     }
                 }
             }
@@ -572,9 +581,9 @@ private fun HoldingCard(
                 )
             }
             Box {
+                // 터치 타깃은 IconButton 기본 48dp 유지 — 시각적 축소는 내부 Icon에만 적용
                 IconButton(
-                    onClick = { menuOpen = true },
-                    modifier = Modifier.size(32.dp)
+                    onClick = { menuOpen = true }
                 ) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,

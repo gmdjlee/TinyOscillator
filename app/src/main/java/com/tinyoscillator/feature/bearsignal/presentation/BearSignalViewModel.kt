@@ -137,6 +137,10 @@ private val DEFAULT_RESULT: BearSignalResult = BearSignalResult(
  * @param aiContextLoading §4.7 조회 진행 중 여부(로딩 표시용).
  * @param aiContextGroupErrors §4.7 그룹별(monitor/cases/history_current) 부분 실패 메시지.
  * @param aiContextSearchWidgetsHtml §4.7 Gemini 경로 검색 제안 위젯 HTML(§4.5 v1.3 계승).
+ * @param aiContextHasFetched §4.7 "정세 업데이트" 조회가 이번 화면 세션에서 한 번 이상 완료됐는지
+ * (성공/실패 무관, [aiContextLoading]이 false로 돌아온 시점에 true) — [aiContextPending]/[aiContextGroupErrors]/
+ * [aiContextSearchWidgetsHtml]이 모두 비어 있는 "성공했지만 새 클레임 0건" 상태를 fetch를 아직 한 번도
+ * 하지 않은 초기 상태와 구분하기 위한 표시 전용 플래그다(Phase 6-3 — 조회/저장 로직은 무영향).
  */
 data class BearSignalUiState(
     val inputs: BearSignalInputs = DEFAULT_INPUTS,
@@ -165,7 +169,8 @@ data class BearSignalUiState(
     val aiContextProvider: String? = null,
     val aiContextLoading: Boolean = false,
     val aiContextGroupErrors: List<String> = emptyList(),
-    val aiContextSearchWidgetsHtml: List<String> = emptyList()
+    val aiContextSearchWidgetsHtml: List<String> = emptyList(),
+    val aiContextHasFetched: Boolean = false
 )
 
 /**
@@ -192,7 +197,8 @@ private data class AiContextUiState(
     val provider: String? = null,
     val isLoading: Boolean = false,
     val groupErrors: List<String> = emptyList(),
-    val searchWidgetsHtml: List<String> = emptyList()
+    val searchWidgetsHtml: List<String> = emptyList(),
+    val hasFetched: Boolean = false
 )
 
 @HiltViewModel
@@ -332,7 +338,8 @@ class BearSignalViewModel @Inject constructor(
             aiContextProvider = aiState.provider,
             aiContextLoading = aiState.isLoading,
             aiContextGroupErrors = aiState.groupErrors,
-            aiContextSearchWidgetsHtml = aiState.searchWidgetsHtml
+            aiContextSearchWidgetsHtml = aiState.searchWidgetsHtml,
+            aiContextHasFetched = aiState.hasFetched
         )
     }.stateIn(
         viewModelScope,
@@ -529,13 +536,15 @@ class BearSignalViewModel @Inject constructor(
                         provider = firstProvider(fetchResult) ?: aiContextState.value.provider,
                         isLoading = false,
                         groupErrors = fetchResult.failedGroupMessages,
-                        searchWidgetsHtml = fetchResult.searchWidgetsHtml
+                        searchWidgetsHtml = fetchResult.searchWidgetsHtml,
+                        hasFetched = true
                     )
                 },
                 onFailure = { e ->
                     aiContextState.value.copy(
                         isLoading = false,
-                        groupErrors = listOf(e.message ?: "정세 업데이트 조회에 실패했습니다")
+                        groupErrors = listOf(e.message ?: "정세 업데이트 조회에 실패했습니다"),
+                        hasFetched = true
                     )
                 }
             )

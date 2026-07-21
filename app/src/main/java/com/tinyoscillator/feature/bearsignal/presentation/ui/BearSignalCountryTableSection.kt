@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -28,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalInputs
@@ -35,8 +37,16 @@ import com.tinyoscillator.feature.bearsignal.domain.model.BearSignalResult
 import com.tinyoscillator.feature.bearsignal.domain.model.MarketReturns
 import com.tinyoscillator.presentation.common.FinanceCard
 import com.tinyoscillator.ui.theme.signColor
+import java.util.Locale
 
 private val PERIOD_LABELS = listOf("-12개월", "-6개월", "-3개월", "-1개월")
+
+/**
+ * 국가별 수익률 표시 포맷(Phase 6-4) — `"%.1f".format(...)`은 [Locale.getDefault]를 따라 콤마
+ * 소수점 로케일(예: 프랑스어)에서 "1,2"처럼 렌더돼 [String.toDoubleOrNull]로 되읽지 못하는 결함이
+ * 있었다. 표시는 항상 [Locale.US]로 점(`.`) 소수점 고정한다 — 저장되는 수치 의미·정밀도는 불변.
+ */
+internal fun formatMarketReturnValue(value: Double): String = String.format(Locale.US, "%.1f", value)
 
 /**
  * 섹션 3 · 신호1 상세 국가별 수익률 표 (TASK_bear_signal_console.md §5.2-3, §5.3, 부록 B #7).
@@ -167,7 +177,7 @@ private fun CountryRow(
                     market.r.forEachIndexed { i, v ->
                         append(PERIOD_LABELS[i])
                         append(" ")
-                        append(v?.let { "%.1f".format(it) + "퍼센트" } ?: "값 없음")
+                        append(v?.let { formatMarketReturnValue(it) + "퍼센트" } ?: "값 없음")
                         if (i < market.r.lastIndex) append(", ")
                     }
                     append(". 탭하여 값 수정")
@@ -191,7 +201,7 @@ private fun CountryRow(
         }
         market.r.forEachIndexed { i, v ->
             Text(
-                text = v?.let { "${if (it >= 0) "+" else ""}${"%.1f".format(it)}" } ?: "-",
+                text = v?.let { "${if (it >= 0) "+" else ""}${formatMarketReturnValue(it)}" } ?: "-",
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodySmall,
@@ -209,8 +219,13 @@ private fun MarketReturnEditDialog(
     onConfirm: (List<Double?>) -> Unit
 ) {
     val fields = remember(market.name) {
-        market.r.map { v -> mutableStateOf(v?.let { "%.1f".format(it) } ?: "") }
+        market.r.map { v -> mutableStateOf(v?.let { formatMarketReturnValue(it) } ?: "") }
     }
+
+    // 빈 문자열은 의도된 "값 없음"(null)이지만, 비어있지 않은데 파싱 불가한 입력(예: 콤마 로케일
+    // 오타·문자 혼입)은 저장 시 조용히 null로 뭉개지던 결함이 있었다(Phase 6-4) — 저장 버튼을
+    // 막고 에러를 표시해 사용자가 인지하게 한다. 저장되는 값의 의미·경로는 불변.
+    val hasInvalidInput = fields.any { it.value.isNotBlank() && it.value.toDoubleOrNull() == null }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -218,20 +233,31 @@ private fun MarketReturnEditDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PERIOD_LABELS.forEachIndexed { i, label ->
+                    val isFieldInvalid = fields[i].value.isNotBlank() && fields[i].value.toDoubleOrNull() == null
                     OutlinedTextField(
                         value = fields[i].value,
                         onValueChange = { fields[i].value = it },
                         label = { Text(label) },
                         singleLine = true,
+                        isError = isFieldInvalid,
+                        supportingText = if (isFieldInvalid) {
+                            { Text("숫자 형식이 아닙니다 (예: -1.5)") }
+                        } else {
+                            null
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                onConfirm(fields.map { it.value.toDoubleOrNull() })
-            }) { Text("저장") }
+            TextButton(
+                enabled = !hasInvalidInput,
+                onClick = {
+                    onConfirm(fields.map { it.value.toDoubleOrNull() })
+                }
+            ) { Text("저장") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("취소") }

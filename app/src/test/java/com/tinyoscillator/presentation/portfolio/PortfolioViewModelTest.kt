@@ -113,6 +113,45 @@ class PortfolioViewModelTest {
     }
 
     @Test
+    fun `retry - portfolioId 확보 후 로딩 실패에서 재시도 시 성공 상태로 복구`() = runTest {
+        coEvery { portfolioRepository.loadPortfolioHoldings(any(), any()) } throws RuntimeException("DB 오류")
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value is PortfolioUiState.Error)
+
+        // 재시도 전 원인 해소
+        val summary = PortfolioSummary(1_000_000, 900_000, 100_000, 11.1, 0, 1)
+        coEvery { portfolioRepository.loadPortfolioHoldings(1L, 30) } returns (summary to emptyList())
+
+        vm.retry()
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value is PortfolioUiState.Success)
+        // portfolioId가 이미 확보된 경우 loadPortfolio만 재호출(ensureDefaultPortfolio 재호출 없음)
+        coVerify(exactly = 1) { portfolioRepository.ensureDefaultPortfolio() }
+        coVerify(atLeast = 2) { portfolioRepository.loadPortfolioHoldings(1L, 30) }
+    }
+
+    @Test
+    fun `retry - portfolioId 미확보 상태의 실패에서 재시도 시 최초 로딩부터 재시작`() = runTest {
+        coEvery { portfolioRepository.ensureDefaultPortfolio() } throws RuntimeException("네트워크 오류")
+
+        val vm = createViewModel()
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value is PortfolioUiState.Error)
+
+        // 재시도 전 원인 해소
+        coEvery { portfolioRepository.ensureDefaultPortfolio() } returns 1L
+
+        vm.retry()
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value is PortfolioUiState.Success)
+        coVerify(exactly = 2) { portfolioRepository.ensureDefaultPortfolio() }
+    }
+
+    @Test
     fun `종목 추가`() = runTest {
         coEvery { portfolioRepository.insertHolding(any()) } returns 10L
 

@@ -578,15 +578,18 @@ private fun BearSignalSectionContent(
 }
 
 /**
- * §4.7 "정세 업데이트" 패널 렌더 여부 — 대기 클레임/로딩/오류/검색 위젯 중 하나라도 있을 때만
- * 노출한다(패널이 항상 떠 있으면 레이아웃이 불필요하게 길어짐). COMPACT/2-pane 두 레이아웃이
- * 동일 조건을 공유하도록 확장 함수로 둔다.
+ * §4.7 "정세 업데이트" 패널 렌더 여부 — 대기 클레임/로딩/오류/검색 위젯/조회 완료 이력
+ * 중 하나라도 있을 때만 노출한다(패널이 항상 떠 있으면 레이아웃이 불필요하게 길어짐).
+ * [BearSignalUiState.aiContextHasFetched]를 포함해, 조회는 성공했지만 새 클레임이 0건인 경우에도
+ * 패널이 무피드백으로 사라지지 않고 "새 업데이트 없음"을 보여주도록 한다(Phase 6-3).
+ * COMPACT/2-pane 두 레이아웃이 동일 조건을 공유하도록 확장 함수로 둔다.
  */
 private fun BearSignalUiState.shouldShowAiContextPanel(): Boolean =
     aiContextPending.isNotEmpty() ||
         aiContextLoading ||
         aiContextGroupErrors.isNotEmpty() ||
-        aiContextSearchWidgetsHtml.isNotEmpty()
+        aiContextSearchWidgetsHtml.isNotEmpty() ||
+        aiContextHasFetched
 
 /** [AiContextUpdatePanel]을 uiState/viewModel에 바인딩한 공용 래퍼(COMPACT·2-pane 공유). */
 @Composable
@@ -595,6 +598,7 @@ private fun AiContextUpdatePanelBound(uiState: BearSignalUiState, viewModel: Bea
         pending = uiState.aiContextPending,
         provider = uiState.aiContextProvider,
         isLoading = uiState.aiContextLoading,
+        hasFetched = uiState.aiContextHasFetched,
         groupErrors = uiState.aiContextGroupErrors,
         searchWidgetsHtml = uiState.aiContextSearchWidgetsHtml,
         onApprove = viewModel::approveAiContextClaim,

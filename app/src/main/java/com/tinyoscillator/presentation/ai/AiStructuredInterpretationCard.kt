@@ -35,6 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tinyoscillator.domain.model.AiAnalysisResult
 import com.tinyoscillator.domain.model.StockAnalysis
+import com.tinyoscillator.ui.theme.LocalExtendedColors
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 
 /**
  * AI 구조화 해석 카드 — 종합 판단을 최상단에 고정 배치.
@@ -270,8 +272,8 @@ private fun buildShareText(structured: StockAnalysis, stockLabel: String?): Stri
 
 @Composable
 private fun confidenceColor(confidence: Double): Color = when {
-    confidence >= 0.7 -> Color(0xFF4CAF50)
-    confidence >= 0.5 -> Color(0xFFFF9800)
+    confidence >= 0.7 -> LocalFinanceColors.current.positive
+    confidence >= 0.5 -> LocalExtendedColors.current.warn
     else -> MaterialTheme.colorScheme.error
 }
 
@@ -281,10 +283,11 @@ private fun significanceRank(significance: String): Int = when (significance) {
     else -> 2
 }
 
+@Composable
 private fun significanceColor(significance: String): Color = when (significance) {
-    "높음" -> Color(0xFFEF5350)
-    "보통" -> Color(0xFFFF9800)
-    else -> Color(0xFF9E9E9E)
+    "높음" -> LocalFinanceColors.current.positive
+    "보통" -> LocalExtendedColors.current.warn
+    else -> LocalFinanceColors.current.neutral
 }
 
 internal fun formatTokens(tokens: Int): String =

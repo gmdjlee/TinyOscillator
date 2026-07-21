@@ -20,6 +20,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -40,11 +42,21 @@ import kotlin.math.sin
  * 색각 이상 사용자도 판별 가능하게 한다.
  */
 
-/** 종합 국면 신호등 — RED/ORANGE/AMBER/GREEN 4구 세로 배열, 현재 국면만 점등(글로우) */
+/**
+ * 종합 국면 신호등 — RED/ORANGE/AMBER/GREEN 4구 세로 배열, 현재 국면만 점등(글로우).
+ *
+ * Canvas로 그려 TalkBack이 원래 무음이었다(Phase 6-7) — 현재 점등 국면을 [phaseMeta]의 한국어
+ * 라벨로 병기해 [semantics]를 부여한다. 그리기 로직 자체는 무변경.
+ */
 @Composable
 fun TrafficLightColumn(phase: BearPhase, modifier: Modifier = Modifier) {
     val order = listOf(BearPhase.RED, BearPhase.ORANGE, BearPhase.AMBER, BearPhase.GREEN)
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        modifier = modifier.semantics {
+            contentDescription = "신호등: ${phaseMeta(phase).label}"
+        },
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
         order.forEach { p ->
             val on = p == phase
             val color = phaseColor(p)
@@ -106,6 +118,9 @@ fun SignalGauge(
 
 /**
  * 미니 레이더(4축: 주변부/변동성/IPO/금리, 0..3) — 프로토타입 `Radar`(SVG) 1:1 Canvas 재구현.
+ *
+ * Canvas로 그려 TalkBack이 원래 무음이었다(Phase 6-7) — 4축 라벨·값을 그대로 [semantics]
+ * contentDescription에 병기한다(그리기 로직 자체는 무변경, 이미 받는 파라미터에서만 구성).
  */
 @Composable
 fun BearSignalRadar(
@@ -122,8 +137,14 @@ fun BearSignalRadar(
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val labelStyle = TextStyle(fontSize = 8.sp, color = labelColor)
+    val radarDescription = "리스크 레이더: " +
+        labels.zip(values).joinToString(", ") { (label, v) -> "$label $v" }
 
-    Canvas(modifier = modifier.size(124.dp)) {
+    Canvas(
+        modifier = modifier
+            .size(124.dp)
+            .semantics { contentDescription = radarDescription }
+    ) {
         val cx = size.width / 2f
         val cy = size.height / 2f
         val r = size.minDimension / 2f * 0.62f

@@ -119,7 +119,8 @@ internal fun KeywordChipRow(
                 }
             )
         }
-        IconButton(onClick = onAdd, modifier = Modifier.size(32.dp)) {
+        // 터치 타깃은 IconButton 기본 48dp 유지 — 시각적 축소는 내부 Icon에만 적용
+        IconButton(onClick = onAdd) {
             Icon(Icons.Default.Add, contentDescription = "추가")
         }
     }

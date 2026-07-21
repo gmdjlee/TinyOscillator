@@ -385,9 +385,9 @@ private fun StockMasterStatusBar(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // 터치 타깃은 IconButton 기본 48dp 유지 — 시각적 축소는 내부 Icon에만 적용
                 IconButton(
-                    onClick = { viewModel.refreshStockMaster() },
-                    modifier = Modifier.size(24.dp)
+                    onClick = { viewModel.refreshStockMaster() }
                 ) {
                     Icon(
                         Icons.Default.Refresh,
@@ -416,9 +416,9 @@ private fun StockMasterStatusBar(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // 터치 타깃은 IconButton 기본 48dp 유지 — 시각적 축소는 내부 Icon에만 적용
                 IconButton(
-                    onClick = { viewModel.refreshStockMaster() },
-                    modifier = Modifier.size(24.dp)
+                    onClick = { viewModel.refreshStockMaster() }
                 ) {
                     Icon(
                         Icons.Default.Refresh,
@@ -523,9 +523,9 @@ private fun OscillatorTabContent(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            // 터치 타깃은 IconButton 기본 48dp 유지 — 시각적 축소는 내부 Icon에만 적용
                             IconButton(
-                                onClick = onToggleAutoRefresh,
-                                modifier = Modifier.size(28.dp)
+                                onClick = onToggleAutoRefresh
                             ) {
                                 Icon(
                                     if (autoRefreshEnabled) Icons.Default.Pause

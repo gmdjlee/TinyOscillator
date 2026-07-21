@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -142,7 +142,7 @@ internal fun ChatSection(
                 }
             }
 
-            items(chatMessages, key = { it.timestamp }) { message ->
+            itemsIndexed(chatMessages, key = { index, message -> "${index}_${message.timestamp}" }) { _, message ->
                 ChatBubble(message = message)
             }
 
@@ -180,10 +180,7 @@ internal fun ChatSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (chatMessages.isNotEmpty()) {
-                IconButton(
-                    onClick = onClearChat,
-                    modifier = Modifier.size(40.dp)
-                ) {
+                IconButton(onClick = onClearChat) {
                     Icon(
                         Icons.Default.DeleteSweep,
                         contentDescription = "대화 초기화",
@@ -215,8 +212,7 @@ internal fun ChatSection(
                         inputText = ""
                     }
                 },
-                enabled = inputText.isNotBlank() && !chatLoading,
-                modifier = Modifier.size(40.dp)
+                enabled = inputText.isNotBlank() && !chatLoading
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.Send,

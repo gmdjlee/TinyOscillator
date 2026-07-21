@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaim
 import com.tinyoscillator.feature.bearsignal.domain.model.AiContextClaimValidation
 import com.tinyoscillator.feature.bearsignal.domain.model.AiContextSectionKey
 import com.tinyoscillator.feature.bearsignal.domain.model.ApprovedAiContext
@@ -156,7 +157,11 @@ private fun TypeCard(type: BearType, active: Boolean, approved: Map<AiContextSec
             }
             AiContextBadgeRow(monitorApproved, stale, modifier = Modifier.padding(bottom = 2.dp))
             monitorApproved.claims.forEachIndexed { idx, claim ->
-                MonitorChecklistRow(text = claim.text, tint = recoveryColor, saveKey = "bear_ai_type${type.index}_monitor$idx")
+                MonitorChecklistRow(
+                    text = claim.text,
+                    tint = recoveryColor,
+                    saveKey = approvedMonitorSaveKey(type.index, idx, claim)
+                )
             }
             AiContextSourceFootnotes(monitorApproved.claims)
         } else {
@@ -165,6 +170,22 @@ private fun TypeCard(type: BearType, active: Boolean, approved: Map<AiContextSec
             }
         }
     }
+}
+
+/**
+ * §4.7 승인 클레임 모니터링 체크리스트 저장 키(Phase 6-8) — 위치(index)만으로 키를 구성하면
+ * "정세 업데이트" 승인으로 [monitorApproved][ApprovedAiContext.claims] 목록 내용이 교체돼도 이전
+ * 위치에 있던 체크 상태가 새 클레임에 그대로 남아있던 결함이 있었다(같은 유형(index)×같은 자리(idx)에
+ * 다른 문장이 들어와도 `rememberSaveable`은 키가 같으면 이전 체크값을 그대로 복원한다).
+ *
+ * [AiContextClaim]에는 고유 id가 없으므로([AiContextModels] 참조) 내용(text·sourceUrl·sourceDate)을
+ * 자연 식별자로 채택해 키에 섞는다 — 클레임 내용이 바뀌면 새 키가 되어 체크가 리셋되고, 동일 내용이
+ * 재승인되면 기존 체크 상태가 그대로 이어진다. 목록 내 우연한 내용 중복까지 대비해 [index]도 타이브레이커로
+ * 유지한다(동일 saveable 키 중복 등록 방지).
+ */
+private fun approvedMonitorSaveKey(typeIndex: Int, index: Int, claim: AiContextClaim): String {
+    val contentKey = "${claim.text}|${claim.sourceUrl}|${claim.sourceDate}".hashCode()
+    return "bear_ai_type${typeIndex}_monitor_${contentKey}_$index"
 }
 
 /**

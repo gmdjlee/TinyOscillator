@@ -15,10 +15,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private val KospiColor = Color(0xFF1565C0)
-private val KosdaqColor = Color(0xFFD32F2F)
-private val SectorColor = Color(0xFF616161)
-
 /** 시장 코드를 표시명으로 변환. Kiwoom API는 "거래소"/"코스닥"을 반환함 */
 fun marketDisplayName(market: String?): String? = when (market) {
     "KOSPI", "거래소" -> "코스피"
@@ -33,17 +29,24 @@ fun normalizeMarketCode(market: String?): String? = when (market) {
     else -> market
 }
 
+/** 시장 구분 텍스트 색 — 배경 없는 일반 텍스트용 (primary/tertiary 강조 톤) */
+@Composable
+private fun marketTextColor(market: String?): Color = when (normalizeMarketCode(market)) {
+    "KOSPI" -> MaterialTheme.colorScheme.primary
+    "KOSDAQ" -> MaterialTheme.colorScheme.tertiary
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
 @Composable
 fun MarketLabel(market: String?, modifier: Modifier) {
     val name = marketDisplayName(market)
     if (name != null) {
-        val color = if (normalizeMarketCode(market) == "KOSPI") KospiColor else KosdaqColor
         Text(
             name,
             modifier = modifier,
             style = MaterialTheme.typography.labelSmall,
             textAlign = TextAlign.Center,
-            color = color
+            color = marketTextColor(market)
         )
     } else {
         Spacer(modifier = modifier)
@@ -58,7 +61,7 @@ fun SectorLabel(sector: String?, modifier: Modifier) {
             modifier = modifier,
             style = MaterialTheme.typography.labelSmall,
             textAlign = TextAlign.Center,
-            color = SectorColor,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -70,17 +73,27 @@ fun SectorLabel(sector: String?, modifier: Modifier) {
 @Composable
 fun MarketBadge(market: String?, modifier: Modifier = Modifier) {
     val name = marketDisplayName(market) ?: return
-    val color = if (normalizeMarketCode(market) == "KOSPI") KospiColor else KosdaqColor
+    val isKospi = normalizeMarketCode(market) == "KOSPI"
+    val containerColor = if (isKospi) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.tertiaryContainer
+    }
+    val contentColor = if (isKospi) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onTertiaryContainer
+    }
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.extraSmall,
-        color = color.copy(alpha = 0.12f)
+        color = containerColor
     ) {
         Text(
             name,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
             style = MaterialTheme.typography.labelSmall,
-            color = color,
+            color = contentColor,
             fontWeight = FontWeight.Medium
         )
     }
@@ -92,7 +105,7 @@ fun SectorBadge(sector: String?, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.extraSmall,
-        color = SectorColor.copy(alpha = 0.10f)
+        color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Text(
             sector,
@@ -100,7 +113,7 @@ fun SectorBadge(sector: String?, modifier: Modifier = Modifier) {
                 .padding(horizontal = 4.dp, vertical = 1.dp)
                 .widthIn(max = 80.dp),
             style = MaterialTheme.typography.labelSmall,
-            color = SectorColor,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

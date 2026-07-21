@@ -29,6 +29,8 @@ import com.github.mikephil.charting.formatter.ValueFormatter
 import com.tinyoscillator.domain.model.FinancialState
 import com.tinyoscillator.domain.model.FinancialSummary
 import com.tinyoscillator.domain.model.formatPercent
+import com.tinyoscillator.ui.theme.LocalExtendedColors
+import com.tinyoscillator.ui.theme.LocalFinanceColors
 
 @Composable
 fun DuPontContent(
@@ -377,12 +379,17 @@ private fun DuPontRow(
     }
 }
 
-private fun evaluateRoe(value: Double): Pair<String, Color> = when {
-    value >= 15.0 -> "우수" to Color(0xFF4CAF50)
-    value >= 10.0 -> "양호" to Color(0xFF2196F3)
-    value >= 5.0 -> "보통" to Color(0xFFFF9800)
-    value > 0.0 -> "저조" to Color(0xFFF44336)
-    else -> "적자" to Color(0xFFF44336)
+@Composable
+private fun evaluateRoe(value: Double): Pair<String, Color> {
+    val finance = LocalFinanceColors.current
+    val warn = LocalExtendedColors.current.warn
+    return when {
+        value >= 15.0 -> "우수" to finance.positive
+        value >= 10.0 -> "양호" to MaterialTheme.colorScheme.primary
+        value >= 5.0 -> "보통" to finance.neutral
+        value > 0.0 -> "저조" to warn
+        else -> "적자" to finance.negative
+    }
 }
 
 // ========== Chart Components ==========
