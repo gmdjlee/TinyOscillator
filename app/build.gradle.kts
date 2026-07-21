@@ -50,7 +50,10 @@ android {
     }
 
     lint {
-        checkReleaseBuilds = false
+        // 릴리스 lint를 전면 off 하지 않고 실행하되, 기존 경고가 빌드를 막지 않게 한다.
+        // (권장: 최초 `./gradlew :app:lintRelease`로 lint-baseline.xml 생성 후 baseline 전환)
+        abortOnError = false
+        warningsAsErrors = false
     }
 }
 
@@ -93,9 +96,9 @@ dependencies {
     // === JSON (Kotlinx Serialization) ===
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
-    // === Coroutines ===
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    // === Coroutines === (테스트 kotlinx-coroutines-test 1.8.0과 런타임 버전 정렬)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 
     // === Android / Compose ===
     implementation("androidx.core:core-ktx:1.12.0")

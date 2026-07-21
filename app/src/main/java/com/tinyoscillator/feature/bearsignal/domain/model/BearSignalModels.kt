@@ -135,9 +135,3 @@ data class BearType(
     val why: String,
     val monitor: List<String>
 )
-
-/** 유형별 모니터링 체크리스트 항목 UI 상태 (§3.7 — Phase 4 화면 조립, persistence 없는 로컬 토글) */
-data class MonitorItem(
-    val label: String,
-    val checked: Boolean = false
-)

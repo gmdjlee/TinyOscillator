@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;600;700;800&family=DM+Sans:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --jbg:#0B0E14; --jsc:#151820; --jsch:#1C2030; --jscl:#10131A; --jscll:#080A0F;
+  --jon:#E2DED5; --jonv:#BDB8B0; --jpri:#6ECBA8; --jprion:#003828; --jgold:#E8C36A; --jplum:#D4899E;
+  --jerr:#FF6B6B; --joutline:#3E4555; --jsv:#2A3040; --jup:#EF7B68; --jdown:#68B0F0; --jorange:#E8823A;
+  --fc-radius:20px 6px 20px 6px; --fc-shadow:inset 0 0 0 1px rgba(110,203,168,.22);
+  --jdisp:"Gothic A1","Noto Sans KR",sans-serif; --jbody:"DM Sans","Noto Sans KR",system-ui,sans-serif;
+}
+[data-theme="light"]{
+  --jbg:#F5EFE3; --jsc:#ECE6DA; --jsch:#E5DED0; --jscl:#F0EAE0; --jscll:#FFFDF5;
+  --jon:#1A1710; --jonv:#5A5344; --jpri:#1A6B4D; --jprion:#FFFFFF; --jgold:#7A5A10; --jplum:#884058;
+  --jerr:#C42B2B; --joutline:#C0B8A5; --jsv:#DDD5C5; --jup:#D05540; --jdown:#4088CC; --jorange:#B25D1E;
+  --fc-shadow:inset 0 0 0 1px rgba(26,107,77,.28);
+}
+[data-card="flat"]{ --fc-radius:14px; --fc-shadow:none; }
+@keyframes fadeSlide{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+*::-webkit-scrollbar{width:0;height:0;display:none}
+*{scrollbar-width:none}
+body{margin:0;background:#e7dcc6;background-image:radial-gradient(circle at 1px 1px, rgba(32,30,29,.05) 1px, transparent 0);background-size:26px 26px;font-family:var(--jbody);}
+</style>
+</helmet>
+
+<div style="min-height:100vh;padding:34px 24px 60px;display:flex;flex-direction:column;align-items:center;gap:22px;">
+
+  <!-- caption -->
+  <div style="max-width:640px;text-align:center;">
+    <div style="display:inline-flex;gap:7px;background:#c67139;color:#fff;font-family:var(--jbody);font-weight:700;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:12px;">개선 시안 · 인터랙티브 프로토타입</div>
+    <h1 style="font-family:var(--jdisp);font-weight:800;font-size:27px;line-height:1.2;color:#201e1d;margin:0 0 8px;">Jade Terminal — 개선 3화면</h1>
+    <p style="font-family:var(--jbody);font-size:13.5px;line-height:1.6;color:#645c50;margin:0;">실제로 눌러보세요. 하단 탭으로 <strong>시장분석·종목분석</strong> 이동, 홈의 리스크 카드 → <strong>BearSignal</strong>. 우측 <strong>Tweaks</strong>에서 테마·히어로 지표·카드 스타일을 바꿔 비교할 수 있습니다.</p>
+  </div>
+
+  <!-- PHONE -->
+  <div data-theme="{{ themeAttr }}" data-card="{{ cardAttr }}" style="width:390px;background:#000;border-radius:48px;padding:11px;box-shadow:0 34px 80px -24px rgba(32,30,29,.55),0 0 0 1px rgba(0,0,0,.6);">
+    <div style="background:var(--jbg);border-radius:38px;overflow:hidden;color:var(--jon);height:780px;display:flex;flex-direction:column;">
+
+      <!-- status bar -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 24px 3px;font-size:13px;font-weight:600;color:var(--jon);"><span>9:41</span><span style="display:inline-flex;gap:5px;align-items:center;"><svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0" y="6" width="3" height="5" rx="1" fill="currentColor"/><rect x="4.5" y="4" width="3" height="7" rx="1" fill="currentColor"/><rect x="9" y="2" width="3" height="9" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg><svg width="22" height="11" viewBox="0 0 24 12" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-opacity=".5"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.3" fill="currentColor"/><rect x="21" y="4" width="1.6" height="4" rx="1" fill="currentColor"/></svg></span></div>
+
+      <!-- app bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 18px;">
+        <span style="display:inline-flex;align-items:center;gap:8px;">
+          <sc-if value="{{ isBear }}" hint-placeholder-val="{{ false }}"><span onClick="{{ goHome }}" style="cursor:pointer;display:inline-flex;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></span></sc-if>
+          <span style="font-family:var(--jdisp);font-weight:800;font-size:21px;letter-spacing:-.3px;">{{ title }}</span>
+        </span>
+        <span style="display:inline-flex;gap:14px;color:var(--jon);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+      </div>
+
+      <!-- ============ BODY ============ -->
+      <div style="flex:1;overflow-y:auto;">
+
+        <!-- ===== HOME ===== -->
+        <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:4px 16px 16px;">
+          <!-- pill tabs (single paradigm, nav) -->
+          <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;">
+            <span style="background:var(--jpri);color:var(--jprion);font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;white-space:nowrap;">Fear &amp; Greed</span>
+            <span style="background:var(--jscl);color:var(--jonv);font-size:12.5px;padding:8px 14px;border-radius:999px;white-space:nowrap;">DeMark</span>
+            <span style="background:var(--jscl);color:var(--jonv);font-size:12.5px;padding:8px 14px;border-radius:999px;white-space:nowrap;">과매수/과매도</span>
+            <span style="background:var(--jscl);color:var(--jonv);font-size:12.5px;padding:8px 14px;border-radius:999px;white-space:nowrap;">자금동향</span>
+          </div>
+
+          <!-- HERO -->
+          <div style="border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:20px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+              <span style="font-size:11.5px;color:var(--jonv);font-weight:600;letter-spacing:.03em;">{{ heroKicker }}</span>
+              <span style="font-size:11px;color:var(--jonv);">2026-07-18</span>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:14px;">
+              <span style="font-family:var(--jdisp);font-weight:800;font-size:66px;line-height:.85;color:{{ heroColor }};">{{ heroValue }}</span>
+              <div style="padding-bottom:6px;"><div style="font-family:var(--jdisp);font-weight:700;font-size:19px;color:{{ heroColor }};line-height:1.1;">{{ heroLabel }}</div><div style="font-size:12px;color:var(--jonv);margin-top:2px;">{{ heroSub }}</div></div>
+            </div>
+            <div style="height:9px;border-radius:6px;background:var(--jsv);overflow:hidden;margin-bottom:6px;"><div style="width:{{ heroPct }}%;height:100%;background:{{ heroColor }};border-radius:6px;"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--jonv);"><span>{{ heroScaleL }}</span><span>{{ heroScaleR }}</span></div>
+          </div>
+
+          <!-- compact metric strip (secondary, de-emphasized) -->
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <div style="flex:1;background:var(--jscl);border-radius:12px;padding:11px 12px;text-align:center;"><div style="font-family:var(--jdisp);font-weight:700;font-size:18px;color:var(--jup);">64</div><div style="font-size:10px;color:var(--jonv);">KOSPI 오실</div></div>
+            <div style="flex:1;background:var(--jscl);border-radius:12px;padding:11px 12px;text-align:center;"><div style="font-family:var(--jdisp);font-weight:700;font-size:18px;color:var(--jdown);">-2,140</div><div style="font-size:10px;color:var(--jonv);">예탁금 억</div></div>
+            <div style="flex:1;background:var(--jscl);border-radius:12px;padding:11px 12px;text-align:center;"><div style="font-family:var(--jdisp);font-weight:700;font-size:18px;color:var(--jup);">+3.4</div><div style="font-size:10px;color:var(--jonv);">상위테마 %</div></div>
+          </div>
+
+          <!-- BearSignal entry (FinanceCard styled, clickable) -->
+          <div onClick="{{ goBear }}" style="cursor:pointer;border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:15px;margin-bottom:12px;display:flex;align-items:center;gap:12px;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--jgold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            <div style="flex:1;"><div style="font-family:var(--jdisp);font-weight:700;font-size:14px;">시장 국면 · 리스크</div><div style="font-size:11px;color:var(--jonv);margin-top:1px;">주도주 붕괴 계기판 — 현재 신호 점등</div></div>
+            <span style="background:rgba(232,195,106,.14);color:var(--jgold);font-weight:700;font-size:11px;padding:3px 10px;border-radius:999px;">주의</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--jonv)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+
+          <!-- market select — single chip paradigm (segmented) -->
+          <div style="border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:15px;">
+            <div style="font-family:var(--jdisp);font-weight:700;font-size:14px;margin-bottom:10px;">시장 선택</div>
+            <div style="display:flex;background:var(--jscll);border-radius:999px;padding:3px;">
+              <span onClick="{{ selKospi }}" style="cursor:pointer;flex:1;text-align:center;font-size:12.5px;font-weight:600;padding:7px;border-radius:999px;background:{{ kospiBg }};color:{{ kospiFg }};">코스피</span>
+              <span onClick="{{ selKosdaq }}" style="cursor:pointer;flex:1;text-align:center;font-size:12.5px;font-weight:600;padding:7px;border-radius:999px;background:{{ kosdaqBg }};color:{{ kosdaqFg }};">코스닥</span>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ===== STOCK (2-level nav) ===== -->
+        <sc-if value="{{ isStock }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:4px 16px 16px;">
+          <!-- search (CarvedTextField) -->
+          <div style="display:flex;align-items:center;gap:9px;background:var(--jscll);border:1px solid var(--joutline);border-radius:14px;padding:11px 13px;margin-bottom:12px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--jonv)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+            <span style="flex:1;color:var(--jon);font-size:13.5px;font-weight:600;">삼성전자</span>
+            <span style="font-size:11px;color:var(--jonv);">005930</span>
+          </div>
+
+          <!-- LEVEL 1: group pills (only nav level) -->
+          <div style="display:flex;gap:7px;margin-bottom:14px;overflow-x:auto;">
+            <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+              <span onClick="{{ g.pick }}" style="cursor:pointer;background:{{ g.bg }};color:{{ g.fg }};font-weight:{{ g.weight }};font-size:12.5px;padding:8px 14px;border-radius:999px;white-space:nowrap;">{{ g.label }}</span>
+            </sc-for>
+          </div>
+
+          <!-- content card: multi-tab groups show a compact segmented INSIDE (not a 3rd nav band) -->
+          <div style="border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:15px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <span style="font-family:var(--jdisp);font-weight:700;font-size:15px;">{{ groupTitle }}</span>
+              <sc-if value="{{ hasSub }}" hint-placeholder-val="{{ true }}">
+                <span style="display:inline-flex;gap:4px;background:var(--jscll);border-radius:999px;padding:3px;">
+                  <sc-for list="{{ subTabs }}" as="s" hint-placeholder-count="2">
+                    <span onClick="{{ s.pick }}" style="cursor:pointer;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;background:{{ s.bg }};color:{{ s.fg }};white-space:nowrap;">{{ s.label }}</span>
+                  </sc-for>
+                </span>
+              </sc-if>
+            </div>
+            <!-- chart placeholder -->
+            <div style="background:var(--jscl);border-radius:12px;padding:12px;">
+              <div style="font-size:11px;color:var(--jonv);margin-bottom:6px;">{{ subTitle }}</div>
+              <svg width="100%" height="150" viewBox="0 0 300 150" preserveAspectRatio="none"><line x1="0" y1="75" x2="300" y2="75" stroke="var(--jsv)" stroke-dasharray="3 3"/><polyline points="0,95 30,72 60,100 90,55 120,64 150,40 180,74 210,52 240,86 270,46 300,62" fill="none" stroke="var(--jpri)" stroke-width="2.4"/><polyline points="0,120 50,108 100,124 150,102 200,126 250,110 300,120" fill="none" stroke="var(--jgold)" stroke-width="1.8" stroke-opacity=".85"/></svg>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <div style="flex:1;background:var(--jscl);border-radius:10px;padding:10px;text-align:center;"><div style="font-family:var(--jdisp);font-weight:700;font-size:16px;color:var(--jup);">+2.1%</div><div style="font-size:10px;color:var(--jonv);">과매수 강도</div></div>
+              <div style="flex:1;background:var(--jscl);border-radius:10px;padding:10px;text-align:center;"><div style="font-family:var(--jdisp);font-weight:700;font-size:16px;color:var(--jon);">TD 7</div><div style="font-size:10px;color:var(--jonv);">DeMark 카운트</div></div>
+            </div>
+          </div>
+          <div style="text-align:center;font-size:11px;color:var(--jonv);margin-top:12px;">내비 3단 → 2단: 그룹 탭 + (필요 시) 카드 내부 세그먼트</div>
+        </div>
+        </sc-if>
+
+        <!-- ===== BEARSIGNAL (accordion, 1-pane) ===== -->
+        <sc-if value="{{ isBear }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:4px 16px 16px;">
+          <!-- SUMMARY (always visible) -->
+          <div style="border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:18px;margin-bottom:12px;">
+            <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px;">
+              <div style="display:flex;flex-direction:column;gap:5px;background:var(--jscll);border-radius:12px;padding:9px 8px;">
+                <span style="width:14px;height:14px;border-radius:999px;background:#3a4048;"></span>
+                <span style="width:14px;height:14px;border-radius:999px;background:var(--jgold);box-shadow:0 0 10px var(--jgold);"></span>
+                <span style="width:14px;height:14px;border-radius:999px;background:#3a2a2f;"></span>
+              </div>
+              <div style="flex:1;"><div style="font-size:11px;color:var(--jonv);">현 국면</div><div style="font-family:var(--jdisp);font-weight:800;font-size:22px;color:var(--jgold);line-height:1.1;">신호 점등 · 방아쇠 대기</div></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <div><div style="font-size:10.5px;color:var(--jonv);">선행 점수</div><div style="font-family:var(--jdisp);font-weight:700;font-size:16px;color:var(--jgold);">61/100</div></div>
+              <div><div style="font-size:10.5px;color:var(--jonv);">금리 방아쇠</div><div style="font-family:var(--jdisp);font-weight:700;font-size:16px;color:var(--jgold);">정상화</div></div>
+              <div><div style="font-size:10.5px;color:var(--jonv);">집중 증폭</div><div style="font-family:var(--jdisp);font-weight:700;font-size:16px;color:var(--jorange);">×1.30</div></div>
+              <div><div style="font-size:10.5px;color:var(--jonv);">경고↑</div><div style="font-family:var(--jdisp);font-weight:700;font-size:16px;color:var(--jerr);">2/3</div></div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--jonv);text-align:center;margin-bottom:10px;">↑ 요약은 항상 표시 · 세부는 펼쳐보기 (태블릿·2단 화면에선 별도 상세 화면으로 분리)</div>
+
+          <!-- ACCORDION -->
+          <sc-for list="{{ sections }}" as="sec" hint-placeholder-count="5">
+            <div style="border-radius:14px;background:var(--jsch);margin-bottom:9px;overflow:hidden;">
+              <div onClick="{{ sec.toggle }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:15px 16px;">
+                <div><div style="font-family:var(--jdisp);font-weight:700;font-size:14.5px;">{{ sec.title }}</div><div style="font-size:11px;color:var(--jonv);margin-top:1px;">{{ sec.sub }}</div></div>
+                <span style="display:inline-flex;transition:transform .22s;transform:rotate({{ sec.rot }}deg);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--jonv)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+              </div>
+              <sc-if value="{{ sec.open }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:0 16px 16px;animation:fadeSlide .24s ease;">
+                  <div style="height:1px;background:var(--jsv);margin-bottom:12px;"></div>
+                  <div style="font-size:12.5px;line-height:1.6;color:var(--jon);">{{ sec.body }}</div>
+                  <div style="display:flex;gap:8px;margin-top:12px;">
+                    <div style="flex:1;background:var(--jscl);border-radius:10px;padding:10px;text-align:center;"><div style="font-family:var(--jdisp);font-weight:700;font-size:15px;color:{{ sec.m1c }};">{{ sec.m1 }}</div><div style="font-size:9.5px;color:var(--jonv);">{{ sec.m1l }}</div></div>
+                    <div style="flex:1;background:var(--jscl);border-radius:10px;padding:10px;text-align:center;"><div style="font-family:var(--jdisp);font-weight:700;font-size:15px;color:{{ sec.m2c }};">{{ sec.m2 }}</div><div style="font-size:9.5px;color:var(--jonv);">{{ sec.m2l }}</div></div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+      </div>
+
+      <!-- bottom nav -->
+      <div style="display:flex;justify-content:space-around;background:var(--jsc);padding:9px 6px 14px;">
+        <div onClick="{{ goMarket }}" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;color:{{ navMarketC }};"><span style="background:{{ navMarketBg }};border-radius:999px;padding:2px 15px;"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg></span><span style="font-size:10px;font-weight:{{ navMarketW }};">시장분석</span></div>
+        <div onClick="{{ goStock }}" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;color:{{ navStockC }};"><span style="background:{{ navStockBg }};border-radius:999px;padding:2px 15px;"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg></span><span style="font-size:10px;font-weight:{{ navStockW }};">종목분석</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--jonv);"><span style="padding:2px 15px;"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></span><span style="font-size:10px;">탐색</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--jonv);"><span style="padding:2px 15px;"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3 3 3 0 0 0 0 6 3 3 0 0 0 3 3v1a3 3 0 0 0 6 0"/></svg></span><span style="font-size:10px;">AI분석</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--jonv);"><span style="padding:2px 15px;"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6"/></svg></span><span style="font-size:10px;">포트폴리오</span></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="font-family:var(--jbody);font-size:12px;color:#82796a;text-align:center;max-width:560px;">개선 반영: 홈 히어로(Fear&amp;Greed) · 카드 통일(FinanceCard) · 칩 단일화 · 종목분석 2단 내비 · BearSignal 요약+아코디언 · Gothic A1 디스플레이 · 대비 상향 캡션</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:700,&quot;height&quot;:940},&quot;themeMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;다크&quot;,&quot;라이트&quot;],&quot;default&quot;:&quot;다크&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;테마&quot;},&quot;heroMetric&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Fear&amp;Greed&quot;,&quot;BearSignal 국면&quot;],&quot;default&quot;:&quot;Fear&amp;Greed&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;홈 히어로&quot;},&quot;cardMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;FinanceCard&quot;,&quot;기본 카드&quot;],&quot;default&quot;:&quot;FinanceCard&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;컴포넌트&quot;}}">
+class Component extends DCLogic {
+  state = { tab: "home", market: "KOSPI", group: 1, sub: {1:0,2:0,3:0}, open: {} };
+
+  renderVals() {
+    const t = this.state.tab;
+    const themeAttr = (this.props.themeMode ?? "다크") === "라이트" ? "light" : "dark";
+    const cardAttr = (this.props.cardMode ?? "FinanceCard") === "기본 카드" ? "flat" : "fin";
+    const heroBear = (this.props.heroMetric ?? "Fear&Greed") === "BearSignal 국면";
+
+    const titles = { home: "시장분석", stock: "종목분석", bear: "시장 국면 · 리스크" };
+
+    // hero
+    const hero = heroBear
+      ? { kicker:"현 국면 · BEARSIGNAL", value:"AMBER", color:"var(--jgold)", label:"신호 점등", sub:"방아쇠 대기 · 증폭 ×1.30", pct:55, sl:"안정", sr:"격발" }
+      : { kicker:"오늘의 시장 · FEAR & GREED", value:"72", color:"var(--jplum)", label:"탐욕", sub:"2년 백분위 78% · 상위 22%", pct:78, sl:"극단적 공포", sr:"극단적 탐욕" };
+
+    const chip = (on) => on
+      ? { bg:"var(--jpri)", fg:"var(--jprion)", weight:"700" }
+      : { bg:"var(--jscl)", fg:"var(--jonv)", weight:"500" };
+
+    // stock groups (level 1)
+    const gdefs = [
+      { label:"종합", title:"종합", subs:[] },
+      { label:"기술분석", title:"기술분석", subs:["오실레이터","DeMark"] },
+      { label:"재무", title:"재무", subs:["재무정보","지표"] },
+      { label:"시장의견", title:"시장의견", subs:["컨센서스","투자의견"] }
+    ];
+    const gi = this.state.group;
+    const groups = gdefs.map((g, i) => ({
+      label:g.label, ...( i===gi ? {bg:"var(--jpri)",fg:"var(--jprion)",weight:"700"} : {bg:"var(--jscl)",fg:"var(--jonv)",weight:"500"} ),
+      pick: () => this.setState({ group: i })
+    }));
+    const curG = gdefs[gi];
+    const si = this.state.sub[gi] ?? 0;
+    const subTabs = curG.subs.map((s, i) => ({
+      label:s, ...( i===si ? {bg:"var(--jpri)",fg:"var(--jprion)"} : {bg:"transparent",fg:"var(--jonv)"} ),
+      pick: () => this.setState({ sub: { ...this.state.sub, [gi]: i } })
+    }));
+    const subTitle = curG.subs.length ? curG.subs[si] : "종합 스냅샷";
+
+    // bearsignal accordion
+    const secDefs = [
+      { key:"lead", title:"선행 신호 3종", sub:"위험선호가 어디까지 식었나", body:"주변부 압착·변동성 무게중심·IPO 질 — 세 온도계가 위험선호 과열을 비춘다. 현재 신호1이 경고 단계로 진입.", m1:"8/20", m1l:"이탈 지수", m1c:"var(--jorange)", m2:"1.4", m2l:"하락/상승비", m2c:"var(--jgold)" },
+      { key:"country", title:"국가별 수익률", sub:"20개 지수 · 이탈 현황", body:"글로벌 20개 지수의 이동평균 이탈을 전치 표로. 이탈국 다수는 닷컴 정점 직전과 유사한 패턴.", m1:"8", m1l:"이탈국 수", m1c:"var(--jorange)", m2:"-7.2%", m2l:"최저 낙폭", m2c:"var(--jup)" },
+      { key:"gate", title:"방아쇠 · 증폭기", sub:"금리는 결정타, 집중은 증폭 계수", body:"금리가 정상화 한계선(≈4.5%)에 다가서면 방아쇠. 시총 집중도가 하락 파괴력을 증폭한다.", m1:"3.75%", m1l:"기준금리", m1c:"var(--jgold)", m2:"×1.30", m2l:"증폭 계수", m2c:"var(--jorange)" },
+      { key:"type", title:"유형 진단", sub:"약세장 3유형과 회복 가능성", body:"주도주 하락세가 어느 유형(심리·긴축·구조)에 해당하는지 진단하고 회복 시나리오를 제시.", m1:"유형 2", m1l:"현 분류", m1c:"var(--jgold)", m2:"중", m2l:"회복 난도", m2c:"var(--jon)" },
+      { key:"hist", title:"역사 검증", sub:"최악의 조합 · 3충격 동시 결합", body:"1980s 이후 심리·유동성·수요 3충격이 동시에 결합한 국면과 현재를 대조.", m1:"1990", m1l:"최근접 사례", m1c:"var(--jon)", m2:"부분", m2l:"일치도", m2c:"var(--jgold)" }
+    ];
+    const sections = secDefs.map(s => {
+      const open = !!this.state.open[s.key];
+      return { ...s, open, rot: open ? 180 : 0, toggle: () => this.setState({ open: { ...this.state.open, [s.key]: !open } }) };
+    });
+
+    return {
+      themeAttr, cardAttr,
+      isHome: t==="home", isStock: t==="stock", isBear: t==="bear",
+      title: titles[t],
+      goHome: () => this.setState({ tab:"home" }),
+      goMarket: () => this.setState({ tab:"home" }),
+      goStock: () => this.setState({ tab:"stock" }),
+      goBear: () => this.setState({ tab:"bear" }),
+      // hero
+      heroKicker:hero.kicker, heroValue:hero.value, heroColor:hero.color, heroLabel:hero.label,
+      heroSub:hero.sub, heroPct:hero.pct, heroScaleL:hero.sl, heroScaleR:hero.sr,
+      // market segmented
+      selKospi: () => this.setState({ market:"KOSPI" }),
+      selKosdaq: () => this.setState({ market:"KOSDAQ" }),
+      kospiBg: this.state.market==="KOSPI"?"var(--jpri)":"transparent", kospiFg: this.state.market==="KOSPI"?"var(--jprion)":"var(--jonv)",
+      kosdaqBg: this.state.market==="KOSDAQ"?"var(--jpri)":"transparent", kosdaqFg: this.state.market==="KOSDAQ"?"var(--jprion)":"var(--jonv)",
+      // stock
+      groups, groupTitle: curG.title, hasSub: curG.subs.length>1, subTabs, subTitle,
+      // bear
+      sections,
+      // nav
+      navMarketC: t==="home"?"var(--jpri)":"var(--jonv)", navMarketBg: t==="home"?"rgba(110,203,168,.16)":"transparent", navMarketW: t==="home"?"700":"400",
+      navStockC: t==="stock"?"var(--jpri)":"var(--jonv)", navStockBg: t==="stock"?"rgba(110,203,168,.16)":"transparent", navStockW: t==="stock"?"700":"400"
+    };
+  }
+}
+</script>
+</body>
+</html>

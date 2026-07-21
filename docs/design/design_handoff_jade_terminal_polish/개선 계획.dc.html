@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-058a0229-9aca-4f58-80ed-d7bc319067e9/styles.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700&family=Hahmlet:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@500;700&family=Gothic+A1:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --jbg:#0B0E14; --jsch:#1C2030; --jon:#E2DED5; --jonv:#A8A4A0; --jpri:#6ECBA8; --jgold:#E8C36A; --jup:#EF7B68; --jdown:#68B0F0; --jsv:#2A3040;
+  --jdisp:"Syne","Noto Sans KR",system-ui,sans-serif; --jbody:"DM Sans","Noto Sans KR",system-ui,sans-serif;
+}
+body{margin:0;background:var(--color-bg);}
+a{color:var(--color-accent-700);}a:hover{color:var(--color-accent-800);}
+</style>
+</helmet>
+
+<div style="max-width:1080px;margin:0 auto;padding:56px 44px 120px;font-family:var(--font-body);color:var(--color-text);">
+
+  <!-- MASTHEAD -->
+  <header style="border-bottom:2px solid var(--color-divider);padding-bottom:26px;margin-bottom:32px;">
+    <div style="display:inline-flex;gap:8px;background:var(--color-accent-2-200);color:var(--color-accent-2-800);font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:16px;">개선 계획 · Improvement Plan</div>
+    <h1 style="font-size:44px;line-height:1.06;margin:0 0 12px;">디자인 개선, 진행 가능한가?<br>— 검토와 실행 계획</h1>
+    <p style="font-size:15.5px;line-height:1.6;color:var(--color-neutral-700);margin:0;max-width:760px;"><a href="앱 디자인 리뷰.dc.html">앞선 리뷰</a>의 지적 사항을 코드베이스 구조에 대조해 <strong>실행 가능성을 검증</strong>하고, 4단계 실행 계획으로 정리했습니다. 결론부터: <strong style="color:var(--color-accent-2-800);">전부 진행 가능</strong>하며, 대부분은 생각보다 쌉니다.</p>
+  </header>
+
+  <!-- FEASIBILITY VERDICT -->
+  <section style="margin-bottom:44px;">
+    <h2 style="margin:0 0 16px;">1 · 진행 가능성 검토</h2>
+    <div style="background:var(--color-accent-2-100);border:1px solid var(--color-accent-2-300);border-radius:var(--radius-md);padding:22px 26px;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;"><span style="font-family:var(--font-heading);font-size:26px;color:var(--color-accent-2-800);">가능</span><span style="font-size:13px;color:var(--color-neutral-700);">— 리뷰 지적 13건 모두 코드상 개입 지점이 확인됨</span></div>
+      <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.75;color:var(--color-neutral-800);">
+        <li><strong>UI가 격리돼 있다.</strong> MVVM+Clean 구조라 모든 지적이 presentation 계층(Compose·theme)에 갇혀 있다. 도메인·스코어링·~2,490개 테스트 대부분은 건드릴 필요가 없다.</li>
+        <li><strong>테마가 3파일에 집중돼 있다.</strong> <code style="font-size:12.5px;">Color.kt · Theme.kt · Type.kt</code> — 색·서체 계층 변경의 파급 범위가 좁다.</li>
+        <li><strong>한글 서체 추가가 사실상 공짜다.</strong> 앱이 이미 <code style="font-size:12.5px;">GoogleFont.Provider</code>(다운로더블 폰트)를 쓰고 있어, Google Fonts의 한글 패밀리는 선언 몇 줄로 붙는다.</li>
+        <li><strong>컴포넌트는 이미 있다.</strong> FinanceCard·CarvedTextField·PillTabRow가 <code style="font-size:12.5px;">DesignComponents.kt</code>에 정의돼 있다 — "새로 만들기"가 아니라 <em>치환</em> 작업이다.</li>
+      </ul>
+    </div>
+    <div style="background:var(--color-accent-100);border:1px solid var(--color-accent-300);border-radius:var(--radius-md);padding:20px 26px;">
+      <div style="font-weight:700;font-size:14px;color:var(--color-accent-800);margin-bottom:8px;">단, 제약 3가지</div>
+      <ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.7;color:var(--color-neutral-800);">
+        <li><strong>BearSignal 스코어링·임계치는 불가침.</strong> <code style="font-size:12px;">bear_thresholds.json</code>과 스코어링 함수는 골든 테스트로 가드된 SSOT — 이번 개선은 전부 표시 계층이므로 충돌 없음. 단, 화면 재구성 시 ViewModel 파생 상태만 추가하고 계산 로직은 무접촉으로.</li>
+        <li><strong>차트 색은 흩어져 있다.</strong> MPAndroidChart 색이 여러 <code style="font-size:12px;">AndroidView</code> 콜백에 하드코딩 — 공통 ChartTheme 헬퍼를 만들어 한 곳으로 모으는 선행 작업 필요.</li>
+        <li><strong>화면 재구성(3단계)은 중간 리스크.</strong> 홈 히어로·BearSignal 2단계화는 상태 배선 변경을 수반 — UI 스모크 테스트와 에뮬레이터 QA를 같은 PR에 묶어야 한다.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- MAPPING TABLE -->
+  <section style="margin-bottom:44px;">
+    <h2 style="margin:0 0 6px;">2 · 리뷰 지적 → 작업 항목</h2>
+    <p style="font-size:13.5px;color:var(--color-neutral-600);margin:0 0 16px;">리뷰의 13개 지적을 9개 작업으로 묶었습니다. 난이도는 코드 개입 범위 기준.</p>
+    <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm);">
+      <div style="display:grid;grid-template-columns:52px 1.6fr 1fr 86px 86px;gap:0;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--color-neutral-600);background:var(--color-neutral-200);padding:10px 18px;">
+        <span>#</span><span>작업</span><span>대상</span><span>난이도</span><span>임팩트</span>
+      </div>
+      <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="9">
+        <div style="display:grid;grid-template-columns:52px 1.6fr 1fr 86px 86px;align-items:center;padding:12px 18px;border-top:1px solid var(--color-divider);font-size:13.5px;">
+          <span style="font-family:var(--font-heading);color:var(--color-accent-700);font-size:15px;">{{ t.id }}</span>
+          <span style="padding-right:14px;"><strong>{{ t.name }}</strong><span style="display:block;font-size:12px;color:var(--color-neutral-600);margin-top:1px;">{{ t.detail }}</span></span>
+          <span style="font-size:12px;color:var(--color-neutral-700);"><code style="font-size:11.5px;">{{ t.files }}</code></span>
+          <span><span style="background:{{ t.effortBg }};color:{{ t.effortFg }};font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;">{{ t.effort }}</span></span>
+          <span><span style="background:{{ t.impactBg }};color:{{ t.impactFg }};font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;">{{ t.impact }}</span></span>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- PHASED PLAN -->
+  <section style="margin-bottom:44px;">
+    <h2 style="margin:0 0 16px;">3 · 4단계 실행 계획</h2>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;gap:18px;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:20px 24px;box-shadow:var(--shadow-sm);">
+        <span style="flex:none;font-family:var(--font-heading);font-size:28px;color:var(--color-accent-700);width:44px;">P1</span>
+        <div style="flex:1;">
+          <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;"><h4 style="margin:0 0 4px;">파운데이션 — 토큰·서체·차트색·대비</h4><span style="font-size:12px;color:var(--color-neutral-600);">난이도 하 · 1~2일 · 리스크 최소</span></div>
+          <p style="margin:0;font-size:13.5px;line-height:1.65;color:var(--color-neutral-700);">한글 디스플레이 서체 페어링(아래 후보 3종), "경고" 오렌지의 테마 토큰화(ExtendedColors 편입), MPAndroidChart 색 헬퍼 신설 후 청자 팔레트 리매핑, 저대비 캡션 색 상향(#A8A4A0→#BDB8B2 수준). 전부 값 교체 — 레이아웃 무변경이라 회귀 위험이 가장 낮으면서 체감은 가장 크다.</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:18px;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:20px 24px;box-shadow:var(--shadow-sm);">
+        <span style="flex:none;font-family:var(--font-heading);font-size:28px;color:var(--color-accent-700);width:44px;">P2</span>
+        <div style="flex:1;">
+          <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;"><h4 style="margin:0 0 4px;">컴포넌트 통일 — 카드 동물원 정리</h4><span style="font-size:12px;color:var(--color-neutral-600);">난이도 중 · 2~3일</span></div>
+          <p style="margin:0;font-size:13.5px;line-height:1.65;color:var(--color-neutral-700);">기본 Card+<code style="font-size:12px;">surfaceVariant.copy(.5)</code> 사용처를 FinanceCard로 일괄 치환(홈부터), FilterChip↔PillTabRow 역할 규칙 확정(내비=Pill, 필터=Chip 한 스타일), 검색창을 CarvedTextField로 교체, SectionHeader에 title+subtitle 2단 API 추가 후 BearSignal 서술형 헤더 이관. 기계적 치환 위주 — 화면별 diff가 커서 PR을 화면 단위로 쪼개는 걸 권장.</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:18px;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:20px 24px;box-shadow:var(--shadow-sm);">
+        <span style="flex:none;font-family:var(--font-heading);font-size:28px;color:var(--color-accent-700);width:44px;">P3</span>
+        <div style="flex:1;">
+          <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;"><h4 style="margin:0 0 4px;">화면 재구성 — 위계와 밀도</h4><span style="font-size:12px;color:var(--color-neutral-600);">난이도 중상 · 3~5일 · 디자인 선행 필요</span></div>
+          <p style="margin:0;font-size:13.5px;line-height:1.65;color:var(--color-neutral-700);">홈 히어로 도입(오늘의 시장+Fear&amp;Greed 중복 통합), BearSignal 요약↔상세 2단계 재편(헤더+선행신호=요약, 나머지는 펼침/탭), 종목분석 내비 3단→2단, "정세 업데이트" 버튼 단일화, 상시 상태문구 조건부화. <strong>코드 착수 전에 개선 시안을 먼저 확정</strong>해야 하는 단계 — 아래 5장의 디자인 산출물이 이 단계의 입력이 된다.</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:18px;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:20px 24px;box-shadow:var(--shadow-sm);">
+        <span style="flex:none;font-family:var(--font-heading);font-size:28px;color:var(--color-accent-700);width:44px;">P4</span>
+        <div style="flex:1;">
+          <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;"><h4 style="margin:0 0 4px;">검증 — 대비 감사·QA·회귀</h4><span style="font-size:12px;color:var(--color-neutral-600);">난이도 하 · 1일 · 각 단계 말미 반복</span></div>
+          <p style="margin:0;font-size:13.5px;line-height:1.65;color:var(--color-neutral-700);">다크/라이트 전 화면 대비 감사(WCAG AA 4.5:1, 잔글씨 우선), 에뮬레이터 실기(360dp·폰트스케일 1.3x·다크 — 기존 QA 관례 재사용), <code style="font-size:12px;">feature.bearsignal</code> 패키지 골든 테스트 재실행으로 표시 계층 무접촉 증명.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FONT CANDIDATES -->
+  <section style="margin-bottom:44px;">
+    <h2 style="margin:0 0 6px;">4 · 한글 디스플레이 서체 후보</h2>
+    <p style="font-size:13.5px;color:var(--color-neutral-600);margin:0 0 16px;">셋 다 Google Fonts — 앱의 기존 다운로더블 폰트 경로로 즉시 적용 가능. 실제 렌더링 견본입니다 (다크 카드 = 앱 환경).</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+      <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm);">
+        <div style="background:var(--jbg);padding:20px 18px;color:var(--jon);">
+          <div style="font-family:'Hahmlet','Noto Sans KR',serif;font-weight:600;font-size:21px;line-height:1.3;">오늘의 시장</div>
+          <div style="font-family:'Hahmlet',serif;font-weight:700;font-size:38px;color:var(--jgold);line-height:1.15;">72 <span style="font-size:16px;font-weight:600;">탐욕</span></div>
+          <div style="font-family:var(--jbody);font-size:12px;color:var(--jonv);margin-top:6px;">본문은 DM Sans + Noto Sans KR 유지</div>
+        </div>
+        <div style="padding:14px 18px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">A · Hahmlet <span style="background:var(--color-accent-2-200);color:var(--color-accent-2-800);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:4px;">추천</span></div>
+          <p style="margin:0;font-size:12.5px;line-height:1.6;color:var(--color-neutral-700);">1950년대 한국 영화 간판 글자에서 온 한글·라틴 겸용 세리프. 먹빛·청자·한지라는 테마 서사와 정확히 같은 결. Syne의 기하학적 개성과 대비를 이루는 페어링. 9웨이트.</p>
+        </div>
+      </div>
+      <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm);">
+        <div style="background:var(--jbg);padding:20px 18px;color:var(--jon);">
+          <div style="font-family:'Gothic A1',sans-serif;font-weight:800;font-size:21px;line-height:1.3;">오늘의 시장</div>
+          <div style="font-family:'Gothic A1',sans-serif;font-weight:800;font-size:38px;color:var(--jgold);line-height:1.15;">72 <span style="font-size:16px;font-weight:600;">탐욕</span></div>
+          <div style="font-family:var(--jbody);font-size:12px;color:var(--jonv);margin-top:6px;">본문은 DM Sans + Noto Sans KR 유지</div>
+        </div>
+        <div style="padding:14px 18px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">B · Gothic A1 (ExtraBold)</div>
+          <p style="margin:0;font-size:12.5px;line-height:1.6;color:var(--color-neutral-700);">단단한 지오메트릭 산세리프 — Syne의 무게감과 가장 유사한 "안전한" 선택. 터미널다운 밀도, 데이터 헤더에 강함. 다만 개성은 A보다 약하다.</p>
+        </div>
+      </div>
+      <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm);">
+        <div style="background:var(--jbg);padding:20px 18px;color:var(--jon);">
+          <div style="font-family:'IBM Plex Sans KR',sans-serif;font-weight:700;font-size:21px;line-height:1.3;">오늘의 시장</div>
+          <div style="font-family:'IBM Plex Sans KR',sans-serif;font-weight:700;font-size:38px;color:var(--jgold);line-height:1.15;">72 <span style="font-size:16px;font-weight:600;">탐욕</span></div>
+          <div style="font-family:var(--jbody);font-size:12px;color:var(--jonv);margin-top:6px;">본문까지 통일 교체하는 안</div>
+        </div>
+        <div style="padding:14px 18px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">C · IBM Plex Sans KR</div>
+          <p style="margin:0;font-size:12.5px;line-height:1.6;color:var(--color-neutral-700);">제목+본문을 한 패밀리로 통일하는 보수안. 개성은 가장 낮지만 한글·숫자 혼용 가독성과 유지보수가 가장 단순하다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DESIGN DELIVERABLES -->
+  <section style="margin-bottom:44px;">
+    <h2 style="margin:0 0 6px;">5 · 여기서 만들 디자인 산출물</h2>
+    <p style="font-size:13.5px;color:var(--color-neutral-600);margin:0 0 16px;">코드 작업(P2·P3)에 앞서 이 프로젝트에서 시안을 확정하는 순서 제안.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;gap:14px;align-items:center;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:16px 20px;">
+        <span style="flex:none;width:30px;height:30px;border-radius:999px;background:var(--color-accent-200);color:var(--color-accent-800);font-family:var(--font-heading);font-size:15px;display:flex;align-items:center;justify-content:center;">1</span>
+        <div style="flex:1;"><strong style="font-size:14px;">개선 시안 3종 — 인터랙티브 프로토타입</strong><span style="display:block;font-size:12.5px;color:var(--color-neutral-600);margin-top:1px;">홈 히어로 / BearSignal 2단계 / 종목분석 2단 내비를 탭·전환 동작까지 살아있는 목업으로. 서체·색 후보를 Tweaks로 바꿔가며 비교.</span></div>
+        <span style="font-size:11px;color:var(--color-neutral-500);white-space:nowrap;">P3의 입력</span>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:16px 20px;">
+        <span style="flex:none;width:30px;height:30px;border-radius:999px;background:var(--color-accent-200);color:var(--color-accent-800);font-family:var(--font-heading);font-size:15px;display:flex;align-items:center;justify-content:center;">2</span>
+        <div style="flex:1;"><strong style="font-size:14px;">차트 팔레트 리매핑표</strong><span style="display:block;font-size:12.5px;color:var(--color-neutral-600);margin-top:1px;">MPAndroidChart 하드코딩 색 전수 → 청자 팔레트 대응표 (다크/라이트 각각, 시리즈별). P1 ChartTheme 헬퍼의 스펙이 된다.</span></div>
+        <span style="font-size:11px;color:var(--color-neutral-500);white-space:nowrap;">P1의 입력</span>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:16px 20px;">
+        <span style="flex:none;width:30px;height:30px;border-radius:999px;background:var(--color-accent-200);color:var(--color-accent-800);font-family:var(--font-heading);font-size:15px;display:flex;align-items:center;justify-content:center;">3</span>
+        <div style="flex:1;"><strong style="font-size:14px;">Jade Terminal 디자인 시스템 프로젝트</strong><span style="display:block;font-size:12.5px;color:var(--color-neutral-600);margin-top:1px;">토큰·서체·컴포넌트(FinanceCard 등)·핵심 화면 UI 킷을 별도 디자인 시스템으로 정식화 — 이후 모든 시안 작업의 단일 기준이 되고, 앱과 디자인의 드리프트를 막는다.</span></div>
+        <span style="font-size:11px;color:var(--color-neutral-500);white-space:nowrap;">선택 · 권장</span>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:16px 20px;">
+        <span style="flex:none;width:30px;height:30px;border-radius:999px;background:var(--color-accent-200);color:var(--color-accent-800);font-family:var(--font-heading);font-size:15px;display:flex;align-items:center;justify-content:center;">4</span>
+        <div style="flex:1;"><strong style="font-size:14px;">Claude Code 핸드오프 패키지</strong><span style="display:block;font-size:12.5px;color:var(--color-neutral-600);margin-top:1px;">확정 시안 + 값 스펙(색·치수·서체) + 파일별 변경 지시를 개발 에이전트용 브리프로 — 기존 Advisor/Worker 운영 방식(AGENTS.md)에 그대로 얹힌다.</span></div>
+        <span style="font-size:11px;color:var(--color-neutral-500);white-space:nowrap;">P1~P3 착수 시</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- DECISIONS -->
+  <section style="margin-bottom:24px;">
+    <h2 style="margin:0 0 16px;">6 · 지금 결정해 주실 것</h2>
+    <div style="background:var(--color-accent-100);border:1px solid var(--color-accent-300);border-radius:var(--radius-md);padding:20px 26px;">
+      <ol style="margin:0;padding-left:20px;font-size:14px;line-height:1.85;color:var(--color-neutral-800);">
+        <li><strong>서체:</strong> A(Hahmlet — 개성·서사) / B(Gothic A1 — 안전) / C(IBM Plex Sans KR — 통일)?</li>
+        <li><strong>BearSignal 재편 방식:</strong> 요약↔상세 2화면 분리 vs 한 화면 내 접기(아코디언)?</li>
+        <li><strong>홈 히어로 지표:</strong> Fear&amp;Greed 점수 vs BearSignal 국면 — 무엇이 "오늘의 한 줄"인가?</li>
+        <li><strong>착수 순서:</strong> 위 산출물 1번(시안 3종)부터 바로 진행할까요?</li>
+      </ol>
+    </div>
+  </section>
+
+  <div style="border-top:2px solid var(--color-divider);margin-top:36px;padding-top:20px;font-size:13px;color:var(--color-neutral-600);line-height:1.7;">
+    근거: 리뷰 13건(<a href="앱 디자인 리뷰.dc.html">앱 디자인 리뷰</a>) · 코드 구조는 로컬 코드베이스(TinyOscillator)와 <a href="https://github.com/gmdjlee/TinyOscillator">github.com/gmdjlee/TinyOscillator</a> 기준 · 서체는 Google Fonts 한국어 컬렉션(Hahmlet·Gothic A1·IBM Plex Sans KR) 확인.
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const eff = {
+      "하": { effortBg: "var(--color-accent-2-200)", effortFg: "var(--color-accent-2-800)" },
+      "중": { effortBg: "var(--color-accent-200)", effortFg: "var(--color-accent-800)" },
+      "중상": { effortBg: "var(--color-accent-300)", effortFg: "var(--color-accent-900)" }
+    };
+    const imp = {
+      "높음": { impactBg: "var(--color-accent-2-700)", impactFg: "#fff" },
+      "중간": { impactBg: "var(--color-accent-2-300)", impactFg: "var(--color-accent-2-900)" }
+    };
+    const rows = [
+      ["T1", "차트 색 테마화", "MPAndroidChart 하드코딩 3색 → 청자 팔레트 + ChartTheme 헬퍼", "chart/*, marketanalysis/*", "하", "높음"],
+      ["T2", "한글 디스플레이 서체 페어링", "Syne 한글 공백 해소 — Google Fonts 다운로더블로 추가", "Type.kt", "하", "높음"],
+      ["T3", "경고(오렌지) 토큰화", "#E8823A 하드코딩 → ExtendedColors 편입", "BearSignalColors.kt, Theme.kt", "하", "중간"],
+      ["T4", "저대비 캡션 상향", "onSurfaceVariant 잔글씨 대비 AA 확보", "Color.kt", "하", "중간"],
+      ["T5", "카드 통일 (FinanceCard)", "기본 Card·surfaceVariant.copy 사용처 일괄 치환", "전 화면 (홈 우선)", "중", "높음"],
+      ["T6", "칩·검색창 단일화", "FilterChip 규칙 확정 + CarvedTextField 적용", "OscillatorScreen.kt 외", "중", "중간"],
+      ["T7", "SectionHeader 2단 개편", "서술형 헤더 → 제목+보조설명 API", "DesignComponents.kt, bearsignal/ui/*", "중", "높음"],
+      ["T8", "홈 위계 재구성", "히어로 도입 + Fear&Greed 중복 통합", "MarketAnalysisScreen.kt 외", "중상", "높음"],
+      ["T9", "BearSignal 2단계화", "요약↔상세 분리, 정세 버튼 단일화", "BearSignalScreen.kt, ViewModel", "중상", "높음"]
+    ];
+    return {
+      tasks: rows.map(([id, name, detail, files, effort, impact]) => ({
+        id, name, detail, files, effort, impact,
+        ...eff[effort], ...imp[impact]
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

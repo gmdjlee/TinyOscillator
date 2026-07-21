@@ -64,8 +64,6 @@ class ManualInputViewModel @Inject constructor(
 
     fun updateDir(value: String) = dispatch(ManualFieldUpdate.Dir(value))
 
-    fun updateMarketReturn(name: String, r: List<Double?>) = dispatch(ManualFieldUpdate.MarketReturn(name, r))
-
     /** 리포트 기준값(2026.6.30)으로 리셋 — 수동 오버라이드 삭제(§5.4 "리셋", 부록 B #8) */
     fun reset() {
         viewModelScope.launch { resetToReportBaselineUseCase() }

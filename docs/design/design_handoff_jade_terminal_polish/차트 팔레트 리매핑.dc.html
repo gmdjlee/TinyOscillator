@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-058a0229-9aca-4f58-80ed-d7bc319067e9/styles.css">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{ --mono:"JetBrains Mono",ui-monospace,monospace; }
+body{margin:0;background:var(--color-bg);}
+a{color:var(--color-accent-700);}a:hover{color:var(--color-accent-800);}
+</style>
+</helmet>
+
+<div style="max-width:1040px;margin:0 auto;padding:56px 44px 110px;font-family:var(--font-body);color:var(--color-text);">
+
+  <header style="border-bottom:2px solid var(--color-divider);padding-bottom:26px;margin-bottom:34px;">
+    <div style="display:inline-flex;gap:8px;background:var(--color-accent-200);color:var(--color-accent-800);font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:16px;">산출물 2 · 차트 팔레트 리매핑</div>
+    <h1 style="font-size:44px;line-height:1.06;margin:0 0 12px;">차트를 테마 안으로<br>— 청자 팔레트 리매핑표</h1>
+    <p style="font-size:15.5px;line-height:1.6;color:var(--color-neutral-700);margin:0;max-width:760px;">리뷰의 "차트가 테마 밖에 산다" 지적에 대한 스펙. MPAndroidChart에 하드코딩된 Material 기본색을 <strong>Jade Terminal 토큰</strong>으로 대응시킨 표입니다. 이 표가 <strong>P1의 <code style="font-size:13px;">ChartTheme</code> 헬퍼</strong> — 색을 한 곳에서 주입하는 단일 소스 — 의 값이 됩니다.</p>
+  </header>
+
+  <!-- PRINCIPLE -->
+  <section style="margin-bottom:40px;">
+    <h2 style="margin:0 0 14px;">원칙 3가지</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+      <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm);">
+        <div style="font-family:var(--font-heading);font-size:20px;color:var(--color-accent-700);margin-bottom:6px;">1</div>
+        <strong style="font-size:14px;">부호는 한국식 고정</strong>
+        <p style="font-size:12.5px;line-height:1.55;color:var(--color-neutral-700);margin:6px 0 0;">상승·과매수·TD Sell = <span style="color:#D05540;font-weight:700;">적</span>, 하락·TD Buy = <span style="color:#4088CC;font-weight:700;">청</span>. 앱 전역 <code style="font-size:11.5px;">signColor()</code>와 동일 규칙을 차트에도.</p>
+      </div>
+      <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm);">
+        <div style="font-family:var(--font-heading);font-size:20px;color:var(--color-accent-700);margin-bottom:6px;">2</div>
+        <strong style="font-size:14px;">중립 데이터는 청자·황동</strong>
+        <p style="font-size:12.5px;line-height:1.55;color:var(--color-neutral-700);margin:6px 0 0;">지수·평균선처럼 방향성 없는 시리즈는 브랜드색(청자 primary·황동 secondary)으로. 파랑=하락과 충돌 방지.</p>
+      </div>
+      <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:18px 20px;box-shadow:var(--shadow-sm);">
+        <div style="font-family:var(--font-heading);font-size:20px;color:var(--color-accent-700);margin-bottom:6px;">3</div>
+        <strong style="font-size:14px;">축·격자는 테마 대비</strong>
+        <p style="font-size:12.5px;line-height:1.55;color:var(--color-neutral-700);margin:6px 0 0;">고정 <code style="font-size:11.5px;">#444/#CCC</code> 대신 다크/라이트별 grid·axis 토큰. <code style="font-size:11.5px;">luminance()</code> 분기 유지.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PALETTE -->
+  <section style="margin-bottom:40px;">
+    <h2 style="margin:0 0 6px;">차트 팔레트 토큰</h2>
+    <p style="font-size:13.5px;color:var(--color-neutral-600);margin:0 0 16px;">ChartTheme가 다크/라이트에서 반환할 값. 앱의 기존 <code style="font-size:12.5px;">Color.kt</code> 상수를 그대로 재사용 — 신규 색 없음.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <!-- dark -->
+      <div style="background:#0B0E14;border-radius:var(--radius-md);padding:20px;box-shadow:var(--shadow-md);">
+        <div style="font-family:var(--font-body);font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#A8A4A0;margin-bottom:14px;">다크 (Ink Terminal)</div>
+        <sc-for list="{{ darkPalette }}" as="p" hint-placeholder-count="6">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:9px;">
+            <span style="width:30px;height:30px;border-radius:8px;background:{{ p.hex }};flex:none;border:1px solid rgba(255,255,255,.1);"></span>
+            <div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:#E2DED5;font-weight:600;">{{ p.role }}</div><div style="font-size:10.5px;color:#A8A4A0;">{{ p.use }}</div></div>
+            <span style="font-family:var(--mono);font-size:11px;color:#A8A4A0;">{{ p.hex }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <!-- light -->
+      <div style="background:#F5EFE3;border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:20px;box-shadow:var(--shadow-md);">
+        <div style="font-family:var(--font-body);font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#504A3A;margin-bottom:14px;">라이트 (Hanji)</div>
+        <sc-for list="{{ lightPalette }}" as="p" hint-placeholder-count="6">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:9px;">
+            <span style="width:30px;height:30px;border-radius:8px;background:{{ p.hex }};flex:none;border:1px solid rgba(0,0,0,.1);"></span>
+            <div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:#1A1710;font-weight:600;">{{ p.role }}</div><div style="font-size:10.5px;color:#504A3A;">{{ p.use }}</div></div>
+            <span style="font-family:var(--mono);font-size:11px;color:#645c50;">{{ p.hex }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- REMAP TABLE -->
+  <section style="margin-bottom:40px;">
+    <h2 style="margin:0 0 6px;">하드코딩 색 → 토큰 리매핑</h2>
+    <p style="font-size:13.5px;color:var(--color-neutral-600);margin:0 0 16px;">코드에서 실제로 발견된 하드코딩 값 전수. 다크 기준 대응색.</p>
+    <div style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm);">
+      <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1.4fr;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--color-neutral-600);background:var(--color-neutral-200);padding:11px 18px;">
+        <span>시리즈</span><span>현재 (하드코딩)</span><span>→ 신규</span><span>위치</span>
+      </div>
+      <sc-for list="{{ remaps }}" as="r" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr 1.4fr;align-items:center;padding:12px 18px;border-top:1px solid var(--color-divider);font-size:13px;">
+          <span style="font-weight:600;">{{ r.series }}</span>
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="width:18px;height:18px;border-radius:5px;background:{{ r.oldHex }};flex:none;border:1px solid rgba(0,0,0,.12);"></span><span style="font-family:var(--mono);font-size:11.5px;color:var(--color-neutral-600);">{{ r.oldHex }}</span></span>
+          <span style="display:inline-flex;align-items:center;gap:8px;"><span style="width:18px;height:18px;border-radius:5px;background:{{ r.newHex }};flex:none;border:1px solid rgba(0,0,0,.12);"></span><span style="font-family:var(--mono);font-size:11.5px;color:var(--color-accent-800);font-weight:600;">{{ r.newTok }}</span></span>
+          <span style="font-size:11.5px;color:var(--color-neutral-600);">{{ r.where }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- BEFORE / AFTER -->
+  <section style="margin-bottom:40px;">
+    <h2 style="margin:0 0 6px;">Before → After · 시장 DeMark 차트</h2>
+    <p style="font-size:13.5px;color:var(--color-neutral-600);margin:0 0 16px;">가장 이질적이던 화면. 지수선 = 중립 황동, TD Sell = 적, TD Buy = 청으로 재매핑.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <!-- before -->
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#c0392b;margin-bottom:8px;">Before — Material 기본색</div>
+        <div style="background:#0B0E14;border-radius:var(--radius-md);padding:16px;box-shadow:var(--shadow-md);">
+          <div style="font-size:11px;color:#A8A4A0;margin-bottom:8px;">KOSPI DeMark TD (일봉)</div>
+          <svg width="100%" height="180" viewBox="0 0 460 180" preserveAspectRatio="none">
+            <line x1="0" y1="45" x2="460" y2="45" stroke="#444" stroke-dasharray="4 4"/><line x1="0" y1="90" x2="460" y2="90" stroke="#444" stroke-dasharray="4 4"/><line x1="0" y1="135" x2="460" y2="135" stroke="#444" stroke-dasharray="4 4"/>
+            <polyline points="0,120 60,110 120,124 180,96 240,104 300,72 360,88 420,54 460,60" fill="none" stroke="#1976D2" stroke-width="2.4"/>
+            <g fill="#F44336"><circle cx="120" cy="60" r="4"/><circle cx="240" cy="52" r="4"/><circle cx="360" cy="40" r="6"/></g>
+            <g fill="#2196F3"><circle cx="60" cy="150" r="4"/><circle cx="180" cy="156" r="4"/><circle cx="300" cy="150" r="4"/></g>
+          </svg>
+          <div style="display:flex;gap:14px;margin-top:8px;font-size:10.5px;color:#A8A4A0;"><span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:999px;background:#1976D2;"></span>지수</span><span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:999px;background:#F44336;"></span>TD Sell</span><span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:999px;background:#2196F3;"></span>TD Buy</span></div>
+        </div>
+        <p style="font-size:12px;color:var(--color-neutral-600);margin:8px 2px 0;line-height:1.5;">지수선이 파랑이라 TD Buy(파랑)와 뒤섞이고, 청자 테마와 무관한 구글 머티리얼 톤.</p>
+      </div>
+      <!-- after -->
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--color-accent-2-700);margin-bottom:8px;">After — 청자 팔레트</div>
+        <div style="background:#0B0E14;border-radius:var(--radius-md);padding:16px;box-shadow:var(--shadow-md);">
+          <div style="font-size:11px;color:#A8A4A0;margin-bottom:8px;">KOSPI DeMark TD (일봉)</div>
+          <svg width="100%" height="180" viewBox="0 0 460 180" preserveAspectRatio="none">
+            <line x1="0" y1="45" x2="460" y2="45" stroke="#2A3040" stroke-dasharray="4 4"/><line x1="0" y1="90" x2="460" y2="90" stroke="#2A3040" stroke-dasharray="4 4"/><line x1="0" y1="135" x2="460" y2="135" stroke="#2A3040" stroke-dasharray="4 4"/>
+            <polyline points="0,120 60,110 120,124 180,96 240,104 300,72 360,88 420,54 460,60" fill="none" stroke="#E8C36A" stroke-width="2.4"/>
+            <g fill="#EF7B68"><circle cx="120" cy="60" r="4"/><circle cx="240" cy="52" r="4"/><circle cx="360" cy="40" r="6"/></g>
+            <g fill="#68B0F0"><circle cx="60" cy="150" r="4"/><circle cx="180" cy="156" r="4"/><circle cx="300" cy="150" r="4"/></g>
+          </svg>
+          <div style="display:flex;gap:14px;margin-top:8px;font-size:10.5px;color:#A8A4A0;"><span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:999px;background:#E8C36A;"></span>지수</span><span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:999px;background:#EF7B68;"></span>TD Sell</span><span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:999px;background:#68B0F0;"></span>TD Buy</span></div>
+        </div>
+        <p style="font-size:12px;color:var(--color-neutral-600);margin:8px 2px 0;line-height:1.5;">지수는 중립 황동, TD Sell 적(고점)·TD Buy 청(저점) — 부호 관례 유지 + 브랜드 일관.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- OTHER CHARTS -->
+  <section style="margin-bottom:36px;">
+    <h2 style="margin:0 0 6px;">화면별 적용 메모</h2>
+    <div style="display:flex;flex-direction:column;gap:9px;">
+      <sc-for list="{{ notes }}" as="n" hint-placeholder-count="5">
+        <div style="display:flex;gap:14px;align-items:center;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:13px 18px;">
+          <span style="flex:none;background:{{ n.tagBg }};color:{{ n.tagFg }};font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:999px;">{{ n.tag }}</span>
+          <strong style="font-size:13.5px;min-width:150px;">{{ n.chart }}</strong>
+          <span style="flex:1;font-size:12.5px;color:var(--color-neutral-700);line-height:1.5;">{{ n.note }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <div style="border-top:2px solid var(--color-divider);margin-top:36px;padding-top:20px;font-size:13px;color:var(--color-neutral-600);line-height:1.7;">
+    <strong style="color:var(--color-text);">구현 메모</strong> — <code style="font-size:12px;">ChartTheme(isDark: Boolean)</code> data class를 신설해 위 값을 반환하고, 각 <code style="font-size:12px;">AndroidView</code> 콜백이 하드코딩 대신 이 객체를 참조하도록 치환. 기존 <code style="font-size:12px;">luminance() &lt; 0.5</code> 분기는 그대로 두고 색 상수만 교체 — 로직 변경 없음. · 다음: <a href="개선 계획.dc.html">개선 계획</a> P1 착수, 또는 Jade Terminal 디자인 시스템 정식화.
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      darkPalette: [
+        { role:"지수 · 중립선", use:"방향성 없는 가격/평균선", hex:"#E8C36A" },
+        { role:"강조선 · primary", use:"오실레이터 등 주 시리즈", hex:"#6ECBA8" },
+        { role:"상승 · 과매수 · TD Sell", use:"한국식 적(↑)", hex:"#EF7B68" },
+        { role:"하락 · TD Buy", use:"한국식 청(↓)", hex:"#68B0F0" },
+        { role:"격자 · grid", use:"axisLeft/Right grid", hex:"#2A3040" },
+        { role:"축 라벨 · axis text", use:"눈금 텍스트", hex:"#A8A4A0" }
+      ],
+      lightPalette: [
+        { role:"지수 · 중립선", use:"방향성 없는 가격/평균선", hex:"#7A5A10" },
+        { role:"강조선 · primary", use:"오실레이터 등 주 시리즈", hex:"#1A6B4D" },
+        { role:"상승 · 과매수 · TD Sell", use:"한국식 적(↑)", hex:"#D05540" },
+        { role:"하락 · TD Buy", use:"한국식 청(↓)", hex:"#4088CC" },
+        { role:"격자 · grid", use:"axisLeft/Right grid", hex:"#E0D8C8" },
+        { role:"축 라벨 · axis text", use:"눈금 텍스트", hex:"#504A3A" }
+      ],
+      remaps: [
+        { series:"시장 지수선", oldHex:"#1976D2", newHex:"#E8C36A", newTok:"secondary", where:"MarketAnalysisScreen.kt · bindMarketDemarkData" },
+        { series:"TD Sell (고점)", oldHex:"#F44336", newHex:"#EF7B68", newTok:"finance.positive", where:"동일 · sellDataSet" },
+        { series:"TD Buy (저점)", oldHex:"#2196F3", newHex:"#68B0F0", newTok:"finance.negative", where:"동일 · buyDataSet" },
+        { series:"9+ 강조 마커", oldHex:"#F44336", newHex:"#EF7B68", newTok:"finance.positive", where:"동일 · sellHighlight" },
+        { series:"격자선", oldHex:"#444444", newHex:"#2A3040", newTok:"surfaceVariant", where:"setupMarketDemarkChart · gColor" },
+        { series:"축 텍스트", oldHex:"#FFFFFF", newHex:"#A8A4A0", newTok:"onSurfaceVariant", where:"chartTextColor (WHITE→토큰)" }
+      ],
+      notes: [
+        { tag:"교체", tagBg:"var(--color-accent-200)", tagFg:"var(--color-accent-800)", chart:"시장 DeMark", note:"위 표 전면 적용 — 우선순위 최상." },
+        { tag:"교체", tagBg:"var(--color-accent-200)", tagFg:"var(--color-accent-800)", chart:"종목 DeMark · 캔들", note:"동일 매핑. 캔들 양봉/음봉도 적/청 관례로 통일." },
+        { tag:"유지", tagBg:"var(--color-accent-2-200)", tagFg:"var(--color-accent-2-800)", chart:"수급 오실레이터", note:"이미 청자·황동 사용 중 — ChartTheme로 상수만 이관." },
+        { tag:"점검", tagBg:"var(--color-accent-300)", tagFg:"var(--color-accent-900)", chart:"Fear & Greed", note:"구간 색이 error/tertiary/primary 혼용 — 게이지 스펙트럼을 팔레트로 정렬." },
+        { tag:"점검", tagBg:"var(--color-accent-300)", tagFg:"var(--color-accent-900)", chart:"포트폴리오 파이·컨센서스", note:"다색 계열은 청자·황동·자두 + 뉴트럴 램프로 순환 팔레트 정의 필요." }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

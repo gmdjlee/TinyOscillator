@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/organic-058a0229-9aca-4f58-80ed-d7bc319067e9/styles.css">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@600;700;800&family=DM+Sans:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --jbg:#0B0E14; --jsc:#151820; --jsch:#1C2030; --jscl:#10131A; --jscll:#080A0F;
+  --jon:#E2DED5; --jonv:#B3AEA6; --jpri:#6ECBA8; --jprion:#003828; --jgold:#E8C36A; --jplum:#D4899E;
+  --jerr:#FF6B6B; --joutline:#3E4555; --jsv:#2A3040; --jup:#EF7B68; --jdown:#68B0F0; --jprc:#1A4D3A;
+  --jdisp:"Gothic A1","Noto Sans KR",sans-serif; --jbody:"DM Sans","Noto Sans KR",system-ui,sans-serif;
+}
+body{margin:0;background:#e7dcc6;background-image:radial-gradient(circle at 1px 1px, rgba(32,30,29,.055) 1px, transparent 0);background-size:26px 26px;}
+a{color:var(--color-accent-700);}a:hover{color:var(--color-accent-800);}
+.pin{position:absolute;width:26px;height:26px;border-radius:999px;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.4);border:2px solid #fff;}
+.crit{display:flex;gap:14px;background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:12px;padding:15px 17px;}
+.cn{flex:none;width:26px;height:26px;border-radius:999px;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;}
+.sev{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;}
+.foc{font-size:11px;color:var(--color-neutral-500);}
+.phone{width:340px;background:#000;border-radius:44px;padding:10px;box-shadow:0 30px 70px -20px rgba(32,30,29,.5),0 0 0 1px rgba(0,0,0,.6);}
+.scr{background:var(--jbg);border-radius:35px;overflow:hidden;font-family:var(--jbody);color:var(--jon);height:660px;display:flex;flex-direction:column;}
+.sb{display:flex;justify-content:space-between;align-items:center;padding:11px 22px 3px;font-size:12px;font-weight:600;}
+.ab{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;}
+.abt{font-family:var(--jdisp);font-weight:800;font-size:20px;}
+.pill{font-size:12px;padding:7px 13px;border-radius:999px;white-space:nowrap;}
+.pon{background:var(--jpri);color:var(--jprion);font-weight:700;}
+.poff{background:var(--jscl);color:var(--jonv);}
+</style>
+</helmet>
+
+<div style="max-width:1500px;margin:0 auto;padding:52px 44px 120px;font-family:var(--font-body);color:var(--color-text);">
+
+  <header style="border-bottom:2px solid var(--color-divider);padding-bottom:24px;margin-bottom:34px;">
+    <div style="display:inline-flex;gap:8px;background:var(--color-accent-200);color:var(--color-accent-800);font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:14px;">디자인 리뷰 · 2부 · 나머지 메뉴</div>
+    <h1 style="font-size:46px;line-height:1.05;margin:0 0 12px;">남은 화면 리뷰<br>AI분석 · 포트폴리오 · 탐색 · 설정</h1>
+    <p style="font-size:15px;line-height:1.6;color:var(--color-neutral-700);margin:0;max-width:780px;"><a href="앱 디자인 리뷰.dc.html">1부</a>에서 다룬 시장분석·BearSignal·종목분석에 이어, 하단 탭의 나머지 3개 + 설정을 같은 기준(5개 초점)으로 봅니다. 결론: <strong>정보구조 결정은 훌륭</strong>(탐색 통합·포트폴리오 표 축약)한데, <strong>일관성·밀도</strong>에서 1부와 같은 문제가 반복됩니다.</p>
+  </header>
+
+  <!-- ===== AI 분석 ===== -->
+  <section style="margin-bottom:60px;">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;"><span style="font-family:var(--font-body);font-weight:700;font-size:12px;color:#fff;background:var(--color-text);padding:3px 10px;border-radius:6px;">화면 5</span><h2 style="margin:0;">AI 분석</h2></div>
+    <p style="font-size:14px;color:var(--color-neutral-700);margin:0 0 22px;max-width:820px;">시장·종목·확률 3탭의 대화형 분석. 강력하지만 개발자 지표가 사용자에게 새고, 채팅 UI가 앱의 카드 시스템 밖에 있다.</p>
+    <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="position:relative;flex:none;">
+        <div class="phone"><div class="scr">
+          <div class="sb"><span>9:41</span><span style="display:inline-flex;gap:5px;"><svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="6" width="3" height="5" rx="1" fill="currentColor"/><rect x="4.5" y="4" width="3" height="7" rx="1" fill="currentColor"/><rect x="9" y="2" width="3" height="9" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg><svg width="22" height="11" viewBox="0 0 24 12" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-opacity=".5"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.3" fill="currentColor"/></svg></span></div>
+          <div class="ab"><span class="abt">AI 분석</span><span style="display:inline-flex;gap:12px;color:var(--jon)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2" stroke-linecap="round"/></svg><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h5l.3-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg></span></div>
+          <div style="display:flex;gap:6px;padding:4px 14px 10px;"><span class="pill poff">시장</span><span class="pill pon">종목</span><span class="pill poff">확률분석</span></div>
+          <div style="padding:0 14px;margin-bottom:8px;"><div style="display:flex;align-items:center;gap:9px;background:var(--jscll);border:1px solid var(--joutline);border-radius:12px;padding:10px 12px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--jonv)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg><span style="flex:1;color:var(--jon);font-size:13px;">삼성전자</span><span style="font-size:11px;color:var(--jonv);">005930</span></div></div>
+          <div style="flex:1;overflow:hidden;padding:6px 14px;">
+            <div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><span style="max-width:75%;background:var(--jpri);color:var(--jprion);font-size:12.5px;padding:9px 12px;border-radius:14px 14px 4px 14px;">최근 실적과 수급 흐름 요약해줘</span></div>
+            <div style="display:flex;margin-bottom:8px;"><span style="max-width:82%;background:var(--jsch);color:var(--jon);font-size:12.5px;line-height:1.5;padding:10px 12px;border-radius:14px 14px 14px 4px;">3분기 영업이익 컨센 상회, 외국인 5거래일 순매수 전환. 오실레이터는 과매수 진입 구간으로…</span></div>
+            <div style="display:flex;align-items:center;gap:6px;color:var(--jpri);font-size:12px;"><span style="width:6px;height:6px;border-radius:999px;background:var(--jpri);animation:none;"></span>생성 중…</div>
+          </div>
+          <div style="padding:8px 16px;border-top:1px solid var(--jsv);display:flex;justify-content:space-between;font-size:10.5px;color:var(--jonv);"><span>입력 1,240 · 출력 890 토큰</span><span>Claude Haiku</span></div>
+          <div style="padding:8px 14px 12px;"><div style="display:flex;align-items:center;gap:8px;background:var(--jscll);border:1px solid var(--joutline);border-radius:999px;padding:9px 14px;"><span style="flex:1;color:var(--jonv);font-size:12.5px;">메시지 입력…</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--jpri)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div></div>
+        </div></div>
+        <div class="pin" style="top:340px;left:20px;background:#c0392b;">1</div>
+        <div class="pin" style="top:150px;left:150px;background:var(--color-accent-500);">2</div>
+        <div class="pin" style="top:96px;left:150px;background:var(--color-neutral-500);">3</div>
+      </div>
+      <div style="flex:1;min-width:360px;max-width:600px;display:flex;flex-direction:column;gap:13px;">
+        <div class="crit" style="border-left:4px solid #c0392b;"><span class="cn" style="background:#c0392b;">1</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">토큰 사용량이 사용자에게 노출</strong><span class="sev" style="background:#c0392b;">심각</span><span class="foc">정보 밀도</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">"입력 1,240 · 출력 890 토큰"은 개발/디버그 지표다. 일반 사용자에겐 의미 없고 비용 불안만 준다. 숨기거나, 정말 필요하면 설정/개발자 옵션으로. 대화 하단 상시 점유는 과함.</p></div></div>
+        <div class="crit" style="border-left:4px solid var(--color-accent-500);"><span class="cn" style="background:var(--color-accent-500);">2</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">채팅 UI가 카드 시스템 밖</strong><span class="sev" style="background:var(--color-accent-500);">중간</span><span class="foc">일관성</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">말풍선·입력 바는 범용 메신저 톤이라 청자 터미널의 카드·비대칭 코너 언어와 이어지지 않는다. 최소한 말풍선 색을 테마 토큰(사용자=primary, AI=surfaceContainer)으로 고정하고 코너 반경을 시스템과 맞춰야 한다.</p></div></div>
+        <div class="crit" style="border-left:4px solid var(--color-neutral-500);"><span class="cn" style="background:var(--color-neutral-500);">3</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">3탭인데 성격이 제각각</strong><span class="sev" style="background:var(--color-neutral-500);">사소</span><span class="foc">UX</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">시장·종목은 대화형인데 확률분석은 결과 대시보드(앙상블·9엔진 워터폴·레이더)라 상호작용 모델이 다르다. 같은 PillTabRow 아래 묶여 있어 "확률분석"을 누르면 갑자기 채팅이 사라지는 맥락 전환이 급작스럽다. 확률분석은 종목 탭의 액션으로 편입하는 것도 방법.</p></div></div>
+        <div style="background:var(--color-accent-2-100);border:1px solid var(--color-accent-2-300);border-radius:12px;padding:14px 17px;"><div style="font-weight:700;font-size:13px;color:var(--color-accent-2-800);margin-bottom:4px;">✓ 잘한 점</div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-800);">스트리밍 응답(SSE), 로컬 폴백 해석(AI 불가 시 ProbabilityInterpreter), 최근 분석 종목 재사용 — 기능 완성도는 높다. PillTabRow 사용으로 상단 탭은 앱과 일관.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 포트폴리오 ===== -->
+  <section style="margin-bottom:60px;">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;"><span style="font-family:var(--font-body);font-weight:700;font-size:12px;color:#fff;background:var(--color-text);padding:3px 10px;border-radius:6px;">화면 6</span><h2 style="margin:0;">포트폴리오</h2></div>
+    <p style="font-size:14px;color:var(--color-neutral-700);margin:0 0 22px;max-width:820px;">15열 표를 5열+확장으로 줄인 건 좋은 결정. 다만 요약 카드만 초록으로 튀고, 한 행에 클릭 타깃이 셋이라 발견성이 낮다.</p>
+    <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="position:relative;flex:none;">
+        <div class="phone"><div class="scr">
+          <div class="sb"><span>9:41</span><span style="display:inline-flex;gap:5px;"><svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="6" width="3" height="5" rx="1" fill="currentColor"/><rect x="4.5" y="4" width="3" height="7" rx="1" fill="currentColor"/><rect x="9" y="2" width="3" height="9" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg><svg width="22" height="11" viewBox="0 0 24 12" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-opacity=".5"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.3" fill="currentColor"/></svg></span></div>
+          <div style="flex:1;overflow:hidden;padding:8px 14px;">
+            <!-- summary card (primaryContainer green) -->
+            <div style="background:var(--jprc);border-radius:12px;padding:15px;margin-bottom:11px;">
+              <div style="font-size:11px;color:#B8F0D8;margin-bottom:10px;">포트폴리오 요약</div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:9px;"><div><div style="font-size:10px;color:rgba(184,240,216,.7);">총평가금액</div><div style="font-family:var(--jdisp);font-weight:700;font-size:17px;color:#EAFBF2;">42,180,000원</div></div><div style="text-align:right;"><div style="font-size:10px;color:rgba(184,240,216,.7);">총투자금액</div><div style="font-family:var(--jdisp);font-weight:700;font-size:17px;color:#EAFBF2;">38,900,000원</div></div></div>
+              <div style="height:1px;background:rgba(184,240,216,.2);margin:8px 0;"></div>
+              <div style="display:flex;justify-content:space-between;"><div><div style="font-size:10px;color:rgba(184,240,216,.7);">총수익률</div><div style="font-family:var(--jdisp);font-weight:700;font-size:17px;color:var(--jup);">+8.43%</div></div><div style="text-align:right;"><div style="font-size:10px;color:rgba(184,240,216,.7);">총수익금</div><div style="font-family:var(--jdisp);font-weight:700;font-size:17px;color:var(--jup);">+3,280,000원</div></div></div>
+            </div>
+            <!-- pie -->
+            <div style="background:var(--jsch);border-radius:12px;padding:12px;margin-bottom:11px;display:flex;align-items:center;gap:14px;">
+              <svg width="72" height="72" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--jsv)" stroke-width="4"/><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--jpri)" stroke-width="4" stroke-dasharray="45 55" transform="rotate(-90 18 18)"/><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--jgold)" stroke-width="4" stroke-dasharray="30 70" stroke-dashoffset="-45" transform="rotate(-90 18 18)"/><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--jplum)" stroke-width="4" stroke-dasharray="25 75" stroke-dashoffset="-75" transform="rotate(-90 18 18)"/></svg>
+              <div style="flex:1;font-size:11px;color:var(--jonv);line-height:1.7;"><div><span style="color:var(--jpri);">●</span> 삼성전자 45%</div><div><span style="color:var(--jgold);">●</span> SK하이닉스 30%</div><div><span style="color:var(--jplum);">●</span> 기타 25%</div></div>
+            </div>
+            <div style="font-family:var(--jdisp);font-weight:700;font-size:14px;margin-bottom:8px;">보유종목 (3)</div>
+            <!-- holdings table -->
+            <div style="background:var(--jsch);border-radius:12px;padding:8px 10px;">
+              <div style="display:flex;font-size:10px;color:var(--jonv);font-weight:700;padding:4px 0;border-bottom:1px solid var(--jsv);"><span style="flex:1.55;">종목명</span><span style="flex:.6;text-align:center;">신호</span><span style="flex:1.15;text-align:right;">현재가</span><span style="flex:.7;text-align:right;">수익%</span><span style="flex:1;text-align:right;">수익금</span><span style="width:20px;"></span></div>
+              <div style="display:flex;align-items:center;padding:7px 0;font-size:11px;border-bottom:.5px solid var(--joutline);"><span style="flex:1.55;color:var(--jpri);">삼성전자</span><span style="flex:.6;text-align:center;color:var(--jup);font-weight:700;">72%</span><span style="flex:1.15;text-align:right;">78,400</span><span style="flex:.7;text-align:right;color:var(--jup);">+12.1</span><span style="flex:1;text-align:right;color:var(--jup);">+1,840만</span><span style="width:20px;text-align:center;color:var(--jonv);">⌄</span></div>
+              <div style="display:flex;align-items:center;padding:7px 0;font-size:11px;"><span style="flex:1.55;color:var(--jpri);">SK하이닉스</span><span style="flex:.6;text-align:center;color:var(--jdown);font-weight:700;">28%</span><span style="flex:1.15;text-align:right;">198,500</span><span style="flex:.7;text-align:right;color:var(--jdown);">-3.4</span><span style="flex:1;text-align:right;color:var(--jdown);">-620만</span><span style="width:20px;text-align:center;color:var(--jonv);">⌄</span></div>
+            </div>
+          </div>
+          <!-- FAB -->
+          <div style="position:absolute;bottom:20px;right:20px;width:52px;height:52px;border-radius:16px;background:var(--jpri);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.4);"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--jprion)" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+        </div></div>
+        <div class="pin" style="top:70px;left:150px;background:#c0392b;">1</div>
+        <div class="pin" style="top:360px;left:70px;background:var(--color-accent-500);">2</div>
+        <div class="pin" style="top:388px;left:300px;background:var(--color-accent-500);">3</div>
+      </div>
+      <div style="flex:1;min-width:360px;max-width:600px;display:flex;flex-direction:column;gap:13px;">
+        <div class="crit" style="border-left:4px solid #c0392b;"><span class="cn" style="background:#c0392b;">1</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">요약 카드만 초록으로 튄다</strong><span class="sev" style="background:#c0392b;">심각</span><span class="foc">일관성</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">이 카드만 <code style="font-size:12px;">primaryContainer</code>(진한 청자 그린) 필을 써서 앱 전체에서 유일하게 초록 카드다. 나머지는 전부 ink surface. 브랜드색을 배경으로 크게 깔면 "선택/강조" 의미로 오독되고, 손익 부호색(적/청)과도 부딪친다. surface 계열 + FinanceCard로 통일하고, 강조는 숫자 타이포로.</p></div></div>
+        <div class="crit" style="border-left:4px solid var(--color-accent-500);"><span class="cn" style="background:var(--color-accent-500);">2</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">한 행에 클릭 타깃 3개</strong><span class="sev" style="background:var(--color-accent-500);">중간</span><span class="foc">UX·접근성</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">행 탭=거래내역, 종목명 셀 탭=퀵 분석, ⌄ 아이콘=상세 펼침. 세 동작이 한 줄에 겹쳐 있어 발견 불가·오탭 유발. 종목명만 primary 색이라 링크임을 암시하지만 나머지 두 영역은 시각 단서가 없다. 최소한 행 우측에 명시적 오버플로(⋯) 메뉴로 정리.</p></div></div>
+        <div class="crit" style="border-left:4px solid var(--color-accent-500);"><span class="cn" style="background:var(--color-accent-500);">3</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">축약 표기 + 확장 = 여전히 조밀</strong><span class="sev" style="background:var(--color-accent-500);">중간</span><span class="foc">정보 밀도</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">"+1,840만"처럼 만/억 축약 후 정확값은 펼쳐야 보인다(수익금 원 단위는 확장 블록). 15열→5열은 옳지만, 5열도 11px 셀이라 좁다. 모바일에선 "표"보다 종목별 카드 리스트가 스캔·터치에 유리하다.</p></div></div>
+        <div style="background:var(--color-accent-2-100);border:1px solid var(--color-accent-2-300);border-radius:12px;padding:14px 17px;"><div style="font-weight:700;font-size:13px;color:var(--color-accent-2-800);margin-bottom:4px;">✓ 잘한 점</div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-800);">손익 부호색 정확(적/청, 다크 변형), 수익률 절댓값 100%↑는 소수점 버리는 반응형 축약 로직, 신호 점수 컬럼(BearSignal 연동), 인라인 확장 상세 — 데이터 밀도를 다루는 세심함이 있다.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 탐색 ===== -->
+  <section style="margin-bottom:60px;">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;"><span style="font-family:var(--font-body);font-weight:700;font-size:12px;color:#fff;background:var(--color-text);padding:3px 10px;border-radius:6px;">화면 7</span><h2 style="margin:0;">탐색 (ETF · 통계 · 테마 · 리포트)</h2></div>
+    <p style="font-size:14px;color:var(--color-neutral-700);margin:0 0 22px;max-width:820px;">이 앱 정보구조의 <strong>모범 사례</strong> — 하단 탭 3개를 "탐색" 하나로 통합하고 2-pane 마스터·디테일까지 구현. 다듬을 건 라벨과 빈 상태뿐.</p>
+    <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="position:relative;flex:none;">
+        <div class="phone"><div class="scr">
+          <div class="sb"><span>9:41</span><span style="display:inline-flex;gap:5px;"><svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="6" width="3" height="5" rx="1" fill="currentColor"/><rect x="4.5" y="4" width="3" height="7" rx="1" fill="currentColor"/><rect x="9" y="2" width="3" height="9" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg><svg width="22" height="11" viewBox="0 0 24 12" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-opacity=".5"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.3" fill="currentColor"/></svg></span></div>
+          <div class="ab"><span class="abt">탐색</span><span style="display:inline-flex;gap:12px;color:var(--jon)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2" stroke-linecap="round"/></svg><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h5l.3-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg></span></div>
+          <div style="display:flex;gap:6px;padding:4px 14px 12px;"><span class="pill pon">ETF</span><span class="pill poff">통계</span><span class="pill poff">테마</span><span class="pill poff">리포트</span></div>
+          <div style="flex:1;overflow:hidden;padding:0 14px;">
+            <div style="display:flex;align-items:center;gap:9px;background:var(--jscll);border:1px solid var(--joutline);border-radius:12px;padding:9px 12px;margin-bottom:11px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--jonv)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg><span style="flex:1;color:var(--jonv);font-size:12.5px;">ETF 검색</span></div>
+            <div style="background:var(--jsch);border-radius:12px;overflow:hidden;">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--jsv);"><div><div style="font-size:13px;font-weight:600;">KODEX 반도체</div><div style="font-size:10.5px;color:var(--jonv);">091160 · 순자산 1.2조</div></div><div style="text-align:right;"><div style="font-family:var(--jdisp);font-weight:700;font-size:14px;color:var(--jup);">+2.14%</div><div style="font-size:10px;color:var(--jonv);">42,180</div></div></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--jsv);"><div><div style="font-size:13px;font-weight:600;">TIGER 2차전지</div><div style="font-size:10.5px;color:var(--jonv);">305540 · 순자산 8,400억</div></div><div style="text-align:right;"><div style="font-family:var(--jdisp);font-weight:700;font-size:14px;color:var(--jdown);">-1.07%</div><div style="font-size:10px;color:var(--jonv);">18,920</div></div></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;"><div><div style="font-size:13px;font-weight:600;">KODEX 2차전지</div><div style="font-size:10.5px;color:var(--jonv);">305720 · 순자산 6,100억</div></div><div style="text-align:right;"><div style="font-family:var(--jdisp);font-weight:700;font-size:14px;color:var(--jup);">+0.83%</div><div style="font-size:10px;color:var(--jonv);">15,340</div></div></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="pin" style="top:100px;left:130px;background:var(--color-accent-500);">1</div>
+        <div class="pin" style="top:150px;left:60px;background:var(--color-neutral-500);">2</div>
+      </div>
+      <div style="flex:1;min-width:360px;max-width:600px;display:flex;flex-direction:column;gap:13px;">
+        <div style="background:var(--color-accent-2-100);border:1px solid var(--color-accent-2-300);border-radius:12px;padding:16px 18px;"><div style="font-weight:700;font-size:14px;color:var(--color-accent-2-800);margin-bottom:5px;">★ 이 앱의 정보구조 모범</div><p style="margin:0;font-size:13.5px;line-height:1.65;color:var(--color-neutral-800);">ETF분석·테마·리포트라는 별개 하단 탭 3개를 "그룹/리서치 기준 종목 탐색"이라는 한 성격으로 묶어 <strong>탐색</strong> 하나로 통합했다. 게다가 태블릿/폴더블에선 <code style="font-size:12px;">TwoPaneLayout</code> 마스터·디테일까지. 1부의 종목분석 3단 중첩과 대비되는, 정확한 IA 결정이다.</p></div>
+        <div class="crit" style="border-left:4px solid var(--color-accent-500);"><span class="cn" style="background:var(--color-accent-500);">1</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">"통계" 라벨이 모호</strong><span class="sev" style="background:var(--color-accent-500);">중간</span><span class="foc">일관성·UX</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">ETF 옆의 "통계"가 무엇의 통계인지 라벨만으로 불명확(ETF 자금유출입 통계다). "ETF"와 "통계"가 같은 대상(ETF)을 다루는데 형제 탭으로 평행 배치돼 관계가 안 읽힌다. "ETF 흐름" 같은 구체 라벨, 또는 ETF 상세 안의 하위 뷰로.</p></div></div>
+        <div class="crit" style="border-left:4px solid var(--color-neutral-500);"><span class="cn" style="background:var(--color-neutral-500);">2</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">빈 상태가 맨 텍스트</strong><span class="sev" style="background:var(--color-neutral-500);">사소</span><span class="foc">시각</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">2-pane 상세가 비면 "ETF를 선택해주세요" 한 줄만 가운데 뜬다. 아이콘 + 한 줄 안내 + (가능하면) 최근 본 항목 힌트로 빈 화면을 덜 허전하게. 리스트/디테일 전 탭 공통 컴포넌트로.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 설정 ===== -->
+  <section style="margin-bottom:56px;">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;"><span style="font-family:var(--font-body);font-weight:700;font-size:12px;color:#fff;background:var(--color-text);padding:3px 10px;border-radius:6px;">화면 8</span><h2 style="margin:0;">설정</h2></div>
+    <p style="font-size:14px;color:var(--color-neutral-700);margin:0 0 22px;max-width:820px;">API·ETF·데이터·로그·Backup 5탭. "데이터" 탭이 8개 워커 × (스케줄+수집일수+수동수집+로그)로 스크롤 지옥. API 탭은 7종 키가 위계 없이 평평하다.</p>
+    <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="position:relative;flex:none;">
+        <div class="phone"><div class="scr">
+          <div class="sb"><span>9:41</span><span style="display:inline-flex;gap:5px;"><svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="6" width="3" height="5" rx="1" fill="currentColor"/><rect x="4.5" y="4" width="3" height="7" rx="1" fill="currentColor"/><rect x="9" y="2" width="3" height="9" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg><svg width="22" height="11" viewBox="0 0 24 12" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-opacity=".5"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.3" fill="currentColor"/></svg></span></div>
+          <div class="ab"><span style="display:inline-flex;align-items:center;gap:8px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg><span class="abt">설정</span></span></div>
+          <div style="display:flex;gap:6px;padding:4px 14px 10px;overflow:hidden;"><span class="pill poff">API</span><span class="pill poff">ETF</span><span class="pill pon">데이터</span><span class="pill poff">로그</span><span class="pill poff">Backup</span></div>
+          <div style="flex:1;overflow:hidden;padding:0 14px;">
+            <div style="background:var(--jsch);border-radius:12px;padding:13px;margin-bottom:9px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;"><span style="font-size:13px;font-weight:600;">Fear &amp; Greed</span><span style="font-size:11px;color:var(--jpri);">수동 수집</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:11px;color:var(--jonv);">스케줄</span><span style="display:inline-flex;gap:6px;align-items:center;"><span style="font-size:11px;">04:00</span><span style="width:34px;height:18px;border-radius:999px;background:var(--jpri);position:relative;"><span style="position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:999px;background:#fff;"></span></span></span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:11px;color:var(--jonv);">수집 기간</span><span style="font-size:11px;">365일</span></div>
+            </div>
+            <div style="background:var(--jsch);border-radius:12px;padding:13px;margin-bottom:9px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;"><span style="font-size:13px;font-weight:600;">ETF</span><span style="font-size:11px;color:var(--jpri);">수동 수집</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:11px;color:var(--jonv);">스케줄</span><span style="display:inline-flex;gap:6px;align-items:center;"><span style="font-size:11px;">00:30</span><span style="width:34px;height:18px;border-radius:999px;background:var(--jpri);position:relative;"><span style="position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:999px;background:#fff;"></span></span></span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:11px;color:var(--jonv);">수집 기간</span><span style="font-size:11px;">14일</span></div>
+            </div>
+            <div style="background:var(--jsch);border-radius:12px;padding:13px;opacity:.6;"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;font-weight:600;">과매수/과매도</span><span style="font-size:11px;color:var(--jonv);">▾ 4개 항목 더</span></div></div>
+          </div>
+          <div style="padding:10px 16px;border-top:1px solid var(--jsv);"><div style="text-align:center;background:var(--jpri);color:var(--jprion);font-weight:700;font-size:13px;padding:11px;border-radius:12px;">저장</div></div>
+        </div></div>
+        <div class="pin" style="top:230px;left:280px;background:#c0392b;">1</div>
+        <div class="pin" style="top:88px;left:36px;background:var(--color-accent-500);">2</div>
+        <div class="pin" style="top:560px;left:150px;background:var(--color-neutral-500);">3</div>
+      </div>
+      <div style="flex:1;min-width:360px;max-width:600px;display:flex;flex-direction:column;gap:13px;">
+        <div class="crit" style="border-left:4px solid #c0392b;"><span class="cn" style="background:#c0392b;">1</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">"데이터" 탭 스크롤 지옥</strong><span class="sev" style="background:#c0392b;">심각</span><span class="foc">정보 밀도</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">8개 데이터 소스(F&amp;G·ETF·오실레이터·예탁금·마감갱신·컨센서스·테마·무결성) 각각에 스케줄 on/off·시각·수집일수·수동수집·마지막 로그가 세로로 쌓인다. 한 탭에 수십 개 컨트롤 = 원하는 항목 찾기 어렵고 실수 위험. 소스별 접기(아코디언) 또는 "자동 수집" 요약 + 소스별 상세 진입으로 분해해야 한다.</p></div></div>
+        <div class="crit" style="border-left:4px solid var(--color-accent-500);"><span class="cn" style="background:var(--color-accent-500);">2</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">API 키 7종에 위계가 없다</strong><span class="sev" style="background:var(--color-accent-500);">중간</span><span class="foc">UX·일관성</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">Kiwoom·KIS·KRX·AI·DART·ECOS·관세청·FRED가 평평하게 나열된다. 온보딩엔 필수(Kiwoom·KRX)/선택 구분이 있는데 설정 화면엔 그 위계가 사라진다. "필수" 섹션과 "선택/고급" 섹션으로 그룹핑하고, 연결 상태(입력됨/미입력) 배지를 붙이면 스캔이 쉬워진다.</p></div></div>
+        <div class="crit" style="border-left:4px solid var(--color-neutral-500);"><span class="cn" style="background:var(--color-neutral-500);">3</span><div><div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;"><strong style="font-size:14.5px;">저장 버튼이 탭마다 흩어짐</strong><span class="sev" style="background:var(--color-neutral-500);">사소</span><span class="foc">UX</span></div><p style="margin:0;font-size:13px;line-height:1.6;color:var(--color-neutral-700);">탭별로 하단에 개별 "저장"이 있어 어떤 변경이 저장됐는지 추적이 어렵다(더구나 저장 후 캐시 무효화는 API 탭에만). 변경 시에만 나타나는 상단 고정 저장 바 + "변경됨" 표시로 통일하면 안전하다.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== WRAP ===== -->
+  <section style="background:var(--color-neutral-100);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:26px 30px;box-shadow:var(--shadow-sm);">
+    <h2 style="margin:0 0 14px;">2부 종합 — 반복되는 두 패턴</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;">
+      <div>
+        <h4 style="margin:0 0 8px;color:var(--color-accent-800);">또 나온 문제</h4>
+        <ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.7;color:var(--color-neutral-800);">
+          <li><strong>표면 일관성</strong> — 포트폴리오 초록 요약 카드, AI 채팅 말풍선이 또 시스템 밖. <a href="개선 계획.dc.html">개선 계획 T5</a>(카드 통일) 범위에 이 둘도 포함해야.</li>
+          <li><strong>밀도 과포화</strong> — 설정 "데이터" 탭, 포트폴리오 표. 아코디언/카드 리스트로 분해(BearSignal T9와 같은 처방).</li>
+          <li><strong>개발자 지표 노출</strong> — AI 토큰량, 종목 DB 카운트(1부). 정상 상태에선 숨기기.</li>
+        </ul>
+      </div>
+      <div>
+        <h4 style="margin:0 0 8px;color:var(--color-accent-2-800);">이미 잘하는 것</h4>
+        <ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.7;color:var(--color-neutral-800);">
+          <li><strong>정보구조 감각</strong> — 탐색 통합, 포트폴리오 15→5열, 2-pane 마스터·디테일. IA 결정은 일관되게 좋다.</li>
+          <li><strong>부호색 규율</strong> — 전 화면 적/청 관례 유지.</li>
+          <li><strong>파워유저 배려</strong> — 워커 로그, 수동 수집, 스트리밍, 반응형 축약.</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin:18px 0 0;font-size:13px;color:var(--color-neutral-600);line-height:1.6;">→ 나머지 화면도 <a href="개선 계획.dc.html">기존 개선 계획</a>의 T5(카드 통일)·T7(헤더/밀도)·T9(아코디언) 처방으로 커버됩니다. 신규 작업으로는 <strong>AI 채팅 테마화</strong>·<strong>설정 데이터 탭 분해</strong>·<strong>포트폴리오 카드 리스트화</strong> 3건을 계획에 추가 권장. 원하시면 이 3건을 개선 계획/핸드오프에 반영하거나, 개선 시안으로 만들어 드리겠습니다.</p>
+  </section>
+
+</div>
+</x-dc>
+</body>
+</html>

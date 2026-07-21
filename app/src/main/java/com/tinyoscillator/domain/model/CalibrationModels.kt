@@ -55,9 +55,3 @@ data class CalibratedScore(
     val rawScore: Double,
     val calibratedScore: Double
 )
-
-/** StatisticalResult에 보정 점수를 추가한 래퍼 */
-data class CalibratedStatisticalResult(
-    val statisticalResult: StatisticalResult,
-    val calibratedScores: List<CalibratedScore>
-)

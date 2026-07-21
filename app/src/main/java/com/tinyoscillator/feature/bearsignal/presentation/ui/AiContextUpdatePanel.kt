@@ -59,6 +59,7 @@ fun AiContextUpdatePanel(
     searchWidgetsHtml: List<String>,
     onApprove: (AiContextClaimValidationResult.Accepted) -> Unit,
     onApproveAll: () -> Unit,
+    onDismissAll: () -> Unit,
     onDismiss: (AiContextClaimValidationResult.Accepted) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -129,6 +130,9 @@ fun AiContextUpdatePanel(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     horizontalArrangement = Arrangement.End
                 ) {
+                    TextButton(onClick = onDismissAll) {
+                        Text("전체 무시")
+                    }
                     TextButton(onClick = onApproveAll) {
                         Text("전체 적용 (${pending.size})")
                     }

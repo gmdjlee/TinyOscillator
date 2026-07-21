@@ -355,16 +355,19 @@ internal fun SnapshotComparisonCard(
                         val currentScores = parseAlgoScores(snapshots[0].algoScores)
                         val previousScores = parseAlgoScores(snapshots[1].algoScores)
 
+                        // 키는 RationaleBuilder가 산출하는 PascalCase 알고리즘명과 일치해야 함
+                        // (이전 camelCase 키는 algoScores JSON 키와 불일치 → 한글 라벨이 죽어 있었음)
                         val algoNameMap = mapOf(
-                            "naiveBayes" to "나이브베이즈",
-                            "logistic" to "로지스틱",
-                            "hmm" to "HMM",
-                            "pattern" to "패턴",
-                            "signal" to "시그널",
-                            "correlation" to "상관관계",
-                            "bayesianUpdate" to "베이지안",
-                            "orderFlow" to "수급",
-                            "dartEvent" to "DART"
+                            "NaiveBayes" to "나이브베이즈",
+                            "Logistic" to "로지스틱",
+                            "HMM" to "HMM",
+                            "PatternScan" to "패턴",
+                            "SignalScoring" to "시그널",
+                            "BayesianUpdate" to "베이지안",
+                            "OrderFlow" to "수급",
+                            "DartEvent" to "DART",
+                            "Korea5Factor" to "5팩터",
+                            "SectorCorrelation" to "섹터상관"
                         )
 
                         currentScores.forEach { (key, currentVal) ->

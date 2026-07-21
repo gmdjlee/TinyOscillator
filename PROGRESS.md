@@ -119,3 +119,48 @@
   - Logistic +2(종목 분리 격리·demark 피처 gradient≠0), Correlation +1(거래량변화율 행 존재), OrderFlow +1(signalScore≠0.5·>0.5), Bayesian +1(결측 PBR=FAIR posterior 동일), Interpreter +2(고낙폭 경고+음부호/저낙폭 무경고), SignalScoring +1(무발생→DEFAULT_WEIGHT), SectorCorr +1(gap 피어 공통날짜 정렬 = reference 동일).
 - 타깃 스위트 **107/107 그린**: Logistic 13·Correlation 13·OrderFlow 15·Bayesian 13·NaiveBayes 12·SignalScoring 15·Interpreter 18·SectorCorr 8 + `StatisticalAnalysisEngineTest`(오케스트레이터 통합) 그린.
 - 시그니처 변경(Logistic `analyze`/`trainWeights` +stockCode/demarkRows) 호출처: `StatisticalAnalysisEngine:156` 1곳 + 테스트 — 전수 배선 확인.
+
+---
+
+## 코드리뷰 P7 — 죽은 코드·빌드·문서 정리 (2026-07-21)
+
+리뷰 기준 커밋 `d78dd4c` 이후 P1~P6이 코드를 이동시켜 스펙 라인번호가 stale → **삭제 전 전건 재grep**으로 검증 후 실행.
+
+### 재grep로 교정한 스펙 오류 3건 (live인데 삭제 대상으로 지목됨)
+| 대상 | 실제 상태 | 조치 |
+|---|---|---|
+| `MarketDepositViewModel.refreshData` | P1-5가 재시도 버튼(`MarketDepositTab:87 onRetry`)+테스트 4건에 배선 | 삭제 안 함 |
+| `BearSignalViewModel.updateMarketReturn` | `BearSignalScreen:552 onEditMarket`에 배선 | 삭제 안 함 |
+| `IndicatorSheet.kt` | 파일 이미 부재 | N/A |
+
+### 삭제 (-874줄, git rm 9파일)
+- 지표 차트 클러스터(사용자 승인 "삭제"): `StockChartViewModel`·`OscillatorChartView` — 참조 0(자기 파일만, NavHost·DI 미배선)
+- 제로참조 클래스(+오르판 테스트): `RecentSearchPreferences` · `CalibrationMonitor`(+Test) · `RegimeStackingEnsemble`(+Test) · `AnalysisBridge`(+테스트 fake `FakeSignalBridge` — 유일 구현체가 테스트 fake, 프로덕션 미사용)
+
+### 미사용 선언 제거 (자기 파일에서만 참조 확인)
+- `StatisticalModels`(-77): `ExpectedValueAnalysis`+`Scenario`+`HistoricalOutcome` / `DemarkAnalysis`+`DemarkState`(data)+`DemarkHistoricalResult` / `EtfContext`+`EtfHoldingInfo`+`EtfAmountSnapshot`
+- `CalibratedStatisticalResult`(`CalibratedScore` live 유지) · `FactorDataCache`(`MonthlyFactorRow` live 유지) · `MonitorItem`(BearSignal) · `RealtimeSupplyResponse`(`RealtimeSupplyItemDto` 유지)
+- ※NaiveBayes의 동명 `DemarkState` **enum**은 별개 타입 — 미변경
+
+### 미사용 함수 제거
+- `EquityReportScraper.scrapeReports`(Flow, -78 — live 트윈 `collectReports`가 Repository 경로, 관련 import 5개 정리)
+- `ManualInputViewModel.updateMarketReturn`(화면은 BearSignalVM 경로) · `BearSignalViewModel` 스칼라 6함수(updateLoss/Big/IssueRatio/Credit/Margin/Dir — 화면은 `manualViewModel::` 경로, 오르판 테스트 `updateLoss` 1건도 삭제)
+
+### 살려서 고침 (삭제 아님)
+- `algoNameMap`: 키 camelCase→PascalCase(RationaleBuilder 산출 키 일치) + 누락 `Korea5Factor`/`SectorCorrelation` 추가, 허수 `correlation` 제거 → **죽어있던 한글 라벨 복원**
+- `dismissAllAiContextClaims`: `AiContextUpdatePanel`에 "전체 무시" 버튼(`onDismissAll`) 신설 + `AiContextUpdatePanelBound` 배선
+- `MainActivity` windowsizeclass 미사용 import 3개 제거(앱은 `common.WindowType` 사용)
+
+### 빌드/문서
+- `build.gradle.kts` lint: `checkReleaseBuilds=false` 전면 off → `abortOnError=false`(릴리스 lint 실행하되 비차단, baseline 전환 권장)
+- coroutines core/android **1.7.3→1.8.0**(테스트 1.8.0과 런타임 정렬)
+- `CLAUDE.md` **v37→v38** 5곳(34 entities/25 DAOs, v37→38 `bear_signal_ai_context` 노트)
+- `design_handoff_jade_terminal_polish/`(미추적 256K·7파일) → `docs/design/` 이동·git add
+
+### 검증
+- `compileDebugKotlin`+`compileDebugUnitTestKotlin` **성공(2m42s)** — 삭제 참조 무결 + coroutines 1.8.0 컴파일 OK
+- 타깃 테스트 4클래스 **그린(41s)**: `EquityReportScraperTest`·`StatisticalAnalysisEngineTest`·`Korea5FactorEngineTest`·`BearSignalViewModelTest`
+- 엔진 미사용 로컬(Correlation/PatternScan/StackingEnsemble): 전체 재컴파일 `never used` 경고 0건 → P4 재작성으로 해소, 무액션
+- 잔여: `PROGRESS.md.bk`(사용자 백업, 범위 밖 — 미삭제)
+
+**커밋 대기** (자동 커밋 금지 — 사용자 지시 후).

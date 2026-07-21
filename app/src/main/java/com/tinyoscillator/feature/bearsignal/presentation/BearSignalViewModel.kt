@@ -613,13 +613,6 @@ class BearSignalViewModel @Inject constructor(
         dispatch(ManualFieldUpdate.MarketReturn(name, r))
     }
 
-    fun updateLoss(value: Double) = dispatch(ManualFieldUpdate.Loss(value))
-    fun updateBig(value: String) = dispatch(ManualFieldUpdate.Big(value))
-    fun updateIssueRatio(value: Double) = dispatch(ManualFieldUpdate.IssueRatio(value))
-    fun updateCredit(value: Double) = dispatch(ManualFieldUpdate.Credit(value))
-    fun updateMargin(value: Boolean) = dispatch(ManualFieldUpdate.Margin(value))
-    fun updateDir(value: String) = dispatch(ManualFieldUpdate.Dir(value))
-
     /** 리포트 기준값(2026.6.30)으로 리셋 — 수동 오버라이드 삭제(§5.4 "리셋", 부록 B #8) */
     fun reset() {
         viewModelScope.launch { resetToReportBaselineUseCase() }

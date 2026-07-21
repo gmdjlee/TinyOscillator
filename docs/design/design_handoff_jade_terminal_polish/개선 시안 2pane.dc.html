@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;600;700;800&family=DM+Sans:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --jbg:#0B0E14; --jsc:#151820; --jsch:#1C2030; --jscl:#10131A; --jscll:#080A0F;
+  --jon:#E2DED5; --jonv:#BDB8B0; --jpri:#6ECBA8; --jprion:#003828; --jgold:#E8C36A; --jplum:#D4899E;
+  --jerr:#FF6B6B; --joutline:#3E4555; --jsv:#2A3040; --jup:#EF7B68; --jdown:#68B0F0; --jorange:#E8823A;
+  --fc-radius:20px 6px 20px 6px; --fc-shadow:inset 0 0 0 1px rgba(110,203,168,.22);
+  --jdisp:"Gothic A1","Noto Sans KR",sans-serif; --jbody:"DM Sans","Noto Sans KR",system-ui,sans-serif;
+}
+[data-theme="light"]{
+  --jbg:#F5EFE3; --jsc:#ECE6DA; --jsch:#E5DED0; --jscl:#F0EAE0; --jscll:#FFFDF5;
+  --jon:#1A1710; --jonv:#5A5344; --jpri:#1A6B4D; --jprion:#FFFFFF; --jgold:#7A5A10; --jplum:#884058;
+  --jerr:#C42B2B; --joutline:#C0B8A5; --jsv:#DDD5C5; --jup:#D05540; --jdown:#4088CC; --jorange:#B25D1E;
+  --fc-shadow:inset 0 0 0 1px rgba(26,107,77,.28);
+}
+[data-card="flat"]{ --fc-radius:14px; --fc-shadow:none; }
+@keyframes fadeSlide{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+*::-webkit-scrollbar{width:0;height:0;display:none}*{scrollbar-width:none}
+body{margin:0;background:#e7dcc6;background-image:radial-gradient(circle at 1px 1px, rgba(32,30,29,.05) 1px, transparent 0);background-size:26px 26px;font-family:var(--jbody);}
+</style>
+</helmet>
+
+<div style="min-height:100vh;padding:34px 24px 60px;display:flex;flex-direction:column;align-items:center;gap:22px;">
+
+  <div style="max-width:720px;text-align:center;">
+    <div style="display:inline-flex;gap:7px;background:#7a8a5e;color:#fff;font-family:var(--jbody);font-weight:700;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:12px;">2-Pane 대응 · 태블릿 · 폴더블</div>
+    <h1 style="font-family:var(--jdisp);font-weight:800;font-size:27px;line-height:1.2;color:#201e1d;margin:0 0 8px;">넓은 화면 — NavigationRail + 마스터·디테일</h1>
+    <p style="font-family:var(--jbody);font-size:13.5px;line-height:1.6;color:#645c50;margin:0;">폰의 하단 탭은 좌측 <strong>NavigationRail</strong>로, BearSignal의 세로 아코디언은 <strong>좌측 요약·목록 + 우측 상세</strong>로 펼쳐집니다. 좌측 목록 항목을 눌러 우측 상세를 바꿔보세요. Tweaks로 화면·테마 전환.</p>
+  </div>
+
+  <!-- TABLET -->
+  <div data-theme="{{ themeAttr }}" data-card="{{ cardAttr }}" style="width:1040px;max-width:100%;background:#000;border-radius:34px;padding:12px;box-shadow:0 34px 80px -24px rgba(32,30,29,.55),0 0 0 1px rgba(0,0,0,.6);">
+    <div style="background:var(--jbg);border-radius:24px;overflow:hidden;color:var(--jon);height:720px;display:flex;">
+
+      <!-- ===== NAVIGATION RAIL ===== -->
+      <div style="width:104px;flex:none;background:var(--jsc);display:flex;flex-direction:column;align-items:center;padding:18px 0;gap:6px;">
+        <div style="width:34px;height:34px;border-radius:10px;background:var(--jpri);display:flex;align-items:center;justify-content:center;margin-bottom:18px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--jprion)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg></div>
+        <div onClick="{{ goMarket }}" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:{{ navMarketC }};width:100%;padding:6px 0;"><span style="background:{{ navMarketBg }};border-radius:999px;padding:5px 20px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg></span><span style="font-size:10.5px;font-weight:{{ navMarketW }};">시장분석</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--jonv);width:100%;padding:6px 0;"><span style="padding:5px 20px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/></svg></span><span style="font-size:10.5px;">종목분석</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--jonv);width:100%;padding:6px 0;"><span style="padding:5px 20px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></span><span style="font-size:10.5px;">탐색</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--jonv);width:100%;padding:6px 0;"><span style="padding:5px 20px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3 3 3 0 0 0 0 6 3 3 0 0 0 3 3v1a3 3 0 0 0 6 0"/></svg></span><span style="font-size:10.5px;">AI분석</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--jonv);width:100%;padding:6px 0;"><span style="padding:5px 20px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6"/></svg></span><span style="font-size:10.5px;">포트폴리오</span></div>
+      </div>
+
+      <!-- ===== CONTENT AREA ===== -->
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+        <!-- top bar -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--jsv);">
+          <span style="font-family:var(--jdisp);font-weight:800;font-size:22px;">{{ title }}</span>
+          <span style="display:inline-flex;gap:16px;color:var(--jon);align-items:center;">
+            <sc-if value="{{ isBear }}" hint-placeholder-val="{{ true }}"><span style="font-size:11.5px;color:var(--jonv);">최종 갱신 07/18 06:30</span></sc-if>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </span>
+        </div>
+
+        <!-- ===== BEARSIGNAL MASTER-DETAIL ===== -->
+        <sc-if value="{{ isBear }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;display:flex;min-height:0;">
+          <!-- MASTER: summary + section list -->
+          <div style="width:352px;flex:none;border-right:1px solid var(--jsv);overflow-y:auto;padding:18px;">
+            <div style="border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:16px;margin-bottom:16px;">
+              <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;">
+                <div style="display:flex;flex-direction:column;gap:4px;background:var(--jscll);border-radius:11px;padding:8px 7px;">
+                  <span style="width:12px;height:12px;border-radius:999px;background:#3a4048;"></span>
+                  <span style="width:12px;height:12px;border-radius:999px;background:var(--jgold);box-shadow:0 0 9px var(--jgold);"></span>
+                  <span style="width:12px;height:12px;border-radius:999px;background:#3a2a2f;"></span>
+                </div>
+                <div style="flex:1;"><div style="font-size:10.5px;color:var(--jonv);">현 국면</div><div style="font-family:var(--jdisp);font-weight:800;font-size:18px;color:var(--jgold);line-height:1.15;">신호 점등 · 방아쇠 대기</div></div>
+              </div>
+              <div style="height:8px;border-radius:6px;background:var(--jsv);overflow:hidden;margin-bottom:12px;"><div style="width:61%;height:100%;background:var(--jgold);border-radius:6px;"></div></div>
+              <div style="display:flex;justify-content:space-between;">
+                <div><div style="font-size:9.5px;color:var(--jonv);">선행</div><div style="font-family:var(--jdisp);font-weight:700;font-size:14px;color:var(--jgold);">61</div></div>
+                <div><div style="font-size:9.5px;color:var(--jonv);">방아쇠</div><div style="font-family:var(--jdisp);font-weight:700;font-size:14px;color:var(--jgold);">정상화</div></div>
+                <div><div style="font-size:9.5px;color:var(--jonv);">증폭</div><div style="font-family:var(--jdisp);font-weight:700;font-size:14px;color:var(--jorange);">×1.30</div></div>
+                <div><div style="font-size:9.5px;color:var(--jonv);">경고</div><div style="font-family:var(--jdisp);font-weight:700;font-size:14px;color:var(--jerr);">2/3</div></div>
+              </div>
+            </div>
+            <div style="font-size:10.5px;color:var(--jonv);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin:0 4px 8px;">세부 진단</div>
+            <sc-for list="{{ items }}" as="it" hint-placeholder-count="5">
+              <div onClick="{{ it.pick }}" style="cursor:pointer;display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:13px;background:{{ it.bg }};margin-bottom:6px;border:1px solid {{ it.border }};">
+                <span style="width:8px;height:8px;border-radius:999px;background:{{ it.dot }};flex:none;"></span>
+                <div style="flex:1;min-width:0;"><div style="font-family:var(--jdisp);font-weight:700;font-size:13.5px;color:{{ it.titleC }};">{{ it.title }}</div><div style="font-size:10.5px;color:var(--jonv);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ it.sub }}</div></div>
+                <span style="background:{{ it.chipBg }};color:{{ it.chipFg }};font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;">{{ it.level }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- DETAIL -->
+          <div style="flex:1;overflow-y:auto;padding:24px 26px;min-width:0;">
+            <div key="{{ detailKey }}" style="animation:fadeSlide .26s ease;">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;"><h2 style="font-family:var(--jdisp);font-weight:800;font-size:24px;color:var(--jon);margin:0;">{{ dTitle }}</h2><span style="background:{{ dChipBg }};color:{{ dChipFg }};font-size:11.5px;font-weight:700;padding:3px 11px;border-radius:999px;">{{ dLevel }}</span></div>
+              <div style="font-size:13px;color:var(--jonv);margin-bottom:18px;">{{ dSub }}</div>
+              <div style="height:9px;border-radius:6px;background:linear-gradient(90deg,var(--jpri),var(--jgold),var(--jorange),var(--jerr));opacity:.9;margin-bottom:20px;"></div>
+              <div style="font-size:14px;line-height:1.7;color:var(--jon);margin-bottom:22px;max-width:560px;">{{ dBody }}</div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px;">
+                <div style="flex:1;min-width:140px;border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:16px;"><div style="font-family:var(--jdisp);font-weight:800;font-size:28px;color:{{ dM1c }};">{{ dM1 }}</div><div style="font-size:11.5px;color:var(--jonv);margin-top:2px;">{{ dM1l }}</div></div>
+                <div style="flex:1;min-width:140px;border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:16px;"><div style="font-family:var(--jdisp);font-weight:800;font-size:28px;color:{{ dM2c }};">{{ dM2 }}</div><div style="font-size:11.5px;color:var(--jonv);margin-top:2px;">{{ dM2l }}</div></div>
+                <div style="flex:1;min-width:140px;border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:16px;"><div style="font-family:var(--jdisp);font-weight:800;font-size:28px;color:{{ dM3c }};">{{ dM3 }}</div><div style="font-size:11.5px;color:var(--jonv);margin-top:2px;">{{ dM3l }}</div></div>
+              </div>
+              <div style="border-radius:14px;background:var(--jsch);padding:16px 18px;">
+                <div style="font-size:11px;color:var(--jonv);margin-bottom:10px;">추이 (90일)</div>
+                <svg width="100%" height="120" viewBox="0 0 560 120" preserveAspectRatio="none"><line x1="0" y1="60" x2="560" y2="60" stroke="var(--jsv)" stroke-dasharray="4 4"/><polyline points="0,92 56,86 112,88 168,74 224,78 280,60 336,66 392,44 448,50 504,34 560,38" fill="none" stroke="var(--jgold)" stroke-width="2.6"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ===== HOME 2-PANE ===== -->
+        <sc-if value="{{ isMarket }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;min-height:0;">
+          <!-- left column -->
+          <div style="width:400px;flex:none;border-right:1px solid var(--jsv);overflow-y:auto;padding:20px;">
+            <div style="display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;">
+              <span style="background:var(--jpri);color:var(--jprion);font-weight:700;font-size:12px;padding:7px 13px;border-radius:999px;white-space:nowrap;">Fear &amp; Greed</span>
+              <span style="background:var(--jscl);color:var(--jonv);font-size:12px;padding:7px 13px;border-radius:999px;white-space:nowrap;">DeMark</span>
+              <span style="background:var(--jscl);color:var(--jonv);font-size:12px;padding:7px 13px;border-radius:999px;white-space:nowrap;">자금동향</span>
+            </div>
+            <div style="border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:20px;margin-bottom:14px;">
+              <div style="font-size:11px;color:var(--jonv);font-weight:600;margin-bottom:12px;">오늘의 시장 · FEAR &amp; GREED</div>
+              <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:14px;">
+                <span style="font-family:var(--jdisp);font-weight:800;font-size:60px;line-height:.85;color:var(--jplum);">72</span>
+                <div style="padding-bottom:6px;"><div style="font-family:var(--jdisp);font-weight:700;font-size:18px;color:var(--jplum);">탐욕</div><div style="font-size:11.5px;color:var(--jonv);">상위 22%</div></div>
+              </div>
+              <div style="height:8px;border-radius:6px;background:var(--jsv);overflow:hidden;"><div style="width:78%;height:100%;background:var(--jplum);border-radius:6px;"></div></div>
+            </div>
+            <div onClick="{{ goBear }}" style="cursor:pointer;border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:15px;margin-bottom:14px;display:flex;align-items:center;gap:12px;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--jgold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+              <div style="flex:1;"><div style="font-family:var(--jdisp);font-weight:700;font-size:13.5px;">시장 국면 · 리스크</div><div style="font-size:10.5px;color:var(--jonv);">현재 신호 점등 — 열기</div></div>
+              <span style="background:rgba(232,195,106,.14);color:var(--jgold);font-weight:700;font-size:10.5px;padding:3px 9px;border-radius:999px;">주의</span>
+            </div>
+            <div style="border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:15px;">
+              <div style="font-family:var(--jdisp);font-weight:700;font-size:13.5px;margin-bottom:10px;">시장 선택</div>
+              <div style="display:flex;background:var(--jscll);border-radius:999px;padding:3px;">
+                <span onClick="{{ selKospi }}" style="cursor:pointer;flex:1;text-align:center;font-size:12px;font-weight:600;padding:7px;border-radius:999px;background:{{ kospiBg }};color:{{ kospiFg }};">코스피</span>
+                <span onClick="{{ selKosdaq }}" style="cursor:pointer;flex:1;text-align:center;font-size:12px;font-weight:600;padding:7px;border-radius:999px;background:{{ kosdaqBg }};color:{{ kosdaqFg }};">코스닥</span>
+              </div>
+            </div>
+          </div>
+          <!-- right column: detail -->
+          <div style="flex:1;overflow-y:auto;padding:22px 24px;min-width:0;">
+            <h2 style="font-family:var(--jdisp);font-weight:800;font-size:22px;margin:0 0 4px;">공포·탐욕 지수 추이</h2>
+            <div style="font-size:12.5px;color:var(--jonv);margin-bottom:18px;">코스피 · 최근 2년 · 백분위 밴드</div>
+            <div style="border-radius:var(--fc-radius);box-shadow:var(--fc-shadow);background:var(--jsch);padding:18px;margin-bottom:16px;">
+              <svg width="100%" height="200" viewBox="0 0 620 200" preserveAspectRatio="none">
+                <rect x="0" y="0" width="620" height="40" fill="var(--jup)" opacity=".08"/>
+                <rect x="0" y="160" width="620" height="40" fill="var(--jdown)" opacity=".08"/>
+                <line x1="0" y1="40" x2="620" y2="40" stroke="var(--jsv)" stroke-dasharray="4 4"/>
+                <line x1="0" y1="160" x2="620" y2="160" stroke="var(--jsv)" stroke-dasharray="4 4"/>
+                <polyline points="0,150 60,140 120,120 180,132 240,96 300,80 360,104 420,64 480,72 540,46 620,52" fill="none" stroke="var(--jplum)" stroke-width="2.6"/>
+              </svg>
+            </div>
+            <div style="display:flex;gap:12px;">
+              <div style="flex:1;border-radius:14px;background:var(--jsch);padding:14px;text-align:center;"><div style="font-family:var(--jdisp);font-weight:800;font-size:22px;color:var(--jup);">64</div><div style="font-size:10.5px;color:var(--jonv);">KOSPI 오실</div></div>
+              <div style="flex:1;border-radius:14px;background:var(--jsch);padding:14px;text-align:center;"><div style="font-family:var(--jdisp);font-weight:800;font-size:22px;color:var(--jdown);">-2,140</div><div style="font-size:10.5px;color:var(--jonv);">예탁금 억</div></div>
+              <div style="flex:1;border-radius:14px;background:var(--jsch);padding:14px;text-align:center;"><div style="font-family:var(--jdisp);font-weight:800;font-size:22px;color:var(--jup);">+3.4%</div><div style="font-size:10.5px;color:var(--jonv);">상위 테마</div></div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+
+  <div style="font-family:var(--jbody);font-size:12px;color:#82796a;text-align:center;max-width:640px;">폰(1-pane)에선 하단 탭 + 세로 아코디언, 넓은 화면(2-pane)에선 NavigationRail + 좌측 요약·목록 + 우측 상세 — 같은 컴포넌트, 폭에 따라 배치만 재구성(<code style="font-size:11px;">WindowType</code> 분기).</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:820},&quot;themeMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;다크&quot;,&quot;라이트&quot;],&quot;default&quot;:&quot;다크&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;테마&quot;},&quot;cardMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;FinanceCard&quot;,&quot;기본 카드&quot;],&quot;default&quot;:&quot;FinanceCard&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;컴포넌트&quot;}}">
+class Component extends DCLogic {
+  state = { view: "bear", sel: "lead", market: "KOSPI" };
+
+  renderVals() {
+    const bear = this.state.view === "bear";
+    const market = !bear;
+
+    const themeAttr = (this.props.themeMode ?? "다크") === "라이트" ? "light" : "dark";
+    const cardAttr = (this.props.cardMode ?? "FinanceCard") === "기본 카드" ? "flat" : "fin";
+
+    const lv = {
+      "경고": { chipBg:"rgba(232,130,58,.16)", chipFg:"var(--jorange)", dot:"var(--jorange)" },
+      "주의": { chipBg:"rgba(232,195,106,.16)", chipFg:"var(--jgold)", dot:"var(--jgold)" },
+      "안정": { chipBg:"rgba(110,203,168,.16)", chipFg:"var(--jpri)", dot:"var(--jpri)" }
+    };
+    const defs = [
+      { key:"lead", title:"선행 신호 3종", sub:"위험선호가 어디까지 식었나", level:"경고",
+        body:"주변부 압착·변동성 무게중심·IPO 질 세 온도계가 위험선호 과열을 비춘다. 현재 신호1(주변부)이 경고 단계에 진입했고, 신호2·3은 주의 구간이다.",
+        m:[["8/20","이탈 지수","var(--jorange)"],["1.4","하락/상승비","var(--jgold)"],["심화","낙폭 판정","var(--jorange)"]] },
+      { key:"country", title:"국가별 수익률", sub:"글로벌 20개 지수 이탈", level:"경고",
+        body:"20개 지수의 이동평균 이탈을 전치 표로 본다. 이탈국이 다수로 늘면 닷컴 정점 직전(7개국)과 유사한 균열 신호다. 현재 8개국이 이동평균 아래로 이탈했다.",
+        m:[["8","이탈국 수","var(--jorange)"],["-7.2%","최저 낙폭","var(--jup)"],["12","관측 국가","var(--jon)"]] },
+      { key:"gate", title:"방아쇠 · 증폭기", sub:"금리는 결정타, 집중은 증폭 계수", level:"주의",
+        body:"금리가 정상화 한계선(≈4.5%)을 넘어 '진짜 긴축'으로 인식되면 방아쇠가 당겨진다. 시가총액 집중도는 하락의 파괴력을 증폭하는 계수로 작동한다. 현재 금리는 정상화 구간.",
+        m:[["3.75%","기준금리","var(--jgold)"],["×1.30","증폭 계수","var(--jorange)"],["대기","방아쇠","var(--jgold)"]] },
+      { key:"type", title:"유형 진단", sub:"약세장 3유형과 회복 가능성", level:"주의",
+        body:"주도주 하락세가 심리·긴축·구조 중 어느 유형에 속하는지 진단한다. 현재는 유형 2(긴축 주도)에 가까우며, 금리 향방에 따라 회복 시나리오가 갈린다.",
+        m:[["유형 2","현 분류","var(--jgold)"],["중","회복 난도","var(--jon)"],["6~9M","예상 기간","var(--jonv)"]] },
+      { key:"hist", title:"역사 검증", sub:"최악의 조합 · 3충격 동시 결합", level:"안정",
+        body:"1980년대 이후 심리·유동성·수요 3충격이 동시에 결합한 국면과 현재를 대조한다. 현재는 3충격 중 1~2개만 부분 점등된 상태로, 최악의 조합과는 거리가 있다.",
+        m:[["1990","최근접 사례","var(--jon)"],["부분","일치도","var(--jgold)"],["1/3","충격 결합","var(--jpri)"]] }
+    ];
+    const sel = this.state.sel;
+    const items = defs.map(d => ({
+      title:d.title, sub:d.sub, level:d.level, ...lv[d.level],
+      bg: d.key===sel ? "var(--jsch)" : "transparent",
+      border: d.key===sel ? "var(--jsv)" : "transparent",
+      titleC: d.key===sel ? "var(--jon)" : "var(--jon)",
+      pick: () => this.setState({ sel: d.key })
+    }));
+    const cur = defs.find(d => d.key===sel) || defs[0];
+
+    return {
+      themeAttr, cardAttr,
+      isBear: bear, isMarket: market,
+      title: bear ? "시장 국면 · 리스크" : "시장분석",
+      goMarket: () => this.setState({ view:"market" }),
+      goBear: () => this.setState({ view:"bear" }),
+      navMarketC:"var(--jpri)", navMarketBg:"rgba(110,203,168,.16)", navMarketW:"700",
+      // master list
+      items,
+      // detail
+      detailKey: sel,
+      dTitle: cur.title, dSub: cur.sub, dBody: cur.body, dLevel: cur.level,
+      dChipBg: lv[cur.level].chipBg, dChipFg: lv[cur.level].chipFg,
+      dM1: cur.m[0][0], dM1l: cur.m[0][1], dM1c: cur.m[0][2],
+      dM2: cur.m[1][0], dM2l: cur.m[1][1], dM2c: cur.m[1][2],
+      dM3: cur.m[2][0], dM3l: cur.m[2][1], dM3c: cur.m[2][2],
+      // market segmented
+      selKospi: () => this.setState({ market:"KOSPI" }),
+      selKosdaq: () => this.setState({ market:"KOSDAQ" }),
+      kospiBg: this.state.market==="KOSPI"?"var(--jpri)":"transparent", kospiFg: this.state.market==="KOSPI"?"var(--jprion)":"var(--jonv)",
+      kosdaqBg: this.state.market==="KOSDAQ"?"var(--jpri)":"transparent", kosdaqFg: this.state.market==="KOSDAQ"?"var(--jprion)":"var(--jonv)"
+    };
+  }
+}
+</script>
+</body>
+</html>

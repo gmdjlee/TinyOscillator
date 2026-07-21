@@ -65,12 +65,3 @@ data class MonthlyFactorRow(
     val rmw: Double,         // 수익성 프리미엄
     val cma: Double          // 투자보수성 프리미엄
 )
-
-/**
- * 팩터 데이터 캐시 (FeatureStore에 저장)
- */
-@Serializable
-data class FactorDataCache(
-    val rows: List<MonthlyFactorRow>,
-    val computedAt: Long = System.currentTimeMillis()
-)

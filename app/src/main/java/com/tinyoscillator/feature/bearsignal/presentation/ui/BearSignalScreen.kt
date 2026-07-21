@@ -603,6 +603,7 @@ private fun AiContextUpdatePanelBound(uiState: BearSignalUiState, viewModel: Bea
         searchWidgetsHtml = uiState.aiContextSearchWidgetsHtml,
         onApprove = viewModel::approveAiContextClaim,
         onApproveAll = viewModel::approveAllAiContextClaims,
+        onDismissAll = viewModel::dismissAllAiContextClaims,
         onDismiss = viewModel::dismissAiContextClaim
     )
 }

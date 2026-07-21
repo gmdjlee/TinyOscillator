@@ -82,12 +82,6 @@ data class OhlcvItem(
 // ============================================================================
 
 @Serializable
-data class RealtimeSupplyResponse(
-    @SerialName("return_code") val returnCode: Int = 0,
-    @SerialName("return_msg") val returnMsg: String? = null
-)
-
-@Serializable
 data class RealtimeSupplyItemDto(
     @SerialName("stk_cd") val stkCd: String? = null,
     @SerialName("stk_nm") val stkNm: String? = null,

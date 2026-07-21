@@ -499,15 +499,6 @@ class BearSignalViewModelTest {
     }
 
     @Test
-    fun `updateLoss는 Loss 업데이트를 위임한다`() = runTest {
-        val viewModel = createViewModel()
-        viewModel.updateLoss(72.0)
-        advanceUntilIdle()
-
-        coVerify(exactly = 1) { updateManualInputUseCase(ManualFieldUpdate.Loss(72.0)) }
-    }
-
-    @Test
     fun `reset은 resetToReportBaselineUseCase를 호출한다`() = runTest {
         val viewModel = createViewModel()
         viewModel.reset()

@@ -3,12 +3,7 @@ package com.tinyoscillator.core.scraper
 import com.tinyoscillator.core.config.ApiConstants
 import com.tinyoscillator.core.database.entity.ConsensusReportEntity
 import com.tinyoscillator.core.util.ParsingUtils
-import com.tinyoscillator.domain.model.ConsensusDataProgress
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -42,79 +37,6 @@ class EquityReportScraper(
         .readTimeout(ApiConstants.EQUITY_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(ApiConstants.EQUITY_SCRAPER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
-
-    /**
-     * 날짜 범위 내 리포트 수집.
-     * @param startDate "YYYY-MM-DD" 형식
-     * @param endDate "YYYY-MM-DD" 형식
-     */
-    fun scrapeReports(startDate: String, endDate: String): Flow<ConsensusDataProgress> = flow {
-        require(startDate <= endDate) { "startDate must be <= endDate" }
-
-        Timber.d("리포트 수집 시작: $startDate ~ $endDate")
-        emit(ConsensusDataProgress.Loading("리포트 수집 준비 중...", 0f))
-
-        val allReports = mutableListOf<ConsensusReportEntity>()
-        var pageNo = 1
-        var reachedBeforeStart = false
-
-        while (!reachedBeforeStart) {
-            val html = fetchPageWithRetry(pageNo)
-            if (html == null) {
-                Timber.w("페이지 $pageNo 수집 실패, 중단")
-                break
-            }
-
-            val pageReports = parsePage(html)
-            if (pageReports.isEmpty()) {
-                Timber.d("페이지 $pageNo: 데이터 없음, 수집 종료")
-                break
-            }
-
-            var allBeforeStart = true
-            for (report in pageReports) {
-                val reportDate = report.writeDate
-                if (reportDate < startDate) {
-                    // 시작일 이전 데이터 → 이 레코드는 건너뜀
-                    continue
-                }
-                if (reportDate > endDate) {
-                    // 종료일 이후 데이터 → 건너뜀 (더 최신 페이지)
-                    allBeforeStart = false
-                    continue
-                }
-                // 범위 내 데이터
-                allBeforeStart = false
-                allReports.add(report)
-            }
-
-            if (allBeforeStart) {
-                reachedBeforeStart = true
-                Timber.d("페이지 $pageNo: 모든 데이터가 시작일 이전, 수집 종료")
-            }
-
-            emit(ConsensusDataProgress.Loading(
-                "페이지 $pageNo 수집 완료 (${allReports.size}건)",
-                0f // 총 페이지 수를 모르므로 indeterminate
-            ))
-
-            if (!reachedBeforeStart) {
-                pageNo++
-                val delayMs = randomDelay()
-                Timber.d("다음 페이지 대기: ${delayMs}ms")
-                delay(delayMs)
-            }
-        }
-
-        if (allReports.isEmpty()) {
-            emit(ConsensusDataProgress.Success(0))
-        } else {
-            val deduped = allReports.distinctBy {
-                Triple(it.stockTicker, it.writeDate, "${it.author}|${it.institution}")
-            }
-            emit(ConsensusDataProgress.Success(deduped.size))
-        }
-    }.flowOn(Dispatchers.IO)
 
     /**
      * 수집된 원시 데이터를 반환 (Repository에서 DB 저장에 사용)
