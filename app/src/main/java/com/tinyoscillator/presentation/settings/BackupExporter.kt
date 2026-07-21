@@ -78,6 +78,20 @@ internal object BackupExporter {
                         ecos = EcosApiBackup(ecosKey)
                     )
                 }
+                "customs" -> {
+                    val customsKey = loadCustomsTradeApiKey(context)
+                    ApiBackup(
+                        type = "customs",
+                        customs = CustomsApiBackup(customsKey)
+                    )
+                }
+                "fred" -> {
+                    val fredKey = loadFredApiKey(context)
+                    ApiBackup(
+                        type = "fred",
+                        fred = FredApiBackup(fredKey)
+                    )
+                }
                 else -> {
                     val kiwoomConfig = loadKiwoomConfig(context)
                     val kisConfig = loadKisConfig(context)
@@ -85,6 +99,8 @@ internal object BackupExporter {
                     val aiConfig = loadAiConfig(context)
                     val dartKey = loadDartApiKey(context)
                     val ecosKey = loadEcosApiKey(context)
+                    val customsKey = loadCustomsTradeApiKey(context)
+                    val fredKey = loadFredApiKey(context)
                     ApiBackup(
                         type = "all_api",
                         kiwoom = KiwoomApiBackup(kiwoomConfig.appKey, kiwoomConfig.secretKey, kiwoomConfig.investmentMode.name),
@@ -92,7 +108,9 @@ internal object BackupExporter {
                         krx = KrxApiBackup(krxCreds.id, krxCreds.password),
                         ai = AiApiBackup(aiConfig.apiKey, aiConfig.provider.name, aiConfig.modelId),
                         dart = DartApiBackup(dartKey),
-                        ecos = EcosApiBackup(ecosKey)
+                        ecos = EcosApiBackup(ecosKey),
+                        customs = CustomsApiBackup(customsKey),
+                        fred = FredApiBackup(fredKey)
                     )
                 }
             }

@@ -48,15 +48,27 @@ data class EcosApiBackup(
 )
 
 @Serializable
+data class CustomsApiBackup(
+    val apiKey: String
+)
+
+@Serializable
+data class FredApiBackup(
+    val apiKey: String
+)
+
+@Serializable
 data class ApiBackup(
     val version: Int = 1,
-    val type: String, // "kiwoom", "kis", "krx", "ai", "dart", "ecos", "all_api"
+    val type: String, // "kiwoom", "kis", "krx", "ai", "dart", "ecos", "customs", "fred", "all_api"
     val kiwoom: KiwoomApiBackup? = null,
     val kis: KisApiBackup? = null,
     val krx: KrxApiBackup? = null,
     val ai: AiApiBackup? = null,
     val dart: DartApiBackup? = null,
-    val ecos: EcosApiBackup? = null
+    val ecos: EcosApiBackup? = null,
+    val customs: CustomsApiBackup? = null,
+    val fred: FredApiBackup? = null
 )
 
 // endregion

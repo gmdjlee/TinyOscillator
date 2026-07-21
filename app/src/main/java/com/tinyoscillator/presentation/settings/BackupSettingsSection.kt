@@ -311,6 +311,26 @@ internal fun BackupTab(db: AppDatabase) {
                 ) {
                     Text("ECOS", style = MaterialTheme.typography.labelSmall)
                 }
+                OutlinedButton(
+                    onClick = {
+                        pendingApiExportType = "customs"
+                        showExportPasswordDialog = true
+                    },
+                    enabled = !isProcessing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("관세청", style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(
+                    onClick = {
+                        pendingApiExportType = "fred"
+                        showExportPasswordDialog = true
+                    },
+                    enabled = !isProcessing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("FRED", style = MaterialTheme.typography.labelSmall)
+                }
             }
             Spacer(Modifier.height(8.dp))
             Button(
@@ -521,6 +541,8 @@ internal fun BackupTab(db: AppDatabase) {
                     "krx" -> "krx_api_backup.enc"
                     "dart" -> "dart_api_backup.enc"
                     "ecos" -> "ecos_api_backup.enc"
+                    "customs" -> "customs_api_backup.enc"
+                    "fred" -> "fred_api_backup.enc"
                     else -> "api_backup_all.enc"
                 }
                 apiExportLauncher.launch(filename)

@@ -85,6 +85,14 @@ internal object BackupImporter {
                 saveEcosApiKey(context, ecos.apiKey)
                 restoredParts.add("ECOS")
             }
+            backup.customs?.let { customs ->
+                saveCustomsTradeApiKey(context, customs.apiKey)
+                restoredParts.add("관세청")
+            }
+            backup.fred?.let { fred ->
+                saveFredApiKey(context, fred.apiKey)
+                restoredParts.add("FRED")
+            }
 
             Result.success("${restoredParts.joinToString(", ")} 복원 완료")
         } catch (e: CancellationException) {
