@@ -214,4 +214,8 @@
   - 빌드/문서: `build.gradle.kts` lint 전면 off 제거 → `abortOnError=false`(릴리스 lint 실행하되 비차단, baseline 전환 권장) · coroutines core/android 1.7.3→**1.8.0**(테스트 1.8.0과 정렬, 컴파일+엔진테스트 그린으로 검증) · `CLAUDE.md` v37→**v38** 5곳(34 entities/25 DAOs, v37→38 `bear_signal_ai_context` 노트) · `design_handoff_jade_terminal_polish/`(미추적 256K, 7파일) → `docs/design/`로 이동·git add
   - 엔진 미사용 로컬(CorrelationEngine/PatternScanEngine/StackingEnsemble): 전체 재컴파일에서 `never used` 경고 0건 → P4 CorrelationEngine 재작성으로 이미 해소된 것으로 판단(무액션)
   - 잔여: `PROGRESS.md.bk`(사용자 백업, 범위 밖 — 미삭제)
-- [ ] P8 — 테스트 공백 보강
+- [x] P8 — 테스트 공백 보강 (2026-07-21 완료 — 신규 6클래스 42테스트 그린, 0실패. 커밋 대기)
+  - **#3 유일 프로덕션 변경**: `ProbabilityAnalysisUseCase.buildSnapshot` 수제 JSON(따옴표만 escape → 역슬래시·제어문자·NaN에 invalid JSON 영속) → `buildJsonObject{}.toString()`(kotlinx.serialization). 비유한 점수 0f 정제. 읽기측 `parseAlgoScores`(algoScores)·저장전용(algoRationales) 호환 확인. `androidx.work:work-testing:2.9.0` 테스트 의존성 추가
+  - 신규 테스트: `FearGreedRepositoryTest`(10 — 위임·매핑·병합 게이트/교집합) · `ProbabilityBatchWorkerTest`(8 — buildAlertLine 임계분기, work-testing+리플렉션, 프로덕션 무변경) · `ProbabilityAnalysisUseCaseTest`(9 — #3 유효 JSON/NaN정제/폴백) · `AiProbabilityAnalysisViewModelTest`(8 — 상태전이·캐시복원·NoApiKey·dismiss) · `BuildHeatmapUseCaseTest`(4) + `HeatmapViewModelTest`(3)
+  - 항목 6(비-bearsignal 워커 대표): `ProbabilityBatchWorker` 실질 로직 커버. 나머지는 `setForeground` 런타임 요구로 순수 JVM 본체 실행 불가(기존 워커 테스트 관례) → 프로덕션 변경 없이는 상수/스케줄 이상 커버 불가, ROI 낮아 보류
+  - 검증: `testDebugUnitTest` 6클래스 타깃 BUILD SUCCESSFUL(1m15s), 9+4+3+8+10+8=42, 실패 0

@@ -166,6 +166,7 @@ dependencies {
     testImplementation("androidx.test.ext:junit:1.1.5")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("androidx.room:room-testing:2.6.1")
+    testImplementation("androidx.work:work-testing:2.9.0")
 
     // === Testing (Instrumented androidTest — 실기기/에뮬레이터 필요) ===
     // 실행: `./gradlew connectedDebugAndroidTest` (디바이스 연결 상태에서)

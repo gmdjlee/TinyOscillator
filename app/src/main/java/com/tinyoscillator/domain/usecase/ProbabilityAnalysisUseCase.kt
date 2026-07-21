@@ -9,6 +9,8 @@ import com.tinyoscillator.domain.model.CacheStats
 import com.tinyoscillator.domain.model.MetaLearnerStatus
 import com.tinyoscillator.domain.model.StatisticalResult
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -56,12 +58,14 @@ class ProbabilityAnalysisUseCase @Inject constructor(
      */
     fun buildSnapshot(ticker: String, name: String, result: StatisticalResult): AnalysisSnapshotEntity {
         val algoResults = buildAlgoRationales(result)
-        val scoresJson = algoResults.entries.joinToString(",", prefix = "{", postfix = "}") { (k, v) ->
-            "\"$k\":${v.score}"
-        }
-        val rationalesJson = algoResults.entries.joinToString(",", prefix = "{", postfix = "}") { (k, v) ->
-            "\"$k\":\"${v.rationale.replace("\"", "\\\"")}\""
-        }
+        // kotlinx.serialization으로 직렬화 — 역슬래시·제어문자·따옴표를 올바로 이스케이프한다.
+        // (기존 수제 JSON은 따옴표만 escape → 근거 문자열의 역슬래시/개행/NaN 점수에서 invalid JSON 영속)
+        val scoresJson = buildJsonObject {
+            algoResults.forEach { (k, v) -> put(k, if (v.score.isFinite()) v.score else 0f) }
+        }.toString()
+        val rationalesJson = buildJsonObject {
+            algoResults.forEach { (k, v) -> put(k, v.rationale) }
+        }.toString()
         val ensemble = try {
             getEnsembleProbability(result)
         } catch (e: Exception) {

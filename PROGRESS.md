@@ -12,11 +12,11 @@
 | P1b — 치명: UI 4건 | **완료** (2026-07-20, `cfc0f39`) | 실기 QA(수용 ⑤~⑧) 잔여 |
 | P2 — WorkManager flex 백포트 | **완료** (2026-07-20) | 하단 「Phase 2 상세」 |
 | P3 — 인프라 정확성·동시성 8건 | **완료** (2026-07-20) | 하단 「Phase 3 상세」 |
-| P4 — 엔진 통계 경로 8건 | 미착수 | **착수 전 사용자 재확인**(산출 숫자 변경) |
-| P5 — 성능 6건 | 미착수 | |
-| P6 — 사용성·접근성 8건 | 미착수 | |
-| P7 — 죽은 코드·빌드·문서 정리 | 미착수 | |
-| P8 — 테스트 공백 보강 | 미착수 | |
+| P4 — 엔진 통계 경로 8건 | **완료** (2026-07-20, `1d57f82`) | 산출 숫자 변경 — 사용자 재확인·승인 |
+| P5 — 성능 6건 | **완료** (2026-07-20, `8624e33`) | |
+| P6 — 사용성·접근성 8건 | **완료** (2026-07-21, `9b389cb`) | 실기 QA 통과(pixel_fold 다크) |
+| P7 — 죽은 코드·빌드·문서 정리 | **완료** (2026-07-21, `5e76124`) | 하단 「P7」 |
+| P8 — 테스트 공백 보강 | **완료** (2026-07-21) | 하단 「P8」 — 신규 6클래스 42테스트 그린. **커밋 대기** |
 
 ## Phase 1 상세 — 치명 결함 8건 (2026-07-20, 커밋 `cfc0f39` feat/ai-analysis-ux 푸시)
 
@@ -162,5 +162,30 @@
 - 타깃 테스트 4클래스 **그린(41s)**: `EquityReportScraperTest`·`StatisticalAnalysisEngineTest`·`Korea5FactorEngineTest`·`BearSignalViewModelTest`
 - 엔진 미사용 로컬(Correlation/PatternScan/StackingEnsemble): 전체 재컴파일 `never used` 경고 0건 → P4 재작성으로 해소, 무액션
 - 잔여: `PROGRESS.md.bk`(사용자 백업, 범위 밖 — 미삭제)
+
+**커밋 대기** (자동 커밋 금지 — 사용자 지시 후).
+
+## 코드리뷰 P8 — 테스트 공백 보강 (2026-07-21)
+
+명세 `TASK_code_review_improvements.md` §Phase 8. 우선순위 1~5 신규 테스트 + 유일 프로덕션 변경(#3 JSON 직렬화). 신규 테스트 클래스 6개 · **42 테스트 전량 그린**(0 실패, `testDebugUnitTest` 타깃 실행, 1m15s).
+
+### 유일한 프로덕션 코드 변경 — #3 수제 JSON → kotlinx.serialization
+- `ProbabilityAnalysisUseCase.buildSnapshot`: 기존 수제 JSON은 **따옴표만** escape → 근거 문자열의 **역슬래시·개행·제어문자**, 점수의 **NaN/Infinity**에서 invalid JSON이 DB(`analysis_snapshots.algo_scores`/`algo_rationales`)에 영속되던 결함
+- `buildJsonObject { put(k, score); put(k, rationale) }.toString()`로 전환 — 항상 유효 JSON. 비유한 점수(NaN/∞)는 `0f`로 정제. (컴파일러 플러그인 불필요 — `kotlinx-serialization-json:1.6.3` 런타임 API만 사용)
+- **읽기측 호환 확인**: `algoScores`는 경량 파서 `parseAlgoScores`(split 기반)가 소비 → compact `{"k":0.78}` 그대로 호환. `algoRationales`는 저장 전용(재파싱 경로 없음)
+- 빌드: `androidx.work:work-testing:2.9.0` **테스트 의존성만** 추가(워커 인스턴스 생성용)
+
+### 신규 테스트 6클래스 (우선순위순)
+| # | 클래스 | 테스트 | 커버 |
+|---|---|---|---|
+| 1 | `FearGreedRepositoryTest` | 10 | 읽기 API 위임 4·`getChartData` 매핑·로그인/클라이언트 null 실패·**병합 게이트**(데이터 전무·옵션↔채권 날짜 disjoint 교집합 0건→failure)·초기수집 로그인 실패 시 `deleteAll` 미호출. 수치 계산은 기존 `FearGreedCalculatorTest` 커버라 리포지토리 고유 책임만 |
+| 2 | `ProbabilityBatchWorkerTest` | 8 | 사용자 대면 **임계 돌파 알림** `buildAlertLine` 전분기(첫분석 무알림·매수 0.65 상향·매도 0.35 하향·급변 delta 0.15·미세변화 무알림·퍼센트 문구) + companion 상수. `setForeground`로 순수 JVM 실행 불가 → work-testing으로 워커 인스턴스만 생성 후 리플렉션(**프로덕션 무변경**) |
+| 3 | `ProbabilityAnalysisUseCaseTest` | 9 | #3 검증 — 따옴표·역슬래시·제어문자 근거 유효 JSON·NaN/∞ 점수 0 정제·빈맵 `{}`·정상값 보존·스냅샷 메타·앙상블 예외 시 0.5 폴백 |
+| 4 | `AiProbabilityAnalysisViewModelTest` | 8 | 분석 성공→Success·스냅샷 저장·앙상블 / 실패→Error / 로컬해석 provider LOCAL / Success 아니면 무시 / AI 키 무효→NoApiKey / **신선 캐시 복원(AI 미호출)** / dismiss 2종 |
+| 5 | `BuildHeatmapUseCaseTest` + `HeatmapViewModelTest` | 4 + 3 | UseCase: 빈 이력→빈 히트맵·종목/이름/윈도우 반영·일별 평균 채움·null→0.5 폴백. VM: init 로드·`setWindowDays` 재로드·에러 시 isLoading 해제 |
+
+### 미달 / 판단
+- **§Phase 8 항목 6**(비-bearsignal 워커 계층 대표 2~3): `ProbabilityBatchWorker` 1개를 실질 로직(알림)까지 커버. 나머지 워커는 `BaseCollectionWorker.setForeground`가 런타임을 요구해 순수 JVM에서 본체 실행 불가 → 리포지토리 호출 오케스트레이션 래퍼라 프로덕션 변경 없이는 상수/스케줄 검증 이상 커버 불가(기존 `MarketCloseRefresh`·`FeatureCacheEviction`·`BearSignal*` 워커 테스트와 동일 관례). 추가 워커는 ROI 낮아 보류
+- 검증: `testDebugUnitTest` 6클래스 타깃 실행 **BUILD SUCCESSFUL**, XML 카운트 9+4+3+8+10+8=**42**, 실패 0
 
 **커밋 대기** (자동 커밋 금지 — 사용자 지시 후).
