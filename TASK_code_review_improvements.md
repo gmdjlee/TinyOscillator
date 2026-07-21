@@ -165,7 +165,7 @@
 ## PROGRESS
 
 - [x] P1a — 치명: 데이터/백엔드 4건 (2026-07-20 완료 — 타깃 테스트 32/32 그린: Dart 6·DatabaseModuleRecovery 1·Engine 14·AiContext 11. 신규 테스트 `DartApiClientDisclosureUrlTest`·`DatabaseModuleRecoveryTest`)
-- [x] P1b — 치명: UI 4건 (2026-07-20 완료 — MarketDepositViewModelTest 12/12 그린. 수용 기준 ⑤~⑧ 실기 QA 잔여)
+- [x] P1b — 치명: UI 4건 (2026-07-20 완료 — MarketDepositViewModelTest 12/12 그린. **수용 ⑤~⑧ 실기 QA 통과(2026-07-21, pixel_fold 에뮬)**: ⑥ DeMark 캔들 일봉→주봉 X축 날짜 갱신 실증(07/21..07/15 → 07/25..07/10, stale 아님) · ⑦ 예탁금 +22709억원·(+759) 적색(증가=적) 라이트/다크 공통 · ⑧ system-dark+app-light 예탁금·캔들 차트 축라벨 다크텍스트 가독(흰글자 실종 없음)+앱다크 변형도 클린. ⑤ 재시도는 예탁금 Room 완전캐시로 에러상태 실기 강제 불가 → MarketDepositViewModelTest 12/12 코드검증 대체. KRX 자격증명 테마재생성 순간 "미입력"은 async 로드 레이스, 재진입 정상(손실 아님))
 - [x] P2 — flex 백포트 (2026-07-20 완료 — 4곳 flex 오버로드 제거: scheduleDailyWorker(24h,15m→24h)·scheduleRegimeUpdate·scheduleMacroUpdate·scheduleMetaLearnerRefit(7d,1h→7d). grep flex 오버로드 0건, CalculateWeeklyInitialDelayMillisTest 그린 + compileDebugKotlin 성공)
 - [x] P3 — 인프라 정확성·동시성 8건 (2026-07-20 완료 — 타깃 테스트 그린: ApiErrorClassification 23·OkHttpExtensions 9·BearSignalRepositoryImpl 45·Krx 8·Kis 26·Kiwoom 21 + Dart/Fred/Stooq/Yahoo parse 그린. 신규 테스트: mapException IOException 분기 7건, 커넥션풀 누수 회귀 1건, per-key upsert 승인값 보존 2건)
   - 3-1 `ApiModels.mapException`: 일반 IOException(Connect/SSL/EOF)→`NetworkError`(재시도·CB 적용). UnknownHost/SocketTimeout/Serialization 선분류 유지
