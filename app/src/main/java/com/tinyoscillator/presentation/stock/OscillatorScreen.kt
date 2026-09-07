@@ -51,6 +51,7 @@ import com.tinyoscillator.presentation.financial.FinancialInfoContent
 import com.tinyoscillator.presentation.financial.NaverStockWebScreen
 import com.tinyoscillator.presentation.fundamental.FundamentalHistoryContent
 import com.tinyoscillator.presentation.investopinion.InvestOpinionContent
+import com.tinyoscillator.presentation.investorprofile.InvestorProfileContent
 import com.tinyoscillator.presentation.viewmodel.CandleChartUi
 import com.tinyoscillator.presentation.viewmodel.CandlePeriod
 import com.tinyoscillator.presentation.viewmodel.OscillatorDateRange
@@ -73,13 +74,14 @@ private enum class MainTab(val label: String) {
     ESTIMATED_EARNINGS("추정실적"),
     INDICATOR("지표"),
     DUPONT("DuPont"),
-    NAVER_STOCK("네이버증권")
+    NAVER_STOCK("네이버증권"),
+    INVESTOR_PROFILE("주체별 매물대")
 }
 
 /** 9개 세부 탭을 4개 그룹으로 묶어 최상위 탭 과밀·가로 스크롤 은닉 문제 해소 */
 private enum class TabGroup(val label: String, val tabs: List<MainTab>) {
     SUMMARY("종합", listOf(MainTab.SUMMARY)),
-    TECHNICAL("기술분석", listOf(MainTab.OSCILLATOR, MainTab.DEMARK)),
+    TECHNICAL("기술분석", listOf(MainTab.OSCILLATOR, MainTab.DEMARK, MainTab.INVESTOR_PROFILE)),
     FINANCIALS("재무", listOf(MainTab.FINANCIAL, MainTab.INDICATOR, MainTab.DUPONT, MainTab.ESTIMATED_EARNINGS)),
     OPINION("시장의견", listOf(MainTab.CONSENSUS, MainTab.INVEST_OPINION)),
     NAVER("네이버증권", listOf(MainTab.NAVER_STOCK))
@@ -259,6 +261,14 @@ fun OscillatorScreen(
 
                     MainTab.DEMARK -> {
                         DemarkTDContent(
+                            ticker = currentTicker,
+                            stockName = currentStockName,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    MainTab.INVESTOR_PROFILE -> {
+                        InvestorProfileContent(
                             ticker = currentTicker,
                             stockName = currentStockName,
                             modifier = Modifier.fillMaxSize()

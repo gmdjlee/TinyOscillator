@@ -18,6 +18,7 @@ class CandleDataExtTest {
     private val theme = ChartTheme(
         neutralLine = 0xFF1976D2.toInt(),
         emphasisLine = 0xFF6ECBA8.toInt(),
+        tertiaryLine = 0xFFB07A9A.toInt(),
         positive = 0xFFD85A30.toInt(),
         negative = 0xFF378ADD.toInt(),
         grid = 0xFF444444.toInt(),

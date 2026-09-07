@@ -12,9 +12,9 @@
 - 결과 검증: diff 직접 확인, 테스트 직접 실행
 - 최종 커밋 승인, 사용자 보고
 
-### Worker (Opus 서브에이전트)에게 위임하는 일
+### Worker (서브에이전트)에게 위임하는 일
 - 코드 작성과 수정, 테스트 작성 등 구현 작업 전부
-- `Agent` 도구로 위임하고 `model`은 `"opus"`를 지정한다
+- `Agent` 도구로 위임하고 `model`은 `"적절한 모델"`을 지정한다
 - 서로 독립적인 작업은 병렬로 위임한다 (한 메시지에 다중 `Agent` 호출)
 
 ### 브리프 기준
@@ -35,7 +35,7 @@
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat :app:assembleDebug --console=plain
 
-# 유닛 테스트 — 타겟만. 전체 스위트 절대 돌리지 마라(~1,420건, 느림)
+# 유닛 테스트 — 타겟만. 전체 스위트 절대 돌리지 마라(~2,640건, 느림)
 .\gradlew.bat :app:testDebugUnitTest --tests "com.tinyoscillator.<Class>"
 
 # 계측 테스트 (실기기/에뮬레이터)

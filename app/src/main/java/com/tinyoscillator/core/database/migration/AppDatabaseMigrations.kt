@@ -60,6 +60,7 @@ object AppDatabaseMigrations {
         MIGRATION_35_36,
         MIGRATION_36_37,
         MIGRATION_37_38,
+        MIGRATION_38_39,
     )
 }
 
@@ -1041,6 +1042,48 @@ private val MIGRATION_37_38 = object : Migration(37, 38) {
             Timber.d("Migration v37→v38 성공: bear_signal_ai_context 테이블 생성")
         } catch (e: Exception) {
             Timber.e(e, "Migration v37→v38 실패")
+            throw e
+        }
+    }
+}
+
+/**
+ * Migration v38→v39: 주체별(개인·외국인·기관) 일별 매수·매도 원천 캐시 테이블 신설
+ * (TASK_investor_volume_profile.md §6.4).
+ *
+ * KIS FHPTJ04160001(투자자매매동향, 종목별 일자별) 응답을 그대로 저장한다. 컬럼명은 카멜케이스
+ * SSOT 코드 블록을 그대로 재현한다(`BearSnapshotEntity` 관례). `*Amt` 필드는 파싱 시 이미
+ * 원 단위로 승격된 값이다.
+ */
+private val MIGRATION_38_39 = object : Migration(38, 39) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `investor_flow` (" +
+                    "`ticker` TEXT NOT NULL, " +
+                    "`date` TEXT NOT NULL, " +
+                    "`high` INTEGER NOT NULL, " +
+                    "`low` INTEGER NOT NULL, " +
+                    "`close` INTEGER NOT NULL, " +
+                    "`volume` INTEGER NOT NULL, " +
+                    "`prsnBuyVol` INTEGER NOT NULL, " +
+                    "`prsnBuyAmt` INTEGER NOT NULL, " +
+                    "`prsnSellVol` INTEGER NOT NULL, " +
+                    "`prsnSellAmt` INTEGER NOT NULL, " +
+                    "`frgnBuyVol` INTEGER NOT NULL, " +
+                    "`frgnBuyAmt` INTEGER NOT NULL, " +
+                    "`frgnSellVol` INTEGER NOT NULL, " +
+                    "`frgnSellAmt` INTEGER NOT NULL, " +
+                    "`orgnBuyVol` INTEGER NOT NULL, " +
+                    "`orgnBuyAmt` INTEGER NOT NULL, " +
+                    "`orgnSellVol` INTEGER NOT NULL, " +
+                    "`orgnSellAmt` INTEGER NOT NULL, " +
+                    "`fetchedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`ticker`, `date`))"
+            )
+            Timber.d("Migration v38→v39 성공: investor_flow 테이블 생성")
+        } catch (e: Exception) {
+            Timber.e(e, "Migration v38→v39 실패")
             throw e
         }
     }

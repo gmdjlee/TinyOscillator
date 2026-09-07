@@ -14,6 +14,7 @@ import com.tinyoscillator.core.database.dao.FeatureCacheDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.FundamentalCacheDao
 import com.tinyoscillator.core.database.dao.IncrementalModelDao
+import com.tinyoscillator.core.database.dao.InvestorFlowDao
 import com.tinyoscillator.core.database.dao.MacroDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
@@ -115,4 +116,7 @@ object DaoModule {
 
     @Provides
     fun provideBearSignalAiContextDao(db: AppDatabase): BearSignalAiContextDao = db.bearSignalAiContextDao()
+
+    @Provides
+    fun provideInvestorFlowDao(db: AppDatabase): InvestorFlowDao = db.investorFlowDao()
 }

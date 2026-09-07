@@ -15,6 +15,7 @@ import com.tinyoscillator.core.database.dao.ConsensusReportDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.FundamentalCacheDao
+import com.tinyoscillator.core.database.dao.InvestorFlowDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
@@ -29,6 +30,7 @@ import com.tinyoscillator.data.repository.EtfRepository
 import com.tinyoscillator.data.repository.FinancialRepository
 import com.tinyoscillator.data.repository.EstimatedEarningsRepository
 import com.tinyoscillator.data.repository.InvestOpinionRepository
+import com.tinyoscillator.data.repository.InvestorFlowRepository
 import com.tinyoscillator.data.repository.FundamentalHistoryRepository
 import com.tinyoscillator.data.repository.MarketIndicatorRepository
 import com.tinyoscillator.data.repository.PortfolioRepository
@@ -37,6 +39,7 @@ import com.tinyoscillator.data.repository.ThemeRepository
 import com.tinyoscillator.domain.usecase.AiAnalysisPreparer
 import com.tinyoscillator.domain.usecase.ProbabilityInterpreter
 import com.tinyoscillator.domain.usecase.CalcDemarkTDUseCase
+import com.tinyoscillator.domain.usecase.CalcInvestorVolumeProfileUseCase
 import com.tinyoscillator.domain.usecase.CalcOscillatorUseCase
 import com.tinyoscillator.domain.usecase.MarketOscillatorCalculator
 import dagger.Module
@@ -96,6 +99,10 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideCalcInvestorVolumeProfileUseCase(): CalcInvestorVolumeProfileUseCase = CalcInvestorVolumeProfileUseCase()
+
+    @Provides
+    @Singleton
     fun provideAiApiClient(httpClient: OkHttpClient): AiApiClient =
         AiApiClient(httpClient = httpClient)
 
@@ -138,6 +145,14 @@ object AppModule {
         kisApiClient: KisApiClient,
         json: Json
     ): EstimatedEarningsRepository = EstimatedEarningsRepository(kisApiClient, json)
+
+    @Provides
+    @Singleton
+    fun provideInvestorFlowRepository(
+        investorFlowDao: InvestorFlowDao,
+        kisApiClient: KisApiClient,
+        json: Json
+    ): InvestorFlowRepository = InvestorFlowRepository(investorFlowDao, kisApiClient, json)
 
     @Provides
     @Singleton

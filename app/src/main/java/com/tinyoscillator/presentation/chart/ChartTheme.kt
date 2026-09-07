@@ -13,6 +13,7 @@ import com.tinyoscillator.ui.theme.NeutralDark
 data class ChartTheme(
     val neutralLine: Int,   // secondary — 방향성 없는 지수/평균선
     val emphasisLine: Int,  // primary — 오실레이터 등 주 시리즈
+    val tertiaryLine: Int,  // tertiary — 범주형 3번째 시리즈
     val positive: Int,      // finance.positive — 상승/과매수/TD Sell (한국식 적)
     val negative: Int,      // finance.negative — 하락/TD Buy (한국식 청)
     val grid: Int,          // surfaceVariant — 격자선
@@ -31,6 +32,7 @@ fun rememberChartTheme(): ChartTheme {
         ChartTheme(
             neutralLine = scheme.secondary.toArgb(),
             emphasisLine = scheme.primary.toArgb(),
+            tertiaryLine = scheme.tertiary.toArgb(),
             positive = finance.positive.toArgb(),
             negative = finance.negative.toArgb(),
             grid = scheme.surfaceVariant.toArgb(),

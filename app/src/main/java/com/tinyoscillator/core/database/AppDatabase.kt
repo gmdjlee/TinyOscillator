@@ -16,6 +16,7 @@ import com.tinyoscillator.core.database.dao.RegimeDao
 import com.tinyoscillator.core.database.dao.EtfDao
 import com.tinyoscillator.core.database.dao.FinancialCacheDao
 import com.tinyoscillator.core.database.dao.FundamentalCacheDao
+import com.tinyoscillator.core.database.dao.InvestorFlowDao
 import com.tinyoscillator.core.database.dao.MarketDepositDao
 import com.tinyoscillator.core.database.dao.MarketOscillatorDao
 import com.tinyoscillator.core.database.dao.PortfolioDao
@@ -45,6 +46,7 @@ import com.tinyoscillator.core.database.entity.FearGreedEntity
 import com.tinyoscillator.core.database.entity.EtfHoldingEntity
 import com.tinyoscillator.core.database.entity.FinancialCacheEntity
 import com.tinyoscillator.core.database.entity.FundamentalCacheEntity
+import com.tinyoscillator.core.database.entity.InvestorFlowEntity
 import com.tinyoscillator.core.database.entity.MarketDepositEntity
 import com.tinyoscillator.core.database.entity.MarketOscillatorEntity
 import com.tinyoscillator.core.database.entity.PortfolioEntity
@@ -98,8 +100,9 @@ import com.tinyoscillator.feature.bearsignal.data.local.BearSnapshotEntity
         BearSignalManualCountryReturnEntity::class,
         BearSnapshotEntity::class,
         BearSignalAiContextEntity::class,
+        InvestorFlowEntity::class,
     ],
-    version = 38,
+    version = 39,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -128,4 +131,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bearSignalDao(): BearSignalDao
     abstract fun bearSnapshotDao(): BearSnapshotDao
     abstract fun bearSignalAiContextDao(): BearSignalAiContextDao
+    abstract fun investorFlowDao(): InvestorFlowDao
 }

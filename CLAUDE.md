@@ -3,7 +3,7 @@
 > **파일 규칙**: 이 파일은 **코드베이스 사실**(구조·스택·컨벤션)만 담는다. 60~120줄 유지 — 갱신 시 오래된 항목을 지우고 추가하며 줄 수를 넘기지 마라. 에이전트 운영 방식(역할 분담·명령어)은 `AGENTS.md` 참조.
 
 ## Overview
-한국 주식시장 분석 Android 앱(리테일 투자자 대상). 오실레이터 기술분석, DeMark TD Sequential, 재무제표 분석, ETF 섹터 분석, Fear&Greed 지수, 애널리스트 컨센서스, AI 분석(Claude/Gemini API), 시장 국면·리스크 계기판(BearSignal), 포트폴리오 관리. 순수 Kotlin. MVVM + Clean Architecture, ~2,490 passing tests, Room DB v38.
+한국 주식시장 분석 Android 앱(리테일 투자자 대상). 오실레이터 기술분석, DeMark TD Sequential, 재무제표 분석, ETF 섹터 분석, Fear&Greed 지수, 애널리스트 컨센서스, AI 분석(Claude/Gemini API), 시장 국면·리스크 계기판(BearSignal), 주체별 매물대(개인·외국인·기관 매수 추정, 종목분석 탭), 포트폴리오 관리. 순수 Kotlin. MVVM + Clean Architecture, ~2,700 passing tests, Room DB v39.
 
 ## Tech stack
 | Property | Value | | Library | Ver | Purpose |
@@ -28,14 +28,14 @@ app/src/main/java/com/tinyoscillator/
   domain/  model|repository|usecase
   feature/bearsignal/       # 시장 국면·리스크 계기판 (data|di|domain|presentation 자체 계층)
   presentation/  ai|chart|consensus|demark|etf|financial|fundamental|market|
-                 marketanalysis|portfolio|quickanalysis|report|settings|theme|viewmodel
+                 investorprofile|marketanalysis|portfolio|quickanalysis|report|settings|theme|viewmodel
   ui/theme/                 # Material3 theme
-app/src/test/               # 214 test files (~2,490 tests)
+app/src/test/               # 230 test files (~2,700 tests)
 app/src/androidTest/        # Compose UI smoke tests
-app/schemas/                # Room schema exports v2~v38
+app/schemas/                # Room schema exports v2~v39
 settings.gradle.kts         # includeBuild("../kotlin_krx")
 ```
-- 소스: `app/src/main` 아래 ~323 Kotlin 파일. `:app` 단일 모듈 + `../kotlin_krx` composite build.
+- 소스: `app/src/main` 아래 ~440 Kotlin 파일(BearSignal 89 포함). `:app` 단일 모듈 + `../kotlin_krx` composite build.
 
 ## Architecture (MVVM + Clean)
 - **Domain**: interfaces(`StatisticalRepository`, `LlmRepository`), use cases(`AnalyzeStockProbabilityUseCase`, `CalcOscillatorUseCase`), 도메인 모델
@@ -43,7 +43,9 @@ settings.gradle.kts         # includeBuild("../kotlin_krx")
 - **Presentation**: Compose 스크린, ViewModel, theme
 - **Core**: API 클라이언트, DB, DI, network, worker
 
-핵심 클래스: `StatisticalAnalysisEngine`(9-엔진 병렬 오케스트레이터, 개별 실패 격리 + 진행 콜백) → `AiApiClient`(스트리밍 SSE `chatStream`, 구조화 출력 `analyzeStructured` Claude tool_choice/Gemini JSON 모드, Claude prompt caching) → `AnalysisResponseParser`(`STOCK_ANALYSIS_SCHEMA` 단일 진실 공급원, `parseOrNull`). AI 불가 시 `ProbabilityInterpreter` 로컬 해석. AI 해석은 `analysis_snapshots.ai_interpretation`에 저장·4h 재사용. `ApiConfigProvider`(volatile+mutex 자격증명 캐시 — 설정 저장 시 `invalidateAll()` 필수), `WorkManagerHelper`(스케줄), `AppDatabase`(v38, 34 entities, 25 DAOs).
+핵심 클래스: `StatisticalAnalysisEngine`(9-엔진 병렬 오케스트레이터, 개별 실패 격리 + 진행 콜백) → `AiApiClient`(스트리밍 SSE `chatStream`, 구조화 출력 `analyzeStructured` Claude tool_choice/Gemini JSON 모드, Claude prompt caching) → `AnalysisResponseParser`(`STOCK_ANALYSIS_SCHEMA` 단일 진실 공급원, `parseOrNull`). AI 불가 시 `ProbabilityInterpreter` 로컬 해석. AI 해석은 `analysis_snapshots.ai_interpretation`에 저장·4h 재사용. `ApiConfigProvider`(volatile+mutex 자격증명 캐시 — 설정 저장 시 `invalidateAll()` 필수), `WorkManagerHelper`(스케줄), `AppDatabase`(v39, 35 entities, 26 DAOs).
+
+**주체별 매물대**(`presentation/investorprofile/`, 종목분석 기술분석 그룹 탭): KIS `FHPTJ04160001` 일별 매수·매도 → `InvestorFlowRepository`(날짜 스텝 페이징, Room `investor_flow` 증분 캐시) → 순수 `CalcInvestorVolumeProfileUseCase`(정규 커널 배분·비례상각·프랙탈 스윙·캡/지지 존, 골든 = `docs/fixtures/rows.csv`). 명세 `docs/TASK_investor_volume_profile.md`. 기존 캔들 방향 `VolumeProfile*`/Kiwoom `InvestorTrend*`와 별개 — 혼동 금지.
 
 **BearSignal**(`feature/bearsignal/`): 주도주 붕괴 판단 계기판 — 신영증권 리포트 기반. 스코어링 SSOT=루트 `bear_signal_dashboard.jsx`, 임계치 SSOT=`bear_thresholds.json`(assets 사본, `ThresholdsProvider` 주입) — **스코어링 함수·임계치 임의 수정 금지**(골든 테스트 가드). 입력 우선순위 MANUAL > AUTO > 리포트 기준값(`MergeBearSignalInputsUseCase`). §4.5 AI 제안(Claude web_search/Gemini google_search)은 명시 버튼 트리거+승인 필수, 자동 fetch 금지. 명세 `TASK_bear_signal_console.md`, 진행 기록 `PROGRESS.md`.
 
@@ -51,7 +53,7 @@ settings.gradle.kts         # includeBuild("../kotlin_krx")
 NaiveBayes · LogisticScoring · HmmRegime · PatternScan · SignalScoring · Correlation · BayesianUpdate · OrderFlow · DartEvent. 모두 `data/engine/`. `StatisticalAnalysisEngine`가 coroutine 병렬 실행 + `RegimeWeightTable` regime-aware 가중. (별개 11번째 엔진 `SectorCorrelationNetwork` — `stock_master.sector`만 사용, 테마 메뉴와 무관, 혼동 금지.)
 
 ## Data sources
-- **KIS / Kiwoom OpenAPI**: OAuth2 토큰(mutex 캐시, 만료 1분 전 갱신), 500ms rate limit, circuit breaker(3 실패→5분), 인증서 피닝. Kiwoom 테마 `/api/dostk/thme`(ka90001/ka90002, cont-yn 페이지네이션, MAX_PAGES=50).
+- **KIS / Kiwoom OpenAPI**: OAuth2 토큰(mutex 캐시, 만료 1분 전 갱신), 500ms rate limit, circuit breaker(3 실패→5분), 인증서 피닝. Kiwoom 테마 `/api/dostk/thme`(ka90001/ka90002, cont-yn 페이지네이션, MAX_PAGES=50). KIS `FHPTJ04160001`(투자자매매동향 일별): 30행/콜, `tr_cont` 무효 → `FID_INPUT_DATE_1`을 최고(最古) 일자−1로 스텝(MAX_PAGES=26≈3년), 당일 15:40 전 `OPSQ2001` 거부, 대금 백만원, **모의투자 미지원**.
 - **KRX** (via kotlin_krx): ETF/portfolio/index/stock. Room 캐시(ETF 365d, fundamental 730d TTL), 500ms.
 - **AI API**: Claude Haiku/Sonnet, Gemini Flash. 1000ms rate limit.
 - **DART**: corpCode.xml→Room(30d TTL), 10k/day, event study(OLS beta, CAR [-5,+20]).
@@ -60,8 +62,8 @@ NaiveBayes · LogisticScoring · HmmRegime · PatternScan · SignalScoring · Co
 - **FRED** (BearSignal): DFEDTARU 연방기금금리 상단. **Yahoo chart API** (BearSignal): 해외지수 기본 소스(브라우저 UA 필수), Stooq 백업 폴백.
 - **Scrapers**: NaverFinance(500ms) · EquityReport(8-16s) · FnGuide(1-5s).
 
-## Room DB (v38)
-- Migration `MIGRATION_1_2`~`MIGRATION_37_38` in `core/database/migration/AppDatabaseMigrations.kt`, `.addMigrations(*AppDatabaseMigrations.ALL)`. **`fallbackToDestructiveMigration()` 없음 — 모든 업그레이드 명시적.** Schema JSON `app/schemas/.../2.json~38.json`.
+## Room DB (v39)
+- Migration `MIGRATION_1_2`~`MIGRATION_38_39` in `core/database/migration/AppDatabaseMigrations.kt`, `.addMigrations(*AppDatabaseMigrations.ALL)`. **`fallbackToDestructiveMigration()` 없음 — 모든 업그레이드 명시적.** Schema JSON `app/schemas/.../2.json~39.json`. v38→39: `investor_flow`(주체별 일별 매수·매도 원천 캐시, `ticker`+`date` PK, `@Upsert`).
 - v32→33: `analysis_snapshots.ai_interpretation`(AI 해석 캐시). v33→37 (BearSignal): `bear_signal_auto_cache`(범용 key-value) · `bear_signal_country_return` · 수동입력 2테이블(자동 캐시와 분리 — 덮어쓰기 방지) · `bear_snapshot`(day PK 이력). v37→38: `bear_signal_ai_context`(§4.7 AI 승인 표시 콘텐츠, `section_key` PK — 스코어링 미유입).
 
 ## Background jobs (WorkManager)

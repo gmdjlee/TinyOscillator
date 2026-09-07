@@ -13,6 +13,8 @@ android {
 
     defaultConfig {
         applicationId = "com.tinyoscillator"
+        // androidTest(JUnit4/Compose)는 AndroidX 러너가 필요하다. 미설정 시 레거시 android.test 러너로 실행돼 "No tests found"/크래시.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
